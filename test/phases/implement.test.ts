@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-vi.mock("node:fs", () => ({
-  readFileSync: vi.fn((path: string) => {
-    if (path.includes("prompts/coordinator.md")) return "IMPLEMENT_COORDINATOR_PROMPT";
-    if (path.includes("agents/build.md")) return "BUILD_PROMPT";
-    if (path.includes("agents/review.md")) return "REVIEW_PROMPT";
-    if (path.includes("agents/verify.md")) return "VERIFY_PROMPT";
-    if (path.includes("agents/pr.md")) return "PR_PROMPT";
-    return "";
-  }),
+const { mockRun } = vi.hoisted(() => ({ mockRun: vi.fn() }));
+
+vi.mock("../../.pi/extensions/feature-forge/pi-spawner", () => ({
+  PiSpawner: class {
+    run = vi.fn();
+  },
+}));
+
+vi.mock("../../.pi/extensions/feature-forge/phases/implement/coordinator", () => ({
+  ImplementCoordinator: class {
+    run = mockRun;
+  },
 }));
 
 import { ImplementPhase } from "../../.pi/extensions/feature-forge/phases/implement";
@@ -28,6 +31,8 @@ describe("ImplementPhase", () => {
       on: vi.fn(),
     } as unknown as ExtensionAPI;
     State.initialize(mockPi);
+
+    mockRun.mockResolvedValue({ prUrl: undefined });
   });
 
   it("has the correct name and description", () => {
@@ -60,11 +65,8 @@ describe("ImplementPhase", () => {
     expect(notify).toHaveBeenCalledWith(expect.stringContaining("No issue found"), "error");
   });
 
-  it("sends coordinator prompt with issue ref when resolved from args", async () => {
+  it("starts pipeline with notify when issue ref is resolved from args", async () => {
     const notify = vi.fn();
-    const sendUserMessage = vi.fn().mockResolvedValue(undefined);
-    mockPi.sendUserMessage = sendUserMessage;
-
     const phase = new ImplementPhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/42", {
@@ -72,21 +74,16 @@ describe("ImplementPhase", () => {
       sessionManager: { getEntries: () => [] },
     } as never);
 
-    expect(notify).toHaveBeenCalledWith("Starting implementation coordinator...", "info");
-    expect(sendUserMessage).toHaveBeenCalledTimes(1);
-    const messages = sendUserMessage.mock.calls[0][0];
-    expect(messages[0].text).toBe("IMPLEMENT_COORDINATOR_PROMPT");
-    expect(messages[1].text).toContain("https://github.com/o/r/issues/42");
+    expect(notify).toHaveBeenCalledWith("Starting implementation pipeline...", "info");
+    expect(mockRun).toHaveBeenCalledTimes(1);
   });
 
-  it("sends coordinator prompt with issue ref from pipeline state", async () => {
-    const sendUserMessage = vi.fn().mockResolvedValue(undefined);
-    mockPi.sendUserMessage = sendUserMessage;
-
+  it("starts pipeline with issue ref from pipeline state", async () => {
+    const notify = vi.fn();
     const phase = new ImplementPhase(mockPi);
 
     await phase.handler(undefined, {
-      ui: { notify: vi.fn() },
+      ui: { notify },
       sessionManager: {
         getEntries: () => [
           {
@@ -101,37 +98,47 @@ describe("ImplementPhase", () => {
       },
     } as never);
 
-    expect(sendUserMessage).toHaveBeenCalledTimes(1);
-    const messages = sendUserMessage.mock.calls[0][0];
-    expect(messages[1].text).toContain("https://github.com/o/r/issues/7");
+    expect(mockRun).toHaveBeenCalledTimes(1);
   });
 
-  it("handles null sessionManager gracefully", async () => {
-    const sendUserMessage = vi.fn().mockResolvedValue(undefined);
-    mockPi.sendUserMessage = sendUserMessage;
-
+  it("reports PR URL when coordinator returns one", async () => {
+    mockRun.mockResolvedValue({ prUrl: "https://github.com/o/r/pull/99" });
+    const notify = vi.fn();
     const phase = new ImplementPhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/42", {
-      ui: { notify: vi.fn() },
+      ui: { notify },
+      sessionManager: { getEntries: () => [] },
+    } as never);
+
+    expect(notify).toHaveBeenCalledWith("PR opened: https://github.com/o/r/pull/99", "info");
+  });
+
+  it("reports warning when no PR was created", async () => {
+    mockRun.mockResolvedValue({ prUrl: undefined });
+    const notify = vi.fn();
+    const phase = new ImplementPhase(mockPi);
+
+    await phase.handler("https://github.com/o/r/issues/42", {
+      ui: { notify },
+      sessionManager: { getEntries: () => [] },
+    } as never);
+
+    expect(notify).toHaveBeenCalledWith(
+      "Implementation pipeline finished but no PR was created.",
+      "warning",
+    );
+  });
+
+  it("handles null sessionManager gracefully", async () => {
+    const notify = vi.fn();
+    const phase = new ImplementPhase(mockPi);
+
+    await phase.handler("https://github.com/o/r/issues/42", {
+      ui: { notify },
       sessionManager: null,
     } as never);
 
-    expect(sendUserMessage).toHaveBeenCalledTimes(1);
-  });
-
-  it("loads all agent prompts", () => {
-    const phase = new ImplementPhase(mockPi);
-
-    const loadAgent = (name: string) =>
-      (ImplementPhase.prototype as unknown as { loadAgent(n: string): string }).loadAgent.call(
-        phase,
-        name,
-      );
-
-    expect(loadAgent("build")).toBe("BUILD_PROMPT");
-    expect(loadAgent("review")).toBe("REVIEW_PROMPT");
-    expect(loadAgent("verify")).toBe("VERIFY_PROMPT");
-    expect(loadAgent("pr")).toBe("PR_PROMPT");
+    expect(mockRun).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,6 +3,8 @@ import { dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Phase } from "../base";
 import { State } from "../../state";
+import { PiSpawner } from "../../pi-spawner";
+import { ImplementCoordinator } from "./coordinator";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 
@@ -26,22 +28,19 @@ export class ImplementPhase extends Phase {
       return;
     }
 
-    ctx.ui.notify("Starting implementation coordinator...", "info");
+    ctx.ui.notify("Starting implementation pipeline...", "info");
 
-    let coordinator = this.loadPrompt("coordinator");
-    coordinator = coordinator.replace("{{agentBuild}}", this.loadAgent("build"));
-    coordinator = coordinator.replace("{{agentReview}}", this.loadAgent("review"));
-    coordinator = coordinator.replace("{{agentVerify}}", this.loadAgent("verify"));
-    coordinator = coordinator.replace("{{agentPr}}", this.loadAgent("pr"));
-    coordinator = coordinator.replace("{{issueUrl}}", issueRef);
+    const spawner = new PiSpawner();
+    const coordinator = new ImplementCoordinator(issueRef, spawner);
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    await this.pi.sendUserMessage([
-      { type: "text", text: coordinator },
-      {
-        type: "text",
-        text: `\n\n**Issue to implement**: ${issueRef}\n\nRead the issue and start the cycle.`,
-      },
-    ]);
+    const result = await coordinator.run((msg) => {
+      ctx.ui.notify(msg, "info");
+    });
+
+    if (result.prUrl) {
+      ctx.ui.notify(`PR opened: ${result.prUrl}`, "info");
+    } else {
+      ctx.ui.notify("Implementation pipeline finished but no PR was created.", "warning");
+    }
   }
 }
