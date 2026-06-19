@@ -7,6 +7,9 @@ function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string
     type: "custom" as const,
     customType: "pipeline-issue",
     data,
+    id: "test-id",
+    parentId: null,
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -16,7 +19,15 @@ describe("findPipelineIssueUrl", () => {
   });
 
   it("returns undefined when no pipeline-issue entry exists", () => {
-    const entries: SessionEntry[] = [{ type: "user", text: "hello" } as SessionEntry];
+    const entries: SessionEntry[] = [
+      {
+        type: "user",
+        text: "hello",
+        id: "1",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+      } as unknown as SessionEntry,
+    ];
     expect(findPipelineIssueUrl(entries)).toBeUndefined();
   });
 
@@ -42,9 +53,21 @@ describe("findPipelineIssueUrl", () => {
 
   it("ignores non-custom entries mixed in", () => {
     const entries: SessionEntry[] = [
-      { type: "user", text: "hello" } as SessionEntry,
+      {
+        type: "user",
+        text: "hello",
+        id: "1",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+      } as unknown as SessionEntry,
       pipelineEntry({ issueUrl: "https://github.com/o/r/issues/7" }),
-      { type: "assistant", text: "ok" } as SessionEntry,
+      {
+        type: "assistant",
+        text: "ok",
+        id: "2",
+        parentId: null,
+        timestamp: new Date().toISOString(),
+      } as unknown as SessionEntry,
     ];
     expect(findPipelineIssueUrl(entries)).toBe("https://github.com/o/r/issues/7");
   });

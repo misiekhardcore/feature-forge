@@ -7,6 +7,9 @@ function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string
     type: "custom" as const,
     customType: "pipeline-issue",
     data,
+    id: "test-id",
+    parentId: null,
+    timestamp: new Date().toISOString(),
   };
 }
 

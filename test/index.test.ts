@@ -9,12 +9,16 @@ vi.mock("../.pi/extensions/feature-forge/commands/define", () => ({
 }));
 
 import featureForge from "../.pi/extensions/feature-forge/index";
+import { PipelineState } from "../.pi/extensions/feature-forge/state";
 
-function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
+function pipelineEntry(data: PipelineState): CustomEntry<PipelineState> {
   return {
     type: "custom" as const,
     customType: "pipeline-issue",
     data,
+    id: "test-id",
+    parentId: null,
+    timestamp: new Date().toISOString(),
   };
 }
 
