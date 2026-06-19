@@ -1,6 +1,4 @@
 import { execSync } from "node:child_process";
-import { findPipelineIssueUrl } from "./state";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 /**
  * Expand a bare issue number to a full GitHub URL using the origin remote.
@@ -21,20 +19,6 @@ export function expandBareIssueNumber(ref: string): string {
     // Leave as-is
   }
   return ref;
-}
-
-/**
- * Resolve an issue reference from command args, falling back to /discover state.
- * Returns the issue URL/ref, or undefined if nothing found.
- */
-export function resolveIssueRef(
-  args: string | undefined,
-  entries: SessionEntry[],
-): string | undefined {
-  if (args && args.trim()) {
-    return expandBareIssueNumber(args.trim());
-  }
-  return findPipelineIssueUrl(entries);
 }
 
 export function isGitHubIssueUrl(ref: string): RegExpMatchArray | null {

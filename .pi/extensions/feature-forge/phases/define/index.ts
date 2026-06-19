@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Phase } from "../base";
-import { resolveIssueRef } from "../../github";
+import { resolveIssueRef } from "../../state";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const RESEARCH_TIMEOUT_MS = 180_000;

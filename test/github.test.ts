@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  expandBareIssueNumber,
-  resolveIssueRef,
-  isGitHubPrUrl,
-} from "../.pi/extensions/feature-forge/github";
+import { expandBareIssueNumber, isGitHubPrUrl } from "../.pi/extensions/feature-forge/github";
+import { resolveIssueRef } from "../.pi/extensions/feature-forge/state";
 import type { SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 
 function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
