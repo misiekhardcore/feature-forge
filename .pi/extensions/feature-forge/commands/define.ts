@@ -4,7 +4,7 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFINE_PROMPT, researchPrompt } from "../prompts";
-import { resolveIssueRef } from "../state";
+import { resolveIssueRef } from "../github";
 
 const RESEARCH_TIMEOUT_MS = 180_000;
 const RESEARCH_MAX_BUFFER = 5 * 1024 * 1024;
