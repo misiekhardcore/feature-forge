@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { expandBareIssueNumber, resolveIssueRef } from "../.pi/extensions/feature-forge/github";
+import {
+  expandBareIssueNumber,
+  resolveIssueRef,
+  isGitHubPrUrl,
+} from "../.pi/extensions/feature-forge/github";
 import type { SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 
 function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
@@ -42,6 +46,41 @@ describe("expandBareIssueNumber", () => {
   it("handles SSH remote format (repo context)", () => {
     const result = expandBareIssueNumber("99");
     expect(result).toMatch(/^https:\/\/github\.com\/.+\/.+\/issues\/99$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isGitHubPrUrl
+// ---------------------------------------------------------------------------
+describe("isGitHubPrUrl", () => {
+  it("matches standard PR URL", () => {
+    const result = isGitHubPrUrl("https://github.com/owner/repo/pull/123");
+    expect(result).not.toBeNull();
+    expect(result![1]).toBe("123");
+  });
+
+  it("matches PR URL in multiline output", () => {
+    const result = isGitHubPrUrl("Some output\nhttps://github.com/owner/repo/pull/456\nmore text");
+    expect(result).not.toBeNull();
+    expect(result![1]).toBe("456");
+  });
+
+  it("does not match issue URL", () => {
+    expect(isGitHubPrUrl("https://github.com/owner/repo/issues/123")).toBeNull();
+  });
+
+  it("does not match non-GitHub URLs", () => {
+    expect(isGitHubPrUrl("https://gitlab.com/owner/repo/pull/123")).toBeNull();
+  });
+
+  it("does not match empty string", () => {
+    expect(isGitHubPrUrl("")).toBeNull();
+  });
+
+  it("matches http variant", () => {
+    const result = isGitHubPrUrl("http://github.com/o/r/pull/789");
+    expect(result).not.toBeNull();
+    expect(result![1]).toBe("789");
   });
 });
 

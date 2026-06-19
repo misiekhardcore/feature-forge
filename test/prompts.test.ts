@@ -3,6 +3,7 @@ import {
   DISCOVERY_PROMPT,
   DEFINE_PROMPT,
   researchPrompt,
+  IMPLEMENT_PROMPTS,
 } from "../.pi/extensions/feature-forge/prompts";
 
 describe("prompt constants", () => {
@@ -31,6 +32,68 @@ describe("prompt constants", () => {
 
   it("DEFINE_PROMPT tells LLM not to git commit", () => {
     expect(DEFINE_PROMPT).toMatch(/Do NOT git commit/);
+  });
+});
+
+describe("IMPLEMENT_PROMPTS", () => {
+  it("exports all 5 prompt keys", () => {
+    expect(Object.keys(IMPLEMENT_PROMPTS)).toEqual([
+      "coordinator",
+      "build",
+      "review",
+      "verify",
+      "pr",
+    ]);
+  });
+
+  it("each prompt is a non-empty string", () => {
+    for (const [key, value] of Object.entries(IMPLEMENT_PROMPTS)) {
+      expect(typeof value).toBe("string");
+      expect(value.length, `${key} prompt is empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it("coordinator prompt mentions sub-agents and cycles", () => {
+    expect(IMPLEMENT_PROMPTS.coordinator).toMatch(/sub-agent|pi -p/i);
+    expect(IMPLEMENT_PROMPTS.coordinator).toMatch(/cycle|loop/i);
+  });
+
+  it("build prompt mentions worktree creation", () => {
+    expect(IMPLEMENT_PROMPTS.build).toMatch(/worktree|branch/i);
+  });
+
+  it("review prompt mentions acceptance criteria", () => {
+    expect(IMPLEMENT_PROMPTS.review).toMatch(/acceptance criter|ac/i);
+  });
+
+  it("verify prompt mentions test suite", () => {
+    expect(IMPLEMENT_PROMPTS.verify).toMatch(/npm test|npm run check/i);
+  });
+
+  it("pr prompt mentions gh pr create", () => {
+    expect(IMPLEMENT_PROMPTS.pr).toMatch(/gh pr create|pull request/i);
+  });
+
+  it("each prompt has a Handoff section", () => {
+    for (const [key, value] of Object.entries(IMPLEMENT_PROMPTS)) {
+      expect(value, `${key} prompt missing Handoff section`).toMatch(/## Handoff/);
+    }
+  });
+
+  it("sub-agent prompts have the no-interact rule", () => {
+    for (const key of ["build", "review", "verify", "pr"] as const) {
+      expect(IMPLEMENT_PROMPTS[key], `${key} prompt missing no-interact rule`).toMatch(
+        /Do not interact with the user/i,
+      );
+    }
+  });
+
+  it("sub-agent prompts have the output-only rule", () => {
+    for (const key of ["build", "review", "verify", "pr"] as const) {
+      expect(IMPLEMENT_PROMPTS[key], `${key} prompt missing output-only rule`).toMatch(
+        /Output ONLY the handoff section/i,
+      );
+    }
   });
 });
 

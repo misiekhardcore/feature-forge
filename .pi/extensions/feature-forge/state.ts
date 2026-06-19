@@ -3,6 +3,8 @@ import type { CustomEntry, SessionEntry } from "@earendil-works/pi-coding-agent"
 export interface PipelineState {
   issueUrl?: string;
   issueNumber?: number;
+  prUrl?: string;
+  prNumber?: number;
 }
 
 const PIPELINE_ISSUE_TYPE = "pipeline-issue";
