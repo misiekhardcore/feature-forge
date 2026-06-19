@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const { mockWriteFileSync, mockUnlinkSync, mockExecSync } = vi.hoisted(() => ({
-  mockWriteFileSync: vi.fn(),
-  mockUnlinkSync: vi.fn(),
-  mockExecSync: vi.fn(),
+// Mock PiSpawner so research doesn't actually spawn processes
+const mockRun = vi.fn();
+vi.mock("../../.pi/extensions/feature-forge/pi-spawner", () => ({
+  PiSpawner: class {
+    run = mockRun;
+  },
 }));
 
 vi.mock("node:fs", () => ({
@@ -17,19 +19,13 @@ vi.mock("node:fs", () => ({
     }
     return "";
   }),
-  writeFileSync: mockWriteFileSync,
-  unlinkSync: mockUnlinkSync,
-}));
-
-vi.mock("node:child_process", () => ({
-  execSync: mockExecSync,
 }));
 
 import { DefinePhase } from "../../.pi/extensions/feature-forge/phases/define";
 import { State } from "../../.pi/extensions/feature-forge/state";
 
 // ---------------------------------------------------------------------------
-// DefinePhase (research) — no pi dependency, pass dummy
+// DefinePhase (research)
 // ---------------------------------------------------------------------------
 describe("DefinePhase - research", () => {
   let dummyPi: ExtensionAPI;
@@ -37,96 +33,32 @@ describe("DefinePhase - research", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dummyPi = {} as ExtensionAPI;
+    mockRun.mockResolvedValue({ stdout: "## Research results\n\nFound some things.", exitCode: 0 });
   });
 
-  afterEach(() => {
-    process.removeAllListeners("exit");
-  });
-
-  it("writes research agent prompt to a temp file and executes pi -p", () => {
-    mockExecSync.mockReturnValue("## Research results\n\nFound some things.");
-
+  it("runs research via PiSpawner with the correct prompt", async () => {
     const phase = new DefinePhase(dummyPi);
-    const result = (
-      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
+    const result = await (
+      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): Promise<string> }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/fake/cwd");
 
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
-    const writtenPath = mockWriteFileSync.mock.calls[0][0] as string;
-    expect(writtenPath).toContain("ff-define-research-");
-    expect(writtenPath).toContain(".txt");
-
-    expect(mockExecSync).toHaveBeenCalledTimes(1);
-    const cmd = mockExecSync.mock.calls[0][0] as string;
-    expect(cmd).toContain("pi -p");
-
-    expect(mockUnlinkSync).toHaveBeenCalledWith(writtenPath);
+    expect(mockRun).toHaveBeenCalledTimes(1);
+    const [prompt, options] = mockRun.mock.calls[0] as [string, { cwd: string; timeout: number }];
+    expect(prompt).toContain("Research prompt for:");
+    expect(options.cwd).toBe("/fake/cwd");
+    expect(options.timeout).toBe(180_000);
     expect(result).toBe("## Research results\n\nFound some things.");
   });
 
-  it("passes encoding, cwd, timeout, maxBuffer, and shell options to execSync", () => {
-    mockExecSync.mockReturnValue("ok");
-
+  it("replaces {{issueUrl}} in the prompt", async () => {
     const phase = new DefinePhase(dummyPi);
-    (
-      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
-    ).runBackgroundResearch("https://github.com/o/r/issues/1", "/my/project");
+    await (
+      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): Promise<string> }
+    ).runBackgroundResearch("https://github.com/o/r/issues/42", "/cwd");
 
-    const opts = mockExecSync.mock.calls[0][1];
-    expect(opts).toMatchObject({
-      encoding: "utf-8",
-      cwd: "/my/project",
-      timeout: 180_000,
-      maxBuffer: 5 * 1024 * 1024,
-      shell: "/bin/bash",
-    });
-  });
-
-  it("cleans up temp file even when execSync throws", () => {
-    mockExecSync.mockImplementation(() => {
-      throw new Error("pi not found");
-    });
-
-    const phase = new DefinePhase(dummyPi);
-    expect(() =>
-      (
-        phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
-      ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd"),
-    ).toThrow("pi not found");
-
-    const writtenPath = mockWriteFileSync.mock.calls[0][0] as string;
-    expect(mockUnlinkSync).toHaveBeenCalledWith(writtenPath);
-  });
-
-  it("does not crash when unlink fails (swallowed error)", () => {
-    mockExecSync.mockReturnValue("ok");
-    mockUnlinkSync.mockImplementation(() => {
-      throw new Error("ENOENT");
-    });
-
-    const phase = new DefinePhase(dummyPi);
-    expect(() =>
-      (
-        phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
-      ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd"),
-    ).not.toThrow();
-  });
-
-  it("registers process exit cleanup handler", () => {
-    const onceSpy = vi.spyOn(process, "once");
-    const offSpy = vi.spyOn(process, "off");
-    mockExecSync.mockReturnValue("ok");
-
-    const phase = new DefinePhase(dummyPi);
-    (
-      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
-    ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd");
-
-    expect(onceSpy).toHaveBeenCalledWith("exit", expect.any(Function));
-    expect(offSpy).toHaveBeenCalledWith("exit", expect.any(Function));
-
-    onceSpy.mockRestore();
-    offSpy.mockRestore();
+    const [prompt] = mockRun.mock.calls[0] as [string];
+    expect(prompt).toContain("https://github.com/o/r/issues/42");
+    expect(prompt).not.toContain("{{issueUrl}}");
   });
 });
 
@@ -139,7 +71,7 @@ describe("DefinePhase - handler", () => {
   beforeEach(() => {
     State.reset();
     vi.clearAllMocks();
-    mockExecSync.mockReturnValue("research output");
+    mockRun.mockResolvedValue({ stdout: "research output", exitCode: 0 });
 
     mockPi = {
       registerCommand: vi.fn(),
@@ -194,9 +126,7 @@ describe("DefinePhase - handler", () => {
   });
 
   it("proceeds with placeholder when research fails", async () => {
-    mockExecSync.mockImplementation(() => {
-      throw new Error("exec timeout");
-    });
+    mockRun.mockRejectedValue(new Error("exec timeout"));
     const notify = vi.fn();
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;

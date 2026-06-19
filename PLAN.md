@@ -119,14 +119,14 @@ temp files + `execSync`.
 
 **File:** `phases/define/index.ts`
 
-- [ ] Replace `writeFileSync` + `execSync` + `unlinkSync` pattern with `PiSpawner.run()`
-- [ ] Import `PiSpawner` from `../../pi-spawner` instead of `child_process`
+- [x] Replace `writeFileSync` + `execSync` + `unlinkSync` pattern with `PiSpawner.run()`
+- [x] Import `PiSpawner` from `../../pi-spawner` instead of `child_process`
 
 ### Step 8: Delete coordinator.md
 
 **File:** `phases/implement/prompts/coordinator.md`
 
-- [ ] Remove file (no longer needed — logic lives in `coordinator.ts`)
+- [x] Remove file (no longer needed — logic lives in `coordinator.ts`)
 
 ### Step 9: Tests
 
