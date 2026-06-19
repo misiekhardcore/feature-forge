@@ -47,7 +47,7 @@ export function registerDefine(pi: ExtensionAPI): void {
           "No issue found. Usage: /define <issue-url|issue-number> or run /discover first.",
           "error",
         );
-        return;
+        return Promise.resolve();
       }
 
       let researchOutput: string;
@@ -63,8 +63,7 @@ export function registerDefine(pi: ExtensionAPI): void {
           "_(Background research could not be completed. Explore the codebase yourself if needed.)_";
       }
 
-      // eslint-disable-next-line @typescript-eslint/await-thenable -- SDK has Promise<void> overload
-      await pi.sendUserMessage([
+      pi.sendUserMessage([
         { type: "text", text: DEFINE_PROMPT },
         {
           type: "text",

@@ -7,6 +7,9 @@ vi.mock("../.pi/extensions/feature-forge/commands/discover", () => ({
 vi.mock("../.pi/extensions/feature-forge/commands/define", () => ({
   registerDefine: vi.fn(),
 }));
+vi.mock("../.pi/extensions/feature-forge/commands/implement", () => ({
+  registerImplement: vi.fn(),
+}));
 
 import featureForge from "../.pi/extensions/feature-forge/index";
 import { PipelineState } from "../.pi/extensions/feature-forge/state";
@@ -43,14 +46,17 @@ describe("feature-forge extension", () => {
     } as unknown as typeof mockPi;
   });
 
-  it("registers both discover and define commands", async () => {
+  it("registers discover, define, and implement commands", async () => {
     const { registerDiscover } = await import("../.pi/extensions/feature-forge/commands/discover");
     const { registerDefine } = await import("../.pi/extensions/feature-forge/commands/define");
+    const { registerImplement } =
+      await import("../.pi/extensions/feature-forge/commands/implement");
 
     featureForge(mockPi);
 
     expect(registerDiscover).toHaveBeenCalledWith(mockPi);
     expect(registerDefine).toHaveBeenCalledWith(mockPi);
+    expect(registerImplement).toHaveBeenCalledWith(mockPi);
   });
 
   it("registers session_start event handler", () => {
@@ -148,6 +154,84 @@ describe("feature-forge extension", () => {
       });
 
       expect(mockPi.appendEntry).not.toHaveBeenCalled();
+    });
+
+    it("captures PR URL from gh pr create output", () => {
+      featureForge(mockPi);
+
+      const handler = mockPi._events.get("tool_result")!;
+      handler({
+        toolName: "bash",
+        isError: false,
+        content: [
+          {
+            type: "text",
+            text: "https://github.com/owner/repo/pull/456",
+          },
+        ],
+      });
+
+      expect(mockPi.appendEntry).toHaveBeenCalledWith(
+        "pipeline-issue",
+        expect.objectContaining({
+          prUrl: "https://github.com/owner/repo/pull/456",
+          prNumber: 456,
+        }),
+      );
+    });
+
+    it("preserves existing issue state when capturing PR URL", () => {
+      featureForge(mockPi);
+
+      // First capture issue URL
+      const handler = mockPi._events.get("tool_result")!;
+      handler({
+        toolName: "bash",
+        isError: false,
+        content: [{ type: "text", text: "https://github.com/o/r/issues/1" }],
+      });
+
+      // Then capture PR URL — should preserve the issue state
+      handler({
+        toolName: "bash",
+        isError: false,
+        content: [{ type: "text", text: "https://github.com/o/r/pull/100" }],
+      });
+
+      // Should have been called twice: once for issue, once for PR
+      expect(mockPi.appendEntry).toHaveBeenCalledTimes(2);
+      const lastCall = (mockPi.appendEntry as ReturnType<typeof vi.fn>).mock.calls[1];
+      expect(lastCall[1]).toMatchObject({
+        issueUrl: "https://github.com/o/r/issues/1",
+        issueNumber: 1,
+        prUrl: "https://github.com/o/r/pull/100",
+        prNumber: 100,
+      });
+    });
+
+    it("prioritizes issue URL capture over PR URL when both present", () => {
+      featureForge(mockPi);
+
+      const handler = mockPi._events.get("tool_result")!;
+      handler({
+        toolName: "bash",
+        isError: false,
+        content: [
+          {
+            type: "text",
+            text: "See https://github.com/o/r/pull/2 from issue https://github.com/o/r/issues/1",
+          },
+        ],
+      });
+
+      // Issue check runs first and returns early — should capture issue, not PR
+      expect(mockPi.appendEntry).toHaveBeenCalledWith(
+        "pipeline-issue",
+        expect.objectContaining({
+          issueUrl: "https://github.com/o/r/issues/1",
+          issueNumber: 1,
+        }),
+      );
     });
   });
 });

@@ -20,3 +20,11 @@ export const DEFINE_PROMPT = load("define");
 export function researchPrompt(issueUrl: string): string {
   return load("research", { issueUrl });
 }
+
+export const IMPLEMENT_PROMPTS = {
+  coordinator: load("implement-coordinator"),
+  build: load("implement-build"),
+  review: load("implement-review"),
+  verify: load("implement-verify"),
+  pr: load("implement-pr"),
+} as const;
