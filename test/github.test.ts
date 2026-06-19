@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { expandBareIssueNumber, isGitHubPrUrl } from "../.pi/extensions/feature-forge/github";
-import { resolveIssueRef } from "../.pi/extensions/feature-forge/state";
+import { State } from "../.pi/extensions/feature-forge/state";
 import type { SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 
 function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
@@ -84,51 +84,63 @@ describe("isGitHubPrUrl", () => {
 // ---------------------------------------------------------------------------
 // resolveIssueRef
 // ---------------------------------------------------------------------------
-describe("resolveIssueRef", () => {
+describe("State.resolveIssueRef", () => {
+  beforeEach(() => {
+    State.reset();
+    State.initialize({
+      on: vi.fn(),
+      appendEntry: vi.fn(),
+    } as never);
+  });
+
   it("returns undefined when args is undefined and no pipeline state", () => {
-    expect(resolveIssueRef(undefined, [])).toBeUndefined();
+    expect(State.getInstance().resolveIssueRef(undefined, [])).toBeUndefined();
   });
 
   it("returns undefined when args is empty/whitespace and no pipeline state", () => {
-    expect(resolveIssueRef("   ", [])).toBeUndefined();
-    expect(resolveIssueRef("", [])).toBeUndefined();
+    expect(State.getInstance().resolveIssueRef("   ", [])).toBeUndefined();
+    expect(State.getInstance().resolveIssueRef("", [])).toBeUndefined();
   });
 
   it("returns expanded url when args is a bare number", () => {
-    const result = resolveIssueRef("7", []);
+    const result = State.getInstance().resolveIssueRef("7", []);
     expect(result).toMatch(/^https:\/\/github\.com\/.+\/.+\/issues\/7$/);
   });
 
   it("returns args unchanged when already a URL", () => {
     const url = "https://github.com/o/r/issues/7";
-    expect(resolveIssueRef(url, [])).toBe(url);
+    expect(State.getInstance().resolveIssueRef(url, [])).toBe(url);
   });
 
   it("falls back to pipeline state when args is undefined", () => {
     const entries: SessionEntry[] = [
       pipelineEntry({ issueUrl: "https://github.com/o/r/issues/3" }),
     ];
-    expect(resolveIssueRef(undefined, entries)).toBe("https://github.com/o/r/issues/3");
+    expect(State.getInstance().resolveIssueRef(undefined, entries)).toBe(
+      "https://github.com/o/r/issues/3",
+    );
   });
 
   it("falls back to pipeline state when args is whitespace-only", () => {
     const entries: SessionEntry[] = [
       pipelineEntry({ issueUrl: "https://github.com/o/r/issues/3" }),
     ];
-    expect(resolveIssueRef("   ", entries)).toBe("https://github.com/o/r/issues/3");
+    expect(State.getInstance().resolveIssueRef("   ", entries)).toBe(
+      "https://github.com/o/r/issues/3",
+    );
   });
 
   it("prioritizes args over pipeline state", () => {
     const entries: SessionEntry[] = [
       pipelineEntry({ issueUrl: "https://github.com/o/r/issues/3" }),
     ];
-    expect(resolveIssueRef("https://github.com/o/r/issues/99", entries)).toBe(
+    expect(State.getInstance().resolveIssueRef("https://github.com/o/r/issues/99", entries)).toBe(
       "https://github.com/o/r/issues/99",
     );
   });
 
   it("returns undefined when pipeline state has no issueUrl", () => {
     const entries: SessionEntry[] = [pipelineEntry({ issueNumber: 1 })];
-    expect(resolveIssueRef(undefined, entries)).toBeUndefined();
+    expect(State.getInstance().resolveIssueRef(undefined, entries)).toBeUndefined();
   });
 });

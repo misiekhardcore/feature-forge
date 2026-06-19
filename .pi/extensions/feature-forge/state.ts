@@ -21,11 +21,42 @@ const PIPELINE_ISSUE_TYPE = "pipeline-issue";
  */
 export class State {
   private state: PipelineState = {};
-  private readonly pi: ExtensionAPI;
+  private pi: ExtensionAPI;
+  private static instance: State | null = null;
 
-  constructor(pi: ExtensionAPI) {
+  private constructor(pi: ExtensionAPI) {
     this.pi = pi;
     this.registerEventHandlers();
+  }
+
+  static initialize(pi: ExtensionAPI): State {
+    if (State.instance) {
+      return State.instance;
+    }
+    State.instance = new State(pi);
+    return State.instance;
+  }
+
+  /** Reset the singleton (testing only). */
+  static reset(): void {
+    State.instance = null;
+  }
+
+  static getInstance(): State {
+    if (!State.instance) {
+      throw new Error(
+        "State not initialized. Call State.initialize(pi) in your extension's default function.",
+      );
+    }
+    return State.instance;
+  }
+
+  getPi(): ExtensionAPI {
+    return this.pi;
+  }
+
+  setPi(pi: ExtensionAPI): void {
+    this.pi = pi;
   }
 
   private registerEventHandlers(): void {
@@ -84,37 +115,28 @@ export class State {
   getState(): PipelineState {
     return this.state;
   }
-}
 
-/**
- * Resolve an issue reference from command args, falling back to pipeline state.
- * Returns the issue URL/ref, or undefined if nothing found.
- */
-export function resolveIssueRef(
-  args: string | undefined,
-  entries: SessionEntry[],
-): string | undefined {
-  if (args && args.trim()) {
-    return expandBareIssueNumber(args.trim());
-  }
-  return State.extractIssueUrl(entries);
-}
+  /**
+   * Resolve an issue reference and persist it to pipeline state.
+   * Phase handlers should call this instead of resolveIssueRef so the
+   * pipeline state is always up to date.
+   */
+  resolveIssueRef = (args: string | undefined, entries: SessionEntry[]): string | undefined => {
+    let ref: string | undefined;
 
-/**
- * Resolve an issue reference and persist it to pipeline state.
- * Phase handlers should call this instead of resolveIssueRef so the
- * pipeline state is always up to date.
- */
-export function storeOrResolveIssueRef(
-  pi: ExtensionAPI,
-  args: string | undefined,
-  entries: SessionEntry[],
-): string | undefined {
-  const ref = resolveIssueRef(args, entries);
-  if (ref) {
+    if (args && args.trim()) {
+      ref = expandBareIssueNumber(args.trim());
+    } else {
+      ref = State.extractIssueUrl(entries);
+    }
+
+    if (!ref) {
+      return undefined;
+    }
+
     const issueNumberMatch = ref.match(/issues\/(\d+)/);
     const issueNumber = issueNumberMatch ? parseInt(issueNumberMatch[1], 10) : undefined;
-    pi.appendEntry(PIPELINE_ISSUE_TYPE, { issueUrl: ref, issueNumber });
-  }
-  return ref;
+    this.pi.appendEntry(PIPELINE_ISSUE_TYPE, { issueUrl: ref, issueNumber });
+    return ref;
+  };
 }

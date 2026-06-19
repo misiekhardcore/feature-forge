@@ -6,8 +6,8 @@ vi.mock("../.pi/extensions/feature-forge/phases/registry", () => ({
 }));
 
 vi.mock("../.pi/extensions/feature-forge/state", () => {
-  const State = vi.fn();
-  return { State, findPipelineIssueUrl: vi.fn() };
+  const State = { initialize: vi.fn(), getInstance: vi.fn() };
+  return { State };
 });
 
 import featureForge from "../.pi/extensions/feature-forge/index";
@@ -30,7 +30,7 @@ describe("feature-forge extension", () => {
 
     featureForge(mockPi);
 
-    expect(State).toHaveBeenCalledWith(mockPi);
+    expect(State.initialize).toHaveBeenCalledWith(mockPi);
   });
 
   it("registers all three phase classes via registerPhases", async () => {
@@ -39,10 +39,11 @@ describe("feature-forge extension", () => {
     featureForge(mockPi);
 
     expect(registerPhases).toHaveBeenCalledWith(
-      mockPi,
-      expect.arrayContaining([expect.anything()]),
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
     );
-    const classes = (registerPhases as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    const classes = (registerPhases as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(classes).toHaveLength(3);
     expect(classes[0].name).toMatch(/Discover/i);
     expect(classes[1].name).toMatch(/Define/i);

@@ -26,6 +26,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 import { DefinePhase } from "../../.pi/extensions/feature-forge/phases/define";
+import { State } from "../../.pi/extensions/feature-forge/state";
 
 // ---------------------------------------------------------------------------
 // DefinePhase (research) — no pi dependency, pass dummy
@@ -47,7 +48,7 @@ describe("DefinePhase - research", () => {
 
     const phase = new DefinePhase(dummyPi);
     const result = (
-      phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/fake/cwd");
 
     expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
@@ -68,7 +69,7 @@ describe("DefinePhase - research", () => {
 
     const phase = new DefinePhase(dummyPi);
     (
-      phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/my/project");
 
     const opts = mockExecSync.mock.calls[0][1];
@@ -89,7 +90,7 @@ describe("DefinePhase - research", () => {
     const phase = new DefinePhase(dummyPi);
     expect(() =>
       (
-        phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+        phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
       ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd"),
     ).toThrow("pi not found");
 
@@ -106,7 +107,7 @@ describe("DefinePhase - research", () => {
     const phase = new DefinePhase(dummyPi);
     expect(() =>
       (
-        phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+        phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
       ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd"),
     ).not.toThrow();
   });
@@ -118,7 +119,7 @@ describe("DefinePhase - research", () => {
 
     const phase = new DefinePhase(dummyPi);
     (
-      phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+      phase as unknown as { runBackgroundResearch(issueRef: string, cwd: string): string }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd");
 
     expect(onceSpy).toHaveBeenCalledWith("exit", expect.any(Function));
@@ -136,6 +137,7 @@ describe("DefinePhase - handler", () => {
   let mockPi: ExtensionAPI;
 
   beforeEach(() => {
+    State.reset();
     vi.clearAllMocks();
     mockExecSync.mockReturnValue("research output");
 
@@ -143,7 +145,9 @@ describe("DefinePhase - handler", () => {
       registerCommand: vi.fn(),
       sendUserMessage: vi.fn().mockResolvedValue(undefined),
       appendEntry: vi.fn(),
+      on: vi.fn(),
     } as unknown as ExtensionAPI;
+    State.initialize(mockPi);
   });
 
   it("has the correct name", () => {

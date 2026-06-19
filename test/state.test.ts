@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExtensionAPI, SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 import { State } from "../.pi/extensions/feature-forge/state";
 
@@ -18,6 +18,8 @@ function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string
 // ---------------------------------------------------------------------------
 /* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 describe("State", () => {
+  beforeEach(() => State.reset());
+
   function makeMockPi() {
     return {
       on: vi.fn(),
@@ -27,7 +29,7 @@ describe("State", () => {
 
   it("registers session_start and tool_result event handlers", () => {
     const pi = makeMockPi();
-    new State(pi as unknown as ExtensionAPI);
+    State.initialize(pi as unknown as ExtensionAPI);
 
     expect(pi.on).toHaveBeenCalledWith("session_start", expect.any(Function));
     expect(pi.on).toHaveBeenCalledWith("tool_result", expect.any(Function));
@@ -36,7 +38,7 @@ describe("State", () => {
   describe("session_start handler", () => {
     it("reconstructs state when pipeline-issue entry exists", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "session_start")![1];
       const ctx = {
@@ -55,7 +57,7 @@ describe("State", () => {
 
     it("does nothing when no pipeline-issue entry exists", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "session_start")![1];
       const ctx = { sessionManager: { getEntries: () => [] } };
@@ -67,7 +69,7 @@ describe("State", () => {
   describe("tool_result handler", () => {
     it("captures issue URL from gh issue create output", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
       handler({
@@ -87,7 +89,7 @@ describe("State", () => {
 
     it("ignores non-bash tool results", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
       handler({ toolName: "read", isError: false, content: [] });
@@ -97,7 +99,7 @@ describe("State", () => {
 
     it("ignores error tool results", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
       handler({
@@ -111,7 +113,7 @@ describe("State", () => {
 
     it("ignores output without github URL", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
       handler({
@@ -125,7 +127,7 @@ describe("State", () => {
 
     it("captures PR URL from gh pr create output", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
       handler({
@@ -145,7 +147,7 @@ describe("State", () => {
 
     it("preserves existing issue state when capturing PR URL", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
 
@@ -175,7 +177,7 @@ describe("State", () => {
 
     it("prioritizes issue URL capture over PR URL when both present", () => {
       const pi = makeMockPi();
-      new State(pi as unknown as ExtensionAPI);
+      State.initialize(pi as unknown as ExtensionAPI);
 
       const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
       handler({

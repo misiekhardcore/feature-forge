@@ -14,6 +14,7 @@ const readFileSync = (fs as unknown as { readFileSync: ReturnType<typeof vi.fn> 
 
 import { Phase } from "../.pi/extensions/feature-forge/phases/base";
 import { registerPhases } from "../.pi/extensions/feature-forge/phases/registry";
+import { State } from "../.pi/extensions/feature-forge/state";
 
 // ---------------------------------------------------------------------------
 // Phase base class
@@ -67,9 +68,13 @@ describe("registerPhases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPi = {
+      on: vi.fn(),
       registerCommand: vi.fn(),
       sendUserMessage: vi.fn(),
+      appendEntry: vi.fn(),
     } as unknown as ExtensionAPI;
+    State.reset();
+    State.initialize(mockPi);
   });
 
   it("registers a command for each phase class", () => {
@@ -90,7 +95,7 @@ describe("registerPhases", () => {
       async handler() {}
     }
 
-    registerPhases(mockPi, [PhaseA, PhaseB]);
+    registerPhases(PhaseA, PhaseB);
 
     expect(mockPi.registerCommand).toHaveBeenCalledTimes(2);
     expect(mockPi.registerCommand).toHaveBeenCalledWith(
@@ -116,7 +121,7 @@ describe("registerPhases", () => {
       async handler() {}
     }
 
-    registerPhases(mockPi, [TestPhase]);
+    registerPhases(TestPhase);
 
     expect(capturedPi).toBe(mockPi);
   });

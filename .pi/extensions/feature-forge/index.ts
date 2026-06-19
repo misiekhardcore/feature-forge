@@ -6,6 +6,6 @@ import { DefinePhase } from "./phases/define";
 import { ImplementPhase } from "./phases/implement";
 
 export default function (pi: ExtensionAPI) {
-  new State(pi);
-  registerPhases(pi, [DiscoverPhase, DefinePhase, ImplementPhase]);
+  State.initialize(pi);
+  registerPhases(DiscoverPhase, DefinePhase, ImplementPhase);
 }

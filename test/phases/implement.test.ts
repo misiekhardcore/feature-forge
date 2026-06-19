@@ -13,17 +13,21 @@ vi.mock("node:fs", () => ({
 }));
 
 import { ImplementPhase } from "../../.pi/extensions/feature-forge/phases/implement";
+import { State } from "../../.pi/extensions/feature-forge/state";
 
 describe("ImplementPhase", () => {
   let mockPi: ExtensionAPI;
 
   beforeEach(() => {
+    State.reset();
     vi.clearAllMocks();
     mockPi = {
       registerCommand: vi.fn(),
       sendUserMessage: vi.fn().mockResolvedValue(undefined),
       appendEntry: vi.fn(),
+      on: vi.fn(),
     } as unknown as ExtensionAPI;
+    State.initialize(mockPi);
   });
 
   it("has the correct name and description", () => {

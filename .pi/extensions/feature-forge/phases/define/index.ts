@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Phase } from "../base";
-import { storeOrResolveIssueRef } from "../../state";
+import { State } from "../../state";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const RESEARCH_TIMEOUT_MS = 180_000;
@@ -49,7 +49,7 @@ export class DefinePhase extends Phase {
 
   async handler(args: string | undefined, ctx: ExtensionCommandContext): Promise<void> {
     const sessionEntries = ctx.sessionManager?.getEntries() ?? [];
-    const issueRef = storeOrResolveIssueRef(this.pi, args, sessionEntries);
+    const issueRef = State.getInstance().resolveIssueRef(args, sessionEntries);
 
     if (!issueRef) {
       ctx.ui.notify(
