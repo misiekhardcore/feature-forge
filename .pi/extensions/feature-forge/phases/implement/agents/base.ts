@@ -121,7 +121,11 @@ export abstract class SubAgent {
             }
             if (next) contentLines.push(next);
           }
-          (result as Record<string, string | undefined>)[field] = contentLines.join("\n").trim();
+          // Map snake_case handoff fields to camelCase interface
+          const resultField = field === "remaining_issues" ? "remainingIssues" : field;
+          (result as Record<string, string | undefined>)[resultField] = contentLines
+            .join("\n")
+            .trim();
           break;
         }
       }

@@ -130,18 +130,18 @@ temp files + `execSync`.
 
 ### Step 9: Tests
 
-- [ ] `test/phases/implement/agents/base.test.ts` — SubAgent.parseResult, buildPrompt
-- [ ] `test/phases/implement/agents/build.test.ts` — BuildAgent
-- [ ] `test/phases/implement/agents/review.test.ts` — ReviewAgent
-- [ ] `test/phases/implement/agents/verify.test.ts` — VerifyAgent
-- [ ] `test/phases/implement/agents/pr.test.ts` — PrAgent
-- [ ] `test/phases/implement/coordinator.test.ts` — cycle loop logic
-- [ ] `test/pi-spawner.test.ts` — spawn, error handling, timeout
-- [ ] Update `test/phases/define.test.ts` — mock PiSpawner instead of fs/child_process
+- [x] `test/phases/implement/agents/base.test.ts` — SubAgent.parseResult, buildPrompt
+- [x] `test/phases/implement/agents/build.test.ts` — BuildAgent
+- [x] `test/phases/implement/agents/review.test.ts` — ReviewAgent
+- [x] `test/phases/implement/agents/verify.test.ts` — VerifyAgent
+- [x] `test/phases/implement/agents/pr.test.ts` — PrAgent
+- [x] `test/phases/implement/coordinator.test.ts` — cycle loop logic
+- [x] `test/pi-spawner.test.ts` — spawn, error handling, timeout
+- [x] Update `test/phases/define.test.ts` — mock PiSpawner instead of fs/child_process
 
 ### Step 10: Full check
 
-- [ ] `npm run check` — lint, format, 0 TS errors, all tests pass
+- [x] `npm run check` — lint, format, 0 TS errors, all 85 tests pass
 
 ---
 
