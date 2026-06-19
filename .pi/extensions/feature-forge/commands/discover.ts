@@ -5,16 +5,18 @@ export function registerDiscover(pi: ExtensionAPI): void {
   pi.registerCommand("discover", {
     description: "Interactive feature discovery interview → GitHub issue",
     handler: async (args, ctx) => {
-      if (!args || !args.trim()) {
+      const idea = args.trim();
+      if (!idea) {
         ctx.ui.notify("Usage: /discover <feature idea>", "error");
         return;
       }
 
-      const idea = args.trim();
-
       await pi.sendUserMessage([
         { type: "text", text: DISCOVERY_PROMPT },
-        { type: "text", text: `\n\n**Feature idea to explore**: ${idea}\n\nStart by asking your first question.` },
+        {
+          type: "text",
+          text: `\n\n**Feature idea to explore**: ${idea}\n\nStart by asking your first question.`,
+        },
       ]);
     },
   });

@@ -17,7 +17,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", (event) => {
     if (event.toolName !== "bash" || event.isError) return;
 
-    const output = event.content?.map((c: { type: string; text?: string }) => c.text || "").join("") || "";
+    const output =
+      event.content?.map((c: { type: string; text?: string }) => c.text || "").join("") || "";
     const match = output.match(/https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/(\d+)/);
     if (!match) return;
 

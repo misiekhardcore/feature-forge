@@ -16,11 +16,13 @@
     "check": "npm run lint && npm run format && npm run test"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
-    "eslint": "^9.0.0",
-    "prettier": "^3.0.0",
-    "typescript": "^5.5.0",
-    "typescript-eslint": "^8.61.1",
-    "vitest": "^3.0.0"
+    "@earendil-works/pi-coding-agent": "0.79.8",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.0.0",
+    "eslint": "10.5.0",
+    "prettier": "3.8.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.61.1",
+    "vitest": "4.1.9"
   }
 }
