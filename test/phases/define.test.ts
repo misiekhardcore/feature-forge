@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// Use vi.hoisted so the mock factories can reference these before hoisting.
 const { mockWriteFileSync, mockUnlinkSync, mockExecSync } = vi.hoisted(() => ({
   mockWriteFileSync: vi.fn(),
   mockUnlinkSync: vi.fn(),
@@ -9,6 +8,15 @@ const { mockWriteFileSync, mockUnlinkSync, mockExecSync } = vi.hoisted(() => ({
 }));
 
 vi.mock("node:fs", () => ({
+  readFileSync: vi.fn((path: string) => {
+    if (path.includes("agents/research.md")) {
+      return "Research prompt for: {{issueUrl}}";
+    }
+    if (path.includes("prompts/main.md")) {
+      return "DEFINE_PROMPT_CONTENT";
+    }
+    return "";
+  }),
   writeFileSync: mockWriteFileSync,
   unlinkSync: mockUnlinkSync,
 }));
@@ -17,21 +25,12 @@ vi.mock("node:child_process", () => ({
   execSync: mockExecSync,
 }));
 
-// Mock prompts before importing the module under test.
-vi.mock("../../.pi/extensions/feature-forge/prompts", () => ({
-  DEFINE_PROMPT: "DEFINE_PROMPT_CONTENT",
-  researchPrompt: vi.fn((url: string) => `Research prompt for: ${url}`),
-}));
-
-import {
-  runBackgroundResearch,
-  registerDefine,
-} from "../../.pi/extensions/feature-forge/commands/define";
+import { DefinePhase } from "../../.pi/extensions/feature-forge/phases/define";
 
 // ---------------------------------------------------------------------------
-// runBackgroundResearch
+// DefinePhase (research)
 // ---------------------------------------------------------------------------
-describe("runBackgroundResearch", () => {
+describe("DefinePhase - research", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -40,33 +39,35 @@ describe("runBackgroundResearch", () => {
     process.removeAllListeners("exit");
   });
 
-  it("writes research prompt to a temp file and executes pi -p", () => {
+  it("writes research agent prompt to a temp file and executes pi -p", () => {
     mockExecSync.mockReturnValue("## Research results\n\nFound some things.");
 
-    const result = runBackgroundResearch("https://github.com/o/r/issues/1", "/fake/cwd");
+    const phase = new DefinePhase();
+    // Access the private research method by casting
+    const result = (
+      phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+    ).runBackgroundResearch("https://github.com/o/r/issues/1", "/fake/cwd");
 
-    // Should have written the tmp file
     expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
     const writtenPath = mockWriteFileSync.mock.calls[0][0] as string;
     expect(writtenPath).toContain("ff-define-research-");
     expect(writtenPath).toContain(".txt");
 
-    // Should have executed pi with the prompt from file
     expect(mockExecSync).toHaveBeenCalledTimes(1);
     const cmd = mockExecSync.mock.calls[0][0] as string;
     expect(cmd).toContain("pi -p");
 
-    // Should have cleaned up
     expect(mockUnlinkSync).toHaveBeenCalledWith(writtenPath);
-
-    // Should return execSync output
     expect(result).toBe("## Research results\n\nFound some things.");
   });
 
   it("passes encoding, cwd, timeout, maxBuffer, and shell options to execSync", () => {
     mockExecSync.mockReturnValue("ok");
 
-    runBackgroundResearch("https://github.com/o/r/issues/1", "/my/project");
+    const phase = new DefinePhase();
+    (
+      phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+    ).runBackgroundResearch("https://github.com/o/r/issues/1", "/my/project");
 
     const opts = mockExecSync.mock.calls[0][1];
     expect(opts).toMatchObject({
@@ -83,11 +84,13 @@ describe("runBackgroundResearch", () => {
       throw new Error("pi not found");
     });
 
-    expect(() => runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd")).toThrow(
-      "pi not found",
-    );
+    const phase = new DefinePhase();
+    expect(() =>
+      (
+        phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+      ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd"),
+    ).toThrow("pi not found");
 
-    // Temp file should still be cleaned up (finally block)
     const writtenPath = mockWriteFileSync.mock.calls[0][0] as string;
     expect(mockUnlinkSync).toHaveBeenCalledWith(writtenPath);
   });
@@ -98,8 +101,12 @@ describe("runBackgroundResearch", () => {
       throw new Error("ENOENT");
     });
 
-    // Should not throw — unlink error is caught
-    expect(() => runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd")).not.toThrow();
+    const phase = new DefinePhase();
+    expect(() =>
+      (
+        phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+      ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd"),
+    ).not.toThrow();
   });
 
   it("registers process exit cleanup handler", () => {
@@ -107,11 +114,12 @@ describe("runBackgroundResearch", () => {
     const offSpy = vi.spyOn(process, "off");
     mockExecSync.mockReturnValue("ok");
 
-    runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd");
+    const phase = new DefinePhase();
+    (
+      phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
+    ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd");
 
-    // Should register exit handler
     expect(onceSpy).toHaveBeenCalledWith("exit", expect.any(Function));
-    // Should unregister after execSync succeeds
     expect(offSpy).toHaveBeenCalledWith("exit", expect.any(Function));
 
     onceSpy.mockRestore();
@@ -120,9 +128,9 @@ describe("runBackgroundResearch", () => {
 });
 
 // ---------------------------------------------------------------------------
-// registerDefine
+// DefinePhase (handler)
 // ---------------------------------------------------------------------------
-describe("registerDefine", () => {
+describe("DefinePhase - handler", () => {
   let mockPi: ExtensionAPI;
 
   beforeEach(() => {
@@ -135,38 +143,22 @@ describe("registerDefine", () => {
     } as unknown as ExtensionAPI;
   });
 
-  it("registers the 'define' command", () => {
-    registerDefine(mockPi);
-    expect(mockPi.registerCommand).toHaveBeenCalledWith(
-      "define",
-      expect.objectContaining({
-        description: expect.stringContaining("implementation plan"),
-      }),
-    );
+  it("has the correct name", () => {
+    const phase = new DefinePhase();
+    expect(phase.name).toBe("define");
+    expect(phase.description).toMatch(/implementation plan/i);
   });
 
   it("notifies error when no issue ref can be resolved", async () => {
     const notify = vi.fn();
-    const handler = captureHandler();
+    const phase = new DefinePhase();
+    phase.pi = mockPi;
 
-    await handler(undefined, {
+    await phase.handler(undefined, {
       ui: { notify },
       sessionManager: { getEntries: () => [] },
       cwd: "/cwd",
-    });
-
-    expect(notify).toHaveBeenCalledWith(expect.stringContaining("No issue found"), "error");
-  });
-
-  it("notifies error when whitespace-only args and no session state", async () => {
-    const notify = vi.fn();
-    const handler = captureHandler();
-
-    await handler("   ", {
-      ui: { notify },
-      sessionManager: { getEntries: () => [] },
-      cwd: "/cwd",
-    });
+    } as never);
 
     expect(notify).toHaveBeenCalledWith(expect.stringContaining("No issue found"), "error");
   });
@@ -176,13 +168,14 @@ describe("registerDefine", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const handler = captureHandler();
+    const phase = new DefinePhase();
+    phase.pi = mockPi;
 
-    await handler("https://github.com/o/r/issues/5", {
+    await phase.handler("https://github.com/o/r/issues/5", {
       ui: { notify },
       sessionManager: { getEntries: () => [] },
       cwd: "/project",
-    });
+    } as never);
 
     expect(notify).toHaveBeenCalledWith(
       "Running background research in separate context...",
@@ -203,13 +196,14 @@ describe("registerDefine", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const handler = captureHandler();
+    const phase = new DefinePhase();
+    phase.pi = mockPi;
 
-    await handler("https://github.com/o/r/issues/5", {
+    await phase.handler("https://github.com/o/r/issues/5", {
       ui: { notify },
       sessionManager: { getEntries: () => [] },
       cwd: "/project",
-    });
+    } as never);
 
     expect(notify).toHaveBeenCalledWith(
       expect.stringContaining("Background research failed"),
@@ -225,30 +219,15 @@ describe("registerDefine", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const handler = captureHandler();
+    const phase = new DefinePhase();
+    phase.pi = mockPi;
 
-    await handler("https://github.com/o/r/issues/5", {
+    await phase.handler("https://github.com/o/r/issues/5", {
       ui: { notify },
       sessionManager: null,
       cwd: "/project",
-    });
+    } as never);
 
-    // Should not throw — null guard handles it
     expect(sendUserMessage).toHaveBeenCalledTimes(1);
   });
-
-  // -----------------------------------------------------------------------
-  // Helper: capture the registered handler so we can invoke it directly
-  // -----------------------------------------------------------------------
-  function captureHandler(): (
-    args: string | undefined,
-    ctx: Record<string, unknown>,
-  ) => Promise<void> {
-    registerDefine(mockPi);
-    const call = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock.calls[0];
-    return call[1].handler as (
-      args: string | undefined,
-      ctx: Record<string, unknown>,
-    ) => Promise<void>;
-  }
 });

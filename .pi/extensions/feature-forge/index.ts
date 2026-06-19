@@ -1,9 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { PipelineState, findPipelineIssueUrl } from "./state";
-import { registerDiscover } from "./commands/discover";
-import { registerDefine } from "./commands/define";
-import { registerImplement } from "./commands/implement";
 import { isGitHubIssueUrl, isGitHubPrUrl } from "./github";
+import { registerPhases } from "./phases/registry";
+import { DiscoverPhase } from "./phases/discover";
+import { DefinePhase } from "./phases/define";
+import { ImplementPhase } from "./phases/implement";
 
 export default function (pi: ExtensionAPI) {
   let state: PipelineState = {};
@@ -43,7 +44,5 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  registerDiscover(pi);
-  registerDefine(pi);
-  registerImplement(pi);
+  registerPhases(pi, [new DiscoverPhase(), new DefinePhase(), new ImplementPhase()]);
 }
