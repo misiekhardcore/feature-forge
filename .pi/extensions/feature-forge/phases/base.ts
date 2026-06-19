@@ -3,15 +3,23 @@ import { join } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 export abstract class Phase {
+  protected readonly pi: ExtensionAPI;
+  private readonly dir: string;
+
+  constructor(pi: ExtensionAPI, dir: string) {
+    this.pi = pi;
+    this.dir = dir;
+  }
+
   abstract readonly name: string;
   abstract readonly description: string;
 
-  private readonly dir: string;
-  /** Set by registerPhases before the command is registered. */
-  protected pi!: ExtensionAPI;
-
-  constructor(dir: string) {
-    this.dir = dir;
+  /** Register this phase's command. Called by registerPhases after construction. */
+  register(): void {
+    this.pi.registerCommand(this.name, {
+      description: this.description,
+      handler: this.handler.bind(this),
+    });
   }
 
   /** Load a main prompt from this phase's `prompts/` directory. */

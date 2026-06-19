@@ -22,8 +22,8 @@ describe("Phase base class", () => {
   class TestPhase extends Phase {
     readonly name = "test";
     readonly description = "A test phase";
-    constructor(dir: string) {
-      super(dir);
+    constructor(pi: ExtensionAPI) {
+      super(pi, "/fake/path");
     }
     async handler() {
       // no-op
@@ -31,14 +31,14 @@ describe("Phase base class", () => {
   }
 
   it("loadPrompt reads from prompts/ subdirectory", () => {
-    const phase = new TestPhase("/fake/path");
+    const phase = new TestPhase({} as ExtensionAPI);
 
     const prompt = (phase as unknown as { loadPrompt(n: string): string }).loadPrompt("main");
     expect(prompt).toBe("MAIN_PROMPT");
   });
 
   it("loadAgent reads from agents/ subdirectory", () => {
-    const phase = new TestPhase("/fake/path");
+    const phase = new TestPhase({} as ExtensionAPI);
 
     const prompt = (phase as unknown as { loadAgent(n: string): string }).loadAgent("research");
     expect(prompt).toBe("AGENT_PROMPT");
@@ -47,14 +47,14 @@ describe("Phase base class", () => {
   it("readFileSync is called with correct paths", () => {
     readFileSync.mockClear();
 
-    const phase = new TestPhase("/base/dir");
+    const phase = new TestPhase({} as ExtensionAPI);
 
     (phase as unknown as { loadPrompt(n: string): string }).loadPrompt("test");
 
     (phase as unknown as { loadAgent(n: string): string }).loadAgent("test");
 
-    expect(readFileSync).toHaveBeenCalledWith("/base/dir/prompts/test.md", "utf-8");
-    expect(readFileSync).toHaveBeenCalledWith("/base/dir/agents/test.md", "utf-8");
+    expect(readFileSync).toHaveBeenCalledWith("/fake/path/prompts/test.md", "utf-8");
+    expect(readFileSync).toHaveBeenCalledWith("/fake/path/agents/test.md", "utf-8");
   });
 });
 
@@ -72,25 +72,25 @@ describe("registerPhases", () => {
     } as unknown as ExtensionAPI;
   });
 
-  it("registers a command for each phase", () => {
+  it("registers a command for each phase class", () => {
     class PhaseA extends Phase {
       readonly name = "alpha";
       readonly description = "Alpha phase";
-      constructor() {
-        super("/fake");
+      constructor(pi: ExtensionAPI) {
+        super(pi, "/fake");
       }
       async handler() {}
     }
     class PhaseB extends Phase {
       readonly name = "beta";
       readonly description = "Beta phase";
-      constructor() {
-        super("/fake");
+      constructor(pi: ExtensionAPI) {
+        super(pi, "/fake");
       }
       async handler() {}
     }
 
-    registerPhases(mockPi, [new PhaseA(), new PhaseB()]);
+    registerPhases(mockPi, [PhaseA, PhaseB]);
 
     expect(mockPi.registerCommand).toHaveBeenCalledTimes(2);
     expect(mockPi.registerCommand).toHaveBeenCalledWith(
@@ -103,24 +103,21 @@ describe("registerPhases", () => {
     );
   });
 
-  it("sets pi property on each phase before registering", () => {
+  it("creates instances internally with pi passed to constructor", () => {
+    let capturedPi: ExtensionAPI | undefined;
+
     class TestPhase extends Phase {
       readonly name = "test";
       readonly description = "Test";
-      constructor() {
-        super("/fake");
+      constructor(pi: ExtensionAPI) {
+        super(pi, "/fake");
+        capturedPi = pi;
       }
-      async handler() {
-        // no-op
-      }
-      getPi() {
-        return this.pi;
-      }
+      async handler() {}
     }
 
-    const phase = new TestPhase();
-    registerPhases(mockPi, [phase]);
+    registerPhases(mockPi, [TestPhase]);
 
-    expect(phase.getPi()).toBe(mockPi);
+    expect(capturedPi).toBe(mockPi);
   });
 });

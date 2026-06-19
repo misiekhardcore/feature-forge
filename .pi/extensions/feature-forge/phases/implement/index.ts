@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Phase } from "../base";
 import { resolveIssueRef } from "../../github";
 
@@ -10,8 +10,8 @@ export class ImplementPhase extends Phase {
   readonly name = "implement";
   readonly description = "Build, review, verify, and open a PR from an approved issue";
 
-  constructor() {
-    super(__dir);
+  constructor(pi: ExtensionAPI) {
+    super(pi, __dir);
   }
 
   async handler(args: string | undefined, ctx: ExtensionCommandContext): Promise<void> {
@@ -23,14 +23,15 @@ export class ImplementPhase extends Phase {
         "No issue found. Usage: /implement <issue-url|issue-number> or run /discover + /define first.",
         "error",
       );
-      return Promise.resolve();
+      return;
     }
 
     ctx.ui.notify("Starting implementation coordinator...", "info");
 
     const coordinator = this.loadPrompt("coordinator");
 
-    this.pi.sendUserMessage([
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await this.pi.sendUserMessage([
       { type: "text", text: coordinator },
       {
         type: "text",

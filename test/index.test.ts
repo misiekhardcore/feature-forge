@@ -51,9 +51,9 @@ describe("feature-forge extension", () => {
     );
     const phases = (registerPhases as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(phases).toHaveLength(3);
-    expect(phases[0].name).toBe("discover");
-    expect(phases[1].name).toBe("define");
-    expect(phases[2].name).toBe("implement");
+    expect(phases[0].name).toMatch(/Discover/i);
+    expect(phases[1].name).toMatch(/Define/i);
+    expect(phases[2].name).toMatch(/Implement/i);
   });
 
   it("registers session_start event handler", () => {

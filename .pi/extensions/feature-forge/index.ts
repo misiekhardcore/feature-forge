@@ -44,5 +44,5 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  registerPhases(pi, [new DiscoverPhase(), new DefinePhase(), new ImplementPhase()]);
+  registerPhases(pi, [DiscoverPhase, DefinePhase, ImplementPhase]);
 }

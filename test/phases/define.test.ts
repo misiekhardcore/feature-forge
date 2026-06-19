@@ -28,11 +28,14 @@ vi.mock("node:child_process", () => ({
 import { DefinePhase } from "../../.pi/extensions/feature-forge/phases/define";
 
 // ---------------------------------------------------------------------------
-// DefinePhase (research)
+// DefinePhase (research) — no pi dependency, pass dummy
 // ---------------------------------------------------------------------------
 describe("DefinePhase - research", () => {
+  let dummyPi: ExtensionAPI;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    dummyPi = {} as ExtensionAPI;
   });
 
   afterEach(() => {
@@ -42,8 +45,7 @@ describe("DefinePhase - research", () => {
   it("writes research agent prompt to a temp file and executes pi -p", () => {
     mockExecSync.mockReturnValue("## Research results\n\nFound some things.");
 
-    const phase = new DefinePhase();
-    // Access the private research method by casting
+    const phase = new DefinePhase(dummyPi);
     const result = (
       phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/fake/cwd");
@@ -64,7 +66,7 @@ describe("DefinePhase - research", () => {
   it("passes encoding, cwd, timeout, maxBuffer, and shell options to execSync", () => {
     mockExecSync.mockReturnValue("ok");
 
-    const phase = new DefinePhase();
+    const phase = new DefinePhase(dummyPi);
     (
       phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/my/project");
@@ -84,7 +86,7 @@ describe("DefinePhase - research", () => {
       throw new Error("pi not found");
     });
 
-    const phase = new DefinePhase();
+    const phase = new DefinePhase(dummyPi);
     expect(() =>
       (
         phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
@@ -101,7 +103,7 @@ describe("DefinePhase - research", () => {
       throw new Error("ENOENT");
     });
 
-    const phase = new DefinePhase();
+    const phase = new DefinePhase(dummyPi);
     expect(() =>
       (
         phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
@@ -114,7 +116,7 @@ describe("DefinePhase - research", () => {
     const offSpy = vi.spyOn(process, "off");
     mockExecSync.mockReturnValue("ok");
 
-    const phase = new DefinePhase();
+    const phase = new DefinePhase(dummyPi);
     (
       phase as { runBackgroundResearch(issueRef: string, cwd: string): string }
     ).runBackgroundResearch("https://github.com/o/r/issues/1", "/cwd");
@@ -144,15 +146,14 @@ describe("DefinePhase - handler", () => {
   });
 
   it("has the correct name", () => {
-    const phase = new DefinePhase();
+    const phase = new DefinePhase(mockPi);
     expect(phase.name).toBe("define");
     expect(phase.description).toMatch(/implementation plan/i);
   });
 
   it("notifies error when no issue ref can be resolved", async () => {
     const notify = vi.fn();
-    const phase = new DefinePhase();
-    phase.pi = mockPi;
+    const phase = new DefinePhase(mockPi);
 
     await phase.handler(undefined, {
       ui: { notify },
@@ -168,8 +169,7 @@ describe("DefinePhase - handler", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new DefinePhase();
-    phase.pi = mockPi;
+    const phase = new DefinePhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/5", {
       ui: { notify },
@@ -196,8 +196,7 @@ describe("DefinePhase - handler", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new DefinePhase();
-    phase.pi = mockPi;
+    const phase = new DefinePhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/5", {
       ui: { notify },
@@ -219,8 +218,7 @@ describe("DefinePhase - handler", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new DefinePhase();
-    phase.pi = mockPi;
+    const phase = new DefinePhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/5", {
       ui: { notify },

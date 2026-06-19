@@ -22,27 +22,23 @@ describe("DiscoverPhase", () => {
   });
 
   it("has the correct name and description", () => {
-    const phase = new DiscoverPhase();
+    const phase = new DiscoverPhase(mockPi);
     expect(phase.name).toBe("discover");
     expect(phase.description).toMatch(/discovery/i);
   });
 
   it("notifies error when args are empty", async () => {
     const notify = vi.fn();
-    const phase = new DiscoverPhase();
-    phase.pi = mockPi;
+    const phase = new DiscoverPhase(mockPi);
 
-    await phase.handler("", {
-      ui: { notify },
-    } as never);
+    await phase.handler("", { ui: { notify } } as never);
 
     expect(notify).toHaveBeenCalledWith("Usage: /discover <feature idea>", "error");
   });
 
   it("notifies error when args are whitespace-only", async () => {
     const notify = vi.fn();
-    const phase = new DiscoverPhase();
-    phase.pi = mockPi;
+    const phase = new DiscoverPhase(mockPi);
 
     await phase.handler("   ", { ui: { notify } } as never);
 
@@ -53,8 +49,7 @@ describe("DiscoverPhase", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new DiscoverPhase();
-    phase.pi = mockPi;
+    const phase = new DiscoverPhase(mockPi);
 
     await phase.handler("Add dark mode", { ui: { notify: vi.fn() } } as never);
 

@@ -4,7 +4,7 @@ import { execSync } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Phase } from "../base";
 import { resolveIssueRef } from "../../github";
 
@@ -16,8 +16,8 @@ export class DefinePhase extends Phase {
   readonly name = "define";
   readonly description = "Produce a concrete implementation plan from an issue";
 
-  constructor() {
-    super(__dir);
+  constructor(pi: ExtensionAPI) {
+    super(pi, __dir);
   }
 
   private runBackgroundResearch(issueRef: string, cwd: string): string {
@@ -56,7 +56,7 @@ export class DefinePhase extends Phase {
         "No issue found. Usage: /define <issue-url|issue-number> or run /discover first.",
         "error",
       );
-      return Promise.resolve();
+      return;
     }
 
     let researchOutput: string;
@@ -74,7 +74,8 @@ export class DefinePhase extends Phase {
 
     const prompt = this.loadPrompt("main");
 
-    this.pi.sendUserMessage([
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await this.pi.sendUserMessage([
       { type: "text", text: prompt },
       {
         type: "text",

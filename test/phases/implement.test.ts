@@ -26,15 +26,14 @@ describe("ImplementPhase", () => {
   });
 
   it("has the correct name and description", () => {
-    const phase = new ImplementPhase();
+    const phase = new ImplementPhase(mockPi);
     expect(phase.name).toBe("implement");
     expect(phase.description).toMatch(/build, review, verify/i);
   });
 
   it("notifies error when no issue ref can be resolved", async () => {
     const notify = vi.fn();
-    const phase = new ImplementPhase();
-    phase.pi = mockPi;
+    const phase = new ImplementPhase(mockPi);
 
     await phase.handler(undefined, {
       ui: { notify },
@@ -46,8 +45,7 @@ describe("ImplementPhase", () => {
 
   it("notifies error when whitespace-only args and no session state", async () => {
     const notify = vi.fn();
-    const phase = new ImplementPhase();
-    phase.pi = mockPi;
+    const phase = new ImplementPhase(mockPi);
 
     await phase.handler("   ", {
       ui: { notify },
@@ -62,8 +60,7 @@ describe("ImplementPhase", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new ImplementPhase();
-    phase.pi = mockPi;
+    const phase = new ImplementPhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/42", {
       ui: { notify },
@@ -81,8 +78,7 @@ describe("ImplementPhase", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new ImplementPhase();
-    phase.pi = mockPi;
+    const phase = new ImplementPhase(mockPi);
 
     await phase.handler(undefined, {
       ui: { notify: vi.fn() },
@@ -109,8 +105,7 @@ describe("ImplementPhase", () => {
     const sendUserMessage = vi.fn().mockResolvedValue(undefined);
     mockPi.sendUserMessage = sendUserMessage;
 
-    const phase = new ImplementPhase();
-    phase.pi = mockPi;
+    const phase = new ImplementPhase(mockPi);
 
     await phase.handler("https://github.com/o/r/issues/42", {
       ui: { notify: vi.fn() },
@@ -121,10 +116,8 @@ describe("ImplementPhase", () => {
   });
 
   it("loads all agent prompts", () => {
-    const phase = new ImplementPhase();
-    phase.pi = mockPi;
+    const phase = new ImplementPhase(mockPi);
 
-    // Access protected loadAgent via prototype
     const loadAgent = (name: string) =>
       (ImplementPhase.prototype as unknown as { loadAgent(n: string): string }).loadAgent.call(
         phase,
