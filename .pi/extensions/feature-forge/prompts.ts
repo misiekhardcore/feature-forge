@@ -4,8 +4,19 @@ import { fileURLToPath } from "node:url";
 
 const promptsDir = join(fileURLToPath(import.meta.url), "..", "prompts");
 
-function load(name: string): string {
-  return readFileSync(join(promptsDir, `${name}.md`), "utf-8").trim();
+function load(name: string, variables?: Record<string, string>): string {
+  let content = readFileSync(join(promptsDir, `${name}.md`), "utf-8").trim();
+  if (variables) {
+    for (const [key, value] of Object.entries(variables)) {
+      content = content.replaceAll(`{{${key}}}`, value);
+    }
+  }
+  return content;
 }
 
 export const DISCOVERY_PROMPT = load("discover");
+export const DEFINE_PROMPT = load("define");
+
+export function researchPrompt(issueUrl: string): string {
+  return load("research", { issueUrl });
+}

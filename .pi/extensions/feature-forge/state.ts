@@ -1,18 +1,18 @@
-import { CustomEntry, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { CustomEntry, SessionEntry } from "@earendil-works/pi-coding-agent";
 
-export interface DiscoverState {
+export interface PipelineState {
   issueUrl?: string;
   issueNumber?: number;
 }
 
-const DISCOVER_ISSUE_TYPE = "discover-issue";
+const PIPELINE_ISSUE_TYPE = "pipeline-issue";
 
-/** Extract the discover-issue URL from session entries. */
-export function findDiscoverIssueUrl(entries: SessionEntry[]): string | undefined {
+/** Extract the pipeline issue URL from session entries (shared across phases). */
+export function findPipelineIssueUrl(entries: SessionEntry[]): string | undefined {
   const entry = entries
     .filter(
-      (e): e is CustomEntry<DiscoverState> =>
-        e.type === "custom" && e.customType === DISCOVER_ISSUE_TYPE,
+      (e): e is CustomEntry<PipelineState> =>
+        e.type === "custom" && e.customType === PIPELINE_ISSUE_TYPE,
     )
     .pop();
   return entry?.data?.issueUrl;
