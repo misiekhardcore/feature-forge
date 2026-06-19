@@ -6,7 +6,7 @@ import { registerDefine } from "./commands/define";
 export default function (pi: ExtensionAPI) {
   let state: DiscoverState = {};
 
-  // --- Reconstruct /discover state on session resume ---
+  // --- Reconstruct pipeline state on session resume ---
   pi.on("session_start", (_event, ctx) => {
     const url = findDiscoverIssueUrl(ctx.sessionManager.getEntries());
     if (url) {
