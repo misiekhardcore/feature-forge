@@ -10,3 +10,8 @@ Then explore the codebase:
 - Constraints, gotchas, patterns to follow or avoid
 
 Produce a concise markdown summary. Only include what's relevant to the issue. Be specific: name files, patterns, and functions.
+
+## Handoff
+
+- findings: |
+  Your research summary here.
