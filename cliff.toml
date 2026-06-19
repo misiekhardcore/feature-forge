@@ -11,7 +11,7 @@ body = """
 {% for commit in commits %}
 - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
 {{ commit.message | upper_first }}\
-{%- if commit.github.pr_number %} ([#{{ commit.github.pr_number }}]({{ commit.github.pr_url }})){% endif %}\
+{%- if commit.remote.github.pr_number %} ([#{{ commit.remote.github.pr_number }}]({{ commit.remote.github.pr_url }})){% endif %}\
 {%- endfor %}
 {% endfor %}\n
 """
