@@ -3,6 +3,7 @@ Background research only. Do NOT propose solutions, architecture decisions, or w
 Read the GitHub issue: {{issueUrl}}
 
 Then explore the codebase:
+
 - Tech stack, conventions, and tooling
 - File structure, naming patterns, code organization
 - Existing code adjacent to the feature area — similar components, related modules, shared utilities
