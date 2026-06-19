@@ -53,8 +53,7 @@ export class DefinePhase extends Phase {
 
     const prompt = this.loadPrompt("main");
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    await this.pi.sendUserMessage([
+    return this.pi.sendUserMessage([
       { type: "text", text: prompt },
       {
         type: "text",

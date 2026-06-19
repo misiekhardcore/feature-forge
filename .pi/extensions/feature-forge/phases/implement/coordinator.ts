@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { PiSpawner } from "../../pi-spawner";
+import { SubAgent } from "./agents/base";
 import type { SubAgentContext } from "./agents/types";
 import { BuildAgent } from "./agents/build";
 import { ReviewAgent } from "./agents/review";
@@ -11,14 +11,10 @@ import { PrAgent } from "./agents/pr";
 const AGENTS_DIR = dirname(fileURLToPath(import.meta.url)) + "/agents";
 
 export interface CoordinatedAgents {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  review: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  verify: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pr: any;
+  build: SubAgent;
+  review: SubAgent;
+  verify: SubAgent;
+  pr: SubAgent;
 }
 
 export interface CoordinatorResult {

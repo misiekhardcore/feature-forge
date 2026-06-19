@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+vi.mock("../../.pi/extensions/feature-forge/pi-spawner", () => ({
+  PiSpawner: class {
+    run = vi.fn();
+  },
+}));
+
 vi.mock("node:fs", () => ({
   readFileSync: vi.fn((path: string) => {
     if (path.includes("prompts/main.md")) return "DISCOVERY_PROMPT_CONTENT";
@@ -17,6 +23,7 @@ describe("DiscoverPhase", () => {
     vi.clearAllMocks();
     mockPi = {
       registerCommand: vi.fn(),
+      registerTool: vi.fn(),
       sendUserMessage: vi.fn().mockResolvedValue(undefined),
     } as unknown as ExtensionAPI;
   });

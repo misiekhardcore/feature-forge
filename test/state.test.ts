@@ -16,9 +16,17 @@ function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string
 // ---------------------------------------------------------------------------
 // State class
 // ---------------------------------------------------------------------------
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 describe("State", () => {
   beforeEach(() => State.reset());
+
+  function getHandler(
+    pi: ReturnType<typeof makeMockPi>,
+    event: string,
+  ): (...args: unknown[]) => void {
+    return pi.on.mock.calls.find((c: unknown[]) => c[0] === event)![1] as (
+      ...args: unknown[]
+    ) => void;
+  }
 
   function makeMockPi() {
     return {
@@ -40,7 +48,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "session_start")![1];
+      const handler = getHandler(pi, "session_start");
       const ctx = {
         sessionManager: {
           getEntries: (): SessionEntry[] => [
@@ -59,7 +67,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "session_start")![1];
+      const handler = getHandler(pi, "session_start");
       const ctx = { sessionManager: { getEntries: () => [] } };
 
       expect(() => handler({}, ctx)).not.toThrow();
@@ -71,7 +79,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
       handler({
         toolName: "bash",
         isError: false,
@@ -91,7 +99,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
       handler({ toolName: "read", isError: false, content: [] });
 
       expect(pi.appendEntry).not.toHaveBeenCalled();
@@ -101,7 +109,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
       handler({
         toolName: "bash",
         isError: true,
@@ -115,7 +123,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
       handler({
         toolName: "bash",
         isError: false,
@@ -129,7 +137,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
       handler({
         toolName: "bash",
         isError: false,
@@ -149,7 +157,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
 
       // First capture issue URL
       handler({
@@ -179,7 +187,7 @@ describe("State", () => {
       const pi = makeMockPi();
       State.initialize(pi as unknown as ExtensionAPI);
 
-      const handler = pi.on.mock.calls.find((c: unknown[]) => c[0] === "tool_result")![1];
+      const handler = getHandler(pi, "tool_result");
       handler({
         toolName: "bash",
         isError: false,

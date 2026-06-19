@@ -13,6 +13,8 @@ export interface PiSpawnOptions {
   timeout?: number;
   signal?: AbortSignal;
   env?: Record<string, string | undefined>;
+  /** Forward the sub-agent's stderr to the parent process's stderr for visibility. */
+  forwardStderr?: boolean;
 }
 
 const PI_PACKAGE = "@earendil-works/pi-coding-agent";
@@ -98,6 +100,9 @@ export class PiSpawner {
       let stderrBuf = "";
       child.stderr.on("data", (chunk: Buffer) => {
         stderrBuf += chunk.toString();
+        if (options.forwardStderr) {
+          process.stderr.write(chunk);
+        }
       });
 
       child.on("error", (err) => {

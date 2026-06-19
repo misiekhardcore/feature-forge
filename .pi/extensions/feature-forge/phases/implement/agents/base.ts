@@ -18,7 +18,11 @@ export abstract class SubAgent {
    */
   async execute(ctx: SubAgentContext): Promise<SubAgentResult> {
     const prompt = this.buildPrompt(ctx);
-    const spawnOptions: { cwd?: string; timeout?: number } = {};
+    const spawnOptions: {
+      cwd?: string;
+      timeout?: number;
+      forwardStderr: boolean;
+    } = { forwardStderr: true };
 
     // Run in the worktree directory if one exists
     if (ctx.worktreePath) {
@@ -123,9 +127,7 @@ export abstract class SubAgent {
           }
           // Map snake_case handoff fields to camelCase interface
           const resultField = field === "remaining_issues" ? "remainingIssues" : field;
-          (result as Record<string, string | undefined>)[resultField] = contentLines
-            .join("\n")
-            .trim();
+          result[resultField] = contentLines.join("\n").trim();
           break;
         }
       }
