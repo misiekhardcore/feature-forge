@@ -1,49 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { findDiscoverIssueUrl } from "../.pi/extensions/feature-forge/state";
+import { findPipelineIssueUrl } from "../.pi/extensions/feature-forge/state";
 import type { SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 
-function customEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
+function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
   return {
     type: "custom" as const,
-    customType: "discover-issue",
+    customType: "pipeline-issue",
     data,
   };
 }
 
-describe("findDiscoverIssueUrl", () => {
+describe("findPipelineIssueUrl", () => {
   it("returns undefined for empty entries", () => {
-    expect(findDiscoverIssueUrl([])).toBeUndefined();
+    expect(findPipelineIssueUrl([])).toBeUndefined();
   });
 
-  it("returns undefined when no discover-issue entry exists", () => {
+  it("returns undefined when no pipeline-issue entry exists", () => {
     const entries: SessionEntry[] = [{ type: "user", text: "hello" } as SessionEntry];
-    expect(findDiscoverIssueUrl(entries)).toBeUndefined();
+    expect(findPipelineIssueUrl(entries)).toBeUndefined();
   });
 
-  it("returns the issueUrl from the last discover-issue entry", () => {
-    const entries: SessionEntry[] = [customEntry({ issueUrl: "https://github.com/o/r/issues/1" })];
-    expect(findDiscoverIssueUrl(entries)).toBe("https://github.com/o/r/issues/1");
-  });
-
-  it("returns the last entry when multiple discover-issue entries exist", () => {
+  it("returns the issueUrl from the last pipeline-issue entry", () => {
     const entries: SessionEntry[] = [
-      customEntry({ issueUrl: "https://github.com/o/r/issues/1" }),
-      customEntry({ issueUrl: "https://github.com/o/r/issues/2" }),
+      pipelineEntry({ issueUrl: "https://github.com/o/r/issues/1" }),
     ];
-    expect(findDiscoverIssueUrl(entries)).toBe("https://github.com/o/r/issues/2");
+    expect(findPipelineIssueUrl(entries)).toBe("https://github.com/o/r/issues/1");
   });
 
-  it("returns undefined when discover-issue entry has no issueUrl", () => {
-    const entries: SessionEntry[] = [customEntry({ issueNumber: 42 })];
-    expect(findDiscoverIssueUrl(entries)).toBeUndefined();
+  it("returns the last entry when multiple pipeline-issue entries exist", () => {
+    const entries: SessionEntry[] = [
+      pipelineEntry({ issueUrl: "https://github.com/o/r/issues/1" }),
+      pipelineEntry({ issueUrl: "https://github.com/o/r/issues/2" }),
+    ];
+    expect(findPipelineIssueUrl(entries)).toBe("https://github.com/o/r/issues/2");
+  });
+
+  it("returns undefined when pipeline-issue entry has no issueUrl", () => {
+    const entries: SessionEntry[] = [pipelineEntry({ issueNumber: 42 })];
+    expect(findPipelineIssueUrl(entries)).toBeUndefined();
   });
 
   it("ignores non-custom entries mixed in", () => {
     const entries: SessionEntry[] = [
       { type: "user", text: "hello" } as SessionEntry,
-      customEntry({ issueUrl: "https://github.com/o/r/issues/7" }),
+      pipelineEntry({ issueUrl: "https://github.com/o/r/issues/7" }),
       { type: "assistant", text: "ok" } as SessionEntry,
     ];
-    expect(findDiscoverIssueUrl(entries)).toBe("https://github.com/o/r/issues/7");
+    expect(findPipelineIssueUrl(entries)).toBe("https://github.com/o/r/issues/7");
   });
 });

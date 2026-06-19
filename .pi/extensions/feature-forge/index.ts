@@ -1,14 +1,15 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DiscoverState, findDiscoverIssueUrl } from "./state";
+import { PipelineState, findPipelineIssueUrl } from "./state";
 import { registerDiscover } from "./commands/discover";
 import { registerDefine } from "./commands/define";
+import { isGitHubIssueUrl } from "./github";
 
 export default function (pi: ExtensionAPI) {
-  let state: DiscoverState = {};
+  let state: PipelineState = {};
 
   // --- Reconstruct pipeline state on session resume ---
   pi.on("session_start", (_event, ctx) => {
-    const url = findDiscoverIssueUrl(ctx.sessionManager.getEntries());
+    const url = findPipelineIssueUrl(ctx.sessionManager.getEntries());
     if (url) {
       state = { issueUrl: url };
     }
@@ -20,13 +21,13 @@ export default function (pi: ExtensionAPI) {
 
     const output =
       event.content?.map((c: { type: string; text?: string }) => c.text || "").join("") || "";
-    const match = output.match(/https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/(\d+)/);
+    const match = isGitHubIssueUrl(output);
     if (!match) return;
 
     const issueUrl = match[0];
     const issueNumber = parseInt(match[1], 10);
     state = { issueUrl, issueNumber };
-    pi.appendEntry("discover-issue", state);
+    pi.appendEntry("pipeline-issue", state);
   });
 
   registerDiscover(pi);

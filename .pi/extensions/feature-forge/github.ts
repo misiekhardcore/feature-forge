@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { findDiscoverIssueUrl } from "./state";
+import { findPipelineIssueUrl } from "./state";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -34,5 +34,9 @@ export function resolveIssueRef(
   if (args && args.trim()) {
     return expandBareIssueNumber(args.trim());
   }
-  return findDiscoverIssueUrl(entries);
+  return findPipelineIssueUrl(entries);
+}
+
+export function isGitHubIssueUrl(ref: string): RegExpMatchArray | null {
+  return ref.match(/^https?:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+/);
 }

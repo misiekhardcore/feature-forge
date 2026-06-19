@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExtensionAPI, SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 
-// Mock commands to avoid side effects
 vi.mock("../.pi/extensions/feature-forge/commands/discover", () => ({
   registerDiscover: vi.fn(),
 }));
@@ -11,10 +10,10 @@ vi.mock("../.pi/extensions/feature-forge/commands/define", () => ({
 
 import featureForge from "../.pi/extensions/feature-forge/index";
 
-function customEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
+function pipelineEntry(data: Record<string, unknown>): CustomEntry<Record<string, unknown>> {
   return {
     type: "custom" as const,
-    customType: "discover-issue",
+    customType: "pipeline-issue",
     data,
   };
 }
@@ -63,23 +62,22 @@ describe("feature-forge extension", () => {
   });
 
   describe("session_start handler", () => {
-    it("reconstructs state when discover-issue entry exists", () => {
+    it("reconstructs state when pipeline-issue entry exists", () => {
       featureForge(mockPi as unknown as ExtensionAPI);
 
       const handler = mockPi._events.get("session_start")!;
       const sessionManager = {
         getEntries: (): SessionEntry[] => [
-          customEntry({ issueUrl: "https://github.com/o/r/issues/42" }),
+          pipelineEntry({ issueUrl: "https://github.com/o/r/issues/42" }),
         ],
       };
 
       handler({}, { sessionManager });
 
-      // appendEntry should not be called on session_start (only state restored)
       expect(mockPi.appendEntry).not.toHaveBeenCalled();
     });
 
-    it("does nothing when no discover-issue entry exists", () => {
+    it("does nothing when no pipeline-issue entry exists", () => {
       featureForge(mockPi as unknown as ExtensionAPI);
 
       const handler = mockPi._events.get("session_start")!;
@@ -105,7 +103,7 @@ describe("feature-forge extension", () => {
       handler(event);
 
       expect(mockPi.appendEntry).toHaveBeenCalledWith(
-        "discover-issue",
+        "pipeline-issue",
         expect.objectContaining({
           issueUrl: "https://github.com/owner/repo/issues/123",
           issueNumber: 123,
