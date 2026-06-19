@@ -1,0 +1,24 @@
+{
+  "name": "feature-forge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous software engineering platform — idea to PR via structured discovery, ADR-driven design, and multi-agent implementation",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "changelog": "git-cliff -o CHANGELOG.md",
+    "check": "npm run lint && npm run format && npm run test"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^3.0.0"
+  }
+}

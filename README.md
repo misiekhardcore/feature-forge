@@ -1,19 +1,43 @@
-Feature Forge
+# Feature Forge
 
-Feature Forge is an autonomous software engineering platform designed to take a product idea from initial discussion to production-ready implementation.
+[![CI](https://github.com/misiekhardcore/feature-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/misiekhardcore/feature-forge/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue.svg)](LICENSE)
 
-The system combines structured ideation, architecture design, planning, implementation, validation, and memory-driven learning into a single orchestration workflow. Instead of acting as a simple coding agent, Feature Forge coordinates specialized AI roles, development tools, project knowledge, and feedback loops to continuously improve software delivery.
+Autonomous software engineering platform — from idea to production-ready implementation, driven by structured discovery, ADR-driven design, and multi-agent orchestration.
 
-Core capabilities include:
+## Core capabilities
 
-Interactive ideation and requirements discovery
-Architecture and design decision management (ADR-driven)
-Autonomous feature planning and implementation
-Claude Code integration
-Build, test, and validation loops
-Project, design, and failure memory
-Model routing (Opus, Sonnet, Haiku)
-Dynamic task decomposition and agent allocation
-Continuous learning from reviews and implementation failures
+- **Interactive ideation** and requirements discovery
+- **Architecture and design decisions** (ADR-driven)
+- **Autonomous feature planning and implementation**
+- **Build, test, and validation loops**
+- **Project, design, and failure memory**
+- **Model routing** (Opus, Sonnet, Haiku)
+- **Dynamic task decomposition** and agent allocation
+- **Continuous learning** from reviews and implementation failures
 
-Feature Forge aims to function as an autonomous software engineering operating system that transforms ideas into reliable, validated software.
+## Installation
+
+```bash
+git clone https://github.com/misiekhardcore/feature-forge.git
+cd feature-forge
+npm install
+```
+
+## Usage
+
+Feature Forge runs as a [pi](https://github.com/earendil-works/pi-coding-agent) extension. Add it to your pi configuration to enable the feature development pipeline commands.
+
+## Development
+
+```bash
+npm test          # Run tests
+npm run check     # Run all checks (lint + format + test)
+npm run changelog # Generate CHANGELOG.md
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup and conventions.
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE)
