@@ -40,3 +40,7 @@ export function resolveIssueRef(
 export function isGitHubIssueUrl(ref: string): RegExpMatchArray | null {
   return ref.match(/https?:\/\/github\.com\/[^/]+\/[^/]+\/issues\/(\d+)/);
 }
+
+export function isGitHubPrUrl(ref: string): RegExpMatchArray | null {
+  return ref.match(/https?:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+}
