@@ -1,117 +1,126 @@
-import { describe, it, expect } from "vitest";
-import {
-  DISCOVERY_PROMPT,
-  DEFINE_PROMPT,
-  researchPrompt,
-  IMPLEMENT_PROMPTS,
-} from "../.pi/extensions/feature-forge/prompts";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-describe("prompt constants", () => {
-  it("DISCOVERY_PROMPT is a non-empty string", () => {
-    expect(typeof DISCOVERY_PROMPT).toBe("string");
-    expect(DISCOVERY_PROMPT.length).toBeGreaterThan(0);
+vi.mock("node:fs", () => ({
+  readFileSync: vi.fn((path: string) => {
+    if (path.includes("prompts/main.md")) return "MAIN_PROMPT";
+    if (path.includes("agents/research.md")) return "AGENT_PROMPT";
+    return "";
+  }),
+}));
+
+import * as fs from "node:fs";
+const readFileSync = (fs as unknown as { readFileSync: ReturnType<typeof vi.fn> }).readFileSync;
+
+import { Phase } from "../.pi/extensions/feature-forge/phases/base";
+import { registerPhases } from "../.pi/extensions/feature-forge/phases/registry";
+
+// ---------------------------------------------------------------------------
+// Phase base class
+// ---------------------------------------------------------------------------
+describe("Phase base class", () => {
+  class TestPhase extends Phase {
+    readonly name = "test";
+    readonly description = "A test phase";
+    constructor(dir: string) {
+      super(dir);
+    }
+    async handler() {
+      // no-op
+    }
+  }
+
+  it("loadPrompt reads from prompts/ subdirectory", () => {
+    const phase = new TestPhase("/fake/path");
+
+    const prompt = (phase as unknown as { loadPrompt(n: string): string }).loadPrompt("main");
+    expect(prompt).toBe("MAIN_PROMPT");
   });
 
-  it("DISCOVERY_PROMPT contains discovery-related content", () => {
-    expect(DISCOVERY_PROMPT).toMatch(/discover|interview|issue/i);
+  it("loadAgent reads from agents/ subdirectory", () => {
+    const phase = new TestPhase("/fake/path");
+
+    const prompt = (phase as unknown as { loadAgent(n: string): string }).loadAgent("research");
+    expect(prompt).toBe("AGENT_PROMPT");
   });
 
-  it("DEFINE_PROMPT is a non-empty string", () => {
-    expect(typeof DEFINE_PROMPT).toBe("string");
-    expect(DEFINE_PROMPT.length).toBeGreaterThan(0);
-  });
+  it("readFileSync is called with correct paths", () => {
+    readFileSync.mockClear();
 
-  it("DEFINE_PROMPT contains implementation plan guidance", () => {
-    expect(DEFINE_PROMPT).toMatch(/implementation plan|definition phase/i);
-  });
+    const phase = new TestPhase("/base/dir");
 
-  it("DEFINE_PROMPT step 5 says 'Post' not 'Commit'", () => {
-    // Regression test for review finding: "Commit" header was misleading.
-    expect(DEFINE_PROMPT).toMatch(/### 5\.\s*Post/);
-  });
+    (phase as unknown as { loadPrompt(n: string): string }).loadPrompt("test");
 
-  it("DEFINE_PROMPT tells LLM not to git commit", () => {
-    expect(DEFINE_PROMPT).toMatch(/Do NOT git commit/);
+    (phase as unknown as { loadAgent(n: string): string }).loadAgent("test");
+
+    expect(readFileSync).toHaveBeenCalledWith("/base/dir/prompts/test.md", "utf-8");
+    expect(readFileSync).toHaveBeenCalledWith("/base/dir/agents/test.md", "utf-8");
   });
 });
 
-describe("IMPLEMENT_PROMPTS", () => {
-  it("exports all 5 prompt keys", () => {
-    expect(Object.keys(IMPLEMENT_PROMPTS)).toEqual([
-      "coordinator",
-      "build",
-      "review",
-      "verify",
-      "pr",
-    ]);
+// ---------------------------------------------------------------------------
+// registerPhases
+// ---------------------------------------------------------------------------
+describe("registerPhases", () => {
+  let mockPi: ExtensionAPI;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPi = {
+      registerCommand: vi.fn(),
+      sendUserMessage: vi.fn(),
+    } as unknown as ExtensionAPI;
   });
 
-  it("each prompt is a non-empty string", () => {
-    for (const [key, value] of Object.entries(IMPLEMENT_PROMPTS)) {
-      expect(typeof value).toBe("string");
-      expect(value.length, `${key} prompt is empty`).toBeGreaterThan(0);
+  it("registers a command for each phase", () => {
+    class PhaseA extends Phase {
+      readonly name = "alpha";
+      readonly description = "Alpha phase";
+      constructor() {
+        super("/fake");
+      }
+      async handler() {}
     }
-  });
-
-  it("coordinator prompt mentions sub-agents and cycles", () => {
-    expect(IMPLEMENT_PROMPTS.coordinator).toMatch(/sub-agent|pi -p/i);
-    expect(IMPLEMENT_PROMPTS.coordinator).toMatch(/cycle|loop/i);
-  });
-
-  it("build prompt mentions worktree creation", () => {
-    expect(IMPLEMENT_PROMPTS.build).toMatch(/worktree|branch/i);
-  });
-
-  it("review prompt mentions acceptance criteria", () => {
-    expect(IMPLEMENT_PROMPTS.review).toMatch(/acceptance criter|ac/i);
-  });
-
-  it("verify prompt mentions test suite", () => {
-    expect(IMPLEMENT_PROMPTS.verify).toMatch(/npm test|npm run check/i);
-  });
-
-  it("pr prompt mentions gh pr create", () => {
-    expect(IMPLEMENT_PROMPTS.pr).toMatch(/gh pr create|pull request/i);
-  });
-
-  it("each prompt has a Handoff section", () => {
-    for (const [key, value] of Object.entries(IMPLEMENT_PROMPTS)) {
-      expect(value, `${key} prompt missing Handoff section`).toMatch(/## Handoff/);
+    class PhaseB extends Phase {
+      readonly name = "beta";
+      readonly description = "Beta phase";
+      constructor() {
+        super("/fake");
+      }
+      async handler() {}
     }
+
+    registerPhases(mockPi, [new PhaseA(), new PhaseB()]);
+
+    expect(mockPi.registerCommand).toHaveBeenCalledTimes(2);
+    expect(mockPi.registerCommand).toHaveBeenCalledWith(
+      "alpha",
+      expect.objectContaining({ description: "Alpha phase" }),
+    );
+    expect(mockPi.registerCommand).toHaveBeenCalledWith(
+      "beta",
+      expect.objectContaining({ description: "Beta phase" }),
+    );
   });
 
-  it("sub-agent prompts have the no-interact rule", () => {
-    for (const key of ["build", "review", "verify", "pr"] as const) {
-      expect(IMPLEMENT_PROMPTS[key], `${key} prompt missing no-interact rule`).toMatch(
-        /Do not interact with the user/i,
-      );
+  it("sets pi property on each phase before registering", () => {
+    class TestPhase extends Phase {
+      readonly name = "test";
+      readonly description = "Test";
+      constructor() {
+        super("/fake");
+      }
+      async handler() {
+        // no-op
+      }
+      getPi() {
+        return this.pi;
+      }
     }
-  });
 
-  it("sub-agent prompts have the output-only rule", () => {
-    for (const key of ["build", "review", "verify", "pr"] as const) {
-      expect(IMPLEMENT_PROMPTS[key], `${key} prompt missing output-only rule`).toMatch(
-        /Output ONLY the handoff section/i,
-      );
-    }
-  });
-});
+    const phase = new TestPhase();
+    registerPhases(mockPi, [phase]);
 
-describe("researchPrompt", () => {
-  it("returns a string with the issueUrl interpolated", () => {
-    const result = researchPrompt("https://github.com/o/r/issues/42");
-    expect(result).toContain("https://github.com/o/r/issues/42");
-  });
-
-  it("does not contain raw placeholder after interpolation", () => {
-    const result = researchPrompt("https://example.com/1");
-    expect(result).not.toContain("{{issueUrl}}");
-  });
-
-  it("handles URLs with special regex characters safely", () => {
-    // URL with characters that could interfere with naive regex replacement.
-    const result = researchPrompt("https://github.com/o/r/issues/1?q=foo+bar");
-    expect(result).toContain("https://github.com/o/r/issues/1?q=foo+bar");
-    expect(result).not.toContain("{{");
+    expect(phase.getPi()).toBe(mockPi);
   });
 });
