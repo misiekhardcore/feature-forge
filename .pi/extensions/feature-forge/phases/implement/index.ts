@@ -28,7 +28,12 @@ export class ImplementPhase extends Phase {
 
     ctx.ui.notify("Starting implementation coordinator...", "info");
 
-    const coordinator = this.loadPrompt("coordinator");
+    let coordinator = this.loadPrompt("coordinator");
+    coordinator = coordinator.replace("{{agentBuild}}", this.loadAgent("build"));
+    coordinator = coordinator.replace("{{agentReview}}", this.loadAgent("review"));
+    coordinator = coordinator.replace("{{agentVerify}}", this.loadAgent("verify"));
+    coordinator = coordinator.replace("{{agentPr}}", this.loadAgent("pr"));
+    coordinator = coordinator.replace("{{issueUrl}}", issueRef);
 
     // eslint-disable-next-line @typescript-eslint/await-thenable
     await this.pi.sendUserMessage([
