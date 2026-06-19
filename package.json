@@ -11,10 +11,12 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
+    "typecheck": "tsc --noEmit",
     "changelog": "git-cliff -o CHANGELOG.md",
     "check": "npm run lint && npm run format && npm run test"
   },
   "devDependencies": {
+    "@types/node": "^26.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.5.0",
