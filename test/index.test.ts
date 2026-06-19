@@ -1,14 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ExtensionAPI, SessionEntry, CustomEntry } from "@earendil-works/pi-coding-agent";
 
-vi.mock("../.pi/extensions/feature-forge/commands/discover", () => ({
-  registerDiscover: vi.fn(),
-}));
-vi.mock("../.pi/extensions/feature-forge/commands/define", () => ({
-  registerDefine: vi.fn(),
-}));
-vi.mock("../.pi/extensions/feature-forge/commands/implement", () => ({
-  registerImplement: vi.fn(),
+vi.mock("../.pi/extensions/feature-forge/phases/registry", () => ({
+  registerPhases: vi.fn(),
 }));
 
 import featureForge from "../.pi/extensions/feature-forge/index";
@@ -46,17 +40,20 @@ describe("feature-forge extension", () => {
     } as unknown as typeof mockPi;
   });
 
-  it("registers discover, define, and implement commands", async () => {
-    const { registerDiscover } = await import("../.pi/extensions/feature-forge/commands/discover");
-    const { registerDefine } = await import("../.pi/extensions/feature-forge/commands/define");
-    const { registerImplement } =
-      await import("../.pi/extensions/feature-forge/commands/implement");
+  it("registers all three phases via registerPhases", async () => {
+    const { registerPhases } = await import("../.pi/extensions/feature-forge/phases/registry");
 
     featureForge(mockPi);
 
-    expect(registerDiscover).toHaveBeenCalledWith(mockPi);
-    expect(registerDefine).toHaveBeenCalledWith(mockPi);
-    expect(registerImplement).toHaveBeenCalledWith(mockPi);
+    expect(registerPhases).toHaveBeenCalledWith(
+      mockPi,
+      expect.arrayContaining([expect.anything()]),
+    );
+    const phases = (registerPhases as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(phases).toHaveLength(3);
+    expect(phases[0].name).toBe("discover");
+    expect(phases[1].name).toBe("define");
+    expect(phases[2].name).toBe("implement");
   });
 
   it("registers session_start event handler", () => {
