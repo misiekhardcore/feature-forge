@@ -142,6 +142,7 @@ describe("DefinePhase - handler", () => {
     mockPi = {
       registerCommand: vi.fn(),
       sendUserMessage: vi.fn().mockResolvedValue(undefined),
+      appendEntry: vi.fn(),
     } as unknown as ExtensionAPI;
   });
 

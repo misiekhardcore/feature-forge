@@ -80,6 +80,7 @@ export class State {
     return entry?.data?.issueUrl;
   }
 
+  /** Expose current state for inspection. */
   getState(): PipelineState {
     return this.state;
   }
@@ -97,4 +98,23 @@ export function resolveIssueRef(
     return expandBareIssueNumber(args.trim());
   }
   return State.extractIssueUrl(entries);
+}
+
+/**
+ * Resolve an issue reference and persist it to pipeline state.
+ * Phase handlers should call this instead of resolveIssueRef so the
+ * pipeline state is always up to date.
+ */
+export function storeOrResolveIssueRef(
+  pi: ExtensionAPI,
+  args: string | undefined,
+  entries: SessionEntry[],
+): string | undefined {
+  const ref = resolveIssueRef(args, entries);
+  if (ref) {
+    const issueNumberMatch = ref.match(/issues\/(\d+)/);
+    const issueNumber = issueNumberMatch ? parseInt(issueNumberMatch[1], 10) : undefined;
+    pi.appendEntry(PIPELINE_ISSUE_TYPE, { issueUrl: ref, issueNumber });
+  }
+  return ref;
 }
