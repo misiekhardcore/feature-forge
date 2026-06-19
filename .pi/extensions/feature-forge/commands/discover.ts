@@ -8,10 +8,10 @@ export function registerDiscover(pi: ExtensionAPI): void {
       const idea = args.trim();
       if (!idea) {
         ctx.ui.notify("Usage: /discover <feature idea>", "error");
-        return;
+        return Promise.resolve();
       }
 
-      await pi.sendUserMessage([
+      pi.sendUserMessage([
         { type: "text", text: DISCOVERY_PROMPT },
         {
           type: "text",

@@ -47,27 +47,27 @@ describe("feature-forge extension", () => {
     const { registerDiscover } = await import("../.pi/extensions/feature-forge/commands/discover");
     const { registerDefine } = await import("../.pi/extensions/feature-forge/commands/define");
 
-    featureForge(mockPi as unknown as ExtensionAPI);
+    featureForge(mockPi);
 
     expect(registerDiscover).toHaveBeenCalledWith(mockPi);
     expect(registerDefine).toHaveBeenCalledWith(mockPi);
   });
 
   it("registers session_start event handler", () => {
-    featureForge(mockPi as unknown as ExtensionAPI);
+    featureForge(mockPi);
 
     expect(mockPi.on).toHaveBeenCalledWith("session_start", expect.any(Function));
   });
 
   it("registers tool_result event handler", () => {
-    featureForge(mockPi as unknown as ExtensionAPI);
+    featureForge(mockPi);
 
     expect(mockPi.on).toHaveBeenCalledWith("tool_result", expect.any(Function));
   });
 
   describe("session_start handler", () => {
     it("reconstructs state when pipeline-issue entry exists", () => {
-      featureForge(mockPi as unknown as ExtensionAPI);
+      featureForge(mockPi);
 
       const handler = mockPi._events.get("session_start")!;
       const sessionManager = {
@@ -82,7 +82,7 @@ describe("feature-forge extension", () => {
     });
 
     it("does nothing when no pipeline-issue entry exists", () => {
-      featureForge(mockPi as unknown as ExtensionAPI);
+      featureForge(mockPi);
 
       const handler = mockPi._events.get("session_start")!;
       const sessionManager = {
@@ -95,7 +95,7 @@ describe("feature-forge extension", () => {
 
   describe("tool_result handler", () => {
     it("captures issue URL from gh issue create output", () => {
-      featureForge(mockPi as unknown as ExtensionAPI);
+      featureForge(mockPi);
 
       const handler = mockPi._events.get("tool_result")!;
       const event = {
@@ -116,7 +116,7 @@ describe("feature-forge extension", () => {
     });
 
     it("ignores non-bash tool results", () => {
-      featureForge(mockPi as unknown as ExtensionAPI);
+      featureForge(mockPi);
 
       const handler = mockPi._events.get("tool_result")!;
       handler({ toolName: "read", isError: false, content: [] });
@@ -125,7 +125,7 @@ describe("feature-forge extension", () => {
     });
 
     it("ignores error tool results", () => {
-      featureForge(mockPi as unknown as ExtensionAPI);
+      featureForge(mockPi);
 
       const handler = mockPi._events.get("tool_result")!;
       handler({
@@ -138,7 +138,7 @@ describe("feature-forge extension", () => {
     });
 
     it("ignores output without github issue URL", () => {
-      featureForge(mockPi as unknown as ExtensionAPI);
+      featureForge(mockPi);
 
       const handler = mockPi._events.get("tool_result")!;
       handler({

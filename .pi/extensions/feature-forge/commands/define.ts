@@ -54,15 +54,16 @@ export function registerDefine(pi: ExtensionAPI): void {
       try {
         ctx.ui.notify("Running background research in separate context...", "info");
         researchOutput = runBackgroundResearch(issueRef, ctx.cwd);
-      } catch (err: any) {
+      } catch (err: unknown) {
         ctx.ui.notify(
-          `Background research failed: ${err.message}. Proceeding without it.`,
+          `Background research failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without it.`,
           "warning",
         );
         researchOutput =
           "_(Background research could not be completed. Explore the codebase yourself if needed.)_";
       }
 
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- SDK has Promise<void> overload
       await pi.sendUserMessage([
         { type: "text", text: DEFINE_PROMPT },
         {
