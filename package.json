@@ -13,13 +13,22 @@
     "format:fix": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "changelog": "git-cliff -o CHANGELOG.md",
-    "check": "npm run lint && npm run format && npm run test"
+    "check": "npm run lint && npm run format && npm run test",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs,json,md,yml,yaml}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.79.8",
     "@eslint/js": "10.0.1",
     "@types/node": "26.0.0",
     "eslint": "10.5.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.0.7",
     "prettier": "3.8.4",
     "typescript": "6.0.3",
     "typescript-eslint": "8.61.1",
