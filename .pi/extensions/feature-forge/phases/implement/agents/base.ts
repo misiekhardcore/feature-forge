@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PiSpawner } from "../../../pi-spawner";
+import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import type { AgentSpawner } from "../../../pi-spawner";
 import type { SubAgentContext, SubAgentResult } from "./types";
 
 export abstract class SubAgent {
@@ -9,7 +10,7 @@ export abstract class SubAgent {
 
   constructor(
     protected readonly promptDir: string,
-    protected readonly spawner: PiSpawner,
+    protected readonly spawner: AgentSpawner,
   ) {}
 
   /**
@@ -29,8 +30,8 @@ export abstract class SubAgent {
       spawnOptions.cwd = ctx.worktreePath;
     }
 
-    const { stdout, exitCode } = await this.spawner.run(prompt, spawnOptions);
-    return this.parseResult(stdout, exitCode);
+    const result = await this.spawner.run(prompt, spawnOptions);
+    return this.parseResult(result);
   }
 
   // -----------------------------------------------------------------------
@@ -60,13 +61,18 @@ export abstract class SubAgent {
   // -----------------------------------------------------------------------
 
   /** Parse the `## Handoff` section from stdout into a structured result. */
-  protected parseResult(stdout: string, exitCode: number): SubAgentResult {
+  protected parseResult(agentResult: AgentToolResult<{ exitCode?: number }>): SubAgentResult {
+    const { content, details } = agentResult;
+    const { exitCode } = details || {};
     const result: SubAgentResult = {
       status: exitCode === 0 ? "pass" : "fail",
-      output: stdout,
+      output: content.map((c) => (c.type === "text" ? c.text : "")).join(""),
     };
 
-    const handoffMatch = stdout.match(/## Handoff\n([\s\S]*?)(?:\n##|$)/);
+    const handoffMatch = content
+      .map((c) => (c.type === "text" ? c.text : ""))
+      .join("")
+      .match(/## Handoff\n([\s\S]*?)(?:\n##|$)/);
     if (!handoffMatch) return result;
 
     const lines = handoffMatch[1].split("\n");

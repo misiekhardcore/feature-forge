@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Phase } from "../base";
 import { State } from "../../state";
-import { PiSpawner } from "../../pi-spawner";
+import { AgentSpawner } from "../../pi-spawner";
 import { ImplementCoordinator } from "./coordinator";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -30,7 +30,7 @@ export class ImplementPhase extends Phase {
 
     ctx.ui.notify("Starting implementation pipeline...", "info");
 
-    const spawner = new PiSpawner();
+    const spawner = new AgentSpawner();
     const coordinator = new ImplementCoordinator(issueRef, spawner);
 
     const result = await coordinator.run((msg) => {

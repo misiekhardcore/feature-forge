@@ -31,3 +31,6 @@ the main conversation thread focused on the interview.
 
 - Curious, not presumptuous.
 - Don't propose solutions yet — we're still in problem space.
+
+**Feature idea to explore**: {{idea}}
+Start by asking your first question.

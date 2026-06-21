@@ -6,7 +6,7 @@ vi.mock("node:child_process", () => ({
   spawn: mockSpawn,
 }));
 
-import { PiSpawner } from "../.pi/extensions/feature-forge/pi-spawner";
+import { AgentSpawner } from "../.pi/extensions/feature-forge/pi-spawner";
 
 describe("PiSpawner", () => {
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe("PiSpawner", () => {
     const child = makeMockChild();
     mockSpawn.mockReturnValue(child);
 
-    const spawner = new PiSpawner("/fake/pi");
+    const spawner = new AgentSpawner("/fake/pi");
     const promise = spawner.run("test prompt", { cwd: "/project" });
 
     // Emit data then close
@@ -52,7 +52,7 @@ describe("PiSpawner", () => {
     const child = makeMockChild();
     mockSpawn.mockReturnValue(child);
 
-    const spawner = new PiSpawner("/fake/pi");
+    const spawner = new AgentSpawner("/fake/pi");
     const promise = spawner.run("test");
 
     child.stdout.emit("data", Buffer.from("chunk1"));
@@ -67,7 +67,7 @@ describe("PiSpawner", () => {
     const child = makeMockChild();
     mockSpawn.mockReturnValue(child);
 
-    const spawner = new PiSpawner("/fake/pi");
+    const spawner = new AgentSpawner("/fake/pi");
     const promise = spawner.run("test");
 
     child.stdout.emit("data", Buffer.from(""));
@@ -81,7 +81,7 @@ describe("PiSpawner", () => {
     const child = makeMockChild();
     mockSpawn.mockReturnValue(child);
 
-    const spawner = new PiSpawner("/fake/pi");
+    const spawner = new AgentSpawner("/fake/pi");
     const promise = spawner.run("test");
 
     child.emit("error", new Error("ENOENT"));
@@ -93,7 +93,7 @@ describe("PiSpawner", () => {
     const child = makeMockChild();
     mockSpawn.mockReturnValue(child);
 
-    const spawner = new PiSpawner("/fake/pi");
+    const spawner = new AgentSpawner("/fake/pi");
     const promise = spawner.run("test", {
       env: { FOO: "bar", PATH: process.env.PATH ?? "" },
     });
@@ -113,7 +113,7 @@ describe("PiSpawner", () => {
   });
 
   it("resolves pi binary from PATH when no path given", () => {
-    const spawner = new PiSpawner();
+    const spawner = new AgentSpawner();
     expect(spawner).toBeDefined();
   });
 });

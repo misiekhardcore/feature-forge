@@ -2,13 +2,14 @@ import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 
 export interface PiSpawnResult {
   stdout: string;
   exitCode: number;
 }
 
-export interface PiSpawnOptions {
+export interface AgentSpawnOptions {
   cwd?: string;
   timeout?: number;
   signal?: AbortSignal;
@@ -74,14 +75,17 @@ function resolvePackageRoot(): string | undefined {
  * - Resolves with { stdout, exitCode } on completion.
  * - Rejects on spawn error or timeout.
  */
-export class PiSpawner {
+export class AgentSpawner {
   private readonly piPath: string;
 
   constructor(piPath?: string) {
     this.piPath = piPath ?? resolvePiBinary();
   }
 
-  async run(prompt: string, options: PiSpawnOptions = {}): Promise<PiSpawnResult> {
+  async run(
+    prompt: string,
+    options: AgentSpawnOptions = {},
+  ): Promise<AgentToolResult<{ exitCode?: number }>> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.piPath, ["-p", prompt], {
         cwd: options.cwd,
@@ -113,7 +117,10 @@ export class PiSpawner {
 
       child.on("close", (exitCode) => {
         const stdout = Buffer.concat(chunks).toString("utf-8");
-        resolve({ stdout, exitCode: exitCode ?? 1 });
+        resolve({
+          content: [{ type: "text", text: stdout }],
+          details: { ...(exitCode ? { exitCode } : {}) },
+        });
       });
     });
   }

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { PiSpawner } from "../../pi-spawner";
+import { AgentSpawner } from "../../pi-spawner";
 import { SubAgent } from "./agents/base";
 import type { SubAgentContext } from "./agents/types";
 import { BuildAgent } from "./agents/build";
@@ -32,7 +32,7 @@ export class ImplementCoordinator {
 
   constructor(
     private readonly issueRef: string,
-    private readonly spawner: PiSpawner,
+    private readonly spawner: AgentSpawner,
     agents?: Partial<CoordinatedAgents>,
   ) {
     this.agents = {

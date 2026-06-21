@@ -65,3 +65,7 @@ What's uncertain, what could break, edge cases to watch for, assumptions that ne
 - Skip sections that don't apply — don't pad with filler.
 - Do not write implementation code. This is planning only.
 - Get explicit approval before updating the issue.
+
+**Issue to define**: {{issueRef}}
+
+Start by reading the issue.
