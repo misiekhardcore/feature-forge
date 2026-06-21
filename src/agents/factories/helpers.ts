@@ -1,4 +1,4 @@
-import { AgentSpecification } from "../base/index.js";
+import { AgentSpecification } from "../specifications";
 
 /**
  * Converts an AgentSpecification into pi CLI arguments.

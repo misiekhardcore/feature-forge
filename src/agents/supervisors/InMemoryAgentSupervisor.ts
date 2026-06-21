@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Agent } from "../agents";
 import { AgentFactory } from "../factories";
-import { AgentSpecification } from "../base";
+import { AgentSpecification } from "../specifications";
 import { AgentSupervisor } from "./AgentSupervisor";
 
 /**

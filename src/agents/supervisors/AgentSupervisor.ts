@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Agent } from "../agents";
-import { AgentSpecification } from "../base";
+import { AgentSpecification } from "../specifications";
 
 /**
  * Manages the full lifecycle of agents: spawning, monitoring, and destroying.
