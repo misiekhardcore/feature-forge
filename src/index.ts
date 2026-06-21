@@ -1,10 +1,6 @@
-import { ExtensionFactory, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import {
-  AgentIdentifier,
-  AgentSpecification,
-  InMemoryAgentSupervisor,
-  PiSubprocessAgentFactory,
-} from "./agents/index.js";
+import type { ExtensionFactory, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { InMemoryAgentSupervisor, PiSubprocessAgentFactory } from "./agents/index.js";
+import { ResearchAgentSpecification } from "./specifications/ResearchAgentSpecification.js";
 
 const featureForgeExtension: ExtensionFactory = (pi) => {
   const supervisor = new InMemoryAgentSupervisor(new PiSubprocessAgentFactory());
@@ -65,54 +61,11 @@ const featureForgeExtension: ExtensionFactory = (pi) => {
         return;
       }
 
-      const specification = new (class extends AgentSpecification {
-        constructor() {
-          super({
-            identifier: new AgentIdentifier("researcher"),
-            role: "researcher",
-            systemPrompt:
-              "You are a research agent. Investigate the given topic thoroughly. " +
-              "Use available tools to search, read, and gather information. " +
-              "Return a structured summary with:\n" +
-              "- Key findings\n" +
-              "- Relevant details or data points\n" +
-              "- Open questions or uncertainties\n\n" +
-              "Format your response as clean markdown.",
-          });
-        }
-      })();
+      const specification = new ResearchAgentSpecification();
 
       ctx.ui.notify(`Research agent investigating "${topic}" in the background...`, "info");
 
-      supervisor
-        .spawn(specification)
-        .then(async (agent) => {
-          const result = await agent.executeTask(topic);
-
-          const summary =
-            typeof result === "object" && result !== null
-              ? "_(research complete, see details above)_"
-              : String(result);
-
-          pi.sendMessage(
-            {
-              customType: "research_result" as const,
-              content: `## 🔍 Research: ${topic}\n\n${summary}`,
-              display: true,
-            },
-            { triggerTurn: false },
-          );
-        })
-        .catch(async (error: Error) => {
-          pi.sendMessage(
-            {
-              customType: "research_error" as const,
-              content: `## ❌ Research failed: ${topic}\n\n${error instanceof Error ? error.message : String(error)}`,
-              display: true,
-            },
-            { triggerTurn: false },
-          );
-        });
+      supervisor.runAgent(specification, topic, pi);
     },
   });
 };

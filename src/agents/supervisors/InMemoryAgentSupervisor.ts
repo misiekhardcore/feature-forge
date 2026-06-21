@@ -1,3 +1,4 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Agent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../base";
@@ -64,6 +65,52 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
       entries.map(async ([id]) => {
         await this.destroyAgent(id);
       }),
+    );
+  }
+
+  /**
+   * Full lifecycle: spawn → execute → agent delivers result/error → destroy.
+   *
+   * The agent owns its own result formatting and delivery (via pi.sendMessage).
+   * The caller does not need to await this — the supervisor handles everything
+   * internally (fire-and-forget safe).
+   */
+  public override async runAgent(
+    specification: AgentSpecification,
+    task: string,
+    pi: ExtensionAPI,
+  ): Promise<void> {
+    const identifier = specification.identifier.toString();
+
+    let agent: Agent;
+    try {
+      agent = await this.spawn(specification);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause : new Error(String(cause));
+
+      return this.printAgentError(identifier, task, error, pi);
+    }
+
+    try {
+      const result = await agent.executeTask(task);
+      agent.deliverResult(task, result, pi);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause : new Error(String(cause));
+      agent.deliverError(task, error, pi);
+    } finally {
+      await this.destroyAgent(identifier);
+    }
+  }
+
+  printAgentError(agentIdentifier: string, task: string, error: Error, pi: ExtensionAPI): void {
+    // No agent to delegate to — supervisor sends the error directly.
+    pi.sendMessage(
+      {
+        customType: "agent_spawn_error" as const,
+        content: `## ❌ Agent "${agentIdentifier}" spawn failed: ${task}\n\n${error.message}`,
+        display: true,
+      },
+      { triggerTurn: false },
     );
   }
 }

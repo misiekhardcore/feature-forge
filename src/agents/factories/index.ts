@@ -1,5 +1,3 @@
 export { AgentCreationError, AgentFactory } from "./AgentFactory";
-export {
-  PiSubprocessAgentFactory,
-  PiSubprocessAgentFactoryOptions,
-} from "./PiSubprocessAgentFactory";
+export { PiSubprocessAgentFactory } from "./PiSubprocessAgentFactory";
+export { buildPiCliArguments } from "./helpers.js";

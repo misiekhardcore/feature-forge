@@ -14,7 +14,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["node_modules/", "dist/", "eslint.config.js"],
+    ignores: ["node_modules/", "dist/", "eslint.config.js", ".pi/extensions/index.ts"],
   },
   {
     // Test files: relax rules that clash with vitest mocking patterns

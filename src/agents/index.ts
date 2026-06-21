@@ -3,8 +3,8 @@ export {
   AgentFactory,
   AgentCreationError,
   PiSubprocessAgentFactory,
-  PiSubprocessAgentFactoryOptions,
+  buildPiCliArguments,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";
-export { AgentStatus, AgentIdentifier, AgentSpecification } from "./base";
+export { AgentStatus, AgentIdentifier, AgentSpecification, type ThinkingLevel } from "./base";
