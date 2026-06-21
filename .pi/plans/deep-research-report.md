@@ -1,36 +1,40 @@
-# Architektura orkiestracji agentów (nadbudowa nad **pi-agent-core**)
+# Agent Orchestration Architecture (superstructure over **pi-agent-core**)
 
-## Podsumowanie wykonawcze  
-Przedstawiona architektura zakłada **wielowarstwowe rozdzielenie** odpowiedzialności: nadrzędny agent-kurator (supervisor) zarządza cyklem życia i komunikacją z wieloma podagentami (subagents). Każdy podagent ma własną **specyfikację** (`AgentSpec`), środowisko pracy (`Workspace`) i instancję wykonawczą (`AgentRuntime`), a wyniki przekazuje w postaci **ustrukturyzowanych artefaktów** (np. patch kodu, raport, wyniki testów). Komunikacja odbywa się przez zunifikowaną magistralę komunikatów z wyraźnymi ID korelacji, a wszystkie zadania, postępy i wyniki definiujemy za pomocą **schematów** (np. JSON Schema). Dodatkowo zapewniamy **obserwowalność** (panelem `tmux` lub interfejsem, logi, metryki, śledzenie OTEL) oraz **izolację** środowisk (worktrees, kontenery itp.) dla bezpieczeństwa.  
+## Executive Summary
 
-## Kluczowe koncepcje architektury  
-Architekturę można sprowadzić do kilku abstrakcji:
+The presented architecture assumes **multi-layered separation** of responsibilities: a supervising orchestrator agent manages the lifecycle and communication with multiple subagents. Each subagent has its own **specification** (`AgentSpec`), working environment (`Workspace`) and execution instance (`AgentRuntime`), and delivers results in the form of **structured artifacts** (e.g., code patch, report, test results). Communication occurs through a unified message bus with explicit correlation IDs, and all tasks, progress, and results are defined via **schemas** (e.g., JSON Schema). Additionally, we ensure **observability** (via `tmux` panels or UI, logs, metrics, OTEL tracing) and **environment isolation** (worktrees, containers, etc.) for safety.
 
-- **`AgentSpec`** – deklaratywna specyfikacja agenta zawierająca jego rolę, systemowy prompt, zestaw narzędzi, model, workspace itp. (np. YAML z polami `name`, `description`, `tools`, `model`).  
-- **`WorkspaceProvider`** – fabryka środowisk pracy (oddzielne katalogi robocze) dla każdego agenta. Może to być bieżące repozytorium, Git worktree, pełne klonowanie, tymczasowy katalog itp. Każda implementacja ma inny stopień izolacji i kosztów (por. tabela poniżej).  
-- **`AgentRuntime`** – mechanizm uruchamiania agenta. Przykłady: proces lokalny (np. `spawn('pi')`), sesja `tmux`, kontener Docker, instancja zdalna (SSH, kubernetesa). Powinna zapewniać interface do wysyłania/zatrzymywania procesu agenta.  
-- **`AgentHandle`** – uchwyt do aktywnego agenta („klient” w kodzie), pozwalający na wysyłanie komunikatów i odbieranie wyników. Uwaga: pan `tmux` to tylko adapter interfejsu wizualnego, a nie kanał komunikacji – cała wymiana odbywa się przez magistralę.  
-- **Magistrala komunikacyjna (`AgentBus`)** – abstrakcja kanału: umożliwia wysyłanie asynchronicznych wiadomości *send*, żądań *request* oraz strumieni odpowiedzi *stream*. Każda wiadomość zawiera unikalne ID korelacji (np. `requestId`), co pozwala koordynatorowi dopasować wyniki do zadań. Poprawa niezawodności przez timeouty i ewentualne ponowienia żądań leży po stronie implementacji magistrali.  
+## Key Architectural Concepts
 
-Te komponenty tworzą elastyczną bazę: nadbudowana jest nad nią konkretna logika (np. **pi-coding-agent**), ale sama magistrala i flow są aplikacyjnie agnostyczne. Dzięki temu można testować różne runtime’y czy magazyny workspace bez zmiany logiki orkiestratora.  
+The architecture can be reduced to a few abstractions:
 
-## Schematy komunikatów i walidacja  
-Wszystkie ważne komunikaty definiujemy jako schematy (np. **JSON Schema** lub Protobuf). Umożliwia to statyczną walidację wejść i wyjść: jak pokazano w literaturze, schematy drastycznie redukują błędy generatywnego modelu.  
+- **`AgentSpec`** – a declarative agent specification containing its role, system prompt, tool set, model, workspace, etc. (e.g., YAML with fields `name`, `description`, `tools`, `model`).
+- **`WorkspaceProvider`** – a factory for working environments (separate working directories) for each agent. This can be the current repository, a Git worktree, a full clone, a temporary directory, etc. Each implementation offers a different degree of isolation and cost (see table below).
+- **`AgentRuntime`** – the mechanism for launching an agent. Examples: local process (e.g., `spawn('pi')`), `tmux` session, Docker container, remote instance (SSH, Kubernetes). It should provide an interface for sending/stopping the agent process.
+- **`AgentHandle`** – a handle to an active agent (the "client" in code), allowing messages to be sent and results received. Note: the `tmux` pane is only a visual interface adapter, not a communication channel – all exchange happens through the bus.
+- **Communication Bus (`AgentBus`)** – an abstract channel: supports asynchronous _send_ messages, _request_ calls, and _stream_ responses. Each message carries a unique correlation ID (e.g., `requestId`), allowing the orchestrator to match results to tasks. Reliability improvements via timeouts and optional retries are the bus implementation's responsibility.
 
-Przykładowe schematy JSON:  
+These components form a flexible foundation: concrete logic (e.g., **pi-coding-agent**) is built on top, but the bus itself and the flow are application-agnostic. This makes it possible to test different runtimes or workspace stores without changing the orchestrator logic.
+
+## Message Schemas and Validation
+
+All important messages are defined as schemas (e.g., **JSON Schema** or Protobuf). This enables static validation of inputs and outputs: as shown in the literature, schemas drastically reduce generative model errors.
+
+Example JSON schemas:
 
 ```json
-// Przykładowy schemat zadania (request) dla agenta
+// Example task schema (request) for an agent
 {
   "type": "object",
   "properties": {
-    "taskId": {"type": "string"},      // UUID zadania
-    "agent": {"type": "string"},       // nazwa/typ agenta docelowego
-    "type": {"type": "string"},        // np. "analysis", "test", "review"
-    "input": {                        // dane specyficzne dla zadania
+    "taskId": { "type": "string" }, // task UUID
+    "agent": { "type": "string" }, // target agent name/type
+    "type": { "type": "string" }, // e.g. "analysis", "test", "review"
+    "input": {
+      // task-specific data
       "type": "object",
       "properties": {
-        "query": {"type": "string"}
+        "query": { "type": "string" }
       },
       "required": ["query"],
       "additionalProperties": false
@@ -42,37 +46,37 @@ Przykładowe schematy JSON:
 ```
 
 ```json
-// Schemat komunikatu z wynikiem lub błędem
+// Message schema for result or error
 {
   "type": "object",
   "properties": {
-    "taskId": {"type": "string"},
-    "agent": {"type": "string"},
-    "status": {"enum": ["completed","failed"]},
+    "taskId": { "type": "string" },
+    "agent": { "type": "string" },
+    "status": { "enum": ["completed", "failed"] },
     "output": {
       "type": "object",
       "properties": {
-        "artifactType": {"type": "string"},
-        "data": {}             // struktura zależna od artifactType (patrz dalej)
+        "artifactType": { "type": "string" },
+        "data": {} // structure depends on artifactType (see below)
       },
-      "required": ["artifactType","data"]
+      "required": ["artifactType", "data"]
     },
     "error": {
       "type": "object",
       "properties": {
-        "code": {"type": "string"},
-        "message": {"type": "string"}
+        "code": { "type": "string" },
+        "message": { "type": "string" }
       },
-      "required": ["code","message"]
+      "required": ["code", "message"]
     }
   },
-  "required": ["taskId","agent","status"]
+  "required": ["taskId", "agent", "status"]
 }
 ```
 
-Walidację można przeprowadzić za pomocą JSON Schema (np. biblioteka `ajv`), Protobuf (z dedykowaną serializacją) czy systemów typów języka (TypeScript + TypeBox, Python + Pydantic itp.). Kluczowa zasada: *ściśle określać* wymagane pola i typy, żeby model i podagent nigdy nie przekroczyły granic formatu.  
+Validation can be done with JSON Schema (e.g., the `ajv` library), Protobuf (with dedicated serialization), or language type systems (TypeScript + TypeBox, Python + Pydantic, etc.). The key principle: _strictly define_ required fields and types so that the model and subagent never exceed format boundaries.
 
-Przykład komunikatu YAML (żądanie zadania):  
+Example YAML message (task request):
 
 ```yaml
 taskId: "a1b2c3d4"
@@ -81,43 +85,44 @@ type: "codeReview"
 input:
   repository: "https://github.com/example/proj"
   issueId: 42
-```  
+```
 
-## Przepływ uruchamiania agenta (spawn flow)  
-Diagram sekwencji pokazuje proces uruchomienia agenta i zwrócenia wyniku:
+## Agent Spawn Flow
+
+The sequence diagram shows the process of spawning an agent and returning a result:
 
 ```mermaid
 sequenceDiagram
-    participant Orkiestrator
+    participant Orchestrator
     participant WorkspaceProv
     participant AgentRuntime
-    participant AgentProces
+    participant AgentProcess
     participant AgentBus
 
-    Orkiestrator->>WorkspaceProv: createWorkspace(AgentSpec)
-    WorkspaceProv-->>Orkiestrator: workspacePath
-    Orkiestrator->>AgentRuntime: spawnAgent(AgentSpec, workspacePath)
-    AgentRuntime-->>Orkiestrator: AgentHandle
-    Orkiestrator->>AgentHandle: send({taskId, type, input})  // wysyła zadanie
-    AgentHandle->>AgentProces: deliver
-    AgentProces->>AgentBus: przetworzenie komunikatu
-    AgentBus->>AgentProces: ewentualne odpowiedzi/nagradzanie
-    AgentProces-->>AgentBus: result/error (ostrzeżenia/progress)
-    AgentBus-->>Orkiestrator: stream({taskId, status, output})
+    Orchestrator->>WorkspaceProv: createWorkspace(AgentSpec)
+    WorkspaceProv-->>Orchestrator: workspacePath
+    Orchestrator->>AgentRuntime: spawnAgent(AgentSpec, workspacePath)
+    AgentRuntime-->>Orchestrator: AgentHandle
+    Orchestrator->>AgentHandle: send({taskId, type, input})  // sends task
+    AgentHandle->>AgentProcess: deliver
+    AgentProcess->>AgentBus: process message
+    AgentBus->>AgentProcess: optional responses/feedback
+    AgentProcess-->>AgentBus: result/error (warnings/progress)
+    AgentBus-->>Orchestrator: stream({taskId, status, output})
 ```
 
-1. **AgentSpec**: Orkiestrator na podstawie żądania tworzy specyfikację agenta (id, rola, prompt, narzędzia, workspace).  
-2. **WorkspaceProvider**: Przydziela izolowany katalog roboczy (np. Git worktree, pełne clone lub tmp folder) zgodnie z konfiguracją Spec.  
-3. **AgentRuntime**: Odpala agenta – np. uruchamia nowy proces `pi` ze wskazaniem katalogu, rolem i promptem. Zwraca uchwyt (`AgentHandle`) do komunikacji. W `pi-coding-agent` takim uchwytem jest proces child, ewentualnie z panelem `tmux`.  
-4. **Komunikacja**: Orkiestrator wysyła do AgentHandle’a żądanie zadania jako zserializowany JSON. Agent (podagent) je odbiera, wykonuje pętlę agent-core, korzysta z narzędzi itp. W razie problemów publikuje postępy lub błędy.  
-5. **Wynik**: Po zakończeniu podagent zwraca strukturę (JSON) zawierającą `taskId` i artefakt/komunikat. Ponieważ przykładowa implementacja używa trybu JSON („pi --mode json”), mamy ustrukturyzowany output.  
+1. **AgentSpec**: Based on the request, the orchestrator creates an agent specification (id, role, prompt, tools, workspace).
+2. **WorkspaceProvider**: Allocates an isolated working directory (e.g., Git worktree, full clone, or tmp folder) according to the Spec configuration.
+3. **AgentRuntime**: Launches the agent – e.g., starts a new `pi` process with the specified directory, role, and prompt. Returns a handle (`AgentHandle`) for communication. In `pi-coding-agent`, such a handle is a child process, optionally with a `tmux` pane.
+4. **Communication**: The orchestrator sends a task request to the AgentHandle as serialized JSON. The agent (subagent) receives it, executes its agent-core loop, uses tools, etc. If issues arise, it publishes progress or errors.
+5. **Result**: Upon completion, the subagent returns a JSON structure containing the `taskId` and artifact/message. Since the example implementation uses JSON mode (`pi --mode json`), we get structured output.
 
-Analogicznie działa delegacja: jeśli podagent sam musi stworzyć dalej kolejne „pod-podagent” (np. planista deleguje wykonanie), to sam tworzy `AgentSpec` i używa lokalnego AgentBus lub ponownie komunikuje się przez nadrzędnego. Sytuację delegacji widać na kolejnym diagramie:
+Delegation works similarly: if a subagent itself needs to create further "sub-subagents" (e.g., a planner delegates execution), it creates its own `AgentSpec` and uses a local AgentBus or communicates again via the supervisor. The delegation scenario is shown in the next diagram:
 
 ```mermaid
 sequenceDiagram
     participant AgentA
-    participant Supervisor (Orkiestrator)
+    participant Supervisor (Orchestrator)
     participant AgentB
     participant AgentBus
 
@@ -126,129 +131,126 @@ sequenceDiagram
     Supervisor->>AgentRuntime: spawnAgent(AgentSpecB, workspace)
     AgentRuntime-->>Supervisor: AgentHandleB
     AgentA->>AgentHandleB: send({taskIdB, typeB, inputB})
-    AgentHandleB->>AgentB: dostarcza
-    AgentB->>AgentBus: przetwarzanie
+    AgentHandleB->>AgentB: deliver
+    AgentB->>AgentBus: process
     AgentB-->>AgentBus: resultB
     AgentBus-->>AgentA: {taskIdB, status, outputB}
 ```
 
-Tutaj AgentA „prosi” Supervisor o uruchomienie AgentB i wysyła mu zadanie. AgentBus zapewnia, że wynik (lub błąd) dotrze z powrotem do AgentA (z odpowiednim `taskId`).  
+Here AgentA "asks" the Supervisor to start AgentB and sends it a task. AgentBus ensures the result (or error) reaches AgentA (with the appropriate `taskId`).
 
-## Komunikacja i API magistrali  
-Magistrala komunikacyjna to core orkiestratora. Proponujemy model podobny do wzorca *message bus*:
+## Communication and Bus API
 
-- **`send(dest, message)`** – bezpośrednie wysłanie asynchroniczne (fire-and-forget). Nie oczekujemy odpowiedzi (użyteczne dla eventów).  
-- **`request(dest, request)`** – wysłanie żądania z oczekiwaniem na odpowiedź. Żądanie zawiera unikalne `requestId`, a odpowiedź (wkrótce) wraca do nadawcy z tym samym `requestId`. Pozwala to na *request/reply* z korelacją.  
-- **`stream(dest, message)`** – strumień wielu wiadomości (np. postęp pracy, kolejne części dużego wyniku). Nadawca może oznaczać koniec strumienia (EOF) lub używać `status: completed/failed`.  
+The communication bus is the core of the orchestrator. We propose a model similar to the _message bus_ pattern:
 
-Wszystkie komunikaty umieszczamy w formacie JSON z polami meta (source, dest, requestId) oraz dane biznesowe. Ustalamy timeouty (np. przerwij po kilku sekundach, ew. ponów próby). Retry sensowne tylko dla zadań idempotentnych lub sterowanych przez agenta (można cofać do kolejki nadrzędnej i próbować ponownie). Konwencja może wzorować się np. na **JSON-RPC 2.0** (gdzie `id` spaja request z odpowiedzią) albo własnym lekkim protokole.  
+- **`send(dest, message)`** – direct asynchronous fire-and-forget. No response expected (useful for events).
+- **`request(dest, request)`** – send a request expecting a response. The request contains a unique `requestId`, and the response (eventually) returns to the sender with the same `requestId`. This enables _request/reply_ with correlation.
+- **`stream(dest, message)`** – stream of multiple messages (e.g., work progress, successive parts of a large result). The sender can mark the end of the stream (EOF) or use `status: completed/failed`.
 
-Schematy wiadomości:  
+All messages are in JSON format with meta fields (source, dest, requestId) and business data. We set timeouts (e.g., abort after a few seconds, optionally retry). Retries only make sense for idempotent tasks or agent-controlled flows (can fall back to the supervisor queue and retry). The convention could follow e.g., **JSON-RPC 2.0** (where `id` correlates request with response) or a custom lightweight protocol.
+
+Message schemas:
 
 ```yaml
-# Przykład żądania TaskRequest
+# Example TaskRequest
 {
   "messageType": "TaskRequest",
-  "payload": { ...validated input zgodny z AgentSpec... },
+  "payload": { ...validated input matching AgentSpec... },
   "requestId": "uuid-1234",
-  "replyTo": "Orchestrator"
+  "replyTo": "Orchestrator",
 }
 ```
 
 ```yaml
-# Przykład aktualizacji postępu TaskProgress
+# Example TaskProgress update
 {
   "messageType": "TaskProgress",
   "requestId": "uuid-1234",
   "status": "running",
-  "progress": {
-    "percent": 0.5,
-    "note": "Inicjalizacja narzędzi"
-  },
-  "timestamp": "2026-06-21T12:00:00Z"
+  "progress": { "percent": 0.5, "note": "Initializing tools" },
+  "timestamp": "2026-06-21T12:00:00Z",
 }
 ```
 
 ```yaml
-# Przykład zakończenia TaskResult
+# Example TaskResult completion
 {
   "messageType": "TaskResult",
   "requestId": "uuid-1234",
   "status": "completed",
-  "result": {
-    "artifactType": "patch",
-    "data": {
-      "diff": "... znormalizowany diff ...",
-      "baseRevision": "abc123",
-      "newRevision": "def456"
-    }
-  }
+  "result":
+    {
+      "artifactType": "patch",
+      "data":
+        { "diff": "... normalized diff ...", "baseRevision": "abc123", "newRevision": "def456" },
+    },
 }
 ```
 
 ```yaml
-# Przykład komunikatu o błędzie TaskError
+# Example TaskError message
 {
   "messageType": "TaskError",
   "requestId": "uuid-1234",
   "status": "failed",
-  "error": {
-    "code": "ToolCrash",
-    "message": "Błąd podczas wykonania narzędzia 'bash': zasób nie znaleziony"
-  }
+  "error":
+    { "code": "ToolCrash", "message": "Error during tool execution 'bash': resource not found" },
 }
 ```
 
-Każdy agent z zewnątrz widzi wynik tylko w postaci tych struktur – unikamy *czarnej skrzynki* tekstu. Dzięki temu supervisor może dalej przetwarzać te artefakty programowo lub błyskawicznie zgłaszać błąd.  
+From the outside, each agent's results are only visible through these structures – we avoid a _black box_ of text. This allows the supervisor to further process these artifacts programmatically or report errors instantly.
 
-## Artefakty (rezultaty) i ich formaty  
-Wynikiem działania agenta nie powinien być długi tekst (jak w standardowej sesji czatowej), lecz **ustrukturyzowany artefakt**:
+## Artifacts (Results) and Their Formats
 
-- **Patch kodu** – możemy użyć np. formatu *unified diff* (tekstowego) albo JSON Patch (RFC6902). Przykład: `artifactType: "patch"`, `data: {"diff": "...", "targetPath": "src/main.py"}`.  
-- **Raport/opis** – np. Markdown lub JSON z polami `title`, `summary`, `details`. Przykład: `artifactType: "report"`, `data: {"title":"Analiza bezpieczeństwa","summary":"...", "reportMd": "..."}`.  
-- **Wyniki testów** – struktura zawierająca liczbę testów, wynik, być może JUnit/XML lub JSON (`{"passed":10,"failed":2,"details":[...]}`). `artifactType: "testResults"`.  
-- **Inne** – np. konkretne pliki wyjściowe, dane binarne, czy checkpointy. Wszystko zależy od narzędzi. Formatujemy je konsystentnie.
+The output of an agent should not be a long text (as in a standard chat session), but rather a **structured artifact**:
 
-Klucz: jasna kontraktualizacja. Agent powinien zwracać znormalizowane JSONY, nawet jeśli ostateczną postacią tekstową będzie Markdown (można traktować go jako `detailsMarkdown`). W ten sposób orkiestrowanie ma zawsze stabilny interfejs.  
+- **Code Patch** – we can use e.g., the _unified diff_ format (text) or JSON Patch (RFC6902). Example: `artifactType: "patch"`, `data: {"diff": "...", "targetPath": "src/main.py"}`.
+- **Report/Description** – e.g., Markdown or JSON with fields `title`, `summary`, `details`. Example: `artifactType: "report"`, `data: {"title":"Security Analysis","summary":"...", "reportMd": "..."}`.
+- **Test Results** – a structure containing the test count, outcome, possibly JUnit/XML or JSON (`{"passed":10,"failed":2,"details":[...]}`). `artifactType: "testResults"`.
+- **Other** – e.g., specific output files, binary data, or checkpoints. All depends on the tools. Format them consistently.
 
-## Stany cyklu życia agenta  
-Nadrzędny agent powinien śledzić stan każdego podagenta. Można przyjąć stany: 
+Key: clear contractualization. The agent should return normalized JSONs, even if the final textual form is Markdown (it can be treated as `detailsMarkdown`). This way orchestration always has a stable interface.
 
-- **Spawned** – agent utworzony (workspace przygotowany, proces uruchamiany).  
-- **Running** – agent aktywny, przetwarza zadanie.  
-- **Waiting** – agent oczekuje na zadanie (np. z kolejkowania lub czeka na wynik podrzędnego agenta).  
-- **Completed** – zakończył zadanie pomyślnie (wynik dostępny).  
-- **Failed** – zakończył się błędem (np. wyjątek, timeout).  
+## Agent Lifecycle States
 
-Supervisor rejestruje te zmiany (np. w strukturze AgentHandle) i publikuje eventy (np. `agent_spawned`, `agent_completed`, `agent_failed`). Dla zadań równoległych lub łańcuchowych statusy można zbierać i agregować, aby np. pokazać w UI „2/3 wykonane, 1 w toku” jak w przykładzie rozszerzenia. Agent sam przetwarza także eventy sterujące (np. przerwania).  
+The supervising agent should track the state of each subagent. We can adopt the following states:
 
-## Sekwencje i diagramy  
-Poniżej uproszczone diagramy przedstawiające kluczowe scenariusze:
+- **Spawned** – agent created (workspace prepared, process starting).
+- **Running** – agent active, processing a task.
+- **Waiting** – agent waiting for a task (e.g., from a queue or waiting for a sub-agent's result).
+- **Completed** – finished the task successfully (result available).
+- **Failed** – finished with an error (e.g., exception, timeout).
 
-**1. Spawning i pełen cykl:** nadrzędny agent orkiestrator tworzy spec, uruchamia agenta, wysyła zadanie, odbiera wynik.
+The supervisor records these changes (e.g., in the AgentHandle structure) and publishes events (e.g., `agent_spawned`, `agent_completed`, `agent_failed`). For parallel or chained tasks, statuses can be collected and aggregated to show e.g., "2/3 done, 1 in progress" in the UI, as in the extension example. The agent also processes control events (e.g., interrupts).
+
+## Sequences and Diagrams
+
+Below are simplified diagrams showing key scenarios:
+
+**1. Spawning and full cycle:** the supervising orchestrator agent creates a spec, launches the agent, sends a task, and receives the result.
 
 ```mermaid
 sequenceDiagram
-    participant Orkiestrator
+    participant Orchestrator
     participant WorkspaceProv
     participant AgentRuntime
-    participant AgentProces
+    participant AgentProcess
     participant AgentBus
 
-    Orkiestrator->>WorkspaceProv: createWorkspace(spec)
-    WorkspaceProv-->>Orkiestrator: ścieżka_worksp
-    Orkiestrator->>AgentRuntime: spawnAgent(spec, ścieżka_worksp)
-    AgentRuntime-->>Orkiestrator: AgentHandle
-    Orkiestrator->>AgentHandle: send({taskId, type, input})
-    AgentHandle->>AgentProces: dostarcz
-    AgentProces->>AgentBus: procesuj_zadanie
-    Note over AgentBus: Agent przetwarza zadanie (LLM + narzędzia)
-    AgentBus-->>AgentProces: (opcjonalnie progres, debug)
-    AgentProces-->>AgentBus: result (lub error) jako JSON
-    AgentBus-->>Orkiestrator: zwraca wynik
+    Orchestrator->>WorkspaceProv: createWorkspace(spec)
+    WorkspaceProv-->>Orchestrator: workspace_path
+    Orchestrator->>AgentRuntime: spawnAgent(spec, workspace_path)
+    AgentRuntime-->>Orchestrator: AgentHandle
+    Orchestrator->>AgentHandle: send({taskId, type, input})
+    AgentHandle->>AgentProcess: deliver
+    AgentProcess->>AgentBus: process_task
+    Note over AgentBus: Agent processes task (LLM + tools)
+    AgentBus-->>AgentProcess: (optional progress, debug)
+    AgentProcess-->>AgentBus: result (or error) as JSON
+    AgentBus-->>Orchestrator: returns result
 ```
 
-**2. Delegacja (pod-agent):** agent A deleguje Agentowi B część pracy i czeka na wynik.
+**2. Delegation (subagent):** agent A delegates part of the work to agent B and waits for the result.
 
 ```mermaid
 sequenceDiagram
@@ -260,18 +262,20 @@ sequenceDiagram
 
     AgentA->>Supervisor: spawnRequest(type="worker", input=...)
     Supervisor->>WorkspaceProv: createWorkspace(specB)
-    Supervisor->>AgentRuntime: spawnAgent(specB, ścieżkaB)
+    Supervisor->>AgentRuntime: spawnAgent(specB, pathB)
     AgentRuntime-->>Supervisor: AgentHandleB
     AgentA->>AgentHandleB: send({taskIdB,typeB,inputB})
     AgentHandleB->>AgentB: deliver
-    AgentB->>AgentBus: przetwarzanie
+    AgentB->>AgentBus: process
     AgentBus-->>AgentA: {taskIdB, status, outputB}
 ```
 
-Diagramy te ilustrują koordynację poprzez abstrakcje. Zwróć uwagę, że *tmux* to tylko opcja wizualna – w praktyce AgentHandle komunikuje się przez magistralę (AgentBus).  
+These diagrams illustrate coordination through abstractions. Note that _tmux_ is only a visual option – in practice, AgentHandle communicates through the bus (AgentBus).
 
-## Przykłady formatów JSON/YAML  
-**Przykład żądania (JSON):**
+## Example JSON/YAML Formats
+
+**Example request (JSON):**
+
 ```json
 {
   "messageType": "TaskRequest",
@@ -279,7 +283,7 @@ Diagramy te ilustrują koordynację poprzez abstrakcje. Zwróć uwagę, że *tmu
     "taskId": "abc-123",
     "type": "find-vulnerabilities",
     "input": {
-      "files": ["src/main.py","src/util.py"]
+      "files": ["src/main.py", "src/util.py"]
     }
   },
   "requestId": "req-001",
@@ -287,7 +291,8 @@ Diagramy te ilustrują koordynację poprzez abstrakcje. Zwróć uwagę, że *tmu
 }
 ```
 
-**Przykład odpowiedzi (JSON):**
+**Example response (JSON):**
+
 ```json
 {
   "messageType": "TaskResult",
@@ -297,8 +302,8 @@ Diagramy te ilustrują koordynację poprzez abstrakcje. Zwróć uwagę, że *tmu
     "result": {
       "artifactType": "report",
       "data": {
-        "summary": "Znaleziono 2 podatności",
-        "reportMd": "- Problem w lini 10\n- Brak obsługi błędu w X"
+        "summary": "Found 2 vulnerabilities",
+        "reportMd": "- Problem on line 10\n- Missing error handling in X"
       }
     }
   },
@@ -306,95 +311,109 @@ Diagramy te ilustrują koordynację poprzez abstrakcje. Zwróć uwagę, że *tmu
 }
 ```
 
-## Rekomendowane transporty i ich wady/zalety  
-**Lokalne IPC (pipes, UNIX-socket):**  
-- *Plusy:* Bardzo wydajne, proste do wdrożenia przy procesach lokalnych (np. `spawn`).  
-- *Minusy:* Ograniczone do tej samej maszyny i często jednorazowego połączenia. Brak elastyczności dla rozproszonego systemu.  
+## Recommended Transports and Their Pros/Cons
 
-**HTTP/REST:**  
-- *Plusy:* Prosty i uniwersalny, dużo gotowych bibliotek, łatwo firewallować.  
-- *Minusy:* Nadmiar nagłówków i narzut protokolar, każde request/response osobne połączenie (chyba że stosujemy HTTP keep-alive). Ma opóźnienia (handshake). Dobre dla komunikacji między usługami sieciowymi.  
+**Local IPC (pipes, UNIX socket):**
 
-**WebSocket:**  
-- *Plusy:* Dwukierunkowy kanał, dobre wsparcie w przeglądarkach i serwerach. Pozwala na pushowanie aktualizacji (progres, logi) w czasie rzeczywistym.  
-- *Minusy:* Więcej komplikacji (utrzymywanie połączenia, ping-pong). Nie nadaje się do prostych batchowych zadań bez stromego kurzu architektury.  
+- _Pros:_ Very efficient, simple to implement with local processes (e.g., `spawn`).
+- _Cons:_ Limited to the same machine and often a one-time connection. No flexibility for a distributed system.
 
-**Redis Pub/Sub / Streams:**  
-- *Plusy:* Lekki broker, proste pub/sub. Umożliwia rozproszone publish-subscribe (wiele instancji subskrybuje kanały). Redis Streams pozwala na **trwałe** kolejki komunikatów. .  
-- *Minusy:* Pub/Sub w Redisie nie gwarantuje doręczenia ani trwałości. Łatwość użycia vs. brak zaawansowanych funkcji (bez Redis Streams). Potrzebny osobny serwis Redis.  
+**HTTP/REST:**
 
-**NATS:**  
-- *Plusy:* Wysoka wydajność i lekkość, wbudowane wzorce pub/sub, request/reply i kolejki (JetStream). Pod-milisekundowe opóźnienia. Skalowalność w klastrach. Oficjalne klienty dla wielu języków.  
-- *Minusy:* Wymaga uruchomienia serwera NATS. Nie jest tak rozpowszechniony jak HTTP. Dość nowy ekosystem, ale zyskujący na popularności.  
+- _Pros:_ Simple and universal, many ready-made libraries, easy to firewall.
+- _Cons:_ Header overhead and protocol overhead, each request/response is a separate connection (unless using HTTP keep-alive). Has latency (handshake). Good for communication between network services.
 
-**gRPC / Protobuf:**  
-- *Plus:* Szybkie serializacje, wsparcie stubów, proste metody request/reply z wygenerowanymi kodami.  
-- *Minus:* JSON-less (binarny), trudniejszy do debugowania, wymaga definicji .proto (mniej elastyczny schema-less). Za to pewny kontrakt.  
+**WebSocket:**
 
-Dobór zależy od skali. Dla **lokalnego** rozwiązania „łokciowego” najlepszy jest po prostu pipe/JSON albo nawet `tmux` ze stdin/stdout (Pi oferuje tryb RPC na stdin/stdout). W systemie rozproszonym warto użyć NATS lub HTTP. Redis jest ok do małych eventów, ale w przypadku krytycznej kolejki warto rozważyć JetStream lub dedykowany brokera.  
+- _Pros:_ Bidirectional channel, good support in browsers and servers. Allows pushing updates (progress, logs) in real time.
+- _Cons:_ More complexity (connection maintenance, ping-pong). Not suitable for simple batch tasks without significant architectural overhead.
 
-## Obserwowalność systemu  
-Dobry projekt musi mieć **pełną widoczność** w działaniu agentów. Obejmuje to:  
-- **Panele `tmux`/UI:** każdy AgentHandle można przydzielić do osobnej sesji `tmux` lub panelu terminala, co daje *żywy podgląd* na logi i postęp. Dzięki temu widzimy strumień wyjścia agenta (tak jak w przykładzie subagentów Pi) – „pełną widoczność w czasie rzeczywistym”. Taka mapa „process → pane” jest utrzymywana przez adapter obserwowalności, więc wewnętrznie komunikaty dalej płyną magistralą, a `tmux` to tylko monitor.  
-- **Logi:** każde zdarzenie (start/zakończenie agenta, wywołanie narzędzia, błąd) zapisujemy w logach (najlepiej strukturalnych JSON lub OTLP). Można też agregować do centralnego ELK/Loki itp. Podprocesy mogą pisać stderr/stdout do plików lub przekazać je przez magistralę do nadrzędnego loggowania.  
-- **Metryki:** np. liczba zadań, czas wykonania agenta, liczba tokenów czy zapytań narzędzi. Można to mierzyć ręcznie lub użyć rozszerzenia OTLP jak [pi-otel].  
-- **Tracing (OpenTelemetry):** idealnie – każdy turn/wywołanie agenta opakować w span. Na przykład `pi-otel` buduje drzewo śladów: root span to interakcja, podsfery to kolejne wywołania LLM i narzędzi. Tak można śledzić gdzie czas się pali (opóźnienia narzędzi, duże prompty). Wartosći z narzędzi i modeli trafiają jako atrybuty spanów.  
-- **Session ID i korelacja:** sprawnie dopasowujemy logi/metryki do agentów przez identyfikatory sesji i `taskId`. W połączeniu z TMUX można opatrzyć każdy panel nazwą agenta lub taskId.  
+**Redis Pub/Sub / Streams:**
 
-W praktyce: nakładamy *warstwę obserwowalności* powyżej `AgentRuntime`. Np. adapter `TmuxAdapter` rezerwuje nowy panel, ustawia prompt agenta, łączy STDOUT procesu z panelem. Parallelnie agent publikuje eventy na OTLP, a nadrzędny proces sczytuje i wypisuje je w logach lub do narzędzi APM. Dzięki takiemu podejściu utrzymujemy stałą kontrolę nad agentami i łatwo diagnozujemy problemy (narzędzia np. pokazują błędy tak samo jak wyniki).  
+- _Pros:_ Lightweight broker, simple pub/sub. Enables distributed publish-subscribe (multiple instances subscribe to channels). Redis Streams allows for **persistent** message queues.
+- _Cons:_ Redis Pub/Sub does not guarantee delivery or persistence. Easy to use but lacks advanced features (without Redis Streams). Requires a separate Redis service.
 
-## Bezpieczeństwo i izolacja  
-Domyślnie **Pi** działa bez sandboxingu – ma uprawnienia bieżącego użytkownika. W praktyce należy zadbać o bezpieczeństwo:  
+**NATS:**
 
-- **Workspaces:** każdemu agentowi nadajemy odizolowane repozytorium/worktree. Możemy użyć **Git Worktrees** – szybkie (dziedziczą stan repo), niskie narzuty, ale *słaba izolacja* (wciąż ten sam .git). Można też pełni *klon* repozytorium do tymczasowego katalogu (wyższe koszty I/O, ale pełna separacja plików). Ewentualnie pipeline bez repo – nowy katalog z kopią plików.  
-- **Chroot / Kontenery:** najpewniejsze. Każdy agent uruchomiony w osobnym chroot lub kontenerze Docker/POD. W trybie kontenera cały proces Pi i jego narzędzia wykonują się w odgrodzonym środowisku plików i sieci. Pi opisuje wzorce containerizacji (micro-VM „Gondolin”, zwykły Docker, OpenShell) dla izolacji.  
-- **Ograniczenia narzędzi:** można wprowadzić whitelisty/blacklisty narzędzi. Np. dla agenta analitycznego udostępnić tylko `read`/`grep`, a zabronić `bash` czy `network`. Pi nie robi tego domyślnie, ale rozszerzenia mogą blokować wywołania.  
-- **Uprawnienia systemowe:** można użytkownika Pi uprawnić tylko do potrzebnych katalogów (np. tylko `read` w katalogu projektu, brak sudo). W kontenerze łatwo ustalić użytkownika bez sudo.  
-- **Model ML i dane poufne:** jeśli używamy kluczy API, rozważmy trzymanie ich poza sandboxem (np. OpenShell pozwala maskować klucze przez bramkę).  
+- _Pros:_ High performance and lightweight, built-in pub/sub, request/reply, and queue patterns (JetStream). Sub-millisecond latency. Scalable in clusters. Official clients for many languages.
+- _Cons:_ Requires running a NATS server. Not as widespread as HTTP. Relatively new ecosystem, but gaining popularity.
 
-Przykładowo, Pi sugeruje następujące podejścia: trzymać cały proces w Dockerze dla prostoty (iluizoluje FS) lub użyć „Gondolin” – mikro-VM dla built-in narzędzi. Takie wzorce minimalizują ryzyko, że agent np. usunie pliki spoza swojego katalogu czy przesle dane gdzie popadnie.  
+**gRPC / Protobuf:**
 
-## Plan implementacji MVP i kamienie milowe  
-Kroki do minimalnego wdrożenia:  
-1. **Definicja specyfikacji agentów:** opracować format `AgentSpec` (np. YAML) z polami: `name`, `role`, `prompt`, `model`, `tools`, `workspaceType`. Umożliwić łatwe rozszerzanie.  
-2. **WorkspaceProvider – prototyp:** zaimplementować dwa rodzaje: „worktree” (git) i „clone” (kopiuj repo). Testować tworzenie i czyszczenie.  
-3. **AgentRuntime – prototyp:** lokalny proces: wywołanie `pi --mode rpc` z przekierowaniem STDIN/STDOUT. Zwraca uchwyt z input/output. Potem rozszerzyć o opcję `tmux`: *Adapter Tmux* buduje nowe okno/panel i kieruje do niego proces.  
-4. **AgentBus – prototyp:** prosty JSONL-over-stdin stdout (RPC) lub biblioteka pub/sub (np. Redis lub ZeroMQ) do pośrednictwa. Startowo może być synchronizowany (czekaj na result) lub asynchroniczny *Promise*-based.  
-5. **Spawn/await API:** zaimplementować w nadrzędnym agencie narzędzia (np. `!spawnAgent` i `!awaitAgent`) do uruchomienia i czekania na wynik podagenta.  
-6. **Schematy i walidacja:** przygotować JSON Schema dla typowych zadań (przykłady: analiza kodu, testy). Zintegrować walidator.  
-7. **Logika delegacji:** sprawdzić prostą sekwencję: agent główny dzieli zadanie, czeka na outcome subagenta, integruje wynik.  
-8. **Observability:** podłączyć stdout do paneli / zapisywać logi. Dodać rozszerzenia do OTEL (opcjonalnie).  
-9. **Bezpieczeństwo:** wybrać strategię izolacji (np. first: `git worktree` + zwykły proces; potem Docker). Przetestować, że proces nie ucieka poza katalog.  
+- _Pros:_ Fast serialization, stub support, simple request/reply methods with generated code.
+- _Cons:_ JSON-less (binary), harder to debug, requires .proto definitions (less flexible schema-less approach). However, provides a solid contract.
 
-Kamienie milowe:  
-- MVP1: „Spawnujących” agentów z komunikacją request/response (bez UI).  
-- MVP2: Równoległe zadania i delegacje (z JSON stream wyników).  
-- MVP3: Integracja z tmux UI (oddzielne okna).  
-- MVP4: Monitoring + isolacja (docker).  
+The choice depends on scale. For a **local** "elbow-grease" solution, simply pipe/JSON or even `tmux` with stdin/stdout works best (Pi offers RPC mode over stdin/stdout). In a distributed system, NATS or HTTP is worth considering. Redis is fine for small events, but for critical queuing, consider JetStream or a dedicated broker.
 
-Każdy mileston zawiera testy integracji: czy `AgentResult` trafia do orkiestora i jest walidowany.  
+## System Observability
 
-## Porównanie implementacji WorkspaceProvider i AgentRuntime
+A good design must have **full visibility** into agent operations. This includes:
 
-| **Implementacja**        | **Złożoność**     | **Izolacja**      | **Wydajność**         | **Obserwowalność**    |
-|-------------------------|-------------------|-------------------|-----------------------|-----------------------|
-| **WorkspaceProvider:**  |                   |                   |                       |                       |
-| – Current dir           | Niska            | Niska            | Wysoka (brak kopiowania) | Umiarkowana (prost. logi) |
-| – Git worktree          | Średnia          | Niska (domenie .git) | Wysoka (minimalny narzut) | Umiarkowana            |
-| – Git clone             | Średnia          | Średnia–Wysoka (oddzielne repo) | Niska (kopiowanie)  | Umiarkowana            |
-| – Tmp dir / zip         | Niska–Średnia    | Średnia          | Niska (kopiowanie)     | Umiarkowana            |
-| **AgentRuntime:**       |                   |                   |                       |                       |
-| – Proces lokalny        | Niska            | Niska            | Wysoka                | Umiarkowana            |
-| – Tmux pane             | Niska            | Niska            | Wysoka                | Wysoka (interaktywny podgląd) |
-| – Docker/kontener       | Wysoka           | Wysoka           | Średnia (overhead kontenera) | Niska (bez dodatk. narz.) |
-| – VM/Kubernetes         | Bardzo wysoka    | Bardzo wysoka    | Niska (duży narzut)   | Niska                   |
-| – Zdalny (SSH/ws)       | Wysoka           | Zależne od zdalnej maszyny | Niska (sieć)     | Niska (zależnie od kanału) |
+- **`tmux` panels / UI:** each AgentHandle can be assigned to a separate `tmux` session or terminal panel, providing a _live view_ of logs and progress. This gives us a full real-time view of the agent's output stream (as in the Pi subagent example) – "full real-time observability." Such a "process → pane" map is maintained by the observability adapter, so internally messages still flow through the bus, and `tmux` is only a monitor.
+- **Logs:** every event (agent start/stop, tool invocation, error) is recorded in logs (preferably structured JSON or OTLP). Can be aggregated to a central ELK/Loki, etc. Subprocesses can write stderr/stdout to files or forward them through the bus to the parent logger.
+- **Metrics:** e.g., task count, agent execution time, token count, or tool call count. Can be measured manually or using an OTLP extension like [pi-otel].
+- **Tracing (OpenTelemetry):** ideally – wrap every agent turn/invocation in a span. For example, `pi-otel` builds a trace tree: the root span is the interaction, subspans are successive LLM calls and tool invocations. This makes it possible to track where time is being spent (tool latencies, large prompts). Tool and model values are attached as span attributes.
+- **Session ID and correlation:** efficiently match logs/metrics to agents via session identifiers and `taskId`. Combined with TMUX, each panel can be labeled with the agent name or taskId.
 
-Tabela obrazuje, że najprostsze konfiguracje (worktree + proces) mają wysoką wydajność kosztem izolacji. Jeśli potrzebujemy bezpieczeństwa, Docker/VM dają większą separację, ale obniżają szybkość i utrudniają wizualizację (poza logami). `tmux` najwyżej zwiększa obserwowalność kosztem minimalnym (dodaje UI).  
+In practice: we add an _observability layer_ on top of `AgentRuntime`. For example, a `TmuxAdapter` reserves a new panel, sets the agent prompt, and connects the process STDOUT to the panel. In parallel, the agent publishes events to OTLP, and the supervising process reads and writes them to logs or APM tools. This approach maintains constant control over agents and makes it easy to diagnose problems (tools show errors just like results).
 
-## Źródła i odniesienia  
-Powyższe rekomendacje opierają się na **pierwotnych źródłach Pi** (dokumentacja, przykładowe rozszerzenia) oraz standardach branżowych. Na przykład, Pi zachęca do użycia *trybu JSON* dla ustrukturyzowanej wymiany danych. Architekt Pi od autora kodu wskazuje zasadę „spawn via bash/tmux dla pełnej widoczności”. Bezpieczeństwo, domyślnie brakuje sandboksu – dlatego Pi proponuje scenariusze z Dockerem czy OpenShell. Dodatkowo, wzorzec walidacji JSON Schema jest silnie zalecany przez praktyków (np. Michaela Lanham) jako szybkie rozwiązanie na „flaky” wyjścia modeli. Różne opcje transportów popierają analizy ruchu sieciowego: Redis Pub/Sub daje prostą, niewytrzymałą transmisję, podczas gdy NATS oferuje lekką i szybką infrastrukturę komunikatów z request/reply i streamingiem.  
+## Security and Isolation
 
-Dzięki tak zbudowanej architekturze uzyskujemy elastyczny system, gdzie **nadzorca** może uruchamiać i koordynować wielu agentów równolegle, delegować im zadania i zbierać wyniki w postaci konkretnych artefaktów, przy zachowaniu pełnej kontroli i bezpieczeństwa środowiska. Wszystkie kluczowe decyzje (modele agentów, schematy, runtime’y, kanały) pozostają łatwo konfigurowalne, a rozwiązanie skaluje się od prostych skryptów lokalnych aż do rozproszonych systemów z wieloma maszynami.  
+By default, **Pi** operates without sandboxing – it has the current user's permissions. In practice, safety must be ensured:
 
-**Źródła:** dokumentacja i przykłady Pi Agent Core oraz Pi Coding Agent, artykuły porównawcze, blogi i materiały o telemetrii oraz dokumentacja technologii (JSON Schema, Redis, NATS). Wszelkie cytowane fragmenty pochodzą z tych źródeł.
+- **Workspaces:** each agent gets an isolated repository/worktree. We can use **Git Worktrees** – fast (inherit repo state), low overhead, but _weak isolation_ (still the same .git). Alternatively, a full _clone_ of the repository to a temporary directory (higher I/O costs, but full file separation). Or a pipeline without a repo – a new directory with a copy of files.
+- **Chroot / Containers:** the most secure option. Each agent runs in a separate chroot or Docker/POD container. In container mode, the entire Pi process and its tools execute in an isolated filesystem and network environment. Pi describes containerization patterns (micro-VM "Gondolin", plain Docker, OpenShell) for isolation.
+- **Tool restrictions:** whitelists/blacklists can be introduced. For example, an analysis agent might only have access to `read`/`grep`, while `bash` or `network` are forbidden. Pi doesn't do this by default, but extensions can block calls.
+- **System permissions:** the Pi user can be restricted to only the necessary directories (e.g., only `read` in the project directory, no sudo). In a container, it's easy to set up a non-sudo user.
+- **ML model and sensitive data:** if using API keys, consider keeping them outside the sandbox (e.g., OpenShell allows masking keys via a gateway).
+
+For example, Pi suggests the following approaches: keep the entire process in Docker for simplicity (FS isolation) or use "Gondolin" – a micro-VM for built-in tools. Such patterns minimize the risk of the agent deleting files outside its directory or sending data anywhere.
+
+## MVP Implementation Plan and Milestones
+
+Steps to a minimal deployment:
+
+1. **Agent specification definition:** develop the `AgentSpec` format (e.g., YAML) with fields: `name`, `role`, `prompt`, `model`, `tools`, `workspaceType`. Make it easy to extend.
+2. **WorkspaceProvider – prototype:** implement two types: "worktree" (git) and "clone" (copy repo). Test creation and cleanup.
+3. **AgentRuntime – prototype:** local process: invoke `pi --mode rpc` with STDIN/STDOUT redirection. Returns a handle with input/output. Then extend with `tmux` option: _Tmux Adapter_ creates a new window/panel and directs the process to it.
+4. **AgentBus – prototype:** simple JSONL-over-stdin/stdout (RPC) or a pub/sub library (e.g., Redis or ZeroMQ) for mediation. Initially may be synchronous (wait for result) or asynchronous _Promise_-based.
+5. **Spawn/await API:** implement tools in the supervising agent (e.g., `!spawnAgent` and `!awaitAgent`) to launch and wait for the subagent's result.
+6. **Schemas and validation:** prepare JSON Schema for typical tasks (examples: code analysis, tests). Integrate a validator.
+7. **Delegation logic:** test a simple sequence: the main agent splits a task, waits for the subagent's outcome, and integrates the result.
+8. **Observability:** connect stdout to panels / record logs. Add OTEL extensions (optional).
+9. **Security:** choose an isolation strategy (e.g., first: `git worktree` + plain process; then Docker). Test that the process does not escape its directory.
+
+Milestones:
+
+- MVP1: Spawning agents with request/response communication (no UI).
+- MVP2: Parallel tasks and delegations (with JSON result streaming).
+- MVP3: Integration with tmux UI (separate windows).
+- MVP4: Monitoring + isolation (Docker).
+
+Each milestone includes integration tests: whether `AgentResult` reaches the orchestrator and is validated.
+
+## Comparison of WorkspaceProvider and AgentRuntime Implementations
+
+| **Implementation**     | **Complexity** | **Isolation**               | **Performance**             | **Observability**        |
+| ---------------------- | -------------- | --------------------------- | --------------------------- | ------------------------ |
+| **WorkspaceProvider:** |                |                             |                             |                          |
+| – Current dir          | Low            | Low                         | High (no copying)           | Moderate (simple logs)   |
+| – Git worktree         | Medium         | Low (shared .git)           | High (minimal overhead)     | Moderate                 |
+| – Git clone            | Medium         | Medium–High (separate repo) | Low (copying)               | Moderate                 |
+| – Tmp dir / zip        | Low–Medium     | Medium                      | Low (copying)               | Moderate                 |
+| **AgentRuntime:**      |                |                             |                             |                          |
+| – Local process        | Low            | Low                         | High                        | Moderate                 |
+| – Tmux pane            | Low            | Low                         | High                        | High (interactive view)  |
+| – Docker/container     | High           | High                        | Medium (container overhead) | Low (w/o add. tooling)   |
+| – VM/Kubernetes        | Very high      | Very high                   | Low (high overhead)         | Low                      |
+| – Remote (SSH/ws)      | High           | Depends on remote machine   | Low (network)               | Low (depends on channel) |
+
+The table shows that the simplest configurations (worktree + process) offer high performance at the cost of isolation. If security is needed, Docker/VM provide greater separation but reduce speed and complicate visualization (beyond logs). `tmux` increases observability at minimal cost (adds UI).
+
+## Sources and References
+
+The above recommendations are based on **primary Pi sources** (documentation, example extensions) and industry standards. For example, Pi encourages the use of _JSON mode_ for structured data exchange. The Pi architecture from the code author indicates the principle of "spawn via bash/tmux for full visibility." Security-wise, sandboxing is missing by default – hence Pi suggests scenarios with Docker or OpenShell. Additionally, JSON Schema validation is strongly recommended by practitioners (e.g., Michael Lanham) as a quick fix for "flaky" model outputs. The various transport options are supported by network traffic analyses: Redis Pub/Sub provides simple, non-durable transmission, while NATS offers a lightweight and fast messaging infrastructure with request/reply and streaming.
+
+With such an architecture, we gain a flexible system where the **supervisor** can launch and coordinate multiple agents in parallel, delegate tasks to them, and collect results in the form of concrete artifacts, while maintaining full control and environmental safety. All key decisions (agent models, schemas, runtimes, channels) remain easily configurable, and the solution scales from simple local scripts to distributed multi-machine systems.
+
+**Sources:** Pi Agent Core and Pi Coding Agent documentation and examples, comparative articles, blogs and materials on telemetry, and technology documentation (JSON Schema, Redis, NATS). All cited fragments originate from these sources.
