@@ -4,6 +4,11 @@
   "private": true,
   "description": "Autonomous software engineering platform — idea to PR via structured discovery, ADR-driven design, and multi-agent implementation",
   "type": "module",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
