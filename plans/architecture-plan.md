@@ -2,7 +2,7 @@
 
 i am studying pi agent docs and there are two packages pi-agent-core and pi-coding-agent. is one build on top of the other?
 
-* * *
+---
 
 **ChatGPT:**
 
@@ -22,12 +22,12 @@ pi-coding-agent
 
 This is the **generic agent runtime/framework**. It provides:
 
-* Conversation state management
-* Tool-calling loops
-* Streaming events
-* Message handling
-* Agent lifecycle management
-* Steering/follow-up queues
+- Conversation state management
+- Tool-calling loops
+- Streaming events
+- Message handling
+- Agent lifecycle management
+- Steering/follow-up queues
 
 It is intentionally application-agnostic—you can use it to build any kind of agent, not just a coding assistant. [![](https://www.google.com/s2/favicons?domain=https://pypi.org&sz=128)PyPI+2![](https://www.google.com/s2/favicons?domain=https://pt-act-pi-mono.mintlify.app&sz=128)pt-act-pi-mono.mintlify.app+2](https://pypi.org/project/pi-agent-core/?utm_source=chatgpt.com)
 
@@ -35,30 +35,30 @@ It is intentionally application-agnostic—you can use it to build any kind of a
 
 This is the **actual coding-agent application layer** that uses the core runtime and adds:
 
-* File editing tools
-* Bash execution
-* Search/grep/find tools
-* Session management
-* Extensions
-* TUI/CLI behavior
-* Coding workflows
+- File editing tools
+- Bash execution
+- Search/grep/find tools
+- Session management
+- Extensions
+- TUI/CLI behavior
+- Coding workflows
 
 The monorepo explicitly lists `pi-agent-core` as the agent runtime package and `pi-coding-agent` as the coding-agent CLI built on top of it. [![](https://www.google.com/s2/favicons?domain=https://agent-safehouse.dev&sz=128)agent-safehouse.dev+1](https://agent-safehouse.dev/docs/agent-investigations/pi?utm_source=chatgpt.com)
 
 ### When would you use each?
 
-* **Use `pi-agent-core`** if you're building your own custom agent system and want the orchestration layer without the coding-agent assumptions.
-* **Use `pi-coding-agent`** if you want the full coding assistant experience or want to extend Pi's coding agent with custom tools/extensions.
+- **Use `pi-agent-core`** if you're building your own custom agent system and want the orchestration layer without the coding-agent assumptions.
+- **Use `pi-coding-agent`** if you want the full coding assistant experience or want to extend Pi's coding agent with custom tools/extensions.
 
 If you're reading the Pi source code, I'd recommend understanding `pi-agent-core` first. Once the tool loop and event model make sense, the `pi-coding-agent` layer becomes much easier to follow because it's mostly adding coding-specific tools, sessions, and UX on top of the core runtime. [![](https://www.google.com/s2/favicons?domain=https://deepwiki.com&sz=128)DeepWiki](https://deepwiki.com/badlogic/pi-mono/3-%40mariozechnerpi-agent-core?utm_source=chatgpt.com)
 
-* * *
+---
 
 **You:**
 
 so, now I am planning to build an extension for pi to run agents in separate tmux panels and slso in separate worktrees if needed. I need a very abstract and extensible architecture. I need agents to be able to spawn other agents to delegate them tasks and get back results. I want separate tmux panes for each agent for good observability. We might want to define custom prompts, agent files, tools (depending on what is the recommended approach)
 
-* * *
+---
 
 **ChatGPT:**
 
@@ -93,15 +93,15 @@ Agent Process
 
 The supervisor should not care whether an agent runs:
 
-* in same process
-* separate process
-* separate tmux pane
-* separate machine
-* separate container
+- in same process
+- separate process
+- separate tmux pane
+- separate machine
+- separate container
 
 Those are implementation details.
 
-* * *
+---
 
 # Core abstractions
 
@@ -147,7 +147,7 @@ tools:
   - run_tests
 ```
 
-* * *
+---
 
 ## 2. WorkspaceProvider
 
@@ -190,7 +190,7 @@ remote ssh
 
 This abstraction will save you later.
 
-* * *
+---
 
 ## 3. AgentRuntime
 
@@ -230,7 +230,7 @@ ssh host
 
 Again, keep tmux as an implementation detail.
 
-* * *
+---
 
 ## 4. Communication Bus
 
@@ -274,7 +274,7 @@ agent_spawned
 
 Think actor model.
 
-* * *
+---
 
 ## 5. Artifact Store
 
@@ -315,7 +315,7 @@ Return:
 
 Supervisor can consume structured results.
 
-* * *
+---
 
 # Agent spawning
 
@@ -375,7 +375,7 @@ or
 send_message(agent-42)
 ```
 
-* * *
+---
 
 # Tmux architecture
 
@@ -426,7 +426,7 @@ OpenTelemetry
 
 without touching orchestration.
 
-* * *
+---
 
 # Prompt architecture
 
@@ -462,7 +462,7 @@ base-agent
     └── architect
 ```
 
-* * *
+---
 
 # Tool architecture
 
@@ -487,7 +487,7 @@ No edit permissions.
 
 This becomes important when agents start spawning agents.
 
-* * *
+---
 
 # What I'd build first
 

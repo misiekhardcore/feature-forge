@@ -1,4 +1,4 @@
-import { AgentSpecification } from "./AgentSpecification";
+import { AgentSpecification } from "../base";
 
 /**
  * Describes what an agent is allowed to do.
