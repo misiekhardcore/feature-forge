@@ -9,6 +9,14 @@
       "./src/index.ts"
     ]
   },
+  "files": [
+    "src/**/*.ts",
+    "agents/**/*",
+    "skills/**/*",
+    "prompts/**/*",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -27,8 +35,10 @@
       "eslint --fix"
     ]
   },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.8"
+  },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.79.8",
     "@eslint/js": "10.0.1",
     "@types/node": "26.0.0",
     "eslint": "10.5.0",

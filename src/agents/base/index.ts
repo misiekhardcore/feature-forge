@@ -1,3 +1,3 @@
 export { AgentStatus } from "./AgentStatus";
-export { AgentSpecification } from "./AgentSpecification";
+export { AgentSpecification, type ThinkingLevel } from "./AgentSpecification";
 export { AgentIdentifier } from "./AgentIdentifier";

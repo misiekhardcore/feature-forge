@@ -1,3 +1,4 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Agent } from "../agents";
 import { AgentSpecification } from "../base";
 
@@ -11,6 +12,19 @@ export abstract class AgentSupervisor {
    * Returns once the agent is in Running state (or fails to start).
    */
   public abstract spawn(specification: AgentSpecification): Promise<Agent>;
+
+  /**
+   * Spawn, execute a task, deliver results via agent-owned formatting, then destroy.
+   *
+   * This is the primary fire-and-forget entry point. The caller just passes
+   * the spec, task, and the extension's `pi` handle — the supervisor (and the
+   * agent itself) handle everything else internally.
+   */
+  public abstract runAgent(
+    specification: AgentSpecification,
+    task: string,
+    pi: ExtensionAPI,
+  ): Promise<void>;
 
   /**
    * Retrieve a tracked agent by its identifier.

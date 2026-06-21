@@ -1,5 +1,6 @@
 node_modules/
 dist/
 .pi/self-learning-memory/
+.pi/extensions/index.ts
 *.log
 .DS_Store

@@ -1,6 +1,33 @@
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { Agent } from "./Agent";
 import { AgentIdentifier, AgentSpecification, AgentStatus } from "../base";
+
+interface RpcMessageEvent {
+  type: string;
+  message?: {
+    role: string;
+    content?: Array<{ type: string; text?: string }>;
+  };
+}
+
+function extractAssistantText(events: RpcMessageEvent[]): string {
+  const parts: string[] = [];
+  for (const event of events) {
+    if (
+      event.type === "message_end" &&
+      event.message?.role === "assistant" &&
+      event.message.content
+    ) {
+      for (const block of event.message.content) {
+        if (block.type === "text" && block.text) {
+          parts.push(block.text);
+        }
+      }
+    }
+  }
+  return parts.join("\n\n");
+}
 
 /**
  * Concrete Agent that wraps a pi subprocess spawned in RPC mode.
@@ -13,7 +40,8 @@ export class PiSubprocessAgent extends Agent {
 
   private _status: AgentStatus = AgentStatus.Spawned;
   private readonly rpcClient: RpcClient;
-  private result: unknown = undefined;
+  private result: string = "";
+  private rawEvents: unknown = undefined;
   private error: Error | undefined = undefined;
 
   constructor(
@@ -48,9 +76,9 @@ export class PiSubprocessAgent extends Agent {
 
   /**
    * Send a prompt (task) to the subagent and wait for completion.
-   * Collects the returned events as the result.
+   * Returns the extracted assistant text response.
    */
-  public async executeTask(task: string): Promise<unknown> {
+  public async executeTask(task: string): Promise<string> {
     if (this._status !== AgentStatus.Running) {
       throw new Error(
         `Cannot execute task on agent "${this.identifier}" in state "${this._status}"`,
@@ -59,7 +87,8 @@ export class PiSubprocessAgent extends Agent {
 
     try {
       const events = await this.rpcClient.promptAndWait(task);
-      this.result = events;
+      this.rawEvents = events;
+      this.result = extractAssistantText(events as RpcMessageEvent[]);
       this._status = AgentStatus.Completed;
       return this.result;
     } catch (cause) {
@@ -82,9 +111,9 @@ export class PiSubprocessAgent extends Agent {
   }
 
   /**
-   * Return the events collected from the last executed task.
+   * Return the extracted assistant text from the last executed task.
    */
-  public override getResult(): unknown {
+  public override getResult(): string {
     if (this._status !== AgentStatus.Completed) {
       throw new Error(
         `Agent "${this.identifier}" is not in Completed state (current: "${this._status}")`,
@@ -103,5 +132,42 @@ export class PiSubprocessAgent extends Agent {
       );
     }
     return this.error;
+  }
+
+  /**
+   * Format and deliver a successful result to the parent session.
+   *
+   * Uses the agent's role as the section header so each agent type gets
+   * its own visual identity in the chat output.
+   */
+  public override deliverResult(task: string, result: string, pi: ExtensionAPI): void {
+    const header = this.capitalize(this.specification.role);
+    pi.sendMessage(
+      {
+        customType: `${this.specification.role}_result`,
+        content: `## ${header}: ${task}\n\n${result || "_(no findings produced)_"}`,
+        display: true,
+      },
+      { triggerTurn: false },
+    );
+  }
+
+  /**
+   * Format and deliver an error notification to the parent session.
+   */
+  public override deliverError(task: string, error: Error, pi: ExtensionAPI): void {
+    pi.sendMessage(
+      {
+        customType: `${this.specification.role}_error`,
+        content: `## ❌ ${this.capitalize(this.specification.role)} failed: ${task}\n\n${error.message}`,
+        display: true,
+      },
+      { triggerTurn: false },
+    );
+  }
+
+  /** Capitalize the first letter of the role for display headers. */
+  private capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 }
