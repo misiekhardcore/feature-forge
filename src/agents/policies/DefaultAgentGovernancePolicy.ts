@@ -1,5 +1,5 @@
 import { AgentGovernancePolicy, AgentPermissions } from "./AgentGovernancePolicy";
-import { AgentSpecification } from "../base";
+import { AgentSpecification } from "../specifications";
 
 /**
  * Default governance policy that applies simple rules:

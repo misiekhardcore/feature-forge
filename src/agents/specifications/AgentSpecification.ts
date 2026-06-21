@@ -1,4 +1,4 @@
-import { AgentIdentifier } from "./AgentIdentifier";
+import { AgentIdentifier } from "../base";
 
 /**
  * Thinking/reasoning level for the agent.

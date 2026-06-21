@@ -1,7 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { Agent } from "./Agent";
-import { AgentIdentifier, AgentSpecification, AgentStatus } from "../base";
+import { AgentIdentifier, AgentStatus } from "../base";
+import { AgentSpecification } from "../specifications";
 
 interface RpcMessageEvent {
   type: string;

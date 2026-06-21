@@ -1,5 +1,5 @@
-import { AgentIdentifier } from "../agents/base/index.js";
-import { AgentSpecification } from "../agents/base/index.js";
+import { AgentIdentifier } from "../base";
+import { AgentSpecification } from "./AgentSpecification";
 
 /**
  * Pre-configured specification for a read-only research agent.

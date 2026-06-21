@@ -1,5 +1,5 @@
 import { Agent } from "../agents";
-import { AgentSpecification } from "../base";
+import { AgentSpecification } from "../specifications";
 
 /**
  * Creates Agent instances from AgentSpecifications.

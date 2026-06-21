@@ -7,4 +7,5 @@ export {
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";
-export { AgentStatus, AgentIdentifier, AgentSpecification, type ThinkingLevel } from "./base";
+export { AgentStatus, AgentIdentifier } from "./base";
+export { AgentSpecification, ResearchAgentSpecification } from "./specifications";

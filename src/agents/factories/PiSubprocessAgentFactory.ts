@@ -1,15 +1,8 @@
-import { fileURLToPath } from "node:url";
 import { RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
 import { AgentCreationError, AgentFactory } from "./AgentFactory";
-import { AgentSpecification } from "../base";
+import { AgentSpecification } from "../specifications";
 import { Agent, PiSubprocessAgent } from "../agents";
-import { buildPiCliArguments } from "./helpers.js";
-
-function resolvePiCliPath(): string {
-  const piIndexUrl = import.meta.resolve("@earendil-works/pi-coding-agent");
-  const piIndexPath = fileURLToPath(piIndexUrl);
-  return piIndexPath.replace(/index\.js$/, "cli.js");
-}
+import { buildPiCliArguments } from "./helpers";
 
 /**
  * Concrete AgentFactory that spawns agents as pi subprocesses in RPC mode.
@@ -42,7 +35,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
     const args = [...(this.options.args ?? []), ...buildPiCliArguments(specification)];
 
     return new RpcClient({
-      cliPath: this.options.cliPath ?? resolvePiCliPath(),
+      cliPath: this.options.cliPath,
       cwd: this.options.cwd ?? process.cwd(),
       model: specification.modelPreference,
       args,
