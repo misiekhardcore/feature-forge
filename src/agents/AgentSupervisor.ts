@@ -1,0 +1,36 @@
+import { Agent } from "./Agent";
+import { AgentSpecification } from "./AgentSpecification";
+
+/**
+ * Manages the full lifecycle of agents: spawning, monitoring, and destroying.
+ * Acts as the orchestrator's interface to a fleet of agents.
+ */
+export abstract class AgentSupervisor {
+  /**
+   * Spawn a new agent from its specification and start tracking it.
+   * Returns once the agent is in Running state (or fails to start).
+   */
+  public abstract spawn(specification: AgentSpecification): Promise<Agent>;
+
+  /**
+   * Retrieve a tracked agent by its identifier.
+   * Returns undefined if no agent with this identifier is known.
+   */
+  public abstract getAgent(agentIdentifier: string): Agent | undefined;
+
+  /**
+   * Return all currently tracked agents.
+   */
+  public abstract getAllAgents(): readonly Agent[];
+
+  /**
+   * Destroy a specific agent and clean up its resources.
+   * Removes it from tracking. Safe to call multiple times.
+   */
+  public abstract destroyAgent(agentIdentifier: string): Promise<void>;
+
+  /**
+   * Destroy all tracked agents.
+   */
+  public abstract destroyAll(): Promise<void>;
+}
