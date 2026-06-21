@@ -1,5 +1,5 @@
-import { Agent } from "./Agent";
-import { AgentSpecification } from "./AgentSpecification";
+import { Agent } from "../agents";
+import { AgentSpecification } from "../base";
 
 /**
  * Manages the full lifecycle of agents: spawning, monitoring, and destroying.

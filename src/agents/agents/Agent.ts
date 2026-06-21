@@ -1,6 +1,4 @@
-import { AgentIdentifier } from "./AgentIdentifier";
-import { AgentSpecification } from "./AgentSpecification";
-import { AgentStatus } from "./AgentStatus";
+import { AgentIdentifier, AgentSpecification, AgentStatus } from "../base";
 
 /**
  * A running agent instance.
@@ -10,6 +8,12 @@ export abstract class Agent {
   public abstract readonly identifier: AgentIdentifier;
   public abstract readonly specification: AgentSpecification;
   public abstract readonly status: AgentStatus;
+
+  /**
+   * Send a task to the agent for execution.
+   * The agent processes the task and returns once complete.
+   */
+  public abstract executeTask(task: string): Promise<unknown>;
 
   /**
    * Signal the agent to stop what it's doing and shut down.
