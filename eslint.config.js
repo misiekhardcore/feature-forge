@@ -18,6 +18,12 @@ export default tseslint.config(
   },
   {
     // Test files: relax rules that clash with vitest mocking patterns
-    files: ["test/**/*.ts"],
+    files: ["src/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { varsIgnorePattern: "^_", argsIgnorePattern: "^_" },
+      ],
+    },
   },
 );
