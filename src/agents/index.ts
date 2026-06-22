@@ -1,11 +1,20 @@
 export { Agent, PiSubprocessAgent } from "./agents";
+export { AgentIdentifier, AgentStatus } from "./base";
 export {
-  AgentFactory,
   AgentCreationError,
-  PiSubprocessAgentFactory,
+  AgentFactory,
   buildPiCliArguments,
+  PiSubprocessAgentFactory,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
+export {
+  AgentSpecification,
+  BUILT_IN_TOOLS,
+  fillTemplate,
+  loadPromptTemplate,
+  ResearchAgentSpecification,
+  ResearchContext,
+  ThinkingLevel,
+  TOOL_PRESETS,
+} from "./specifications";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";
-export { AgentStatus, AgentIdentifier } from "./base";
-export { AgentSpecification, ResearchAgentSpecification } from "./specifications";
