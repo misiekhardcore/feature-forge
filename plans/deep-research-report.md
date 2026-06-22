@@ -417,3 +417,229 @@ The above recommendations are based on **primary Pi sources** (documentation, ex
 With such an architecture, we gain a flexible system where the **supervisor** can launch and coordinate multiple agents in parallel, delegate tasks to them, and collect results in the form of concrete artifacts, while maintaining full control and environmental safety. All key decisions (agent models, schemas, runtimes, channels) remain easily configurable, and the solution scales from simple local scripts to distributed multi-machine systems.
 
 **Sources:** Pi Agent Core and Pi Coding Agent documentation and examples, comparative articles, blogs and materials on telemetry, and technology documentation (JSON Schema, Redis, NATS). All cited fragments originate from these sources.
+
+---
+
+## LLM-to-Spawn-Subagents Research (2026-06-21)
+
+### Problem Statement
+
+Allow a spawned subagent (LLM process) to independently spawn further sub-subagents during its task execution. Currently, the subprocess agent (`PiSubprocessAgent` via `RpcClient`) runs as a completely isolated pi session — it has no access to the parent extension's supervisor, no custom tools from feature-forge, and no mechanism to request agent creation.
+
+### The Core Challenge
+
+```
+Parent process                        Child process (PiSubprocessAgent)
+┌──────────────────────────┐          ┌─────────────────────────────┐
+│ InMemoryAgentSupervisor  │          │ pi --mode rpc               │
+│ Extension (feature-forge)│    IPC   │ read, bash, write, edit...  │
+│   spawnAgent tool ✗      │ ←──────→│   spawnAgent tool ✗        │
+│   supervisor.spawn()     │          │   has no supervisor ref     │
+└──────────────────────────┘          └─────────────────────────────┘
+```
+
+Child pi processes load **their own extensions independently** — parent custom tools are NOT inherited. This was verified against pi's extension docs and RPC docs.
+
+### Key Constraints
+
+- Worktree isolation (separate `cwd`) is **orthogonal** to whether the agent is in-process or subprocess. Both can accept a `WorkspaceProvider`.
+- The existing `AgentFactory` abstraction (`src/agents/factories/AgentFactory.ts`) is the natural common interface for multiple runtime strategies.
+- A `ToolBridge` abstraction is needed for subprocess agents — the tool handler runs in the child but needs to reach the supervisor in the parent.
+
+### Three Implementation Strategies
+
+#### Strategy 1: In-process SDK (via `createAgentSession`)
+
+Replace the subprocess-based `PiSubprocessAgent` with pi's SDK `createAgentSession()`. Both agent and parent live in the same Node.js process, so custom tools close over the supervisor reference directly.
+
+```ts
+import { createAgentSession, defineTool } from "@earendil-works/pi-coding-agent";
+
+const spawnAgentTool = defineTool({
+  name: "spawn_agent",
+  description: "Spawn a sub-agent to work on a subtask",
+  parameters: Type.Object({ role: Type.String(), task: Type.String() }),
+  execute: async (_callId, params) => {
+    // Direct access to supervisor — same process!
+    const agent = await supervisor.spawn(makeSpec(params.role));
+    const result = await agent.executeTask(params.task);
+    return { content: [{ type: "text", text: result }] };
+  },
+});
+
+const { session } = await createAgentSession({
+  model: myModel,
+  tools: ["read", "bash", "grep"],
+  customTools: [spawnAgentTool],
+});
+```
+
+**Sequence diagram:**
+
+```mermaid
+sequenceDiagram
+    participant Parent as Parent Extension
+    participant AgentA as AgentSession A (in-process)
+    participant Supervisor
+    participant AgentB as AgentSession B (in-process)
+
+    Parent->>AgentA: spawnAgent({ role, task })
+    AgentA->>Supervisor: supervisor.spawn(specB)
+    Supervisor->>AgentB: createAgentSession({ customTools: [spawnAgent] })
+    AgentA->>AgentB: agentB.executeTask(task)
+    AgentB-->>AgentA: result
+    AgentA-->>Parent: tool result
+```
+
+| Pros                                                               | Cons                                          |
+| ------------------------------------------------------------------ | --------------------------------------------- |
+| Zero IPC — tool handler calls supervisor directly                  | No process isolation (exception kills parent) |
+| Full type-safety                                                   | No separate tmux panels per agent             |
+| No serialization overhead                                          | All agents use same event loop                |
+| Pi SDK already provides this (`createAgentSession`, `customTools`) |                                               |
+
+#### Strategy 2: Subprocess + Injected Extension Tool
+
+Keep the subprocess approach but inject a feature-forge extension into the child's toolset. The child has a `spawnAgent` tool that communicates back to the parent via a secondary IPC channel (Unix socket, named pipe, or file-based protocol).
+
+```mermaid
+sequenceDiagram
+    participant Parent
+    participant Child as Child (pi --mode rpc)
+    participant IPC as IPC Channel
+    participant Supervisor
+    participant SubSubagent as Sub-subagent
+
+    Child->>IPC: spawnAgent request (JSON)
+    IPC->>Parent: route request
+    Parent->>Supervisor: supervisor.spawn(spec)
+    Supervisor->>SubSubagent: start agent
+    Parent-->>IPC: agent_id + status
+    IPC-->>Child: response
+    Child->>IPC: sendTask request
+    IPC->>Parent: route task
+    Parent->>SubSubagent: agent.executeTask(task)
+    SubSubagent-->>Parent: result
+    Parent-->>IPC: result
+    IPC-->>Child: response
+```
+
+**Extension in child scope:**
+
+```ts
+// Registered as .pi/extensions/forge-subagent.ts in child's worktree
+export default function (pi: ExtensionAPI) {
+  pi.registerTool({
+    name: "spawn_agent",
+    description: "Request the orchestrator to spawn a sub-agent",
+    parameters: Type.Object({
+      role: Type.String(),
+      task: Type.String(),
+    }),
+    async execute(_callId, params, _signal, _onUpdate, _ctx) {
+      // Write request to IPC channel (e.g., Unix socket)
+      const result = await ipcClient.request("spawn_agent", params);
+      return {
+        content: [{ type: "text", text: result }],
+      };
+    },
+  });
+}
+```
+
+| Pros                                               | Cons                                                      |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| Process isolation (crash doesn't take down parent) | Must design and implement IPC protocol                    |
+| Can attach tmux panels per agent                   | Serialization/deserialization overhead                    |
+| Mirrors existing `PiSubprocessAgent` pattern       | Latency over IPC channel                                  |
+|                                                    | More complex extension management (child vs parent scope) |
+
+#### Strategy 3: AgentBus Abstraction (Ports-and-Adapters)
+
+The full message bus approach from [Key Architectural Concepts](#key-architectural-concepts). An `AgentBus` interface with `send/request/stream` over pluggable transports (in-memory EventEmitter, JSONL over pipes, Redis, NATS).
+
+```mermaid
+sequenceDiagram
+    participant AgentA as Agent A
+    participant Bus as AgentBus
+    participant Supervisor
+    participant AgentB as Agent B
+
+    AgentA->>Bus: request("spawn", spec)
+    Bus->>Supervisor: route request
+    Supervisor->>Bus: spawn result (agentId)
+    Bus-->>AgentA: agentId
+    AgentA->>Bus: request("sendTask", { agentId, task })
+    Bus->>AgentB: deliver task
+    AgentB->>Bus: result
+    Bus-->>AgentA: result
+```
+
+| Pros                                             | Cons                                     |
+| ------------------------------------------------ | ---------------------------------------- |
+| Clean architecture, scales to distributed agents | Most infrastructure upfront              |
+| Testable in isolation (mock the bus)             | Schema definitions and validation needed |
+| Single abstraction for in-process and IPC        | Overkill for MVP                         |
+| Agent-to-agent communication built-in            |                                          |
+
+### Common Interface Through `AgentFactory`
+
+All three strategies can share the existing `AgentFactory` abstraction:
+
+```
+AgentFactory (abstract) — currently exists
+├── PiSubprocessAgentFactory  ← uses RpcClient (Strategy 2)
+└── SdkAgentFactory           ← new: uses createAgentSession() (Strategy 1)
+```
+
+Both return `Agent` instances. The `WorkspaceProvider` is injected into either factory for worktree isolation. The difference is internal:
+
+| Concern         | `PiSubprocessAgentFactory`        | `SdkAgentFactory`                |
+| --------------- | --------------------------------- | -------------------------------- |
+| How agent runs  | `pi --mode rpc` subprocess        | In-process `AgentSession`        |
+| Tool injection  | Requires IPC bridge tool          | Direct via `customTools` closure |
+| Crash isolation | High (process dies, parent lives) | Low (exception kills parent)     |
+| Observability   | tmux panels per process           | No process to watch              |
+| Serialization   | JSON over stdin/stdout            | In-memory function calls         |
+
+### Recommendation (MVP)
+
+**Start with Strategy 1 (in-process SDK).** It requires zero new infrastructure — `createAgentSession()` and `customTools` are already in pi's SDK. The `spawnAgent` tool handler has the supervisor in its closure directly. Worktree isolation is still achieved via `cwd` parameter. Strategy 2 (subprocess) can be layered later when process isolation or tmux panels are needed, without changing the `AgentFactory` interface.
+
+### Pre-built Tool Template
+
+```ts
+// Candidate for first tool: spawn_agent
+pi.registerTool({
+  name: "spawn_agent",
+  label: "Spawn Agent",
+  description: "Spawn a sub-agent to work on a delegated subtask and wait for its result",
+  parameters: Type.Object({
+    role: Type.String({ description: "Agent role (e.g., researcher, coder)" }),
+    task: Type.String({ description: "The task to delegate to the sub-agent" }),
+    model: Type.Optional(Type.String({ description: "Model override" })),
+  }),
+  async execute(_toolCallId, params, _signal, onUpdate, _ctx) {
+    onUpdate?.({ content: [{ type: "text", text: `Spawning ${params.role} agent...` }] });
+    const spec = new DynamicAgentSpecification({
+      role: params.role,
+      systemPrompt: `You are a ${params.role} agent. Complete the following task:\n${params.task}`,
+      modelPreference: params.model,
+      ephemeral: true,
+    });
+    const agent = await supervisor.spawn(spec);
+    const result = await agent.executeTask(params.task);
+    await agent.destroy();
+    return {
+      content: [{ type: "text", text: result }],
+      details: { agentId: agent.identifier.toString() },
+    };
+  },
+});
+```
+
+### Open Questions
+
+1. How does pi's `createAgentSession` integrate with extension lifecycle events (input hooks, tool_call events)? If we run agents in-process, do parent extension tool_call handlers also fire for child agent tool calls?
+2. Should the `spawnAgent` tool be synchronous (block until sub-agent completes) or fire-and-forget with result streaming? The former is simpler; the latter enables parallel sub-agents.
+3. Should `AgentSpecification` gain a `parentId` field for tree tracking in the supervisor?
