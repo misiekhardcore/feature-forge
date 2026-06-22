@@ -4,3 +4,4 @@ dist/
 .pi/extensions/index.ts
 *.log
 .DS_Store
+coverage/
