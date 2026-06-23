@@ -5,7 +5,6 @@ export {
   AgentFactory,
   buildPiCliArguments,
   PiSubprocessAgentFactory,
-  PiSubprocessAgentFactoryOptions,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
 export {
