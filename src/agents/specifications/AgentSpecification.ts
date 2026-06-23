@@ -1,5 +1,3 @@
-import { AgentIdentifier } from "../base";
-
 /**
  * Thinking/reasoning level for the agent.
  * Mirrors pi's --thinking flag.
@@ -7,7 +5,7 @@ import { AgentIdentifier } from "../base";
 export type ThinkingLevel = "off" | "low" | "medium" | "high";
 
 export type AgentSpecificationParams = {
-  identifier: AgentIdentifier;
+  id: string;
   role: string;
   systemPrompt: string;
   toolNames?: readonly string[];
@@ -29,7 +27,7 @@ export type AgentSpecificationParams = {
  * sensible default — subclasses only set what they need to override.
  */
 export abstract class AgentSpecification {
-  public readonly identifier: AgentIdentifier;
+  public readonly id: string;
   public readonly role: string;
   public readonly systemPrompt: string;
 
@@ -55,7 +53,10 @@ export abstract class AgentSpecification {
   public readonly ephemeral: boolean;
 
   constructor(params: AgentSpecificationParams) {
-    this.identifier = params.identifier;
+    if (!params.id || params.id.trim().length === 0) {
+      throw new Error("AgentSpecification id must not be empty");
+    }
+    this.id = params.id;
     this.role = params.role;
     this.systemPrompt = params.systemPrompt;
     this.toolNames = params.toolNames ?? [];

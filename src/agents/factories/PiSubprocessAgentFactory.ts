@@ -19,16 +19,16 @@ export class PiSubprocessAgentFactory extends AgentFactory {
   }
 
   public override async create(specification: AgentSpecification): Promise<Agent> {
-    const identifier = specification.identifier;
+    const id = specification.id;
     const rpcClient = this.buildRpcClient(specification);
 
-    const agent = new PiSubprocessAgent(identifier, specification, rpcClient);
+    const agent = new PiSubprocessAgent(id, specification, rpcClient);
 
     try {
       await agent.start();
     } catch (cause) {
       throw new AgentCreationError(
-        identifier.toString(),
+        id,
         `Failed to start RPC process`,
         cause instanceof Error ? cause : undefined,
       );

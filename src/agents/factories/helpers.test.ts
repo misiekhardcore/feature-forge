@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { AgentIdentifier } from "../base/AgentIdentifier";
 import { AgentSpecification } from "../specifications/AgentSpecification";
 import { ResearchAgentSpecification } from "../specifications/ResearchAgentSpecification";
 import { buildPiCliArguments } from "./helpers";
@@ -10,7 +9,7 @@ describe("buildPiCliArguments", () => {
     const spec = new (class extends AgentSpecification {
       constructor() {
         super({
-          identifier: new AgentIdentifier("minimal"),
+          id: "minimal",
           role: "minimal",
           systemPrompt: "test",
         });
@@ -24,7 +23,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             toolNames: ["read", "grep"],
@@ -40,7 +39,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             toolNames: [],
@@ -54,7 +53,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             excludeToolNames: ["bash", "write"],
@@ -70,7 +69,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             disableBuiltinTools: true,
@@ -86,7 +85,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             thinkingLevel: "high",
@@ -102,7 +101,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
           });
@@ -117,7 +116,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             disableExtensions: true,
@@ -131,7 +130,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             disableSkills: true,
@@ -145,7 +144,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             disablePromptTemplates: true,
@@ -159,7 +158,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             disableContextFiles: true,
@@ -175,7 +174,7 @@ describe("buildPiCliArguments", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
-            identifier: new AgentIdentifier("t"),
+            id: "t",
             role: "t",
             systemPrompt: "p",
             ephemeral: true,

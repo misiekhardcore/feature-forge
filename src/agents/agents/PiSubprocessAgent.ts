@@ -3,7 +3,7 @@ import { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 
-import { AgentIdentifier, AgentStatus } from "../base";
+import { AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
 import { Agent } from "./Agent";
 
@@ -31,7 +31,7 @@ function extractAssistantText(events: AgentEvent[]): string {
  * Delegates all lifecycle (start, stop, communicate) to the underlying RpcClient.
  */
 export class PiSubprocessAgent extends Agent {
-  public readonly identifier: AgentIdentifier;
+  public readonly id: string;
   public readonly specification: AgentSpecification;
 
   private _status: AgentStatus = AgentStatus.Spawned;
@@ -39,13 +39,9 @@ export class PiSubprocessAgent extends Agent {
   private result: string = "";
   private error: Error | undefined = undefined;
 
-  constructor(
-    identifier: AgentIdentifier,
-    specification: AgentSpecification,
-    rpcClient: RpcClient,
-  ) {
+  constructor(id: string, specification: AgentSpecification, rpcClient: RpcClient) {
     super();
-    this.identifier = identifier;
+    this.id = id;
     this.specification = specification;
     this.rpcClient = rpcClient;
   }
@@ -79,9 +75,7 @@ export class PiSubprocessAgent extends Agent {
     timeout = 300_000,
   ): Promise<string> {
     if (this._status !== AgentStatus.Running) {
-      throw new Error(
-        `Cannot execute task on agent "${this.identifier}" in state "${this._status}"`,
-      );
+      throw new Error(`Cannot execute task on agent "${this.id}" in state "${this._status}"`);
     }
 
     try {
@@ -113,9 +107,7 @@ export class PiSubprocessAgent extends Agent {
    */
   public override getResult(): string {
     if (this._status !== AgentStatus.Completed) {
-      throw new Error(
-        `Agent "${this.identifier}" is not in Completed state (current: "${this._status}")`,
-      );
+      throw new Error(`Agent "${this.id}" is not in Completed state (current: "${this._status}")`);
     }
     return this.result;
   }
@@ -126,7 +118,7 @@ export class PiSubprocessAgent extends Agent {
   public override getError(): Error | undefined {
     if (this._status !== AgentStatus.Failed && this._status !== AgentStatus.Cancelled) {
       throw new Error(
-        `Agent "${this.identifier}" is not in Failed or Cancelled state (current: "${this._status}")`,
+        `Agent "${this.id}" is not in Failed or Cancelled state (current: "${this._status}")`,
       );
     }
     return this.error;

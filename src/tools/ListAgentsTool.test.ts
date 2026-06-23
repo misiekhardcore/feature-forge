@@ -51,8 +51,8 @@ describe("ListAgentsTool", () => {
 
     it("sends request and returns agent list", async () => {
       const agents = [
-        { agentIdentifier: "agent-1", role: "researcher", status: "Running" },
-        { agentIdentifier: "agent-2", role: "reviewer", status: "Completed" },
+        { agentId: "agent-1", role: "researcher", status: "Running" },
+        { agentId: "agent-2", role: "reviewer", status: "Completed" },
       ];
       client.request.mockResolvedValue({ agents });
 

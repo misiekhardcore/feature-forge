@@ -31,7 +31,7 @@ describe("SendTaskTool", () => {
     it("returns not-available error", async () => {
       const tool = new SendTaskTool(null);
       const result = await tool.execute("call-1", {
-        agentIdentifier: "agent-1",
+        agentId: "agent-1",
         task: "do something",
         await: true,
       });
@@ -57,13 +57,13 @@ describe("SendTaskTool", () => {
       client.request.mockResolvedValue({ result: "task completed" });
 
       const result = await tool.execute("call-1", {
-        agentIdentifier: "agent-1",
+        agentId: "agent-1",
         task: "do something",
         await: true,
       });
 
       expect(client.request).toHaveBeenCalledWith("send_task", {
-        agentIdentifier: "agent-1",
+        agentId: "agent-1",
         task: "do something",
         await: true,
       });
@@ -77,13 +77,13 @@ describe("SendTaskTool", () => {
       client.request.mockResolvedValue({ status: "dispatched" });
 
       const result = await tool.execute("call-1", {
-        agentIdentifier: "agent-1",
+        agentId: "agent-1",
         task: "background task",
         await: false,
       });
 
       expect(client.request).toHaveBeenCalledWith("send_task", {
-        agentIdentifier: "agent-1",
+        agentId: "agent-1",
         task: "background task",
         await: false,
       });
@@ -97,7 +97,7 @@ describe("SendTaskTool", () => {
       client.request.mockRejectedValue(new Error("Agent not found"));
 
       const result = await tool.execute("call-1", {
-        agentIdentifier: "missing-agent",
+        agentId: "missing-agent",
         task: "test",
         await: true,
       });
@@ -112,7 +112,7 @@ describe("SendTaskTool", () => {
       client.request.mockRejectedValue("string error");
 
       const result = await tool.execute("call-1", {
-        agentIdentifier: "bad-agent",
+        agentId: "bad-agent",
         task: "test",
         await: true,
       });

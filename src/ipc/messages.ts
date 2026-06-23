@@ -7,7 +7,7 @@
  * - Server may also push unsolicited `SocketPush` events (e.g., agent status updates).
  */
 
-import type { AgentIdentifier, AgentStatus } from "../agents/base";
+import type { AgentStatus } from "../agents/base";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
@@ -25,8 +25,8 @@ export interface SpawnAgentParams {
   cwd?: string;
 }
 export interface SendTaskParams {
-  /** Target agent's identifier string. */
-  agentIdentifier: string;
+  /** Target agent's id string. */
+  agentId: string;
   /** The task message to send. */
   task: string;
   /**
@@ -36,15 +36,15 @@ export interface SendTaskParams {
   await: boolean;
 }
 export interface GetAgentResultParams {
-  /** Target agent's identifier string. */
-  agentIdentifier: string;
+  /** Target agent's id string. */
+  agentId: string;
 }
 /** Parameters for list_agents — intentionally empty (all agents are returned). */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ListAgentsParams {}
 export interface DestroyAgentParams {
-  /** Target agent's identifier string. */
-  agentIdentifier: string;
+  /** Target agent's id string. */
+  agentId: string;
 }
 
 // Request messages
@@ -87,7 +87,7 @@ export type SocketMessage =
 // ─── Responses ─────────────────────────────────────────────────────────────
 
 export type SpawnAgentResult = {
-  agentIdentifier: string;
+  agentId: string;
   role: string;
 };
 export type SendTaskResult = { result: string | null } | { status: "dispatched" };
@@ -96,7 +96,7 @@ export type GetAgentResultResult = {
   result: string | null;
 };
 export type ListAgentsResult = {
-  agents: { agentIdentifier: string; role: string; status: string }[];
+  agents: { agentId: string; role: string; status: string }[];
 };
 export type DestroyAgentResult = {
   status: "destroyed";
@@ -138,7 +138,7 @@ export interface ParamsToResponseMap {
  */
 export interface AgentUpdateEvent {
   /** The agent that changed. */
-  agentIdentifier: AgentIdentifier;
+  agentId: string;
   /** Human-readable status label (e.g. "running", "completed", "failed"). */
   status: AgentStatus;
   /** Present only when the agent has completed its task. */

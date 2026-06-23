@@ -10,7 +10,7 @@ import { AgentSupervisor } from "./AgentSupervisor";
  *
  * Spawning is delegated to the injected AgentFactory, but the supervisor
  * owns the lifecycle tracking — it can destroy individual agents or all
- * agents at once, and provides lookup by identifier.
+ * agents at once, and provides lookup by id.
  */
 export class InMemoryAgentSupervisor extends AgentSupervisor {
   private readonly agents = new Map<string, Agent>();
@@ -24,15 +24,15 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
    */
   public override async spawn(specification: AgentSpecification): Promise<Agent> {
     const agent = await this.agentFactory.create(specification);
-    this.agents.set(agent.identifier.toString(), agent);
+    this.agents.set(agent.id, agent);
     return agent;
   }
 
   /**
-   * Retrieve a tracked agent by its string identifier.
+   * Retrieve a tracked agent by its string id.
    */
-  public override getAgent(agentIdentifier: string): Agent | undefined {
-    return this.agents.get(agentIdentifier);
+  public override getAgent(agentId: string): Agent | undefined {
+    return this.agents.get(agentId);
   }
 
   /**
@@ -46,13 +46,13 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
    * Destroy a single agent and remove it from tracking.
    * Safe to call multiple times — second call is a no-op.
    */
-  public override async destroyAgent(agentIdentifier: string): Promise<void> {
-    const agent = this.agents.get(agentIdentifier);
+  public override async destroyAgent(agentId: string): Promise<void> {
+    const agent = this.agents.get(agentId);
     if (!agent) {
       return;
     }
     await agent.destroy();
-    this.agents.delete(agentIdentifier);
+    this.agents.delete(agentId);
   }
 
   /**
@@ -79,7 +79,7 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
     task: string,
     pi: ExtensionAPI,
   ): Promise<void> {
-    const identifier = specification.identifier.toString();
+    const id = specification.id;
 
     let agent: Agent;
     try {
@@ -87,7 +87,7 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
     } catch (cause) {
       const error = cause instanceof Error ? cause : new Error(String(cause));
 
-      return this.printAgentError(identifier, task, error, pi);
+      return this.printAgentError(id, task, error, pi);
     }
 
     try {
@@ -97,16 +97,16 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
       const error = cause instanceof Error ? cause : new Error(String(cause));
       agent.deliverError(task, error, pi);
     } finally {
-      await this.destroyAgent(identifier);
+      await this.destroyAgent(id);
     }
   }
 
-  printAgentError(agentIdentifier: string, task: string, error: Error, pi: ExtensionAPI): void {
+  printAgentError(agentId: string, task: string, error: Error, pi: ExtensionAPI): void {
     // No agent to delegate to — supervisor sends the error directly.
     pi.sendMessage(
       {
         customType: "agent_spawn_error" as const,
-        content: `## ❌ Agent "${agentIdentifier}" spawn failed: ${task}\n\n${error.message}`,
+        content: `## ❌ Agent "${agentId}" spawn failed: ${task}\n\n${error.message}`,
         display: true,
       },
       { triggerTurn: false },

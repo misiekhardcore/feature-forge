@@ -13,7 +13,7 @@ export class DestroyAgentTool extends Tool {
   readonly label = "Destroy Agent";
   readonly description = "Destroy a previously spawned agent and clean up its resources.";
   readonly parameters = Type.Object({
-    agentIdentifier: Type.String({ description: "Agent identifier returned by spawn_agent" }),
+    agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
   });
 
   renderShell = "self";

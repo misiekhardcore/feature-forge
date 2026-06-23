@@ -15,19 +15,19 @@ import { connect } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../src/agents/agents";
-import { AgentIdentifier, AgentStatus } from "../src/agents/base";
+import { AgentStatus } from "../src/agents/base";
 import type { AgentSupervisor } from "../src/agents/supervisors";
 import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 
 function createMockAgent(): Agent {
-  const identifier = new AgentIdentifier("e2e-agent");
+  const id = "e2e-agent";
   return {
-    identifier,
+    id,
     specification: {
       role: "e2e",
       systemPrompt: "",
       toolNames: ["read"],
-      identifier,
+      id,
     } as never,
     status: AgentStatus.Running,
     createdAt: new Date(),
@@ -45,9 +45,9 @@ function createMockSupervisor(): AgentSupervisor {
   return {
     spawn: vi.fn().mockImplementation(async (specification) => {
       const agent = createMockAgent();
-      const identifier = new AgentIdentifier(specification.role);
-      Object.defineProperty(agent, "identifier", { value: identifier });
-      agents.set(identifier.toString(), agent);
+      const identifier = specification.role;
+      Object.defineProperty(agent, "id", { value: identifier });
+      agents.set(identifier, agent);
       return agent;
     }),
     runAgent: vi.fn().mockResolvedValue(undefined),

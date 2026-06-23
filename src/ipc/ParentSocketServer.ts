@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentIdentifier, AgentStatus } from "../agents";
+import { AgentStatus } from "../agents";
 import type { AgentSpecification } from "../agents/specifications";
 import { DynamicAgentSpecification } from "../agents/specifications";
 import type { AgentSupervisor } from "../agents/supervisors";
@@ -174,10 +174,10 @@ export class ParentSocketServer {
   ): Promise<void> {
     const specification = this.buildSpecification(params);
     const agent = await this.supervisor.spawn(specification);
-    const agentIdentifier = agent.identifier.toString();
+    const agentId = agent.id;
 
     this.sendResponse(socket, correlationId, {
-      agentIdentifier,
+      agentId,
       role: params.role,
     });
   }
@@ -187,9 +187,9 @@ export class ParentSocketServer {
     correlationId: string,
     params: SendTaskParams,
   ): Promise<void> {
-    const agent = this.supervisor.getAgent(params.agentIdentifier);
+    const agent = this.supervisor.getAgent(params.agentId);
     if (!agent) {
-      this.sendError(socket, correlationId, `Agent not found: ${params.agentIdentifier}`);
+      this.sendError(socket, correlationId, `Agent not found: ${params.agentId}`);
       return;
     }
 
@@ -204,11 +204,11 @@ export class ParentSocketServer {
       // Execute in background and push result when done
       agent.executeTask(params.task).then(
         (result) => {
-          this.pushAgentUpdate(agent.identifier, AgentStatus.Completed, result);
+          this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
         },
         (error) => {
           const message = error instanceof Error ? error.message : String(error);
-          this.pushAgentUpdate(agent.identifier, AgentStatus.Failed, message);
+          this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
         },
       );
     }
@@ -217,11 +217,11 @@ export class ParentSocketServer {
   private async handleGetAgentResult(
     socket: Socket,
     correlationId: string,
-    params: { agentIdentifier: string },
+    params: { agentId: string },
   ): Promise<void> {
-    const agent = this.supervisor.getAgent(params.agentIdentifier);
+    const agent = this.supervisor.getAgent(params.agentId);
     if (!agent) {
-      this.sendError(socket, correlationId, `Agent not found: ${params.agentIdentifier}`);
+      this.sendError(socket, correlationId, `Agent not found: ${params.agentId}`);
       return;
     }
 
@@ -233,7 +233,7 @@ export class ParentSocketServer {
 
   private async handleListAgents(socket: Socket, correlationId: string): Promise<void> {
     const agents = this.supervisor.getAllAgents().map((agent) => ({
-      agentIdentifier: agent.identifier.toString(),
+      agentId: agent.id,
       role: agent.specification.role,
       status: agent.status,
     }));
@@ -244,9 +244,9 @@ export class ParentSocketServer {
   private async handleDestroyAgent(
     socket: Socket,
     correlationId: string,
-    params: { agentIdentifier: string },
+    params: { agentId: string },
   ): Promise<void> {
-    await this.supervisor.destroyAgent(params.agentIdentifier);
+    await this.supervisor.destroyAgent(params.agentId);
     this.sendResponse(socket, correlationId, { status: "destroyed" });
   }
 
@@ -281,15 +281,11 @@ export class ParentSocketServer {
   /**
    * Broadcast an agent_update event to all connected clients.
    */
-  private pushAgentUpdate(
-    agentIdentifier: AgentIdentifier,
-    status: AgentStatus,
-    result?: string,
-  ): void {
+  private pushAgentUpdate(agentId: string, status: AgentStatus, result?: string): void {
     const push: SocketPush = {
       type: "agent_update",
       payload: {
-        agentIdentifier,
+        agentId,
         status,
         result,
       },

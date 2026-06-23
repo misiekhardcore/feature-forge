@@ -54,7 +54,7 @@ describe("SpawnAgentTool", () => {
     });
 
     it("sends request and returns formatted result", async () => {
-      client.request.mockResolvedValue({ agentIdentifier: "agent-1", role: "researcher" });
+      client.request.mockResolvedValue({ agentId: "agent-1", role: "researcher" });
 
       const result = await tool.execute("call-1", {
         role: "researcher",
@@ -71,10 +71,10 @@ describe("SpawnAgentTool", () => {
         content: [
           {
             type: "text",
-            text: JSON.stringify({ agentIdentifier: "agent-1", role: "researcher" }, null, 2),
+            text: JSON.stringify({ agentId: "agent-1", role: "researcher" }, null, 2),
           },
         ],
-        details: { agentIdentifier: "agent-1", role: "researcher" },
+        details: { agentId: "agent-1", role: "researcher" },
       });
     });
 

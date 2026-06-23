@@ -1,5 +1,5 @@
 export { Agent, PiSubprocessAgent } from "./agents";
-export { AgentIdentifier, AgentStatus } from "./base";
+export { AgentStatus } from "./base";
 export {
   AgentCreationError,
   AgentFactory,

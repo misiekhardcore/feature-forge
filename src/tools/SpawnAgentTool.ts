@@ -13,7 +13,7 @@ export class SpawnAgentTool extends Tool {
   readonly label = "Spawn Agent";
   readonly description =
     "Create a sub-agent with a specific role and system prompt. " +
-    "Returns an agentIdentifier that can be used with send_task, " +
+    "Returns an agentId that can be used with send_task, " +
     "get_agent_result, and destroy_agent.";
 
   readonly parameters = Type.Object({

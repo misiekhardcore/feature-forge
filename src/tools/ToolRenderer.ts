@@ -56,6 +56,7 @@ function resultText(result: AgentToolResult<unknown>, theme: Theme): string {
 
 /** Shared renderCall and renderResult factories for tool TUI display. */
 export class ToolRenderer {
+  static MAX_TASK_SNIPPET_LENGTH = 100;
   // ── spawn_agent ──────────────────────────────────────────────
 
   static spawnAgentCall = (
@@ -93,8 +94,11 @@ export class ToolRenderer {
     context: { state: Record<string, unknown> },
   ) => {
     const box = shellBox(context, theme, "send_task");
-    const snippet = args.task.length > 60 ? args.task.substring(0, 57) + "..." : args.task;
-    let content = header(theme, "accent", `send_task ${args.agentIdentifier}`);
+    const snippet =
+      args.task.length > ToolRenderer.MAX_TASK_SNIPPET_LENGTH
+        ? args.task.substring(0, ToolRenderer.MAX_TASK_SNIPPET_LENGTH - 3) + "..."
+        : args.task;
+    let content = header(theme, "accent", `send_task ${args.agentId}`);
     content += " " + theme.fg("muted", `"${snippet}"`);
     box.addChild(new Text(content, 1, 0));
     return box;
@@ -105,14 +109,12 @@ export class ToolRenderer {
   // ── get_agent_result ──────────────────────────────────────────
 
   static getAgentResultCall = (
-    args: { agentIdentifier: string },
+    args: { agentId: string },
     theme: Theme,
     context: { state: Record<string, unknown> },
   ) => {
     const box = shellBox(context, theme, "get_agent_result");
-    box.addChild(
-      new Text(header(theme, "warning", `get_agent_result ${args.agentIdentifier}`), 1, 0),
-    );
+    box.addChild(new Text(header(theme, "warning", `get_agent_result ${args.agentId}`), 1, 0));
     return box;
   };
 
@@ -121,12 +123,12 @@ export class ToolRenderer {
   // ── destroy_agent ─────────────────────────────────────────────
 
   static destroyAgentCall = (
-    args: { agentIdentifier: string },
+    args: { agentId: string },
     theme: Theme,
     context: { state: Record<string, unknown> },
   ) => {
     const box = shellBox(context, theme, "destroy_agent");
-    box.addChild(new Text(header(theme, "error", `destroy_agent ${args.agentIdentifier}`), 1, 0));
+    box.addChild(new Text(header(theme, "error", `destroy_agent ${args.agentId}`), 1, 0));
     return box;
   };
 

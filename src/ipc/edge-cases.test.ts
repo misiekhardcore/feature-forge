@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
-import { AgentIdentifier, AgentStatus } from "../agents/base";
+import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
@@ -12,14 +12,14 @@ import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
 
 function createMockAgent(overrides: Partial<Agent> = {}): Agent {
-  const identifier = new AgentIdentifier("test-agent");
+  const id = "test-agent";
   return {
-    identifier,
+    id,
     specification: {
       role: "test",
       systemPrompt: "",
       toolNames: ["read"],
-      identifier,
+      id,
     } as never,
     status: AgentStatus.Running,
     createdAt: new Date(),
@@ -37,14 +37,14 @@ function createMockSupervisor(customAgents?: Map<string, Agent>): AgentSuperviso
   const agents = customAgents ?? new Map<string, Agent>();
   return {
     spawn: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
-      const identifier = new AgentIdentifier(specification.role);
-      const existing = agents.get(identifier.toString());
+      const id = specification.id;
+      const existing = agents.get(id);
       if (existing) {
         return existing;
       }
       const agent = createMockAgent();
-      Object.defineProperty(agent, "identifier", { value: identifier });
-      agents.set(identifier.toString(), agent);
+      Object.defineProperty(agent, "id", { value: id });
+      agents.set(id, agent);
       return Promise.resolve(agent);
     }),
     runAgent: vi.fn().mockResolvedValue(undefined),
@@ -128,7 +128,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "get_agent_result",
         correlationId: "g2",
-        params: { agentIdentifier: "worker" },
+        params: { agentId: "worker" },
       }) + "\n",
     );
 
@@ -162,7 +162,7 @@ describe("ParentSocketServer edge cases", () => {
         type: "send_task",
         correlationId: "s2",
         params: {
-          agentIdentifier: "pusher",
+          agentId: "pusher",
           task: "background work",
           await: false,
         },
@@ -221,7 +221,7 @@ describe("ParentSocketServer edge cases", () => {
         type: "send_task",
         correlationId: "f2",
         params: {
-          agentIdentifier: "failer",
+          agentId: "failer",
           task: "will fail",
           await: false,
         },

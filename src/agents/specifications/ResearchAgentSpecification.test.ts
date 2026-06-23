@@ -55,9 +55,9 @@ describe("ResearchAgentSpecification", () => {
     expect(spec.toolNames).not.toContain("edit");
   });
 
-  it("has a stable identifier regardless of context", () => {
+  it("has a stable id regardless of context", () => {
     const spec1 = new ResearchAgentSpecification();
     const spec2 = new ResearchAgentSpecification({ focus: "anything" });
-    expect(spec1.identifier.toString()).toBe(spec2.identifier.toString());
+    expect(spec1.id).toBe(spec2.id);
   });
 });

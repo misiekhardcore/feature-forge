@@ -1,4 +1,3 @@
-import { AgentIdentifier } from "../base";
 import { AgentSpecification, AgentSpecificationParams } from "./AgentSpecification";
 
 /**
@@ -9,12 +8,11 @@ import { AgentSpecification, AgentSpecificationParams } from "./AgentSpecificati
  */
 export class DynamicAgentSpecification extends AgentSpecification {
   constructor(
-    params: Omit<AgentSpecificationParams, "identifier"> &
-      Partial<Pick<AgentSpecificationParams, "identifier">>,
+    params: Omit<AgentSpecificationParams, "id"> & Partial<Pick<AgentSpecificationParams, "id">>,
   ) {
     super({
       ...params,
-      identifier: params.identifier ?? new AgentIdentifier(params.role),
+      id: params.id ?? params.role,
     });
   }
 }
