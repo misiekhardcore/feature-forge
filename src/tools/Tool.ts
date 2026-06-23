@@ -1,17 +1,32 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Registrable } from "../registry";
+import type {
+  AgentToolResult,
+  AgentToolUpdateCallback,
+  ExtensionContext,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+import type { TSchema } from "typebox";
 
-export interface ToolExecuteResult {
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
-
-export abstract class Tool implements Registrable {
+/**
+ * Tool abstraction that follows pi's ToolDefinition shape exactly.
+ *
+ * Execute matches pi's native signature so no wrapping is needed at registration time.
+ * Each tool carries its own parameters schema.
+ */
+export abstract class Tool<
+  TParams extends TSchema = TSchema,
+  TDetails = unknown,
+  TState = unknown,
+> implements ToolDefinition<TParams, TDetails, TState> {
   abstract readonly name: string;
+  abstract readonly label: string;
   abstract readonly description: string;
+  abstract readonly parameters: TParams;
+
   abstract execute(
-    args: Record<string, unknown>,
+    toolCallId: string,
+    params: TParams,
+    signal: AbortSignal | undefined,
+    onUpdate: AgentToolUpdateCallback<TDetails> | undefined,
     ctx: ExtensionContext,
-  ): Promise<ToolExecuteResult>;
+  ): Promise<AgentToolResult<TDetails>>;
 }

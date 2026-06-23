@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { Registry } from "./Registry";
-import { Registrable } from "./Registrable";
+import { beforeEach, describe, expect, it } from "vitest";
 
-class TestItem implements Registrable {
+import { Registry } from "./Registry";
+
+class TestItem {
   constructor(
     public readonly name: string,
     public readonly description: string,

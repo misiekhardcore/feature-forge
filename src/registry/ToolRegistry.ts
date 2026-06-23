@@ -1,24 +1,28 @@
-import { Registry } from "./Registry";
-import type { ToolDeps } from "./ToolDeps";
-import { Tool } from "../tools";
+import { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-type ToolConstructor = new (deps: ToolDeps) => Tool;
+import { ChildSocketClient } from "../ipc";
+import { Tool } from "../tools";
+import { Registry } from "./Registry";
 
 export class ToolRegistry extends Registry<Tool> {
-  constructor(private deps: ToolDeps) {
+  constructor(
+    private readonly client: ChildSocketClient | null,
+    private readonly pi: ExtensionAPI,
+  ) {
     super();
   }
 
-  register(ctor: ToolConstructor): Tool {
-    const instance = new ctor(this.deps);
-    if (this.items.has(instance.name)) {
-      throw new Error(`Tool already registered: ${instance.name}`);
+  register(constructor: new (client: ChildSocketClient | null) => Tool): Tool {
+    const tool = new constructor(this.client);
+    if (this.items.has(tool.name)) {
+      throw new Error(`Tool already registered: ${tool.name}`);
     }
-    this.items.set(instance.name, instance);
-    return instance;
+    this.items.set(tool.name, tool);
+    this.pi.registerTool(tool);
+    return tool;
   }
 
-  registerAll(ctors: ToolConstructor[]): Tool[] {
-    return ctors.map((ctor) => this.register(ctor));
+  registerAll(...constructors: (new (client: ChildSocketClient | null) => Tool)[]): Tool[] {
+    return constructors.map((constructor) => this.register(constructor));
   }
 }

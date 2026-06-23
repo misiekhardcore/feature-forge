@@ -643,3 +643,158 @@ pi.registerTool({
 1. How does pi's `createAgentSession` integrate with extension lifecycle events (input hooks, tool_call events)? If we run agents in-process, do parent extension tool_call handlers also fire for child agent tool calls?
 2. Should the `spawnAgent` tool be synchronous (block until sub-agent completes) or fire-and-forget with result streaming? The former is simpler; the latter enables parallel sub-agents.
 3. Should `AgentSpecification` gain a `parentId` field for tree tracking in the supervisor?
+
+---
+
+## Solidified Decisions (2026-06-22)
+
+### Architecture Choice
+
+**Subprocess + injected extension tool (Strategy 2)** is the approach that works with the current `RpcClient`-based subprocess spawning. The child runs as `pi --mode rpc` with an injected extension via `--extension` flag. Tools are injected into the child's session, and they communicate back to the parent supervisor via Unix socket IPC.
+
+**Rationale:**
+
+- Compatible with existing `PiSubprocessAgentFactory` and `RpcClient` — no rewrite of the spawning mechanism
+- `PiSubprocessAgent` stays as-is (wraps `RpcClient`)
+- `--extension` flag confirmed: `pi --help` shows `--extension, -e <path>` with repeat support
+- `args` forwarding confirmed: `RpcClient` pushes `args` to `node dist/cli.js --mode rpc ...args`
+- Process isolation preserved (crash isolation, separate tmux panels)
+- Architecture is additive — the existing `src/index.ts` extension stays the same
+
+### Rejected Alternatives
+
+- **Strategy 1 (in-process SDK via `createAgentSession`)**: Requires replacing `RpcClient` with `createAgentSession()` — incompatible with the current codebase without a rewrite. Loses process isolation. Would be a separate effort if needed later.
+- **Strategy 3 (full AgentBus)**: Overkill for MVP. The Unix socket provides the same request/response pattern without the message-bus abstraction layer.
+
+### IPC Mechanism: Unix Socket
+
+- Parent extension starts a Unix socket server at load time
+- Socket path is passed to child via `RpcClientOptions.env` (e.g., `FORGE_PARENT_SOCKET`)
+- Child extension connects to socket and sends typed JSON request/response messages
+- Socket protocol uses correlation IDs for matching responses to requests
+- Parent also sends async push notifications (`agent_update` events for fire-and-forget tasks)
+
+### Tool Family (not a single composite tool)
+
+The child receives several focused socket-backed tools, not one monolithic `spawn_agent`:
+
+| Tool               | Signature                             | Purpose                                         |
+| ------------------ | ------------------------------------- | ----------------------------------------------- |
+| `spawn_agent`      | `{ role, model?, cwd? } → agent_id`   | Create a subagent, return handle                |
+| `send_task`        | `{ agent_id, task, await? } → result` | `await: true` blocks; `false` fires-and-forgets |
+| `get_agent_result` | `{ agent_id } → result \| null`       | Poll for completion                             |
+| `list_agents`      | `{} → [{ id, role, status }]`         | List running agents                             |
+| `destroy_agent`    | `{ agent_id }`                        | Cleanup                                         |
+
+**`await: true`** enables sequential/blocking calls (writing a file, then reviewing it).
+**`await: false`** enables fire-and-forget (dispatch a research agent while continuing Q&A with the user).
+
+### Agent Template Pattern
+
+1. **Prompts live in `.md` files** under `src/agents/prompts/` — one file per agent role (e.g., `research.md`, `reviewer.md`)
+2. **Prompt files use `{{PLACEHOLDER}}` tokens** for task-context injection
+3. **Each agent role is a subclass of `AgentSpecification`** — constructor accepts typed context parameters (e.g., `{ focus?, sources? }`)
+4. **Constructor fills the template** by calling a `fill(template, values)` helper
+5. **Tool presets are named constants** in `src/agents/specifications/constants.ts` (e.g., `TOOL_PRESETS.readOnly`)
+6. **No magic strings or numbers** — all prompts → `.md` files, all tokens → named constants, context injection → typed constructors
+7. **Task string is separate from the spec** — `supervisor.runAgent(spec, task, pi)` passes the task as the first user message to the agent
+
+### Code Quality Constraints
+
+- Prompts loaded eagerly at module import time from `.md` files (not constructed via inline template literals)
+- Magic strings extracted into named constants or config objects
+- No `registerTools`/`registerCommands` standalone functions — registry owns instantiation
+- Test files created alongside implementation (vitest runner exists, no tests currently)
+
+---
+
+## Second Iteration Decision (2026-06-22)
+
+### Problem: Abstraction Layering Mismatch
+
+The first implementation built `Tool` and `Command` base classes with custom `execute()` signatures, then added adapter code to convert to pi's native `ToolDefinition` / `CommandDefinition` shapes. This created:
+
+- A manual wrapping loop in `src/index.ts` (`execute(...)` → `{ content: [...] }`)
+- An external `SUBAGENT_TOOL_SCHEMAS` map keyed by tool name, duplicating what each tool already knows about itself
+- A `SubagentToolDeps` dependency-injection bag that existed only because `ToolRegistry` demanded it
+- Dead `_ctx` parameters on every socket tool's `execute()` (forced by base class, never used)
+- A separate `src/extensions/forge-subagent.ts` pi extension file that just duplicated registration logic
+
+### Resolution: Follow pi's Signatures, Add on Top
+
+Both `Tool` and `Command` base classes now match pi's native shape exactly:
+
+```ts
+abstract class Tool {
+  abstract readonly name: string;
+  abstract readonly description: string;
+  abstract readonly parameters: ReturnType<typeof Type.Object>;
+
+  abstract execute(
+    toolCallId: string,
+    params: Record<string, unknown>,
+    signal?: AbortSignal,
+    onUpdate?: (msg: unknown) => void,
+    ctx?: ExtensionContext,
+  ): Promise<{ content: Array<{ type: string; text: string }> }>;
+
+  register(pi: ExtensionAPI): void;
+}
+```
+
+Each concrete tool:
+
+- Carries its own `parameters` schema as a readonly property (no external map)
+- Implements `execute()` matching pi's 5-argument signature
+- Returns `{ content: [...] }` directly — no `ToolExecuteResult` conversion needed
+- Has a `register(pi)` method that calls `pi.registerTool()` — no wrapping in callers
+
+### One Extension, Loaded Everywhere
+
+The separate `forge-subagent.ts` extension file is deleted. The main `src/index.ts` is the only extension file. It's loaded by both parent and child agents via `--extension src/index.ts`. Tool visibility is controlled per-agent by the spec `toolNames` field.
+
+Socket tools (`spawn_agent`, `send_task`, etc.) are registered unconditionally. Their constructors accept `ChildSocketClient | null`. When the client is null (parent process, no socket available), execution returns `{ error: "Not available in orchestrator mode" }`. This ensures safe operation in both contexts without conditional registration logic.
+
+### Simplified File Layout
+
+```
+src/
+  tools/
+    Tool.ts                  # pi-compatible base class
+    SpawnAgentTool.ts        # constructor(client: ChildSocketClient | null)
+    SendTaskTool.ts
+    GetAgentResultTool.ts
+    DestroyAgentTool.ts
+    ListAgentsTool.ts
+    index.ts
+  commands/
+    Command.ts               # pi-compatible base class
+    AgentListCommand.ts      # constructor(supervisor) — no deps bag
+    AgentDestroyCommand.ts
+    AgentDestroyAllCommand.ts
+    ResearchCommand.ts
+    index.ts
+  registry/
+    ToolRegistry.ts          # Map wrapper + registerAllWith(pi)
+    CommandRegistry.ts       # Map wrapper + registerAllWith(pi)
+    Registry.ts              # generic foundation (unchanged)
+    Registrable.ts           # (unchanged)
+    index.ts
+  index.ts                   # thin: commands + tools + registerAllWith
+```
+
+### Deleted
+
+| File                               | Reason                      |
+| ---------------------------------- | --------------------------- |
+| `src/extensions/forge-subagent.ts` | Merged into `src/index.ts`  |
+| `src/extensions/tools/`            | Moved to `src/tools/`       |
+| `src/registry/ToolDeps.ts`         | Tools take deps directly    |
+| `src/registry/CommandDeps.ts`      | Commands take deps directly |
+
+### Lessons Learned
+
+1. **Match the host API first.** Designing a custom `execute()` signature for `Tool` required manual wrapping at every registration site. Starting from pi's `ToolDefinition` signature would have saved an iteration.
+2. **Don't externalize what the object knows about itself.** A parallel schema map (`SUBAGENT_TOOL_SCHEMAS`) is a drift risk. Schemas belong on the tool class.
+3. **Generic dependency bags are a code smell.** `SubagentToolDeps` existed only because of the registry's constructor pattern. Direct constructor injection is simpler and type-safe.
+4. **One extension is simpler than two.** The parent/child split (`forge-subagent.ts` vs `src/index.ts`) required duplicate registration logic. Loading the same extension everywhere and gating via null-client works cleanly with less code.

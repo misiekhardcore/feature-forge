@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
 import { AgentIdentifier, AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
 

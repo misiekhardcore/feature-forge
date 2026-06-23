@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { buildPiCliArguments } from "./helpers";
-import { ResearchAgentSpecification } from "../specifications/ResearchAgentSpecification";
+import { describe, expect, it } from "vitest";
+
 import { AgentIdentifier } from "../base/AgentIdentifier";
 import { AgentSpecification } from "../specifications/AgentSpecification";
+import { ResearchAgentSpecification } from "../specifications/ResearchAgentSpecification";
+import { buildPiCliArguments } from "./helpers";
 
 describe("buildPiCliArguments", () => {
   it("returns empty array for minimal specification", () => {

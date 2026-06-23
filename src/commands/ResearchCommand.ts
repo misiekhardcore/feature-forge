@@ -1,7 +1,8 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Command } from "./Command";
-import type { CommandDeps } from "../registry";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+
+import type { AgentSupervisor } from "../agents";
 import { ResearchAgentSpecification } from "../agents";
+import { Command } from "./Command";
 
 export class ResearchCommand extends Command {
   readonly name = "research";
@@ -9,11 +10,14 @@ export class ResearchCommand extends Command {
     "Spawn a research subagent to investigate a topic in the background. " +
     "Usage: /research <topic>";
 
-  constructor(private deps: CommandDeps) {
+  constructor(
+    private supervisor: AgentSupervisor,
+    private pi: ExtensionAPI,
+  ) {
     super();
   }
 
-  async execute(args: string, ctx: ExtensionCommandContext): Promise<void> {
+  async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
     const topic = args.trim();
     if (!topic) {
       ctx.ui.notify("Usage: /research <topic>", "error");
@@ -24,6 +28,6 @@ export class ResearchCommand extends Command {
 
     ctx.ui.notify(`Research agent investigating "${topic}" in the background...`, "info");
 
-    this.deps.supervisor.runAgent(specification, topic, this.deps.pi);
+    return this.supervisor.runAgent(specification, topic, this.pi);
   }
 }

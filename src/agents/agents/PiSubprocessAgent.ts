@@ -1,18 +1,12 @@
+import { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
-import { Agent } from "./Agent";
+
 import { AgentIdentifier, AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
+import { Agent } from "./Agent";
 
-interface RpcMessageEvent {
-  type: string;
-  message?: {
-    role: string;
-    content?: Array<{ type: string; text?: string }>;
-  };
-}
-
-function extractAssistantText(events: RpcMessageEvent[]): string {
+function extractAssistantText(events: AgentEvent[]): string {
   const parts: string[] = [];
   for (const event of events) {
     if (
@@ -42,7 +36,6 @@ export class PiSubprocessAgent extends Agent {
   private _status: AgentStatus = AgentStatus.Spawned;
   private readonly rpcClient: RpcClient;
   private result: string = "";
-  private rawEvents: unknown = undefined;
   private error: Error | undefined = undefined;
 
   constructor(
@@ -88,8 +81,7 @@ export class PiSubprocessAgent extends Agent {
 
     try {
       const events = await this.rpcClient.promptAndWait(task);
-      this.rawEvents = events;
-      this.result = extractAssistantText(events as RpcMessageEvent[]);
+      this.result = extractAssistantText(events);
       this._status = AgentStatus.Completed;
       return this.result;
     } catch (cause) {

@@ -1,29 +1,30 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Registry } from "./Registry";
-import type { CommandDeps } from "./CommandDeps";
-import { Command } from "../commands/Command";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-type CommandConstructor = new (deps: CommandDeps) => Command;
+import { AgentSupervisor } from "../agents";
+import { Command } from "../commands";
+import { Registry } from "./Registry";
 
 export class CommandRegistry extends Registry<Command> {
-  constructor(private deps: CommandDeps) {
+  constructor(
+    private readonly supervisor: AgentSupervisor,
+    private readonly pi: ExtensionAPI,
+  ) {
     super();
   }
 
-  register(ctor: CommandConstructor): Command {
-    const instance = new ctor(this.deps);
-    if (this.items.has(instance.name)) {
-      throw new Error(`Command already registered: ${instance.name}`);
+  register(constructor: new (supervisor: AgentSupervisor, pi: ExtensionAPI) => Command): Command {
+    const command = new constructor(this.supervisor, this.pi);
+    if (this.items.has(command.name)) {
+      throw new Error(`Command already registered: ${command.name}`);
     }
-    this.items.set(instance.name, instance);
-    this.deps.pi.registerCommand(instance.name, {
-      description: instance.description,
-      handler: (args: string, ctx: ExtensionCommandContext) => instance.execute(args, ctx),
-    });
-    return instance;
+    this.items.set(command.name, command);
+    this.pi.registerCommand(command.name, command);
+    return command;
   }
 
-  registerAll(ctors: CommandConstructor[]): Command[] {
-    return ctors.map((ctor) => this.register(ctor));
+  registerAll(
+    ...constructors: (new (supervisor: AgentSupervisor, pi: ExtensionAPI) => Command)[]
+  ): Command[] {
+    return constructors.map((constructor) => this.register(constructor));
   }
 }
