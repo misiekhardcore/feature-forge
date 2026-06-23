@@ -44,7 +44,10 @@ describe("CommandRegistry", () => {
     it("pi.registerCommand is called via registerAllWith", () => {
       registry.register(TestCommand);
       expect(mockPi.registerCommand).toHaveBeenCalledTimes(1);
-      expect(mockPi.registerCommand).toHaveBeenCalledWith("test:cmd", expect.any(TestCommand));
+      expect(mockPi.registerCommand).toHaveBeenCalledWith(
+        "test:cmd",
+        expect.objectContaining({ handler: expect.any(Function) }),
+      );
     });
 
     it("throws when registering a command with a duplicate name", () => {

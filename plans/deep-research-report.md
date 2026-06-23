@@ -701,7 +701,7 @@ The child receives several focused socket-backed tools, not one monolithic `spaw
 
 ### Code Quality Constraints
 
-- Prompts loaded eagerly at module import time from `.md` files (not constructed via inline template literals)
+- Prompts loaded lazily on first call from `.md` files, cached thereafter (not constructed via inline template literals)
 - Magic strings extracted into named constants or config objects
 - No `registerTools`/`registerCommands` standalone functions — registry owns instantiation
 - Test files created alongside implementation (vitest runner exists, no tests currently)

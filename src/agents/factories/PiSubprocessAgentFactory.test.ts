@@ -22,6 +22,7 @@ const rpcMock = vi.hoisted(() => {
     },
     reset,
     factory: () => ({
+      getPackageDir: () => "/mock/pi/package/dir",
       RpcClient: MockRpcClientConstructor,
       ExtensionAPI: class {},
       ExtensionCommandContext: class {},

@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { DestroyAgentParams, DestroyAgentResult } from "../ipc/messages";
 import { Tool } from "./Tool";
+import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
 
@@ -14,6 +15,10 @@ export class DestroyAgentTool extends Tool {
   readonly parameters = Type.Object({
     agentIdentifier: Type.String({ description: "Agent identifier returned by spawn_agent" }),
   });
+
+  renderShell = "self";
+  renderCall = ToolRenderer.destroyAgentCall;
+  renderResult = ToolRenderer.destroyAgentResult;
 
   constructor(private client: ChildSocketClient | null) {
     super();

@@ -1,4 +1,6 @@
-import { RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
+import { join } from "node:path";
+
+import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
 
 import { Agent, PiSubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
@@ -8,9 +10,8 @@ import { buildPiCliArguments } from "./helpers";
 /**
  * Concrete AgentFactory that spawns agents as pi subprocesses in RPC mode.
  *
- * Child processes auto-discover the forge extension from .pi/extensions/,
- * which registers socket-backed tools when FORGE_PARENT_SOCKET is set
- * in the environment.
+ * Child extension loading is deferred — use --extension flag or install
+ * into .pi/extensions/ when delegation (sub-sub-agent spawning) is scoped.
  */
 export class PiSubprocessAgentFactory extends AgentFactory {
   constructor(private readonly options: RpcClientOptions = {}) {
@@ -40,7 +41,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
     const args = [...(this.options.args ?? []), ...buildPiCliArguments(specification)];
 
     return new RpcClient({
-      cliPath: this.options.cliPath,
+      cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),
       cwd: this.options.cwd ?? process.cwd(),
       model: specification.modelPreference ?? this.options.model,
       args,

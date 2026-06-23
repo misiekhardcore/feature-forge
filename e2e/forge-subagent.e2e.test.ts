@@ -30,6 +30,7 @@ function createMockAgent(): Agent {
       identifier,
     } as never,
     status: AgentStatus.Running,
+    createdAt: new Date(),
     executeTask: vi.fn().mockResolvedValue("e2e task result"),
     destroy: vi.fn().mockResolvedValue(undefined),
     getResult: vi.fn().mockReturnValue("e2e task result"),
@@ -67,7 +68,8 @@ describe("forge-subagent E2E", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor);
+    const mockPi = { on: vi.fn() };
+    server = new ParentSocketServer(supervisor, mockPi as never);
     socketPath = await server.start();
     piProcess = null;
   });

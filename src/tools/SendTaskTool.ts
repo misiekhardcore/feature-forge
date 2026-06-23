@@ -5,6 +5,7 @@ import { SendTaskParams } from "../ipc";
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { SendTaskResult } from "../ipc/messages";
 import { Tool } from "./Tool";
+import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
 
@@ -26,6 +27,10 @@ export class SendTaskTool extends Tool {
         "If false, dispatch in background and receive result later",
     }),
   });
+
+  renderShell = "self";
+  renderCall = ToolRenderer.sendTaskCall;
+  renderResult = ToolRenderer.sendTaskResult;
 
   constructor(private client: ChildSocketClient | null) {
     super();

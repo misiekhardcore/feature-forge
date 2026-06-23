@@ -6,6 +6,7 @@ import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import { AgentIdentifier, AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
+import { makeMockPi } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -21,6 +22,7 @@ function createMockAgent(overrides: Partial<Agent> = {}): Agent {
       identifier,
     } as never,
     status: AgentStatus.Running,
+    createdAt: new Date(),
     executeTask: vi.fn().mockResolvedValue("task result"),
     destroy: vi.fn().mockResolvedValue(undefined),
     getResult: vi.fn().mockReturnValue("task result"),
@@ -94,7 +96,7 @@ describe("ParentSocketServer edge cases", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor);
+    server = new ParentSocketServer(supervisor, makeMockPi());
     await server.start();
   });
 
@@ -181,7 +183,7 @@ describe("ParentSocketServer edge cases", () => {
         const pushResponse = await read(client);
         expect(pushResponse).toMatchObject({
           type: "agent_update",
-          payload: { status: "completed" },
+          payload: { status: "Completed" },
         });
         return true;
       },
@@ -199,7 +201,7 @@ describe("ParentSocketServer edge cases", () => {
     agents.set("failer", failingAgent);
 
     const customSupervisor = createMockSupervisor(agents);
-    const customServer = new ParentSocketServer(customSupervisor);
+    const customServer = new ParentSocketServer(customSupervisor, { on: vi.fn() } as never);
     const customPath = await customServer.start();
 
     const client = connect(customPath);
@@ -239,7 +241,7 @@ describe("ParentSocketServer edge cases", () => {
         const pushResponse = await read(client);
         expect(pushResponse).toMatchObject({
           type: "agent_update",
-          payload: { status: "failed" },
+          payload: { status: "Failed" },
         });
         return true;
       },
@@ -256,9 +258,11 @@ describe("ChildSocketClient edge cases", () => {
   let supervisor: AgentSupervisor;
   let socketPath: string;
 
+  const mockPi = { on: vi.fn() };
+
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor);
+    server = new ParentSocketServer(supervisor, mockPi as never);
     socketPath = await server.start();
   });
 

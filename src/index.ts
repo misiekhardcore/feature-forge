@@ -8,6 +8,7 @@ import {
   ResearchCommand,
 } from "./commands";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
+import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -21,11 +22,37 @@ import {
  * Feature Forge — autonomous software engineering platform.
  *
  * Single extension loaded by both parent and child agents.
- * Tools are registered unconditionally; socket-based tools
- * accept a null client and return a safe error in orchestrator mode.
+ *
+ * Every session starts a ParentSocketServer (for its own children) and
+ * connects as a ChildSocketClient:
+ * - **Root parent**: connects to its own server via loopback. Tools send
+ *   IPC to the local supervisor through the server.
+ * - **Child agents**: connect to the parent's server via `FORGE_PARENT_SOCKET`
+ *   (set by the parent in the child's process env). Tools send IPC to the
+ *   parent's supervisor.
+ *
+ * This keeps a single code path — all tool calls go through IPC, whether
+ * the caller is the parent or a child.
  */
 const featureForgeExtension: ExtensionFactory = async (pi) => {
-  const supervisor = new InMemoryAgentSupervisor(new PiSubprocessAgentFactory());
+  // Shared mutable env that PiSubprocessAgentFactory reads lazily.
+  // Start the server first, then write the socket path here so spawned
+  // children receive FORGE_PARENT_SOCKET in their process environment.
+  const childEnv: Record<string, string> = {};
+
+  const factory = new PiSubprocessAgentFactory({
+    env: childEnv,
+    cwd: process.cwd(),
+  });
+  const supervisor = new InMemoryAgentSupervisor(factory);
+  const ipcServer = new ParentSocketServer(supervisor, pi);
+  const socketPath = await ipcServer.start();
+  childEnv.FORGE_PARENT_SOCKET = socketPath;
+  const targetSocketPath = process.env.FORGE_PARENT_SOCKET ?? socketPath;
+  // Every session runs as a client.
+  // Child sessions: FORGE_PARENT_SOCKET points to the parent's server.
+  // Root parent: no env var, so connect to our own server (loopback).
+  const client = await connectChildClient(targetSocketPath, pi);
 
   const cmdRegistry = new CommandRegistry(supervisor, pi);
   cmdRegistry.registerAll(
@@ -34,9 +61,6 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     AgentDestroyAllCommand,
     ResearchCommand,
   );
-
-  const socketPath = process.env.FORGE_PARENT_SOCKET ?? null;
-  const client = socketPath ? await connectChildClient(socketPath, pi) : null;
 
   const toolRegistry = new ToolRegistry(client, pi);
   toolRegistry.registerAll(

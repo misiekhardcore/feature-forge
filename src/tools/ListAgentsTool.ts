@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { ListAgentsResult } from "../ipc/messages";
 import { Tool } from "./Tool";
+import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
 
@@ -12,6 +13,10 @@ export class ListAgentsTool extends Tool {
   readonly label = "List Agents";
   readonly description = "List all spawned agents and their current status.";
   readonly parameters = Type.Object({});
+
+  renderShell = "self";
+  renderCall = ToolRenderer.listAgentsCall;
+  renderResult = ToolRenderer.listAgentsResult;
 
   constructor(private client: ChildSocketClient | null) {
     super();

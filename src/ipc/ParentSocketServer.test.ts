@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Agent } from "../agents/agents";
 import { AgentIdentifier, AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
+import { makeMockPi } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 
 function createMockAgent(): Agent {
@@ -18,6 +19,7 @@ function createMockAgent(): Agent {
       identifier,
     } as never,
     status: AgentStatus.Running,
+    createdAt: new Date(),
     executeTask: vi.fn().mockResolvedValue("task result"),
     destroy: vi.fn().mockResolvedValue(undefined),
     getResult: vi.fn().mockReturnValue("task result"),
@@ -71,7 +73,7 @@ describe("ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor);
+    server = new ParentSocketServer(supervisor, makeMockPi());
     socketPath = await server.start();
   });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { AgentStatus } from "../agents";
 import type {
   SendTaskParams,
   SocketMessage,
@@ -91,13 +92,13 @@ describe("SocketPush type", () => {
       type: "agent_update",
       payload: {
         agentIdentifier: "agent-1" as never,
-        status: "completed",
+        status: AgentStatus.Completed,
         result: "Done",
       },
     };
 
     expect(push.type).toBe("agent_update");
-    expect(push.payload.status).toBe("completed");
+    expect(push.payload.status).toBe("Completed");
     expect(push.payload.result).toBe("Done");
   });
 });

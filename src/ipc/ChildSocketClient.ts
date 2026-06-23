@@ -87,7 +87,7 @@ export class ChildSocketClient {
   async request<ST extends SocketMessage["type"]>(
     type: ST,
     params: Extract<SocketMessage, { type: ST }>["params"],
-    timeout = 30_000,
+    timeout = 300_000,
   ): Promise<ParamsToResponseMap[ST]> {
     const correlationId = randomUUID();
 

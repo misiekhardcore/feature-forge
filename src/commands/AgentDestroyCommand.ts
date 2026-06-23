@@ -7,11 +7,11 @@ export class AgentDestroyCommand extends Command {
   readonly name = "agent:destroy";
   readonly description = "Destroy a specific subagent. Usage: /agent:destroy <name>";
 
-  constructor(private supervisor: AgentSupervisor) {
-    super();
+  constructor(supervisor: AgentSupervisor) {
+    super(supervisor);
   }
 
-  async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
+  handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const name = args.trim();
     if (!name) {
       ctx.ui.notify("Usage: /agent:destroy <name>", "error");
@@ -20,5 +20,5 @@ export class AgentDestroyCommand extends Command {
 
     await this.supervisor.destroyAgent(name);
     ctx.ui.notify(`Agent "${name}" destroyed.`, "info");
-  }
+  };
 }

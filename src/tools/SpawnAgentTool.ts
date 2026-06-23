@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { SpawnAgentParams, SpawnAgentResult } from "../ipc/messages";
 import { Tool } from "./Tool";
+import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
 
@@ -25,6 +26,10 @@ export class SpawnAgentTool extends Tool {
       Type.String({ description: "Optional model override (e.g., claude-sonnet-4-5)" }),
     ),
   });
+
+  renderShell = "self";
+  renderCall = ToolRenderer.spawnAgentCall;
+  renderResult = ToolRenderer.spawnAgentResult;
 
   constructor(private client: ChildSocketClient | null) {
     super();

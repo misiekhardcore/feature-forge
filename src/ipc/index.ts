@@ -6,6 +6,6 @@ export type {
   SocketMessage,
   SocketPush,
   SocketResponse,
-  SpawnAgentParams as SpawnParams,
+  SpawnAgentParams,
 } from "./messages";
 export { ParentSocketServer } from "./ParentSocketServer";
