@@ -12,7 +12,7 @@ export class CommandRegistry extends Registry<Command> {
     super();
   }
 
-  register(constructor: new (supervisor: AgentSupervisor, pi?: ExtensionAPI) => Command): Command {
+  register(constructor: new (supervisor: AgentSupervisor, pi: ExtensionAPI) => Command): Command {
     const command = new constructor(this.supervisor, this.pi);
     if (this.items.has(command.name)) {
       throw new Error(`Command already registered: ${command.name}`);
@@ -32,7 +32,7 @@ export class CommandRegistry extends Registry<Command> {
   }
 
   registerAll(
-    ...constructors: (new (supervisor: AgentSupervisor, pi?: ExtensionAPI) => Command)[]
+    ...constructors: (new (supervisor: AgentSupervisor, pi: ExtensionAPI) => Command)[]
   ): Command[] {
     return constructors.map((constructor) => this.register(constructor));
   }

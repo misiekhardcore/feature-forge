@@ -1,15 +1,10 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import type { AgentSupervisor } from "../agents";
 import { Command } from "./Command";
 
 export class AgentDestroyCommand extends Command {
   readonly name = "agent:destroy";
   readonly description = "Destroy a specific subagent. Usage: /agent:destroy <name>";
-
-  constructor(supervisor: AgentSupervisor) {
-    super(supervisor);
-  }
 
   handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const name = args.trim();

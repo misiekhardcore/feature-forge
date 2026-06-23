@@ -82,7 +82,7 @@ export class ChildSocketClient {
    *
    * @param type — The message type.
    * @param params — The request parameters.
-   * @param timeout — Milliseconds to wait before throwing IpcTimeoutError (default 30000).
+   * @param timeout — Milliseconds to wait before throwing IpcTimeoutError (default 5 minutes).
    */
   async request<ST extends SocketMessage["type"]>(
     type: ST,

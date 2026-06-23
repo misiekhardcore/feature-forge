@@ -1,10 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import { makeMockSocketClient } from "../test-utils";
 import { GetAgentResultTool } from "./GetAgentResultTool";
-
-function makeMockSocketClient() {
-  return { request: vi.fn() };
-}
 
 describe("GetAgentResultTool", () => {
   it("has name 'get_agent_result'", () => {

@@ -8,6 +8,8 @@ import { AgentDestroyCommand } from "./AgentDestroyCommand";
 import { AgentListCommand } from "./AgentListCommand";
 import { ResearchCommand } from "./ResearchCommand";
 
+const pi = makeMockPi();
+
 describe("ResearchCommand", () => {
   let supervisor: InMemoryAgentSupervisor;
   let cmd: ResearchCommand;
@@ -15,7 +17,6 @@ describe("ResearchCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    const pi = makeMockPi();
     cmd = new ResearchCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
@@ -56,7 +57,7 @@ describe("AgentListCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentListCommand(supervisor);
+    cmd = new AgentListCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 
@@ -87,7 +88,7 @@ describe("AgentDestroyCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyCommand(supervisor);
+    cmd = new AgentDestroyCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 
@@ -115,7 +116,7 @@ describe("AgentDestroyAllCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyAllCommand(supervisor);
+    cmd = new AgentDestroyAllCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 

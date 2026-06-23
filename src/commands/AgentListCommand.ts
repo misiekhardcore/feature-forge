@@ -1,15 +1,11 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import type { Agent, AgentSupervisor } from "../agents";
+import type { Agent } from "../agents";
 import { Command } from "./Command";
 
 export class AgentListCommand extends Command {
   readonly name = "agent:list";
   readonly description = "List all tracked subagents and their current status.";
-
-  constructor(supervisor: AgentSupervisor) {
-    super(supervisor);
-  }
 
   private formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();
