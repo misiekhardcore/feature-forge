@@ -16,7 +16,7 @@ export class GetAgentResultTool extends Tool {
     "Returns the agent's current status and result if available.";
 
   readonly parameters = Type.Object({
-    agentIdentifier: Type.String({ description: "Agent identifier returned by spawn_agent" }),
+    agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
   });
 
   renderShell = "self";

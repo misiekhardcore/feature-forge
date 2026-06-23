@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { AgentIdentifier } from "../base/AgentIdentifier";
 import { AgentSpecification, ThinkingLevel } from "./AgentSpecification";
 
 class TestSpecification extends AgentSpecification {
   constructor(overrides: Partial<ConstructorParameters<typeof AgentSpecification>[0]> = {}) {
     super({
-      identifier: new AgentIdentifier("test"),
+      id: "test",
       role: "tester",
       systemPrompt: "You are a test agent.",
       ...overrides,
@@ -17,7 +16,7 @@ class TestSpecification extends AgentSpecification {
 describe("AgentSpecification", () => {
   it("stores required fields", () => {
     const spec = new TestSpecification();
-    expect(spec.identifier.toString()).toBe("test");
+    expect(spec.id).toBe("test");
     expect(spec.role).toBe("tester");
     expect(spec.systemPrompt).toBe("You are a test agent.");
   });

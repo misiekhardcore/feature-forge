@@ -3,20 +3,20 @@ import { connect, type Socket } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../agents/agents";
-import { AgentIdentifier, AgentStatus } from "../agents/base";
+import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 
 function createMockAgent(): Agent {
-  const identifier = new AgentIdentifier("test-agent");
+  const id = "test-agent";
   return {
-    identifier,
+    id,
     specification: {
       role: "test",
       systemPrompt: "",
       toolNames: ["read"],
-      identifier,
+      id,
     } as never,
     status: AgentStatus.Running,
     createdAt: new Date(),
@@ -33,9 +33,9 @@ function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupe
   return {
     spawn: vi.fn().mockImplementation(async (specification) => {
       const agent = createMockAgent();
-      const identifier = new AgentIdentifier(specification.role);
-      Object.defineProperty(agent, "identifier", { value: identifier });
-      agents.set(identifier.toString(), agent);
+      const id = specification.role;
+      Object.defineProperty(agent, "id", { value: id });
+      agents.set(id, agent);
       return agent;
     }),
     runAgent: vi.fn().mockResolvedValue(undefined),
@@ -105,7 +105,7 @@ describe("ParentSocketServer", () => {
       type: "result",
       correlationId: "test-1",
       result: {
-        agentIdentifier: "researcher",
+        agentId: "researcher",
         role: "researcher",
       },
     });
@@ -139,7 +139,7 @@ describe("ParentSocketServer", () => {
       type: "send_task",
       correlationId: "test-3",
       params: {
-        agentIdentifier: "non-existent",
+        agentId: "non-existent",
         task: "do something",
         await: true,
       },
@@ -173,7 +173,7 @@ describe("ParentSocketServer", () => {
     expect(spawnResponse).toEqual({
       type: "result",
       correlationId: "s1",
-      result: { agentIdentifier: "worker", role: "worker" },
+      result: { agentId: "worker", role: "worker" },
     });
 
     // Send task
@@ -181,7 +181,7 @@ describe("ParentSocketServer", () => {
       type: "send_task",
       correlationId: "s2",
       params: {
-        agentIdentifier: "worker",
+        agentId: "worker",
         task: "Do the work",
         await: true,
       },
@@ -218,7 +218,7 @@ describe("ParentSocketServer", () => {
       type: "destroy_agent",
       correlationId: "d2",
       params: {
-        agentIdentifier: "temp",
+        agentId: "temp",
       },
     });
 

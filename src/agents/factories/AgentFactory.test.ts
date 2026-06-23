@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { AgentCreationError } from "./AgentFactory";
 
 describe("AgentCreationError", () => {
-  it("creates an error with the specification identifier in the message", () => {
+  it("creates an error with the specification id in the message", () => {
     const error = new AgentCreationError("agent-1", "Network timeout");
     expect(error.message).toContain("agent-1");
     expect(error.message).toContain("Network timeout");
-    expect(error.specificationIdentifier).toBe("agent-1");
+    expect(error.specificationId).toBe("agent-1");
     expect(error.name).toBe("AgentCreationError");
   });
 

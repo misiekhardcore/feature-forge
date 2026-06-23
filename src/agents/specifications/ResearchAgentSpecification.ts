@@ -1,4 +1,3 @@
-import { AgentIdentifier } from "../base";
 import { AgentSpecification } from "./AgentSpecification";
 import { TOOL_PRESETS } from "./constants";
 import { loadPromptTemplate } from "./templates";
@@ -26,7 +25,7 @@ export interface ResearchContext {
 export class ResearchAgentSpecification extends AgentSpecification {
   constructor(context?: ResearchContext) {
     super({
-      identifier: new AgentIdentifier("researcher"),
+      id: "researcher",
       role: "researcher",
       systemPrompt: loadPromptTemplate("research", {
         CONTEXT: buildContextBlock(context),

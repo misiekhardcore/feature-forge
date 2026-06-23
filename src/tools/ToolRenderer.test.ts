@@ -44,10 +44,10 @@ describe("ToolRenderer", () => {
   });
 
   describe("sendTaskCall", () => {
-    it("renders a Box with agent identifier and task snippet", () => {
+    it("renders a Box with agent id and task snippet", () => {
       const ctx = makeCtx();
       const box = ToolRenderer.sendTaskCall(
-        { agentIdentifier: "agent-1", task: "review the code", await: true },
+        { agentId: "agent-1", task: "review the code", await: true },
         theme,
         ctx,
       ) as Box;
@@ -59,33 +59,25 @@ describe("ToolRenderer", () => {
     it("truncates long task descriptions", () => {
       const ctx = makeCtx();
       const longTask = "a".repeat(100);
-      ToolRenderer.sendTaskCall(
-        { agentIdentifier: "agent-1", task: longTask, await: false },
-        theme,
-        ctx,
-      );
+      ToolRenderer.sendTaskCall({ agentId: "agent-1", task: longTask, await: false }, theme, ctx);
 
       // Should not throw — just verifies truncation path
     });
   });
 
   describe("getAgentResultCall", () => {
-    it("renders a Box with agent identifier", () => {
+    it("renders a Box with agent id", () => {
       const ctx = makeCtx();
-      const box = ToolRenderer.getAgentResultCall(
-        { agentIdentifier: "agent-1" },
-        theme,
-        ctx,
-      ) as Box;
+      const box = ToolRenderer.getAgentResultCall({ agentId: "agent-1" }, theme, ctx) as Box;
 
       expect(box).toBeInstanceOf(Box);
     });
   });
 
   describe("destroyAgentCall", () => {
-    it("renders a Box with agent identifier", () => {
+    it("renders a Box with agent id", () => {
       const ctx = makeCtx();
-      const box = ToolRenderer.destroyAgentCall({ agentIdentifier: "agent-1" }, theme, ctx) as Box;
+      const box = ToolRenderer.destroyAgentCall({ agentId: "agent-1" }, theme, ctx) as Box;
 
       expect(box).toBeInstanceOf(Box);
     });

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentIdentifier, AgentStatus } from "../base";
+import { AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
 
 /**
@@ -12,7 +12,7 @@ import { AgentSpecification } from "../specifications";
  * via `pi.sendMessage()`.
  */
 export abstract class Agent {
-  public abstract readonly identifier: AgentIdentifier;
+  public abstract readonly id: string;
   public abstract readonly specification: AgentSpecification;
   public abstract readonly status: AgentStatus;
   public readonly createdAt: Date = new Date();

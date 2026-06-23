@@ -10,7 +10,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
 import { Agent } from "./agents/agents/Agent";
-import { AgentIdentifier } from "./agents/base/AgentIdentifier";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
 import { AgentSpecification } from "./agents/specifications/AgentSpecification";
@@ -32,7 +31,7 @@ export function makeSpec(
   return new (class extends AgentSpecification {
     constructor() {
       super({
-        identifier: new AgentIdentifier(id),
+        id,
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
         toolNames: overrides.toolNames,
@@ -48,7 +47,6 @@ export function makeSpec(
 // ---------------------------------------------------------------------------
 
 export class MockAgent extends Agent {
-  public readonly identifier: AgentIdentifier;
   public readonly specification: AgentSpecification;
   public readonly createdAt: Date = new Date();
   public status: AgentStatus = AgentStatus.Spawned;
@@ -57,9 +55,12 @@ export class MockAgent extends Agent {
   private _result = "";
   private _error: Error | undefined;
 
-  constructor(id: string, overrides: { role?: string; status?: AgentStatus } = {}) {
+  constructor(
+    public readonly id: string,
+    overrides: { role?: string; status?: AgentStatus } = {},
+  ) {
     super();
-    this.identifier = new AgentIdentifier(id);
+    this.id = id;
     this.status = overrides.status ?? AgentStatus.Spawned;
     this.specification = makeSpec(id, { role: overrides.role ?? "mock" });
   }
@@ -105,7 +106,7 @@ export function makeMockFactory(): AgentFactory {
   const mockCreate: AgentFactory["create"] = vi
     .fn()
     .mockImplementation(async (spec: AgentSpecification) => {
-      const agent = new MockAgent(spec.identifier.toString(), { role: spec.role });
+      const agent = new MockAgent(spec.id, { role: spec.role });
       agent.status = AgentStatus.Running;
       return agent;
     });

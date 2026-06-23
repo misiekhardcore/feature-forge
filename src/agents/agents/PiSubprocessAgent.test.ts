@@ -32,7 +32,6 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
 }));
 
 import { makeMessageEvent, makeSpec } from "../../test-utils";
-import { AgentIdentifier } from "../base/AgentIdentifier";
 import { AgentStatus } from "../base/AgentStatus";
 import { PiSubprocessAgent } from "./PiSubprocessAgent";
 
@@ -46,7 +45,7 @@ describe("PiSubprocessAgent", () => {
 
     const spec = makeSpec("test-agent", { role: "tester", systemPrompt: "You are a test." });
     const rpcClient = new (MockRpcClient as unknown as new () => never)();
-    agent = new PiSubprocessAgent(new AgentIdentifier("test-agent"), spec, rpcClient);
+    agent = new PiSubprocessAgent("test-agent", spec, rpcClient);
   });
 
   describe("initial state", () => {
@@ -54,8 +53,8 @@ describe("PiSubprocessAgent", () => {
       expect(agent.status).toBe(AgentStatus.Spawned);
     });
 
-    it("has correct identifier", () => {
-      expect(agent.identifier.toString()).toBe("test-agent");
+    it("has correct id", () => {
+      expect(agent.id).toBe("test-agent");
     });
   });
 

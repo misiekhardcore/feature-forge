@@ -30,7 +30,7 @@ describe("DestroyAgentTool", () => {
   describe("without socket client", () => {
     it("returns not-available error", async () => {
       const tool = new DestroyAgentTool(null);
-      const result = await tool.execute("call-1", { agentIdentifier: "agent-1" });
+      const result = await tool.execute("call-1", { agentId: "agent-1" });
       expect(result).toEqual({
         content: [
           { type: "text", text: JSON.stringify({ error: "Not available in orchestrator mode" }) },
@@ -52,10 +52,10 @@ describe("DestroyAgentTool", () => {
     it("sends request and returns destroyed status", async () => {
       client.request.mockResolvedValue({ status: "destroyed" });
 
-      const result = await tool.execute("call-1", { agentIdentifier: "agent-1" });
+      const result = await tool.execute("call-1", { agentId: "agent-1" });
 
       expect(client.request).toHaveBeenCalledWith("destroy_agent", {
-        agentIdentifier: "agent-1",
+        agentId: "agent-1",
       });
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ status: "destroyed" }, null, 2) }],
@@ -66,7 +66,7 @@ describe("DestroyAgentTool", () => {
     it("wraps IPC errors", async () => {
       client.request.mockRejectedValue(new Error("Agent not found"));
 
-      const result = await tool.execute("call-1", { agentIdentifier: "missing-agent" });
+      const result = await tool.execute("call-1", { agentId: "missing-agent" });
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "Agent not found" }) }],
@@ -77,7 +77,7 @@ describe("DestroyAgentTool", () => {
     it("wraps non-Error rejections", async () => {
       client.request.mockRejectedValue("string error");
 
-      const result = await tool.execute("call-1", { agentIdentifier: "bad-agent" });
+      const result = await tool.execute("call-1", { agentId: "bad-agent" });
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "string error" }) }],

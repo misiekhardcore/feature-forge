@@ -85,8 +85,8 @@ async function connectChildClient(
   // Forward async agent update events to the user
   client.onPush((event) => {
     if (event.type === "agent_update") {
-      const { agentIdentifier, status, result } = event.payload;
-      const message = `**Agent ${agentIdentifier}** — ${status}${result ? `:\n\n${result}` : ""}`;
+      const { agentId, status, result } = event.payload;
+      const message = `**Agent ${agentId}** — ${status}${result ? `:\n\n${result}` : ""}`;
       pi.sendMessage({
         customType: "agent_update",
         content: [{ type: "text", text: message }],

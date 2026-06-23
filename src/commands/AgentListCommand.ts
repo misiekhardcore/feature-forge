@@ -23,7 +23,7 @@ export class AgentListCommand extends Command {
 
   private formatAgentLine(agent: Agent): string {
     const elapsed = this.formatElapsed(agent.createdAt);
-    return `  • ${agent.identifier} — ${agent.status} (role: ${agent.specification.role}) [${elapsed}]`;
+    return `  • ${agent.id} — ${agent.status} (role: ${agent.specification.role}) [${elapsed}]`;
   }
 
   handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {

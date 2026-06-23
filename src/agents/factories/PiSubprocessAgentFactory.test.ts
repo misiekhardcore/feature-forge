@@ -47,10 +47,10 @@ describe("PiSubprocessAgentFactory", () => {
     factory = new PiSubprocessAgentFactory();
   });
 
-  it("creates a PiSubprocessAgent with correct identifier", async () => {
+  it("creates a PiSubprocessAgent with correct id", async () => {
     const agent = await factory.create(makeSpec("factory-test", { role: "factory-tester" }));
     expect(agent).toBeInstanceOf(PiSubprocessAgent);
-    expect(agent.identifier.toString()).toBe("factory-test");
+    expect(agent.id).toBe("factory-test");
   });
 
   it("calls start on the agent during creation", async () => {

@@ -21,12 +21,12 @@ export abstract class AgentFactory {
  * Thrown when an AgentFactory cannot create an Agent.
  */
 export class AgentCreationError extends Error {
-  public readonly specificationIdentifier: string;
+  public readonly specificationId: string;
 
-  constructor(specificationIdentifier: string, reason: string, cause?: Error) {
-    super(`Failed to create agent "${specificationIdentifier}": ${reason}`);
+  constructor(specificationId: string, reason: string, cause?: Error) {
+    super(`Failed to create agent "${specificationId}": ${reason}`);
     this.name = "AgentCreationError";
-    this.specificationIdentifier = specificationIdentifier;
+    this.specificationId = specificationId;
     this.cause = cause;
   }
 }

@@ -28,10 +28,10 @@ export abstract class AgentSupervisor {
   ): Promise<void>;
 
   /**
-   * Retrieve a tracked agent by its identifier.
-   * Returns undefined if no agent with this identifier is known.
+   * Retrieve a tracked agent by its id.
+   * Returns undefined if no agent with this id is known.
    */
-  public abstract getAgent(agentIdentifier: string): Agent | undefined;
+  public abstract getAgent(agentId: string): Agent | undefined;
 
   /**
    * Return all currently tracked agents.
@@ -42,7 +42,7 @@ export abstract class AgentSupervisor {
    * Destroy a specific agent and clean up its resources.
    * Removes it from tracking. Safe to call multiple times.
    */
-  public abstract destroyAgent(agentIdentifier: string): Promise<void>;
+  public abstract destroyAgent(agentId: string): Promise<void>;
 
   /**
    * Destroy all tracked agents.

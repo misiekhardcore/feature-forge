@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { AgentIdentifier } from "../base/AgentIdentifier";
 import { AgentSpecification } from "../specifications/AgentSpecification";
 import { DefaultAgentGovernancePolicy } from "./DefaultAgentGovernancePolicy";
 
@@ -8,7 +7,7 @@ function makeSpec(overrides: Partial<ConstructorParameters<typeof AgentSpecifica
   return new (class extends AgentSpecification {
     constructor() {
       super({
-        identifier: new AgentIdentifier("test"),
+        id: "test",
         role: "tester",
         systemPrompt: "test",
         ...overrides,

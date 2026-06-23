@@ -19,7 +19,7 @@ describe("InMemoryAgentSupervisor", () => {
     it("creates an agent via the factory and tracks it", async () => {
       const spec = makeSpec("agent-1");
       const agent = await supervisor.spawn(spec);
-      expect(agent.identifier.toString()).toBe("agent-1");
+      expect(agent.id).toBe("agent-1");
       expect(factory.create).toHaveBeenCalledWith(spec);
     });
 
@@ -36,7 +36,7 @@ describe("InMemoryAgentSupervisor", () => {
       expect(supervisor.getAgent("nonexistent")).toBeUndefined();
     });
 
-    it("returns agent by string identifier", async () => {
+    it("returns agent by string id", async () => {
       const spec = makeSpec("my-agent");
       const agent = await supervisor.spawn(spec);
       expect(supervisor.getAgent("my-agent")).toBe(agent);
@@ -118,7 +118,7 @@ describe("InMemoryAgentSupervisor", () => {
       const mockCreate: AgentFactory["create"] = vi
         .fn()
         .mockImplementation(async (spec: AgentSpecification) => {
-          const agent = new MockAgent(spec.identifier.toString());
+          const agent = new MockAgent(spec.id);
           vi.spyOn(agent, "executeTask").mockRejectedValueOnce(new Error("Execution error"));
           vi.spyOn(agent, "deliverError").mockImplementation(() => {});
           return agent;
@@ -134,7 +134,7 @@ describe("InMemoryAgentSupervisor", () => {
       const mockCreate: AgentFactory["create"] = vi
         .fn()
         .mockImplementation(async (spec: AgentSpecification) => {
-          const agent = new MockAgent(spec.identifier.toString());
+          const agent = new MockAgent(spec.id);
           vi.spyOn(agent, "executeTask").mockRejectedValueOnce("string error");
           vi.spyOn(agent, "deliverError").mockImplementation(() => {});
           return agent;

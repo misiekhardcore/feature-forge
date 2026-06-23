@@ -29,7 +29,7 @@ describe("SocketMessage type", () => {
 
   it("shapes a send_task message with await=true", () => {
     const params: SendTaskParams = {
-      agentIdentifier: "agent-1",
+      agentId: "agent-1",
       task: "Research X",
       await: true,
     };
@@ -46,7 +46,7 @@ describe("SocketMessage type", () => {
 
   it("shapes a send_task message with await=false", () => {
     const params: SendTaskParams = {
-      agentIdentifier: "agent-1",
+      agentId: "agent-1",
       task: "Fire and forget",
       await: false,
     };
@@ -67,7 +67,7 @@ describe("SocketResponse type", () => {
     const response: SocketResponse = {
       type: "result",
       correlationId: "c1",
-      result: { agentIdentifier: "agent-1", role: "researcher" },
+      result: { agentId: "agent-1", role: "researcher" },
     };
 
     expect(response.type).toBe("result");
@@ -91,7 +91,7 @@ describe("SocketPush type", () => {
     const push: SocketPush = {
       type: "agent_update",
       payload: {
-        agentIdentifier: "agent-1" as never,
+        agentId: "agent-1" as never,
         status: AgentStatus.Completed,
         result: "Done",
       },

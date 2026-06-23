@@ -19,7 +19,7 @@ export class SendTaskTool extends Tool {
     "the result is delivered asynchronously via an agent_update notification.";
 
   readonly parameters = Type.Object({
-    agentIdentifier: Type.String({ description: "Agent identifier returned by spawn_agent" }),
+    agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
     task: Type.String({ description: "The task description to send to the agent" }),
     await: Type.Boolean({
       description:
