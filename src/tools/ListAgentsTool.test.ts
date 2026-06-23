@@ -1,10 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import { makeMockSocketClient } from "../test-utils";
 import { ListAgentsTool } from "./ListAgentsTool";
-
-function makeMockSocketClient() {
-  return { request: vi.fn() };
-}
 
 describe("ListAgentsTool", () => {
   it("has name 'list_agents'", () => {

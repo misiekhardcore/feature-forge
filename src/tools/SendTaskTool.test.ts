@@ -1,10 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import { makeMockSocketClient } from "../test-utils";
 import { SendTaskTool } from "./SendTaskTool";
-
-function makeMockSocketClient() {
-  return { request: vi.fn() };
-}
 
 describe("SendTaskTool", () => {
   it("has name 'send_task'", () => {

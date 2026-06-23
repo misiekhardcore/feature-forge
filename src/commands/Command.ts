@@ -12,7 +12,7 @@ import { AgentSupervisor } from "../agents";
 export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
   constructor(
     protected readonly supervisor: AgentSupervisor,
-    protected readonly pi?: ExtensionAPI,
+    protected readonly pi: ExtensionAPI,
   ) {}
   abstract readonly name: string;
   abstract readonly description?: string;
