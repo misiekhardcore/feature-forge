@@ -7,13 +7,13 @@ export class AgentDestroyAllCommand extends Command {
   readonly name = "agent:destroy-all";
   readonly description = "Destroy all tracked subagents.";
 
-  constructor(private supervisor: AgentSupervisor) {
-    super();
+  constructor(supervisor: AgentSupervisor) {
+    super(supervisor);
   }
 
-  async handler(_args: string, ctx: ExtensionCommandContext): Promise<void> {
+  handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const count = this.supervisor.getAllAgents().length;
     await this.supervisor.destroyAll();
     ctx.ui.notify(`All ${count} agent(s) destroyed.`, "info");
-  }
+  };
 }

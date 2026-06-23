@@ -9,6 +9,7 @@ import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import { AgentIdentifier, AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
+import { makeMockPi } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -24,6 +25,7 @@ function createMockAgent(): Agent {
       identifier,
     } as never,
     status: AgentStatus.Running,
+    createdAt: new Date(),
     executeTask: vi.fn().mockResolvedValue("task result"),
     destroy: vi.fn().mockResolvedValue(undefined),
     getResult: vi.fn().mockReturnValue("task result"),
@@ -58,7 +60,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor);
+    server = new ParentSocketServer(supervisor, makeMockPi());
     socketPath = await server.start();
   });
 

@@ -50,6 +50,7 @@ export function makeSpec(
 export class MockAgent extends Agent {
   public readonly identifier: AgentIdentifier;
   public readonly specification: AgentSpecification;
+  public readonly createdAt: Date = new Date();
   public status: AgentStatus = AgentStatus.Spawned;
   public lastTask: string = "";
 
@@ -120,6 +121,7 @@ export function makeMockPi(): ExtensionAPI {
     sendMessage: vi.fn(),
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
+    on: vi.fn(),
   } as unknown as ExtensionAPI;
 }
 
@@ -185,6 +187,10 @@ export function createRpcClientMock(): RpcClientMock {
 // ---------------------------------------------------------------------------
 // RPC message event builders
 // ---------------------------------------------------------------------------
+
+export function makeMockSocketClient() {
+  return { request: vi.fn() };
+}
 
 export function makeMessageEvent(text: string): object {
   return {

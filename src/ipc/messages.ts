@@ -7,7 +7,7 @@
  * - Server may also push unsolicited `SocketPush` events (e.g., agent status updates).
  */
 
-import type { AgentIdentifier } from "../agents/base";
+import type { AgentIdentifier, AgentStatus } from "../agents/base";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
@@ -140,7 +140,7 @@ export interface AgentUpdateEvent {
   /** The agent that changed. */
   agentIdentifier: AgentIdentifier;
   /** Human-readable status label (e.g. "running", "completed", "failed"). */
-  status: string;
+  status: AgentStatus;
   /** Present only when the agent has completed its task. */
   result?: string;
 }

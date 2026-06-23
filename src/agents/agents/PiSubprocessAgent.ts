@@ -1,4 +1,5 @@
 import { AgentEvent } from "@earendil-works/pi-agent-core";
+import { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 
@@ -72,7 +73,11 @@ export class PiSubprocessAgent extends Agent {
    * Send a prompt (task) to the subagent and wait for completion.
    * Returns the extracted assistant text response.
    */
-  public async executeTask(task: string): Promise<string> {
+  public async executeTask(
+    task: string,
+    images?: ImageContent[],
+    timeout = 300_000,
+  ): Promise<string> {
     if (this._status !== AgentStatus.Running) {
       throw new Error(
         `Cannot execute task on agent "${this.identifier}" in state "${this._status}"`,
@@ -80,7 +85,7 @@ export class PiSubprocessAgent extends Agent {
     }
 
     try {
-      const events = await this.rpcClient.promptAndWait(task);
+      const events = await this.rpcClient.promptAndWait(task, images, timeout);
       this.result = extractAssistantText(events);
       this._status = AgentStatus.Completed;
       return this.result;

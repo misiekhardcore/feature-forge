@@ -3,6 +3,9 @@ import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+import { AgentIdentifier, AgentStatus } from "../agents";
 import type { AgentSpecification } from "../agents/specifications";
 import { DynamicAgentSpecification } from "../agents/specifications";
 import type { AgentSupervisor } from "../agents/supervisors";
@@ -21,9 +24,10 @@ import {
  *
  * Usage:
  * ```ts
- * const server = new ParentSocketServer(supervisor);
+ * const server = new ParentSocketServer(supervisor, pi);
  * const socketPath = await server.start();
  * // Pass socketPath to child processes via env var
+ * // Server auto-stops on session_shutdown
  * ```
  *
  * Protocol:
@@ -36,7 +40,10 @@ export class ParentSocketServer {
   private socketPath: string | null = null;
   private connectedSockets = new Set<Socket>();
 
-  constructor(private readonly supervisor: AgentSupervisor) {}
+  constructor(
+    private readonly supervisor: AgentSupervisor,
+    private readonly pi: ExtensionAPI,
+  ) {}
 
   /**
    * Start listening on a randomly-named Unix socket.
@@ -57,6 +64,10 @@ export class ParentSocketServer {
 
       this.server.listen(this.socketPath!, () => {
         resolve(this.socketPath!);
+      });
+
+      this.pi.on("session_shutdown", async () => {
+        await this.stop();
       });
     });
   }
@@ -193,11 +204,11 @@ export class ParentSocketServer {
       // Execute in background and push result when done
       agent.executeTask(params.task).then(
         (result) => {
-          this.pushAgentUpdate(agent.identifier.toString(), "completed", result);
+          this.pushAgentUpdate(agent.identifier, AgentStatus.Completed, result);
         },
         (error) => {
           const message = error instanceof Error ? error.message : String(error);
-          this.pushAgentUpdate(agent.identifier.toString(), "failed", message);
+          this.pushAgentUpdate(agent.identifier, AgentStatus.Failed, message);
         },
       );
     }
@@ -216,7 +227,7 @@ export class ParentSocketServer {
 
     this.sendResponse(socket, correlationId, {
       status: agent.status,
-      result: agent.status === "Completed" ? agent.getResult() : null,
+      result: agent.status === AgentStatus.Completed ? agent.getResult() : null,
     });
   }
 
@@ -270,11 +281,15 @@ export class ParentSocketServer {
   /**
    * Broadcast an agent_update event to all connected clients.
    */
-  private pushAgentUpdate(agentIdentifier: string, status: string, result?: string): void {
+  private pushAgentUpdate(
+    agentIdentifier: AgentIdentifier,
+    status: AgentStatus,
+    result?: string,
+  ): void {
     const push: SocketPush = {
       type: "agent_update",
       payload: {
-        agentIdentifier: agentIdentifier as never,
+        agentIdentifier,
         status,
         result,
       },

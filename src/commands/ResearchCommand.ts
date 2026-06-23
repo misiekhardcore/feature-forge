@@ -10,14 +10,11 @@ export class ResearchCommand extends Command {
     "Spawn a research subagent to investigate a topic in the background. " +
     "Usage: /research <topic>";
 
-  constructor(
-    private supervisor: AgentSupervisor,
-    private pi: ExtensionAPI,
-  ) {
-    super();
+  constructor(supervisor: AgentSupervisor, pi?: ExtensionAPI) {
+    super(supervisor, pi);
   }
 
-  async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
+  handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const topic = args.trim();
     if (!topic) {
       ctx.ui.notify("Usage: /research <topic>", "error");
@@ -29,5 +26,5 @@ export class ResearchCommand extends Command {
     ctx.ui.notify(`Research agent investigating "${topic}" in the background...`, "info");
 
     return this.supervisor.runAgent(specification, topic, this.pi);
-  }
+  };
 }

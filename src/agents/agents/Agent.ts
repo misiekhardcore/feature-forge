@@ -15,6 +15,7 @@ export abstract class Agent {
   public abstract readonly identifier: AgentIdentifier;
   public abstract readonly specification: AgentSpecification;
   public abstract readonly status: AgentStatus;
+  public readonly createdAt: Date = new Date();
 
   /**
    * Send a task to the agent for execution.
