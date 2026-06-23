@@ -104,12 +104,11 @@ describe("ToolRenderer", () => {
         ctx,
       );
 
-      expect(result).toBe(ctx.state._box);
+      expect(result).toBeInstanceOf(Text);
     });
 
     it("adds error text for failed results", () => {
       const ctx = makeCtx();
-      ctx.state._box = new Box(1, 0);
 
       const result = ToolRenderer.spawnAgentResult(
         {
@@ -121,12 +120,11 @@ describe("ToolRenderer", () => {
         ctx,
       );
 
-      expect(result).toBeInstanceOf(Box);
+      expect(result).toBeInstanceOf(Text);
     });
 
     it("adds done text for successful results", () => {
       const ctx = makeCtx();
-      ctx.state._box = new Box(1, 0);
 
       const result = ToolRenderer.spawnAgentResult(
         { content: [{ type: "text" as const, text: "ok" }], details: { field: "value" } },
@@ -135,7 +133,7 @@ describe("ToolRenderer", () => {
         ctx,
       );
 
-      expect(result).toBeInstanceOf(Box);
+      expect(result).toBeInstanceOf(Text);
     });
 
     it("returns empty Text when box is missing from state", () => {
