@@ -77,13 +77,11 @@ export class ToolRenderer {
     result: AgentToolResult<unknown>,
     options: ToolRenderResultOptions,
     theme: Theme,
-    context: { state: { _box?: Box } },
+    _context: { state: { _box?: Box } },
   ) => {
-    if (options.isPartial) return context.state._box;
+    if (options.isPartial) return new Text("", 1, 0);
     const text = resultText(result, theme);
-    const box = context.state._box;
-    box?.addChild(new Text(text, 1, 0));
-    return box ?? new Text("", 1, 0);
+    return new Text(text, 1, 0);
   };
 
   // ── send_task ─────────────────────────────────────────────────
