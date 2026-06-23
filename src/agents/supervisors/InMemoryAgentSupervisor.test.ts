@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { InMemoryAgentSupervisor } from "./InMemoryAgentSupervisor";
-import { AgentFactory, AgentCreationError } from "../factories/AgentFactory";
-import { AgentSpecification } from "../specifications/AgentSpecification";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { makeMockFactory, makeSpec, MockAgent } from "../../test-utils";
+import { AgentCreationError, AgentFactory } from "../factories/AgentFactory";
+import { AgentSpecification } from "../specifications/AgentSpecification";
+import { InMemoryAgentSupervisor } from "./InMemoryAgentSupervisor";
 
 describe("InMemoryAgentSupervisor", () => {
   let factory: AgentFactory;
@@ -121,7 +122,7 @@ describe("InMemoryAgentSupervisor", () => {
           vi.spyOn(agent, "executeTask").mockRejectedValueOnce(new Error("Execution error"));
           vi.spyOn(agent, "deliverError").mockImplementation(() => {});
           return agent;
-        }) as unknown as AgentFactory["create"];
+        });
       factory.create = mockCreate;
 
       const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
@@ -134,10 +135,10 @@ describe("InMemoryAgentSupervisor", () => {
         .fn()
         .mockImplementation(async (spec: AgentSpecification) => {
           const agent = new MockAgent(spec.identifier.toString());
-          vi.spyOn(agent, "executeTask").mockRejectedValueOnce("string error" as never);
+          vi.spyOn(agent, "executeTask").mockRejectedValueOnce("string error");
           vi.spyOn(agent, "deliverError").mockImplementation(() => {});
           return agent;
-        }) as unknown as AgentFactory["create"];
+        });
       factory.create = mockCreate;
 
       const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;

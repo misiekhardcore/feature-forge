@@ -1,45 +1,38 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { makeMockPi } from "../test-utils";
+import { Tool } from "../tools/Tool";
 import { ToolRegistry } from "./ToolRegistry";
-import type { ToolDeps } from "./ToolDeps";
-import { Tool, ToolExecuteResult } from "../tools/Tool";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 class TestTool extends Tool {
   readonly name = "test-tool";
+  readonly label = "Test Tool";
   readonly description = "A test tool";
+  readonly parameters = Type.Object({ key: Type.String() });
 
-  constructor(_deps: ToolDeps) {
-    super();
-  }
-
-  async execute(args: Record<string, unknown>, _ctx: ExtensionContext): Promise<ToolExecuteResult> {
-    return { success: true, data: args };
+  async execute(): Promise<AgentToolResult<unknown>> {
+    return Promise.resolve({ content: [{ type: "text", text: "ok" }], details: {} });
   }
 }
 
 class SecondTool extends Tool {
   readonly name = "second-tool";
+  readonly label = "Second Tool";
   readonly description = "Second tool";
+  readonly parameters = Type.Object({});
 
-  constructor(_deps: ToolDeps) {
-    super();
-  }
-
-  async execute(
-    _args: Record<string, unknown>,
-    _ctx: ExtensionContext,
-  ): Promise<ToolExecuteResult> {
-    return { success: true };
+  async execute(): Promise<AgentToolResult<unknown>> {
+    return Promise.resolve({ content: [{ type: "text", text: "ok" }], details: {} });
   }
 }
 
 describe("ToolRegistry", () => {
-  let deps: ToolDeps;
   let registry: ToolRegistry;
 
   beforeEach(() => {
-    deps = { pi: {} as never };
-    registry = new ToolRegistry(deps);
+    registry = new ToolRegistry(null, makeMockPi());
   });
 
   describe("register", () => {
@@ -57,7 +50,7 @@ describe("ToolRegistry", () => {
 
   describe("registerAll", () => {
     it("registers multiple tools", () => {
-      const tools = registry.registerAll([TestTool, SecondTool]);
+      const tools = registry.registerAll(TestTool, SecondTool);
       expect(tools).toHaveLength(2);
       expect(registry.has("test-tool")).toBe(true);
       expect(registry.has("second-tool")).toBe(true);
@@ -65,7 +58,7 @@ describe("ToolRegistry", () => {
 
     it("throws on duplicate in registerAll", () => {
       registry.register(TestTool);
-      expect(() => registry.registerAll([TestTool, SecondTool])).toThrow(
+      expect(() => registry.registerAll(TestTool, SecondTool)).toThrow(
         "Tool already registered: test-tool",
       );
     });
@@ -84,14 +77,6 @@ describe("ToolRegistry", () => {
       registry.register(TestTool);
       registry.unregister("test-tool");
       expect(registry.has("test-tool")).toBe(false);
-    });
-  });
-
-  describe("tool execution", () => {
-    it("executes tool via registered instance", async () => {
-      const tool = registry.register(TestTool);
-      const result = await tool.execute({ key: "value" }, {} as ExtensionContext);
-      expect(result).toEqual({ success: true, data: { key: "value" } });
     });
   });
 });

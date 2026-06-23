@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpcMock = vi.hoisted(() => {
   let instance: Record<string, ReturnType<typeof vi.fn>>;
@@ -32,10 +32,10 @@ const rpcMock = vi.hoisted(() => {
 
 vi.mock("@earendil-works/pi-coding-agent", () => rpcMock.factory());
 
-import { PiSubprocessAgentFactory } from "./PiSubprocessAgentFactory";
+import { makeSpec } from "../../test-utils";
 import { PiSubprocessAgent } from "../agents/PiSubprocessAgent";
 import { AgentCreationError } from "./AgentFactory";
-import { makeSpec } from "../../test-utils";
+import { PiSubprocessAgentFactory } from "./PiSubprocessAgentFactory";
 
 describe("PiSubprocessAgentFactory", () => {
   let factory: PiSubprocessAgentFactory;

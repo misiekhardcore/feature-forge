@@ -6,13 +6,14 @@
  * created via vi.hoisted() in each test file to avoid TDZ issues with
  * vi.mock hoisting.
  */
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
+
+import { Agent } from "./agents/agents/Agent";
 import { AgentIdentifier } from "./agents/base/AgentIdentifier";
 import { AgentStatus } from "./agents/base/AgentStatus";
-import { AgentSpecification } from "./agents/specifications/AgentSpecification";
-import { Agent } from "./agents/agents/Agent";
 import { AgentFactory } from "./agents/factories/AgentFactory";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { AgentSpecification } from "./agents/specifications/AgentSpecification";
 
 // ---------------------------------------------------------------------------
 // AgentSpecification builder
@@ -106,7 +107,7 @@ export function makeMockFactory(): AgentFactory {
       const agent = new MockAgent(spec.identifier.toString(), { role: spec.role });
       agent.status = AgentStatus.Running;
       return agent;
-    }) as unknown as AgentFactory["create"];
+    });
   return { create: mockCreate };
 }
 
@@ -118,6 +119,7 @@ export function makeMockPi(): ExtensionAPI {
   return {
     sendMessage: vi.fn(),
     registerCommand: vi.fn(),
+    registerTool: vi.fn(),
   } as unknown as ExtensionAPI;
 }
 
@@ -128,7 +130,7 @@ export function makeMockPi(): ExtensionAPI {
 export function makeMockCtx(): { ui: { notify: ReturnType<typeof vi.fn> } } {
   return {
     ui: { notify: vi.fn() },
-  } as unknown as { ui: { notify: ReturnType<typeof vi.fn> } };
+  };
 }
 
 // ---------------------------------------------------------------------------

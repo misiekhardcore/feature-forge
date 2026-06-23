@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Use vi.hoisted to create the mock before vi.mock factory runs
 const { MockRpcClient, getRpcMock, resetRpcMock } = vi.hoisted(() => {
@@ -31,14 +31,10 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   ExtensionContext: class {},
 }));
 
-import { PiSubprocessAgent } from "./PiSubprocessAgent";
+import { makeMessageEvent, makeSpec } from "../../test-utils";
 import { AgentIdentifier } from "../base/AgentIdentifier";
 import { AgentStatus } from "../base/AgentStatus";
-import { makeSpec, makeMessageEvent } from "../../test-utils";
-
-interface MinimalPI {
-  sendMessage: ReturnType<typeof vi.fn>;
-}
+import { PiSubprocessAgent } from "./PiSubprocessAgent";
 
 describe("PiSubprocessAgent", () => {
   let agent: PiSubprocessAgent;
@@ -50,7 +46,7 @@ describe("PiSubprocessAgent", () => {
 
     const spec = makeSpec("test-agent", { role: "tester", systemPrompt: "You are a test." });
     const rpcClient = new (MockRpcClient as unknown as new () => never)();
-    agent = new PiSubprocessAgent(new AgentIdentifier("test-agent"), spec, rpcClient as never);
+    agent = new PiSubprocessAgent(new AgentIdentifier("test-agent"), spec, rpcClient);
   });
 
   describe("initial state", () => {
@@ -77,7 +73,7 @@ describe("PiSubprocessAgent", () => {
     });
 
     it("transitions to Failed with non-Error cause", async () => {
-      getRpcMock().start.mockRejectedValueOnce("just a string" as never);
+      getRpcMock().start.mockRejectedValueOnce("just a string");
       await expect(agent.start()).rejects.toThrow("just a string");
       expect(agent.status).toBe(AgentStatus.Failed);
     });
@@ -190,7 +186,7 @@ describe("PiSubprocessAgent", () => {
 
     it("transitions to Failed when task throws with non-Error", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockRejectedValueOnce("string error" as never);
+      getRpcMock().promptAndWait.mockRejectedValueOnce("string error");
       await expect(agent.executeTask("fail-str")).rejects.toThrow("string error");
       expect(agent.status).toBe(AgentStatus.Failed);
     });
@@ -258,7 +254,7 @@ describe("PiSubprocessAgent", () => {
 
   describe("deliverResult", () => {
     it("sends formatted success message via pi", () => {
-      const pi = { sendMessage: vi.fn() } as MinimalPI;
+      const pi = { sendMessage: vi.fn() };
       agent.deliverResult("my task", "Findings here", pi as never);
       expect(pi.sendMessage).toHaveBeenCalledWith(
         {
@@ -271,7 +267,7 @@ describe("PiSubprocessAgent", () => {
     });
 
     it("handles empty result gracefully", () => {
-      const pi = { sendMessage: vi.fn() } as MinimalPI;
+      const pi = { sendMessage: vi.fn() };
       agent.deliverResult("empty task", "", pi as never);
       expect(pi.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({ content: expect.stringContaining("_(no findings produced)_") }),
@@ -282,7 +278,7 @@ describe("PiSubprocessAgent", () => {
 
   describe("deliverError", () => {
     it("sends formatted error message via pi", () => {
-      const pi = { sendMessage: vi.fn() } as MinimalPI;
+      const pi = { sendMessage: vi.fn() };
       agent.deliverError("bad task", new Error("Something broke"), pi as never);
       expect(pi.sendMessage).toHaveBeenCalledWith(
         {

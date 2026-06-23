@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { DefaultAgentGovernancePolicy } from "./DefaultAgentGovernancePolicy";
-import { AgentSpecification } from "../specifications/AgentSpecification";
+import { describe, expect, it } from "vitest";
+
 import { AgentIdentifier } from "../base/AgentIdentifier";
+import { AgentSpecification } from "../specifications/AgentSpecification";
+import { DefaultAgentGovernancePolicy } from "./DefaultAgentGovernancePolicy";
 
 function makeSpec(overrides: Partial<ConstructorParameters<typeof AgentSpecification>[0]> = {}) {
   return new (class extends AgentSpecification {

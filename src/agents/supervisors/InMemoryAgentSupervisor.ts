@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
 import { Agent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../specifications";
@@ -13,11 +14,9 @@ import { AgentSupervisor } from "./AgentSupervisor";
  */
 export class InMemoryAgentSupervisor extends AgentSupervisor {
   private readonly agents = new Map<string, Agent>();
-  private readonly agentFactory: AgentFactory;
 
-  constructor(agentFactory: AgentFactory) {
+  constructor(private readonly agentFactory: AgentFactory) {
     super();
-    this.agentFactory = agentFactory;
   }
 
   /**

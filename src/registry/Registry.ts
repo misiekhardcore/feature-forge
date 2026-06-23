@@ -1,6 +1,4 @@
-import { Registrable } from "./Registrable";
-
-export abstract class Registry<T extends Registrable> {
+export abstract class Registry<T> {
   protected readonly items = new Map<string, T>();
 
   get(name: string): T | undefined {

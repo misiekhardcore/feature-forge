@@ -6,6 +6,22 @@ import { AgentIdentifier } from "../base";
  */
 export type ThinkingLevel = "off" | "low" | "medium" | "high";
 
+export type AgentSpecificationParams = {
+  identifier: AgentIdentifier;
+  role: string;
+  systemPrompt: string;
+  toolNames?: readonly string[];
+  excludeToolNames?: readonly string[];
+  modelPreference?: string;
+  thinkingLevel?: ThinkingLevel;
+  disableBuiltinTools?: boolean;
+  disableExtensions?: boolean;
+  disableSkills?: boolean;
+  disablePromptTemplates?: boolean;
+  disableContextFiles?: boolean;
+  ephemeral?: boolean;
+};
+
 /**
  * Immutable specification that defines what an agent is and how it should behave.
  *
@@ -38,21 +54,7 @@ export abstract class AgentSpecification {
   /** Don't persist the session to disk (ephemeral agent). */
   public readonly ephemeral: boolean;
 
-  constructor(params: {
-    identifier: AgentIdentifier;
-    role: string;
-    systemPrompt: string;
-    toolNames?: readonly string[];
-    excludeToolNames?: readonly string[];
-    modelPreference?: string;
-    thinkingLevel?: ThinkingLevel;
-    disableBuiltinTools?: boolean;
-    disableExtensions?: boolean;
-    disableSkills?: boolean;
-    disablePromptTemplates?: boolean;
-    disableContextFiles?: boolean;
-    ephemeral?: boolean;
-  }) {
+  constructor(params: AgentSpecificationParams) {
     this.identifier = params.identifier;
     this.role = params.role;
     this.systemPrompt = params.systemPrompt;

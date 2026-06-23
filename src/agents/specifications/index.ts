@@ -1,4 +1,5 @@
-export { AgentSpecification, ThinkingLevel } from "./AgentSpecification";
+export { AgentSpecification, AgentSpecificationParams, ThinkingLevel } from "./AgentSpecification";
 export { BUILT_IN_TOOLS, TOOL_PRESETS } from "./constants";
+export { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 export { ResearchAgentSpecification, ResearchContext } from "./ResearchAgentSpecification";
 export { fillTemplate, loadPromptTemplate } from "./templates";

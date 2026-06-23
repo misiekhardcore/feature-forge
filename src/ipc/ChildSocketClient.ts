@@ -1,0 +1,209 @@
+import { randomUUID } from "node:crypto";
+import { connect, type Socket } from "node:net";
+
+import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
+import type {
+  ParamsToResponseMap,
+  SocketMessage,
+  SocketPush,
+  SocketResponse,
+  SocketResponseResult,
+} from "./messages";
+
+/**
+ * Client for connecting to the parent's `ParentSocketServer` over a Unix socket.
+ *
+ * Usage (inside a child extension):
+ * ```ts
+ * const client = new ChildSocketClient(process.env.FORGE_PARENT_SOCKET!);
+ * await client.connect();
+ *
+ * const result = await client.request("spawn_agent", {
+ *   role: "researcher",
+ *   systemPrompt: "...",
+ *   toolNames: ["read", "grep"],
+ * });
+ *
+ * client.onPush((event) => {
+ *   if (event.type === "agent_update") { ... }
+ * });
+ * ```
+ */
+export class ChildSocketClient {
+  private socket: Socket | null = null;
+
+  /** Map of correlationId → pending promise resolvers. */
+  private pending = new Map<
+    string,
+    {
+      resolve: (
+        result: SocketResponseResult["result"] | PromiseLike<SocketResponseResult["result"]>,
+      ) => void;
+      reject: (error: Error) => void;
+    }
+  >();
+
+  /** Registered push event handlers. */
+  private pushHandlers: Array<(event: SocketPush) => void> = [];
+
+  private buffer = "";
+
+  constructor(private readonly socketPath: string) {}
+
+  /**
+   * Connect to the parent socket.
+   * Throws IpcConnectionError if the connection fails.
+   */
+  async connect(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const socket = connect(this.socketPath, () => {
+        this.socket = socket;
+        resolve();
+      });
+
+      socket.on("data", (chunk: Buffer) => {
+        this.handleData(chunk);
+      });
+
+      socket.on("error", (error) => {
+        if (!this.socket) {
+          reject(new IpcConnectionError(`Failed to connect to ${this.socketPath}`, error));
+        }
+      });
+
+      socket.on("close", () => {
+        this.socket = null;
+      });
+    });
+  }
+
+  /**
+   * Send a request and wait for the matching response.
+   *
+   * @param type — The message type.
+   * @param params — The request parameters.
+   * @param timeout — Milliseconds to wait before throwing IpcTimeoutError (default 30000).
+   */
+  async request<ST extends SocketMessage["type"]>(
+    type: ST,
+    params: Extract<SocketMessage, { type: ST }>["params"],
+    timeout = 30_000,
+  ): Promise<ParamsToResponseMap[ST]> {
+    const correlationId = randomUUID();
+
+    return new Promise((resolve, reject) => {
+      this.pending.set(correlationId, {
+        resolve: resolve as (
+          result: SocketResponseResult["result"] | PromiseLike<SocketResponseResult["result"]>,
+        ) => void,
+        reject,
+      });
+
+      const message: SocketMessage = { type, correlationId, params } as SocketMessage;
+      this.socket?.write(JSON.stringify(message) + "\n");
+
+      // Timeout
+      const timer = setTimeout(() => {
+        this.pending.delete(correlationId);
+        reject(new IpcTimeoutError(correlationId, timeout));
+      }, timeout);
+
+      // Wrap the resolve/reject to clear the timeout
+      const originalResolve = resolve;
+      const originalReject = reject;
+      this.pending.set(correlationId, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          originalResolve(value as ParamsToResponseMap[ST]);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          originalReject(error);
+        },
+      });
+    });
+  }
+
+  /**
+   * Register a handler for push events from the server.
+   */
+  onPush(handler: (event: SocketPush) => void): void {
+    this.pushHandlers.push(handler);
+  }
+
+  /**
+   * Disconnect from the parent socket.
+   */
+  async disconnect(): Promise<void> {
+    if (!this.socket) {
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      this.socket!.end(() => {
+        this.socket = null;
+        resolve();
+      });
+    });
+  }
+
+  // ─── Data handling ──────────────────────────────────────────────────
+
+  private handleData(chunk: Buffer): void {
+    this.buffer += chunk.toString("utf-8");
+
+    const lines = this.buffer.split("\n");
+    this.buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        this.handleMessage(parsed);
+      } catch {
+        // Malformed JSON — skip
+      }
+    }
+  }
+
+  private handleMessage(parsed: Record<string, unknown>): void {
+    const message = parsed;
+
+    if (message.type === "result" || message.type === "error") {
+      const response = message as SocketResponse;
+      this.handleResponse(response);
+    } else if (message.type === "agent_update") {
+      const push = message as SocketPush;
+      this.handlePush(push);
+    }
+  }
+
+  private handleResponse(response: SocketResponse): void {
+    const pending = this.pending.get(response.correlationId);
+    if (!pending) {
+      return; // Unknown correlation — could be stale
+    }
+
+    this.pending.delete(response.correlationId);
+
+    if (response.type === "result") {
+      pending.resolve(response.result);
+    } else {
+      pending.reject(new IpcRequestError(response.correlationId, response.error));
+    }
+  }
+
+  private handlePush(push: SocketPush): void {
+    for (const handler of this.pushHandlers) {
+      try {
+        handler(push);
+      } catch {
+        // Handler error — don't let it break the client
+      }
+    }
+  }
+}

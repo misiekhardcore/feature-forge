@@ -5,11 +5,13 @@ export {
   AgentFactory,
   buildPiCliArguments,
   PiSubprocessAgentFactory,
+  PiSubprocessAgentFactoryOptions,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
 export {
   AgentSpecification,
   BUILT_IN_TOOLS,
+  DynamicAgentSpecification,
   fillTemplate,
   loadPromptTemplate,
   ResearchAgentSpecification,
