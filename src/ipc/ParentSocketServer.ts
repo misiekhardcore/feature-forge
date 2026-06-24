@@ -261,6 +261,7 @@ export class ParentSocketServer {
       systemPrompt: params.systemPrompt,
       toolNames: params.toolNames,
       modelPreference: params.model,
+      cwd: params.cwd,
     });
   }
 

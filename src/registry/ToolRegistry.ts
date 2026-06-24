@@ -14,10 +14,10 @@ export class ToolRegistry extends Registry<Tool> {
 
   register(constructor: new (client: ChildSocketClient | null) => Tool): Tool {
     const tool = new constructor(this.client);
-    if (this.items.has(tool.name)) {
+    if (this.has(tool.name)) {
       throw new Error(`Tool already registered: ${tool.name}`);
     }
-    this.items.set(tool.name, tool);
+    this.set(tool.name, tool);
     this.pi.registerTool(tool);
     return tool;
   }

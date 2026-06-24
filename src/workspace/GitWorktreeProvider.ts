@@ -1,0 +1,193 @@
+import { execFile } from "node:child_process";
+import { existsSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+import {
+  DirtyWorkingTreeError,
+  WorkspaceError,
+  WorktreeBranchExistsError,
+  WorktreePathExistsError,
+} from "./WorkspaceError";
+import { WorkspaceProvider } from "./WorkspaceProvider";
+
+/**
+ * Concrete {@link WorkspaceProvider} that uses git worktrees for isolation.
+ *
+ * Tries Worktrunk CLI (`wt add`) first (faster, purpose-built for AI workflows),
+ * then falls back to `git worktree add`.
+ *
+ * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
+ *
+ * The branch name is derived from the workspace id: `forge/<workspaceId>`.
+ */
+export class GitWorktreeProvider extends WorkspaceProvider {
+  /** Absolute path to the root of the git repository. */
+  public readonly repoRoot: string;
+  /** Base ref to create the worktree from. Immutable after construction. */
+  public readonly baseRef: string;
+
+  constructor(repoRoot?: string, baseRef = "HEAD") {
+    super();
+    this.repoRoot = repoRoot ?? process.cwd();
+    this.baseRef = baseRef;
+  }
+
+  /**
+   * Create a git worktree at `.forge/worktrees/<workspaceId>`.
+   *
+   * 1. Checks for a clean working tree (no uncommitted changes).
+   * 2. Checks that neither the branch nor the target path already exist.
+   * 3. Attempts Worktrunk (`wt add`), falls back to `git worktree add`.
+   */
+  public override async createWorkspace(workspaceId: string): Promise<string> {
+    const worktreePath = this.getWorktreePath(workspaceId);
+    const branchName = this.getBranchName(workspaceId);
+
+    // Safety checks
+    await this.assertCleanWorkingTree();
+    await this.assertNoStalePath(worktreePath);
+    await this.assertNoConflictingBranch(branchName);
+
+    // Try Worktrunk first, then fall back to git worktree
+    const wtCli = await this.findWorktrunk();
+    if (wtCli) {
+      await this.execCommand(wtCli, [
+        "add",
+        worktreePath,
+        "--base-ref",
+        this.baseRef,
+        "--branch",
+        branchName,
+      ]);
+    } else {
+      await this.execCommand("git", [
+        "worktree",
+        "add",
+        worktreePath,
+        this.baseRef,
+        "-b",
+        branchName,
+      ]);
+    }
+
+    return worktreePath;
+  }
+
+  /**
+   * Remove the worktree and prune git worktree metadata.
+   *
+   * Safe to call multiple times — subsequent calls are no-ops if the
+   * path no longer exists.
+   */
+  public override async destroyWorkspace(path: string): Promise<void> {
+    if (!existsSync(path)) {
+      return;
+    }
+
+    try {
+      await this.execCommand("git", ["worktree", "remove", path, "--force"]);
+    } catch {
+      // Fallback: if git worktree remove failed (e.g., corrupted worktree),
+      // force-remove the directory then prune stale git metadata.
+      try {
+        rmSync(path, { recursive: true, force: true });
+      } catch {
+        // Best-effort: directory removal may fail if permissions are off.
+      }
+    }
+
+    // Prune stale worktree metadata regardless
+    try {
+      await this.execCommand("git", ["worktree", "prune"]);
+    } catch {
+      // Prune is best-effort
+    }
+  }
+
+  // ─── Private helpers ─────────────────────────────────────────────────
+
+  private getWorktreePath(workspaceId: string): string {
+    return resolve(join(this.repoRoot, ".forge", "worktrees", workspaceId));
+  }
+
+  private getBranchName(workspaceId: string): string {
+    return `forge/${workspaceId}`;
+  }
+
+  /**
+   * Check that the working tree is clean (no uncommitted changes).
+   * A dirty tree can make it impossible to create a clean worktree from HEAD.
+   */
+  private async assertCleanWorkingTree(): Promise<void> {
+    const output = await this.execCommand("git", ["status", "--porcelain"]);
+    if (output.trim().length > 0) {
+      throw new DirtyWorkingTreeError(
+        "Cannot create worktree: working tree has uncommitted changes. " +
+          "Commit or stash your changes first.",
+      );
+    }
+  }
+
+  /**
+   * Check that the target worktree path doesn't already exist.
+   * A stale worktree from a prior crash would cause `git worktree add` to fail.
+   */
+  private async assertNoStalePath(worktreePath: string): Promise<void> {
+    if (existsSync(worktreePath)) {
+      throw new WorktreePathExistsError(worktreePath);
+    }
+  }
+
+  /**
+   * Check that the target branch name doesn't already exist locally.
+   */
+  private async assertNoConflictingBranch(branchName: string): Promise<void> {
+    try {
+      const output = await this.execCommand("git", ["branch", "--list", branchName]);
+      if (output.trim().length > 0) {
+        throw new WorktreeBranchExistsError(branchName);
+      }
+    } catch (error) {
+      if (error instanceof WorktreeBranchExistsError) {
+        throw error;
+      }
+      // If `git branch --list` itself fails, proceed anyway — the actual
+      // worktree creation will catch the conflict.
+    }
+  }
+
+  /**
+   * Check if Worktrunk CLI (`wt`) is available.
+   *
+   * Probes `wt add --help` rather than `wt --version` to avoid false
+   * positives from other tools named `wt` (e.g., Go's webtool).
+   * Returns the command name if found, or null otherwise.
+   */
+  private async findWorktrunk(): Promise<string | null> {
+    try {
+      await this.execCommand("wt", ["add", "--help"]);
+      return "wt";
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Execute a command and return its stdout.
+   * Runs in the repo root directory.
+   */
+  private async execCommand(command: string, args: string[]): Promise<string> {
+    return new Promise<string>((resolvePromise, reject) => {
+      execFile(command, args, { cwd: this.repoRoot, timeout: 30_000 }, (error, stdout, stderr) => {
+        if (error) {
+          const message = stderr?.trim() || error.message;
+          reject(
+            new WorkspaceError(`Command failed: ${command} ${args.join(" ")}\n${message}`, error),
+          );
+        } else {
+          resolvePromise(stdout);
+        }
+      });
+    });
+  }
+}

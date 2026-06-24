@@ -2,22 +2,36 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 import { AgentSupervisor } from "../agents";
 import { Command } from "../commands";
+import type { WorkspaceManager } from "../workspace";
 import { Registry } from "./Registry";
+
+/**
+ * Constructor shape for commands registered via {@link CommandRegistry}.
+ *
+ * The optional third param `workspaceManager` is forwarded to every command.
+ * Commands that need workspace access use it; others ignore it.
+ */
+type CommandConstructor = new (
+  supervisor: AgentSupervisor,
+  pi: ExtensionAPI,
+  workspaceManager?: WorkspaceManager,
+) => Command;
 
 export class CommandRegistry extends Registry<Command> {
   constructor(
     private readonly supervisor: AgentSupervisor,
     private readonly pi: ExtensionAPI,
+    private readonly workspaceManager?: WorkspaceManager,
   ) {
     super();
   }
 
-  register(constructor: new (supervisor: AgentSupervisor, pi: ExtensionAPI) => Command): Command {
-    const command = new constructor(this.supervisor, this.pi);
+  register(constructor: CommandConstructor): Command {
+    const command = new constructor(this.supervisor, this.pi, this.workspaceManager);
     if (this.items.has(command.name)) {
       throw new Error(`Command already registered: ${command.name}`);
     }
-    this.items.set(command.name, command);
+    this.set(command.name, command);
 
     // pi's registerCommand() internally uses { ...options } spread, which only
     // copies own enumerable properties. Class prototype methods (like handler)
@@ -31,9 +45,7 @@ export class CommandRegistry extends Registry<Command> {
     return command;
   }
 
-  registerAll(
-    ...constructors: (new (supervisor: AgentSupervisor, pi: ExtensionAPI) => Command)[]
-  ): Command[] {
+  registerAll(...constructors: CommandConstructor[]): Command[] {
     return constructors.map((constructor) => this.register(constructor));
   }
 }
