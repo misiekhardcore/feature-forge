@@ -13,6 +13,9 @@ import { Agent } from "./agents/agents/Agent";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
 import { AgentSpecification } from "./agents/specifications/AgentSpecification";
+import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
+import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
+import { WorktreeRegistry } from "./workspace/WorktreeRegistry";
 
 // ---------------------------------------------------------------------------
 // AgentSpecification builder
@@ -183,6 +186,98 @@ export function createRpcClientMock(): RpcClientMock {
       ExtensionContext: class {},
     }),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Mock WorkspaceProvider (in-memory fake)
+// ---------------------------------------------------------------------------
+
+/**
+ * In-memory workspace provider for unit tests.
+ *
+ * Creates and destroys workspaces as temporary directories under a
+ * configurable base path. No filesystem or git dependency.
+ */
+export class MockWorkspaceProvider extends WorkspaceProvider {
+  /** Tracks created workspaces by id. */
+  public readonly workspaces = new Map<string, string>();
+  /** If true, createWorkspace will throw. */
+  public shouldFailCreation = false;
+  /** If true, destroyWorkspace will throw. */
+  public shouldFailDestruction = false;
+  /** Optional error message for simulated failures. */
+  public failureMessage = "Mock failure";
+
+  constructor(
+    /** Base path prepended to workspace ids to form paths. */
+    public readonly basePath = "/tmp/mock-workspaces",
+  ) {
+    super();
+  }
+
+  override async createWorkspace(workspaceId: string): Promise<string> {
+    if (this.shouldFailCreation) {
+      throw new Error(this.failureMessage);
+    }
+    const path = `${this.basePath}/${workspaceId}`;
+    this.workspaces.set(workspaceId, path);
+    return path;
+  }
+
+  override async destroyWorkspace(path: string): Promise<void> {
+    if (this.shouldFailDestruction) {
+      throw new Error(this.failureMessage);
+    }
+    for (const [id, existingPath] of this.workspaces.entries()) {
+      if (existingPath === path) {
+        this.workspaces.delete(id);
+        return;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mock WorktreeRegistry (in-memory fake, no file I/O)
+// ---------------------------------------------------------------------------
+
+/**
+ * In-memory worktree registry for unit tests.
+ *
+ * Extends {@link WorkspaceRegistry} with zero file I/O — overrides
+ * {@link load} and {@link persist} as no-ops.
+ * Useful for testing commands and orchestrators that depend on the
+ * registry without needing temporary JSON files.
+ */
+export class MockWorktreeRegistry extends WorktreeRegistry {
+  constructor(dummyPath = "/tmp/mock-worktrees.json") {
+    super(dummyPath);
+  }
+
+  override async load(): Promise<void> {
+    // No-op: already in-memory
+  }
+
+  override async register(handle: WorkspaceHandle): Promise<void> {
+    this.items.set(handle.id, handle);
+  }
+
+  override async remove(id: string): Promise<void> {
+    this.items.delete(id);
+  }
+
+  get(id: string): WorkspaceHandle | undefined {
+    return this.items.get(id);
+  }
+
+  list(): WorkspaceHandle[] {
+    return Array.from(this.items.values());
+  }
+
+  /** Clear all entries (for test setup/teardown). */
+  clear(): void {
+    this.items.clear();
+  }
 }
 
 // ---------------------------------------------------------------------------

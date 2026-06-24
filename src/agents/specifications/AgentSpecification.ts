@@ -18,6 +18,8 @@ export type AgentSpecificationParams = {
   disablePromptTemplates?: boolean;
   disableContextFiles?: boolean;
   ephemeral?: boolean;
+  /** Working directory for the agent process (defaults to process.cwd()). */
+  cwd?: string;
 };
 
 /**
@@ -51,6 +53,8 @@ export abstract class AgentSpecification {
   public readonly disableContextFiles: boolean;
   /** Don't persist the session to disk (ephemeral agent). */
   public readonly ephemeral: boolean;
+  /** Working directory for the agent process. */
+  public readonly cwd: string | undefined;
 
   constructor(params: AgentSpecificationParams) {
     if (!params.id || params.id.trim().length === 0) {
@@ -69,5 +73,6 @@ export abstract class AgentSpecification {
     this.disablePromptTemplates = params.disablePromptTemplates ?? false;
     this.disableContextFiles = params.disableContextFiles ?? false;
     this.ephemeral = params.ephemeral ?? false;
+    this.cwd = params.cwd;
   }
 }

@@ -9,6 +9,13 @@ export abstract class Registry<T> {
     return Array.from(this.items.values());
   }
 
+  set(name: string, item: T): void {
+    if (this.items.has(name)) {
+      throw new Error(`Item already registered: ${name}`);
+    }
+    this.items.set(name, item);
+  }
+
   unregister(name: string): boolean {
     return this.items.delete(name);
   }

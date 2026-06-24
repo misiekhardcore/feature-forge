@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 import { AgentSupervisor } from "../agents";
+import type { WorkspaceManager } from "../workspace";
 
 /**
  * Command abstraction that follows pi's CommandDefinition shape exactly.
@@ -13,6 +14,7 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
   constructor(
     protected readonly supervisor: AgentSupervisor,
     protected readonly pi: ExtensionAPI,
+    protected readonly workspaceManager?: WorkspaceManager,
   ) {}
   abstract readonly name: string;
   abstract readonly description?: string;

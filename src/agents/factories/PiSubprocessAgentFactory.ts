@@ -42,7 +42,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
 
     return new RpcClient({
       cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),
-      cwd: this.options.cwd ?? process.cwd(),
+      cwd: specification.cwd ?? this.options.cwd ?? process.cwd(),
       model: specification.modelPreference ?? this.options.model,
       args,
       env: {

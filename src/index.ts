@@ -6,6 +6,8 @@ import {
   AgentDestroyCommand,
   AgentListCommand,
   ResearchCommand,
+  WorktreeDestroyCommand,
+  WorktreeListCommand,
 } from "./commands";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
@@ -17,6 +19,7 @@ import {
   SendTaskTool,
   SpawnAgentTool,
 } from "./tools";
+import { GitWorktreeProvider, WorkspaceManager, WorktreeRegistry } from "./workspace";
 
 /**
  * Feature Forge — autonomous software engineering platform.
@@ -54,12 +57,21 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Root parent: no env var, so connect to our own server (loopback).
   const client = await connectChildClient(targetSocketPath, pi);
 
-  const cmdRegistry = new CommandRegistry(supervisor, pi);
+  // Set up worktree infrastructure
+  const repoRoot = process.cwd();
+  const provider = new GitWorktreeProvider(repoRoot);
+  const registry = new WorktreeRegistry();
+  await registry.load();
+  const workspaceManager = new WorkspaceManager(provider, registry);
+
+  const cmdRegistry = new CommandRegistry(supervisor, pi, workspaceManager);
   cmdRegistry.registerAll(
     AgentListCommand,
     AgentDestroyCommand,
     AgentDestroyAllCommand,
     ResearchCommand,
+    WorktreeListCommand,
+    WorktreeDestroyCommand,
   );
 
   const toolRegistry = new ToolRegistry(client, pi);
