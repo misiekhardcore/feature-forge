@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { connect, type Socket } from "node:net";
 
+import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import type {
   ParamsToResponseMap,
@@ -164,7 +165,8 @@ export class ChildSocketClient {
       try {
         const parsed = JSON.parse(trimmed) as Record<string, unknown>;
         this.handleMessage(parsed);
-      } catch {
+      } catch (error) {
+        logger.warn("Malformed IPC JSON, skipping", { error });
         // Malformed JSON — skip
       }
     }
@@ -201,7 +203,8 @@ export class ChildSocketClient {
     for (const handler of this.pushHandlers) {
       try {
         handler(push);
-      } catch {
+      } catch (error) {
+        logger.warn("Push handler threw", { error });
         // Handler error — don't let it break the client
       }
     }

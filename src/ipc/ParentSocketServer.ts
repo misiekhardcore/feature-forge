@@ -7,6 +7,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { AgentStatus, AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
+import { logger } from "../logging";
 import {
   type SendTaskParams,
   type SocketMessage,
@@ -160,6 +161,7 @@ export class ParentSocketServer {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Message handler failed", { correlationId: message.correlationId, error });
       this.sendError(socket, message.correlationId, errorMessage);
     }
   }
@@ -282,7 +284,8 @@ export class ParentSocketServer {
     for (const socket of this.connectedSockets) {
       try {
         socket.write(serialized);
-      } catch {
+      } catch (error) {
+        logger.warn("Socket send failed during push", { agentId, error });
         // Socket might have disconnected — it will be cleaned up
         // by the 'close' or 'error' event handler.
       }

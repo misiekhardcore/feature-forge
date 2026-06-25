@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { logger } from "../../logging";
 import { Agent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../specifications";
@@ -84,18 +85,20 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
     let agent: Agent;
     try {
       agent = await this.spawn(specification);
-    } catch (cause) {
-      const error = cause instanceof Error ? cause : new Error(String(cause));
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
 
-      return this.printAgentError(id, task, error, pi);
+      logger.error("Agent spawn failed", { agentId: id, task, error: err });
+      return this.printAgentError(id, task, err, pi);
     }
 
     try {
       const result = await agent.executeTask(task);
       agent.deliverResult(task, result, pi);
-    } catch (cause) {
-      const error = cause instanceof Error ? cause : new Error(String(cause));
-      agent.deliverError(task, error, pi);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error("Agent execution failed", { agentId: id, task, error });
+      agent.deliverError(task, err, pi);
     } finally {
       await this.destroyAgent(id);
     }
