@@ -9,13 +9,13 @@ export {
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
 export {
   AgentSpecification,
+  AgentSpecificationParams,
   BUILT_IN_TOOLS,
   DynamicAgentSpecification,
   fillTemplate,
-  loadPromptTemplate,
-  ResearchAgentSpecification,
-  ResearchContext,
+  SpecRegistry,
   ThinkingLevel,
   TOOL_PRESETS,
 } from "./specifications";
+export { SpecManager } from "./SpecManager";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";

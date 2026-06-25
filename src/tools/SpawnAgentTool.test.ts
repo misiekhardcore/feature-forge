@@ -75,6 +75,22 @@ describe("SpawnAgentTool", () => {
       });
     });
 
+    it("forwards spec and specParams to the IPC client", async () => {
+      client.request.mockResolvedValue({ agentId: "build-1", spec: "build" });
+
+      await tool.execute("call-2", {
+        toolNames: ["read"],
+        spec: "build",
+        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/w" },
+      });
+
+      expect(client.request).toHaveBeenCalledWith("spawn_agent", {
+        toolNames: ["read"],
+        spec: "build",
+        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/w" },
+      });
+    });
+
     it("wraps IPC errors", async () => {
       client.request.mockRejectedValue(new Error("Connection refused"));
 

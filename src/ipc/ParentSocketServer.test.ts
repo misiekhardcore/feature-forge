@@ -4,8 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../agents/agents";
 import { AgentStatus } from "../agents/base";
+import { SpecLoader } from "../agents/declarative-specs/SpecLoader";
+import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
+import { TOOL_PRESETS } from "../agents/specifications/constants";
+import { fillTemplate } from "../agents/specifications/templates";
+import { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 
 function createMockAgent(): Agent {
@@ -35,6 +40,7 @@ function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupe
       const agent = createMockAgent();
       const id = specification.role;
       Object.defineProperty(agent, "id", { value: id });
+      Object.defineProperty(agent, "specification", { value: specification });
       agents.set(id, agent);
       return agent;
     }),
@@ -73,7 +79,7 @@ describe("ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     socketPath = await server.start();
   });
 
@@ -197,6 +203,43 @@ describe("ParentSocketServer", () => {
     client.end();
   });
 
+  it("handles send_task with await=false (fire and forget)", async () => {
+    const client = connect(socketPath);
+
+    // Spawn
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "f1",
+      params: {
+        role: "fireworker",
+        systemPrompt: "You are a fire-and-forget worker",
+        toolNames: ["read"],
+      },
+    });
+
+    await readResponse(client);
+
+    // Send task with await: false
+    await sendJson(client, {
+      type: "send_task",
+      correlationId: "f2",
+      params: {
+        agentId: "fireworker",
+        task: "Background work",
+        await: false,
+      },
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "f2",
+      result: { status: "dispatched" },
+    });
+
+    client.end();
+  });
+
   it("destroys an agent", async () => {
     const client = connect(socketPath);
 
@@ -230,6 +273,98 @@ describe("ParentSocketServer", () => {
     });
 
     client.end();
+  });
+
+  it("spawns an agent using a named spec from SpecManager", async () => {
+    const localSupervisor = createMockSupervisor();
+    const registry = new SpecRegistry();
+    registry.register(
+      "build",
+      (params) =>
+        new DynamicAgentSpecification({
+          id: "build",
+          role: "build",
+          systemPrompt: fillTemplate("Task: {{TASK}}\nWorkspace: {{WORKSPACE}}", params),
+          toolNames: [...TOOL_PRESETS.fullAccess],
+          ephemeral: true,
+        }),
+    );
+    const specManager = new SpecManager(registry, new SpecLoader("/nonexistent"));
+    const regServer = new ParentSocketServer(localSupervisor, makeMockPi(), specManager);
+    const regSocketPath = await regServer.start();
+
+    const client = connect(regSocketPath);
+
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "spec-test",
+      params: {
+        role: "build",
+        systemPrompt: "",
+        toolNames: ["read"],
+        spec: "build",
+        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/ws" },
+      },
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "spec-test",
+      result: {
+        agentId: "build",
+        role: "build",
+      },
+    });
+
+    // Verify the supervisor received a spec with filled template
+    expect(localSupervisor.spawn).toHaveBeenCalledOnce();
+    const calledSpec = vi.mocked(localSupervisor.spawn).mock.calls[0][0];
+    expect(calledSpec.role).toBe("build");
+    expect(calledSpec.systemPrompt).toContain("Add auth");
+    expect(calledSpec.systemPrompt).not.toContain("{{TASK}}");
+    expect(calledSpec.systemPrompt).toContain("/tmp/ws");
+    expect(calledSpec.systemPrompt).not.toContain("{{WORKSPACE}}");
+
+    client.end();
+    await regServer.stop();
+  });
+
+  it("falls back to DynamicAgentSpecification when spec is not provided", async () => {
+    const localSupervisor = createMockSupervisor();
+    const specRegistry = new SpecRegistry();
+    const specManager = new SpecManager(specRegistry, new SpecLoader("/nonexistent"));
+    const regServer = new ParentSocketServer(localSupervisor, makeMockPi(), specManager);
+    const regSocketPath = await regServer.start();
+
+    const client = connect(regSocketPath);
+
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "fallback-test",
+      params: {
+        role: "custom",
+        systemPrompt: "Custom raw prompt",
+        toolNames: ["read"],
+      },
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "fallback-test",
+      result: {
+        agentId: "custom",
+        role: "custom",
+      },
+    });
+
+    // Verify raw systemPrompt was used, not template-driven
+    const calledSpec = vi.mocked(localSupervisor.spawn).mock.calls[0][0];
+    expect(calledSpec.systemPrompt).toBe("Custom raw prompt");
+
+    client.end();
+    await regServer.stop();
   });
 
   it("validates JSON and returns error for malformed input", async () => {

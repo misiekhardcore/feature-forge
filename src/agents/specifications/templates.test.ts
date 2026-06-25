@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fillTemplate, loadPromptTemplate } from "./templates";
+import { fillTemplate } from "./templates";
 
 describe("fillTemplate()", () => {
   it("replaces a single placeholder with the provided value", () => {
@@ -34,28 +34,5 @@ describe("fillTemplate()", () => {
   it("handles empty values string gracefully", () => {
     const result = fillTemplate("Prefix{{PLACEHOLDER}}Suffix", { PLACEHOLDER: "" });
     expect(result).toBe("PrefixSuffix");
-  });
-});
-
-describe("loadPromptTemplate()", () => {
-  it("loads the research prompt file", () => {
-    const content = loadPromptTemplate("research");
-    expect(content).toContain("# Research Agent");
-    expect(content).toContain("{{CONTEXT}}");
-    expect(content).toContain("read, grep, and ls tools");
-  });
-
-  it("returns cached content on subsequent calls", () => {
-    const first = loadPromptTemplate("research");
-    const second = loadPromptTemplate("research");
-    expect(first).toBe(second);
-  });
-
-  it("throws for a non-existent prompt file", () => {
-    expect(() => loadPromptTemplate("non-existent-prompt")).toThrow();
-  });
-
-  it("throws a descriptive error for missing files", () => {
-    expect(() => loadPromptTemplate("non-existent-prompt")).toThrow(/non-existent-prompt/);
   });
 });

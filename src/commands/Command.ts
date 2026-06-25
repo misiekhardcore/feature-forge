@@ -4,7 +4,8 @@ import type {
   RegisteredCommand,
 } from "@earendil-works/pi-coding-agent";
 
-import { AgentSupervisor } from "../agents";
+import type { AgentSupervisor } from "../agents";
+import type { SpecManager } from "../agents/SpecManager";
 import type { WorkspaceManager } from "../workspace";
 
 /**
@@ -14,6 +15,7 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
   constructor(
     protected readonly supervisor: AgentSupervisor,
     protected readonly pi: ExtensionAPI,
+    protected readonly specManager: SpecManager,
     protected readonly workspaceManager?: WorkspaceManager,
   ) {}
   abstract readonly name: string;

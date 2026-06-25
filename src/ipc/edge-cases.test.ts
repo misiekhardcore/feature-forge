@@ -6,7 +6,7 @@ import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -96,7 +96,7 @@ describe("ParentSocketServer edge cases", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     await server.start();
   });
 
@@ -201,7 +201,11 @@ describe("ParentSocketServer edge cases", () => {
     agents.set("failer", failingAgent);
 
     const customSupervisor = createMockSupervisor(agents);
-    const customServer = new ParentSocketServer(customSupervisor, { on: vi.fn() } as never);
+    const customServer = new ParentSocketServer(
+      customSupervisor,
+      makeMockPi(),
+      makeMockSpecManager(),
+    );
     const customPath = await customServer.start();
 
     const client = connect(customPath);
@@ -258,11 +262,9 @@ describe("ChildSocketClient edge cases", () => {
   let supervisor: AgentSupervisor;
   let socketPath: string;
 
-  const mockPi = { on: vi.fn() };
-
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, mockPi as never);
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     socketPath = await server.start();
   });
 

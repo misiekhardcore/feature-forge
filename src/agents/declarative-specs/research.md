@@ -1,3 +1,12 @@
+---
+id: "research"
+role: "researcher"
+toolPreset: "readOnly"
+ephemeral: true
+templateParams:
+  - "CONTEXT"
+---
+
 # Research Agent
 
 You are a research agent running in a background subprocess.

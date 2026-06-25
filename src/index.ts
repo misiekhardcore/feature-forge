@@ -1,6 +1,14 @@
+import * as path from "node:path";
+
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
-import { InMemoryAgentSupervisor, PiSubprocessAgentFactory } from "./agents";
+import {
+  InMemoryAgentSupervisor,
+  PiSubprocessAgentFactory,
+  SpecManager,
+  SpecRegistry,
+} from "./agents";
+import { SpecLoader } from "./agents/declarative-specs/SpecLoader";
 import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
@@ -47,8 +55,13 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     env: childEnv,
     cwd: process.cwd(),
   });
+  const specRegistry = new SpecRegistry();
+  const specsDir = path.join(__dirname, "agents", "declarative-specs");
+  const specLoader = new SpecLoader(specsDir);
+  const specManager = new SpecManager(specRegistry, specLoader);
+  await specManager.load();
   const supervisor = new InMemoryAgentSupervisor(factory);
-  const ipcServer = new ParentSocketServer(supervisor, pi);
+  const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
   const socketPath = await ipcServer.start();
   childEnv.FORGE_PARENT_SOCKET = socketPath;
   const targetSocketPath = process.env.FORGE_PARENT_SOCKET ?? socketPath;
@@ -64,7 +77,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   await registry.load();
   const workspaceManager = new WorkspaceManager(provider, registry);
 
-  const cmdRegistry = new CommandRegistry(supervisor, pi, workspaceManager);
+  const cmdRegistry = new CommandRegistry(supervisor, pi, specManager, workspaceManager);
   cmdRegistry.registerAll(
     AgentListCommand,
     AgentDestroyCommand,

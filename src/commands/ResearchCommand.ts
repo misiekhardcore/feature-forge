@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { ResearchAgentSpecification } from "../agents";
+import { TOOL_PRESETS } from "../agents";
 import { Command } from "./Command";
 
 export class ResearchCommand extends Command {
@@ -16,7 +16,16 @@ export class ResearchCommand extends Command {
       return;
     }
 
-    const specification = new ResearchAgentSpecification();
+    if (!this.specManager) {
+      ctx.ui.notify("SpecManager not available — research spec cannot be loaded.", "error");
+      return;
+    }
+
+    const specification = this.specManager.resolve({
+      toolNames: TOOL_PRESETS.readOnly,
+      spec: "research",
+      specParams: { CONTEXT: topic },
+    });
 
     ctx.ui.notify(`Research agent investigating "${topic}" in the background...`, "info");
 

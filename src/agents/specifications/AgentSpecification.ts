@@ -38,9 +38,9 @@ export abstract class AgentSpecification {
   /** Denylist of tool names to disable even if they'd otherwise be active. */
   public readonly excludeToolNames: readonly string[];
   /** Model pattern (e.g. "claude-sonnet-4-5"). Undefined = use default. */
-  public readonly modelPreference: string | undefined;
+  public readonly modelPreference?: string | undefined;
   /** Thinking/reasoning level. Undefined = use default. */
-  public readonly thinkingLevel: ThinkingLevel | undefined;
+  public readonly thinkingLevel?: ThinkingLevel | undefined;
   /** Disable all built-in tools (read, bash, edit, write, etc.). */
   public readonly disableBuiltinTools: boolean;
   /** Disable extension discovery and loading. */
@@ -54,7 +54,7 @@ export abstract class AgentSpecification {
   /** Don't persist the session to disk (ephemeral agent). */
   public readonly ephemeral: boolean;
   /** Working directory for the agent process. */
-  public readonly cwd: string | undefined;
+  public readonly cwd?: string | undefined;
 
   constructor(params: AgentSpecificationParams) {
     if (!params.id || params.id.trim().length === 0) {

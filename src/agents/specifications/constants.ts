@@ -30,4 +30,7 @@ export const TOOL_PRESETS = {
 
   /** read, grep — for code review agents that should not modify anything. */
   reviewOnly: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.GREP] as const,
+  verify: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.BASH, BUILT_IN_TOOLS.GREP] as const,
 } as const;
+
+export type ToolPresetName = keyof typeof TOOL_PRESETS;

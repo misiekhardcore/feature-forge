@@ -7,16 +7,12 @@
  * - Server may also push unsolicited `SocketPush` events (e.g., agent status updates).
  */
 
-import type { AgentStatus } from "../agents/base";
+import type { AgentStatus } from "../agents";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
 // Params
-export interface SpawnAgentParams {
-  /** Agent role (e.g. "researcher", "reviewer"). */
-  role: string;
-  /** Full system prompt for the spawned agent. */
-  systemPrompt: string;
+interface CommonSpawnParams {
   /** Tool names to grant the agent. */
   toolNames: readonly string[];
   /** Optional model preference (e.g. "claude-sonnet-4-5"). */
@@ -24,6 +20,27 @@ export interface SpawnAgentParams {
   /** Optional working directory. */
   cwd?: string;
 }
+
+export interface SpawnAgentParamsWithSpec extends CommonSpawnParams {
+  /** Named spec identifier (e.g. "build", "review", "verify", "research"). */
+  spec: string;
+  /** Template variable values for the named spec's system prompt. */
+  specParams?: Record<string, string>;
+  role?: never;
+  systemPrompt?: never;
+}
+
+export interface SpawnAgentParamsWithRole extends CommonSpawnParams {
+  /** Agent role (e.g. "researcher", "reviewer"). */
+  role: string;
+  /** Full system prompt for the spawned agent. */
+  systemPrompt: string;
+  spec?: never;
+  specParams?: never;
+}
+
+export type SpawnAgentParams = SpawnAgentParamsWithSpec | SpawnAgentParamsWithRole;
+
 export interface SendTaskParams {
   /** Target agent's id string. */
   agentId: string;
