@@ -3,6 +3,7 @@ import { Type } from "typebox";
 
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { DestroyAgentParams, DestroyAgentResult } from "../ipc/messages";
+import { logger } from "../logging";
 import { Tool } from "./Tool";
 import { ToolRenderer } from "./ToolRenderer";
 
@@ -42,6 +43,7 @@ export class DestroyAgentTool extends Tool {
         details: result,
       };
     } catch (error) {
+      logger.error("Tool execution failed", { toolName: this.name, error });
       const errorDetails = { error: error instanceof Error ? error.message : String(error) };
       return {
         content: [{ type: "text", text: JSON.stringify(errorDetails) }],

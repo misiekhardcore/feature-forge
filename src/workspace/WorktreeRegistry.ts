@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
+import { logger } from "../logging";
 import { Registry } from "../registry";
 import { WorkspaceError } from "./WorkspaceError";
 import { WorkspaceHandle } from "./WorkspaceHandle";
@@ -76,6 +77,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
         this.set(handle.id, handle);
       }
     } catch (cause) {
+      logger.error("Registry load failed", { path: this.storagePath, cause });
       throw new WorkspaceError(
         `Failed to load worktree registry from ${this.storagePath}`,
         cause instanceof Error ? cause : undefined,

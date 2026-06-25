@@ -3,6 +3,7 @@ import { Type } from "typebox";
 
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { SpawnAgentParams, SpawnAgentResult } from "../ipc/messages";
+import { logger } from "../logging";
 import { Tool } from "./Tool";
 import { ToolRenderer } from "./ToolRenderer";
 
@@ -86,6 +87,7 @@ export class SpawnAgentTool extends Tool {
         details: result,
       };
     } catch (error) {
+      logger.error("Tool execution failed", { toolName: this.name, error });
       return {
         content: [
           {

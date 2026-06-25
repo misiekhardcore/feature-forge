@@ -3,6 +3,7 @@ import { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 
+import { logger } from "../../logging";
 import { AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
 import { Agent } from "./Agent";
@@ -58,9 +59,10 @@ export class PiSubprocessAgent extends Agent {
     try {
       await this.rpcClient.start();
       this._status = AgentStatus.Running;
-    } catch (cause) {
+    } catch (error) {
+      logger.error("Agent start failed", { agentId: this.id, error });
       this._status = AgentStatus.Failed;
-      this.error = cause instanceof Error ? cause : new Error(String(cause));
+      this.error = error instanceof Error ? error : new Error(String(error));
       throw this.error;
     }
   }
@@ -83,9 +85,10 @@ export class PiSubprocessAgent extends Agent {
       this.result = extractAssistantText(events);
       this._status = AgentStatus.Completed;
       return this.result;
-    } catch (cause) {
+    } catch (error) {
+      logger.error("Task execution failed", { agentId: this.id, task, error });
       this._status = AgentStatus.Failed;
-      this.error = cause instanceof Error ? cause : new Error(String(cause));
+      this.error = error instanceof Error ? error : new Error(String(error));
       throw this.error;
     }
   }
@@ -97,6 +100,7 @@ export class PiSubprocessAgent extends Agent {
     try {
       await this.rpcClient.stop();
     } catch {
+      logger.warn("RPC stop failed during destroy", { agentId: this.id });
       // Swallow stop errors — agent is being destroyed either way
     }
     this._status = AgentStatus.Cancelled;

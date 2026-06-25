@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { SendTaskParams } from "../ipc";
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { SendTaskResult } from "../ipc/messages";
+import { logger } from "../logging";
 import { Tool } from "./Tool";
 import { ToolRenderer } from "./ToolRenderer";
 
@@ -54,6 +55,7 @@ export class SendTaskTool extends Tool {
         details: result,
       };
     } catch (error) {
+      logger.error("Tool execution failed", { toolName: this.name, error });
       return {
         content: [
           {

@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { logger } from "../logging";
 import {
   DirtyWorkingTreeError,
   WorkspaceError,
@@ -86,12 +87,14 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
     try {
       await this.execCommand("git", ["worktree", "remove", path, "--force"]);
-    } catch {
+    } catch (error) {
+      logger.warn("Worktree remove fallback", { path, error });
       // Fallback: if git worktree remove failed (e.g., corrupted worktree),
       // force-remove the directory then prune stale git metadata.
       try {
         rmSync(path, { recursive: true, force: true });
-      } catch {
+      } catch (error) {
+        logger.warn("Directory removal fallback", { path, error });
         // Best-effort: directory removal may fail if permissions are off.
       }
     }
@@ -99,7 +102,8 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     // Prune stale worktree metadata regardless
     try {
       await this.execCommand("git", ["worktree", "prune"]);
-    } catch {
+    } catch (error) {
+      logger.warn("Prune failed", { error });
       // Prune is best-effort
     }
   }
@@ -148,6 +152,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
         throw new WorktreeBranchExistsError(branchName);
       }
     } catch (error) {
+      logger.debug("Branch check failed", { branchName, error });
       if (error instanceof WorktreeBranchExistsError) {
         throw error;
       }
@@ -167,7 +172,8 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     try {
       await this.execCommand("wt", ["add", "--help"]);
       return "wt";
-    } catch {
+    } catch (error) {
+      logger.debug("Worktrunk check failed", { error });
       return null;
     }
   }

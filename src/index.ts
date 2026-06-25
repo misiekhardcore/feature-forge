@@ -19,6 +19,7 @@ import {
 } from "./commands";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
+import { FileLogger } from "./logging";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -46,6 +47,9 @@ import { GitWorktreeProvider, WorkspaceManager, WorktreeRegistry } from "./works
  * the caller is the parent or a child.
  */
 const featureForgeExtension: ExtensionFactory = async (pi) => {
+  // ── Logging ────────────────────────────────────────────────────────
+  FileLogger.initialize();
+
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
   // children receive FORGE_PARENT_SOCKET in their process environment.
@@ -73,9 +77,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Set up worktree infrastructure
   const repoRoot = process.cwd();
   const provider = new GitWorktreeProvider(repoRoot);
-  const registry = new WorktreeRegistry();
-  await registry.load();
-  const workspaceManager = new WorkspaceManager(provider, registry);
+  const worktreeRegistry = new WorktreeRegistry();
+  await worktreeRegistry.load();
+  const workspaceManager = new WorkspaceManager(provider, worktreeRegistry);
 
   const cmdRegistry = new CommandRegistry(supervisor, pi, specManager, workspaceManager);
   cmdRegistry.registerAll(

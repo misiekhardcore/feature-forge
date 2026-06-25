@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
 
+import { logger } from "../../logging";
 import { Agent, PiSubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
 import { AgentCreationError, AgentFactory } from "./AgentFactory";
@@ -26,11 +27,12 @@ export class PiSubprocessAgentFactory extends AgentFactory {
 
     try {
       await agent.start();
-    } catch (cause) {
+    } catch (error) {
+      logger.error("Factory creation failed", { specId: id, error });
       throw new AgentCreationError(
         id,
         `Failed to start RPC process`,
-        cause instanceof Error ? cause : undefined,
+        error instanceof Error ? error : undefined,
       );
     }
 

@@ -3,6 +3,7 @@ import { Type } from "typebox";
 
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { ListAgentsResult } from "../ipc/messages";
+import { logger } from "../logging";
 import { Tool } from "./Tool";
 import { ToolRenderer } from "./ToolRenderer";
 
@@ -37,6 +38,7 @@ export class ListAgentsTool extends Tool {
         details: result,
       };
     } catch (error) {
+      logger.error("Tool execution failed", { toolName: this.name, error });
       const errorMessage = { error: error instanceof Error ? error.message : String(error) };
       return {
         content: [
