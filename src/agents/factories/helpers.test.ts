@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { AgentSpecification } from "../specifications/AgentSpecification";
-import { ResearchAgentSpecification } from "../specifications/ResearchAgentSpecification";
+import { TOOL_PRESETS } from "../specifications/constants";
+import { DynamicAgentSpecification } from "../specifications/DynamicAgentSpecification";
 import { buildPiCliArguments } from "./helpers";
 
 describe("buildPiCliArguments", () => {
@@ -185,9 +186,14 @@ describe("buildPiCliArguments", () => {
     });
   });
 
-  describe("ResearchAgentSpecification compatibility", () => {
-    it("produces correct args for ResearchAgentSpecification", () => {
-      const spec = new ResearchAgentSpecification();
+  describe("DynamicAgentSpecification with research tools", () => {
+    it("produces correct args for a read-only specification", () => {
+      const spec = new DynamicAgentSpecification({
+        role: "research",
+        systemPrompt: "Research topic",
+        toolNames: [...TOOL_PRESETS.readOnly],
+        ephemeral: true,
+      });
       const args = buildPiCliArguments(spec);
       expect(args).toContain("--tools");
       const idx = args.indexOf("--tools");

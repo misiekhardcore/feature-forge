@@ -1,8 +1,18 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SpecLoader } from "../agents/declarative-specs/SpecLoader";
+import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
+import { TOOL_PRESETS } from "../agents/specifications/constants";
+import { SpecManager } from "../agents/SpecManager";
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
-import { makeMockCtx, makeMockFactory, makeMockPi, makeSpec } from "../test-utils";
+import {
+  makeMockCtx,
+  makeMockFactory,
+  makeMockPi,
+  makeMockSpecManager,
+  makeSpec,
+} from "../test-utils";
 import { AgentDestroyAllCommand } from "./AgentDestroyAllCommand";
 import { AgentDestroyCommand } from "./AgentDestroyCommand";
 import { AgentListCommand } from "./AgentListCommand";
@@ -17,7 +27,20 @@ describe("ResearchCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new ResearchCommand(supervisor, pi);
+    const registry = new SpecRegistry();
+    registry.register(
+      "research",
+      (params) =>
+        new DynamicAgentSpecification({
+          id: "research",
+          role: "researcher",
+          systemPrompt: `Research: ${params.CONTEXT ?? ""}`,
+          toolNames: [...TOOL_PRESETS.readOnly],
+          ephemeral: true,
+        }),
+    );
+    const specManager = new SpecManager(registry, new SpecLoader("/nonexistent"));
+    cmd = new ResearchCommand(supervisor, pi, specManager);
     ctx = makeMockCtx();
   });
 
@@ -57,7 +80,7 @@ describe("AgentListCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentListCommand(supervisor, pi);
+    cmd = new AgentListCommand(supervisor, pi, makeMockSpecManager());
     ctx = makeMockCtx();
   });
 
@@ -88,7 +111,7 @@ describe("AgentDestroyCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyCommand(supervisor, pi);
+    cmd = new AgentDestroyCommand(supervisor, pi, makeMockSpecManager());
     ctx = makeMockCtx();
   });
 
@@ -116,7 +139,7 @@ describe("AgentDestroyAllCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyAllCommand(supervisor, pi);
+    cmd = new AgentDestroyAllCommand(supervisor, pi, makeMockSpecManager());
     ctx = makeMockCtx();
   });
 

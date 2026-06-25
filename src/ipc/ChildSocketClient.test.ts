@@ -9,7 +9,7 @@ import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -42,6 +42,7 @@ function createMockSupervisor(): AgentSupervisor {
       const agent = createMockAgent();
       const id = specification.id;
       Object.defineProperty(agent, "id", { value: id });
+      Object.defineProperty(agent, "specification", { value: specification });
       agents.set(id, agent);
       return agent;
     }),
@@ -60,7 +61,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     socketPath = await server.start();
   });
 

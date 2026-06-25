@@ -1,9 +1,11 @@
 import eslint from "@eslint/js";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
+import prettier from "eslint-plugin-prettier/recommended";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   eslint.configs.recommended,
+  prettier,
   ...tseslint.configs.recommended,
   {
     languageOptions: {

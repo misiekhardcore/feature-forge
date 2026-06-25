@@ -9,6 +9,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
+import { SpecManager } from "./agents";
 import { Agent } from "./agents/agents/Agent";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
@@ -296,4 +297,31 @@ export function makeMessageEvent(text: string): object {
       content: [{ type: "text", text }],
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Mock SpecManager (resolves any spec to a basic AgentSpecification)
+// ---------------------------------------------------------------------------
+
+export function makeMockSpecManager() {
+  return {
+    resolve: vi.fn().mockImplementation((params) => {
+      return {
+        id: params.spec ?? params.role ?? "mock",
+        role: params.role ?? "mock",
+        systemPrompt: params.systemPrompt ?? "Mock system prompt",
+        toolNames: params.toolNames ?? [],
+        cwd: params.cwd,
+        disableBuiltinTools: false,
+        disableExtensions: false,
+        disableSkills: false,
+        disablePromptTemplates: false,
+        disableContextFiles: false,
+        ephemeral: false,
+        excludeToolNames: [],
+        modelPreference: undefined,
+        thinkingLevel: undefined,
+      } satisfies AgentSpecification;
+    }),
+  } as unknown as SpecManager;
 }

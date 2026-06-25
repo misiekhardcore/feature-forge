@@ -6,6 +6,7 @@ import {
   makeMockCtx,
   makeMockFactory,
   makeMockPi,
+  makeMockSpecManager,
   MockWorkspaceProvider,
   MockWorktreeRegistry,
 } from "../test-utils";
@@ -31,7 +32,7 @@ describe("WorktreeListCommand", () => {
 
   describe("without workspace manager", () => {
     beforeEach(() => {
-      cmd = new WorktreeListCommand(supervisor, pi);
+      cmd = new WorktreeListCommand(supervisor, pi, makeMockSpecManager());
     });
 
     it("notifies error when workspace infrastructure is not configured", async () => {
@@ -45,7 +46,7 @@ describe("WorktreeListCommand", () => {
 
   describe("with workspace manager", () => {
     beforeEach(() => {
-      cmd = new WorktreeListCommand(supervisor, pi, makeWorkspaceManager());
+      cmd = new WorktreeListCommand(supervisor, pi, makeMockSpecManager(), makeWorkspaceManager());
     });
 
     it("notifies when no active worktrees exist", async () => {
@@ -57,7 +58,7 @@ describe("WorktreeListCommand", () => {
       const manager = makeWorkspaceManager();
       await manager.create("task-1");
       await manager.create("task-2");
-      cmd = new WorktreeListCommand(supervisor, pi, manager);
+      cmd = new WorktreeListCommand(supervisor, pi, makeMockSpecManager(), manager);
 
       await cmd.handler("", ctx as unknown as ExtensionCommandContext);
 
@@ -84,7 +85,7 @@ describe("WorktreeDestroyCommand", () => {
 
   describe("without workspace manager", () => {
     beforeEach(() => {
-      cmd = new WorktreeDestroyCommand(supervisor, pi);
+      cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager());
     });
 
     it("notifies error when workspace infrastructure is not configured", async () => {
@@ -98,7 +99,12 @@ describe("WorktreeDestroyCommand", () => {
 
   describe("with workspace manager", () => {
     beforeEach(() => {
-      cmd = new WorktreeDestroyCommand(supervisor, pi, makeWorkspaceManager());
+      cmd = new WorktreeDestroyCommand(
+        supervisor,
+        pi,
+        makeMockSpecManager(),
+        makeWorkspaceManager(),
+      );
     });
 
     it("notifies error when args is empty", async () => {
@@ -122,7 +128,7 @@ describe("WorktreeDestroyCommand", () => {
     it("destroys an existing worktree and sends a message", async () => {
       const manager = makeWorkspaceManager();
       await manager.create("task-1");
-      cmd = new WorktreeDestroyCommand(supervisor, pi, manager);
+      cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager(), manager);
 
       await cmd.handler("task-1", ctx as unknown as ExtensionCommandContext);
 
@@ -146,7 +152,7 @@ describe("WorktreeDestroyCommand", () => {
         if (id === "task-1") throw new Error("cleanup failure");
         return originalDestroy(id);
       };
-      cmd = new WorktreeDestroyCommand(supervisor, pi, manager);
+      cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager(), manager);
 
       await cmd.handler("task-1", ctx as unknown as ExtensionCommandContext);
 

@@ -5,10 +5,8 @@ import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentStatus } from "../agents";
-import type { AgentSpecification } from "../agents/specifications";
-import { DynamicAgentSpecification } from "../agents/specifications";
-import type { AgentSupervisor } from "../agents/supervisors";
+import { AgentStatus, AgentSupervisor } from "../agents";
+import type { SpecManager } from "../agents/SpecManager";
 import {
   type SendTaskParams,
   type SocketMessage,
@@ -43,6 +41,7 @@ export class ParentSocketServer {
   constructor(
     private readonly supervisor: AgentSupervisor,
     private readonly pi: ExtensionAPI,
+    private readonly specManager: SpecManager,
   ) {}
 
   /**
@@ -172,13 +171,12 @@ export class ParentSocketServer {
     correlationId: string,
     params: SpawnAgentParams,
   ): Promise<void> {
-    const specification = this.buildSpecification(params);
+    const specification = this.specManager.resolve(params);
     const agent = await this.supervisor.spawn(specification);
-    const agentId = agent.id;
 
     this.sendResponse(socket, correlationId, {
-      agentId,
-      role: params.role,
+      agentId: agent.id,
+      role: agent.specification.role,
     });
   }
 
@@ -251,19 +249,6 @@ export class ParentSocketServer {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────
-
-  /**
-   * Convert IPC spawn params into an AgentSpecification.
-   */
-  private buildSpecification(params: SpawnAgentParams): AgentSpecification {
-    return new DynamicAgentSpecification({
-      role: params.role,
-      systemPrompt: params.systemPrompt,
-      toolNames: params.toolNames,
-      modelPreference: params.model,
-      cwd: params.cwd,
-    });
-  }
 
   private sendResponse(
     socket: Socket,
