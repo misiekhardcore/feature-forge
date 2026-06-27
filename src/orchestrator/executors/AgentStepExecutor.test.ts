@@ -187,6 +187,76 @@ describe("AgentStepExecutor", () => {
       expect(result.results.get("builder")!.parsed).toBeUndefined();
     });
 
+    it("parses review-style JSON with findings", async () => {
+      const agent = makeMockAgent(
+        '```json\n{"passed": false, "findings": {"critical": ["bug"], "warnings": ["style"], "info": []}}\n```',
+      );
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "reviewer",
+        spec: "review",
+        task: "review",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context);
+
+      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
+    });
+
+    it("handles non-Error thrown during execution", async () => {
+      // Create an agent that throws a non-Error value.
+      const agent = {
+        id: "test-agent",
+        executeTask: vi.fn().mockRejectedValue("just a string"),
+        destroy: vi.fn().mockResolvedValue(undefined),
+      } as unknown as Agent;
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        spec: "build",
+        task: "build",
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context);
+
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
+    });
+
+    it("handles no JSON block when parseJson is true", async () => {
+      const agent = makeMockAgent("just plain text, no json at all");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        spec: "build",
+        task: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context);
+
+      // Raw preserved, parsed is undefined because no JSON found
+      expect(result.results.get("builder")!.raw).toBe("just plain text, no json at all");
+      expect(result.results.get("builder")!.parsed).toBeUndefined();
+    });
+
     it("always calls destroyAgent even when executeTask throws", async () => {
       const error = new Error("crash");
       const agent = makeMockAgentThatThrows(error);

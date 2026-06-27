@@ -146,6 +146,61 @@ describe("RoutineTool", () => {
       expect(parsed.passed).toBe(true);
     });
 
+    it("uses empty string when neither task nor _task is in params", async () => {
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { prompt: "t" },
+        routines: {
+          build: { params: [], steps: [] },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      const result = await tool.execute(
+        "call-1",
+        {}, // no task, no _task
+        undefined,
+        undefined,
+        {} as ExtensionContext,
+      );
+
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      expect(parsed.routine).toBe("build");
+      expect(parsed.passed).toBe(true);
+    });
+
+    it("skips params not present in input", async () => {
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { prompt: "t" },
+        routines: {
+          build: {
+            params: [{ name: "task" }, { name: "plan" }],
+            steps: [],
+          },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      const result = await tool.execute(
+        "call-1",
+        { task: "fix bug" }, // plan is missing
+        undefined,
+        undefined,
+        {} as ExtensionContext,
+      );
+
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      expect(parsed.routine).toBe("build");
+      expect(parsed.passed).toBe(true);
+    });
+
     it("uses _task as fallback when task is not in params", async () => {
       const flow: FlowDefinition = {
         name: "test-flow",
