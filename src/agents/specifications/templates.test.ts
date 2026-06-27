@@ -35,4 +35,9 @@ describe("fillTemplate()", () => {
     const result = fillTemplate("Prefix{{PLACEHOLDER}}Suffix", { PLACEHOLDER: "" });
     expect(result).toBe("PrefixSuffix");
   });
+
+  it("returns template as-is when values are omitted", () => {
+    const result = fillTemplate("Hello {{NAME}}!");
+    expect(result).toBe("Hello {{NAME}}!");
+  });
 });
