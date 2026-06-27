@@ -5,9 +5,12 @@ import { fileURLToPath } from "node:url";
 import {
   AgentInstructionSchema,
   CleanupInstructionSchema,
+  GitInstructionSchema,
   LoopInstructionSchema,
-  OrchestratorSchema,
+  OrchestratorConfigSchema,
   ParallelInstructionSchema,
+  RoutineParamSchema,
+  ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "../src/orchestrator/FlowInstruction";
 
@@ -26,12 +29,15 @@ import {
 // ── Build individual defs (TypeBox schemas → JSON Schema) ──
 
 const defs: Record<string, unknown> = {
-  Orchestrator: OrchestratorSchema,
+  OrchestratorConfig: OrchestratorConfigSchema,
+  RoutineParam: RoutineParamSchema,
   WorkspaceInstruction: WorkspaceInstructionSchema,
   AgentInstruction: AgentInstructionSchema,
   ParallelInstruction: replaceStepsRef(ParallelInstructionSchema),
   LoopInstruction: replaceStepsRef(LoopInstructionSchema),
   CleanupInstruction: CleanupInstructionSchema,
+  GitInstruction: GitInstructionSchema,
+  ShellInstruction: ShellInstructionSchema,
 };
 
 defs.FlowInstruction = {
@@ -41,6 +47,8 @@ defs.FlowInstruction = {
     { $ref: "#/$defs/ParallelInstruction" },
     { $ref: "#/$defs/LoopInstruction" },
     { $ref: "#/$defs/CleanupInstruction" },
+    { $ref: "#/$defs/GitInstruction" },
+    { $ref: "#/$defs/ShellInstruction" },
   ],
 };
 
@@ -51,18 +59,26 @@ const schema = {
   title: "Feature Forge Flow Definition",
   description:
     "Self-contained flow definition. " +
-    "Declares a slash command, orchestrator prompt, tool, and deterministic steps.",
+    "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: ["name", "command", "tool", "toolParams", "orchestrator", "steps"],
+  required: ["name", "command", "orchestrator", "routines"],
   properties: {
     name: { type: "string", minLength: 1 },
     command: { type: "string", minLength: 1 },
-    tool: { type: "string", minLength: 1 },
-    toolParams: { type: "array", items: { type: "string" } },
-    orchestrator: { $ref: "#/$defs/Orchestrator" },
-    steps: {
-      type: "array",
-      items: { $ref: "#/$defs/FlowInstruction" },
+    orchestrator: { $ref: "#/$defs/OrchestratorConfig" },
+    routines: {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        required: ["params", "steps"],
+        properties: {
+          params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
+          steps: {
+            type: "array",
+            items: { $ref: "#/$defs/FlowInstruction" },
+          },
+        },
+      },
     },
   },
   $defs: defs,
@@ -81,10 +97,6 @@ console.log(`Wrote flow-schema.json to ${outPath}`);
 
 // ── Helpers ─────────────────────────────────────────────────
 
-/**
- * Replace a container schema's `steps` with a `$ref` to `FlowInstruction`.
- * The schema object is cloned so the runtime validation schemas are not mutated.
- */
 function replaceStepsRef(containerSchema: unknown): Record<string, unknown> {
   const clone = structuredClone(containerSchema) as Record<string, unknown>;
   const props = clone.properties as Record<string, unknown> | undefined;

@@ -40,16 +40,36 @@ function defineInstruction<Type extends string, Extra extends TProperties | unde
 
 // ── Leaf schemas ────────────────────────────────────────────
 
-export const WorkspaceInstructionSchema = defineInstruction("workspace");
+export const WorkspaceInstructionSchema = defineInstruction("workspace", {
+  provider: Type.Union([Type.Literal("git-worktree"), Type.Literal("current-dir")]),
+});
 
 export const AgentInstructionSchema = defineInstruction("agent", {
   spec: Type.String({ minLength: 1 }),
   task: Type.String(),
-  workingDir: Type.Optional(Type.Union([Type.Literal("workspace"), Type.String({ minLength: 1 })])),
+  workingDir: Type.Optional(
+    Type.Union([
+      Type.Object({ workspace: Type.String({ minLength: 1 }) }),
+      Type.Object({ path: Type.String({ minLength: 1 }) }),
+    ]),
+  ),
   parseJson: Type.Optional(Type.Boolean()),
+  specInput: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
-export const CleanupInstructionSchema = defineInstruction("cleanup");
+export const CleanupInstructionSchema = defineInstruction("cleanup", {
+  of: Type.Optional(Type.String({ minLength: 1 })),
+});
+
+export const GitInstructionSchema = defineInstruction("git", {
+  action: Type.Union([Type.Literal("add-and-commit"), Type.Literal("push-current")]),
+  cwd: Type.String({ minLength: 1 }),
+});
+
+export const ShellInstructionSchema = defineInstruction("shell", {
+  command: Type.String({ minLength: 1 }),
+  cwd: Type.String({ minLength: 1 }),
+});
 
 // ── Container schemas (steps added via patch below) ─────────
 
@@ -69,6 +89,8 @@ const FlowInstructionUnion = Type.Union([
   ParallelInstructionSchema,
   LoopInstructionSchema,
   CleanupInstructionSchema,
+  GitInstructionSchema,
+  ShellInstructionSchema,
 ]);
 
 // Patch container schemas so `steps` validates recursively.
@@ -92,25 +114,52 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 
 export const FlowInstructionSchema = FlowInstructionUnion;
 
-export const OrchestratorSchema = Type.Object({
-  task: Type.String({ minLength: 1 }),
+export const OrchestratorConfigSchema = Type.Object({
+  prompt: Type.String({ minLength: 1 }),
+  activeTools: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+});
+
+export const RoutineParamSchema = Type.Object({
+  name: Type.String({ minLength: 1 }),
+  description: Type.Optional(Type.String()),
+});
+
+const RoutineDefinitionSchema = Type.Object({
+  params: Type.Array(RoutineParamSchema),
+  // steps placeholder — Type.Any() avoids the circular FlowInstructionUnion reference
+  // during Type.Record's internal Clone. The real validator is patched onto the
+  // cloned copy stored inside the TRecord below.
+  steps: Type.Any(),
 });
 
 export const FlowDefinitionSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
-  tool: Type.String({ minLength: 1 }),
-  toolParams: Type.Array(
-    Type.Object({
-      name: Type.String({ minLength: 1 }),
-      description: Type.Optional(Type.String()),
-    }),
-  ),
-  orchestrator: OrchestratorSchema,
-  steps: Type.Array(FlowInstructionUnion),
+  orchestrator: OrchestratorConfigSchema,
+  routines: Type.Record(Type.String(), RoutineDefinitionSchema),
 });
 
-// ── Explicit TypeScript types (kept in sync with schemas) ──
+// After Type.Record has cloned RoutineDefinitionSchema (with Type.Any() for steps
+// to avoid the circular clone), patch the cloned copy inside the TRecord with the
+// real FlowInstructionUnion-based validator so Value.Check can reject invalid
+// nested instructions.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _recordSchema = FlowDefinitionSchema.properties.routines as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _patterns: Record<string, any> = _recordSchema.patternProperties ?? {};
+for (const _patternKey of Object.keys(_patterns)) {
+  const _clonedRoutine = _patterns[_patternKey];
+  if (_clonedRoutine?.properties) {
+    Object.defineProperty(_clonedRoutine.properties, "steps", {
+      value: Type.Array(FlowInstructionUnion),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  }
+}
+
+// ── Explicit TypeScript types ─────────────────────────────────
 
 export type WorkspaceInstruction = Type.Static<typeof WorkspaceInstructionSchema>;
 
@@ -126,15 +175,64 @@ export type LoopInstruction = Type.Static<typeof LoopInstructionSchema> & {
 
 export type CleanupInstruction = Type.Static<typeof CleanupInstructionSchema>;
 
+export type GitInstruction = Type.Static<typeof GitInstructionSchema>;
+
+export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
+
+/** Instructions that contain nested `steps` arrays. */
+export type ContainerInstruction = ParallelInstruction | LoopInstruction;
+
 export type FlowInstruction =
   | WorkspaceInstruction
   | AgentInstruction
   | ParallelInstruction
   | LoopInstruction
-  | CleanupInstruction;
+  | CleanupInstruction
+  | GitInstruction
+  | ShellInstruction;
 
-export type Orchestrator = Type.Static<typeof OrchestratorSchema>;
+export type OrchestratorConfig = Type.Static<typeof OrchestratorConfigSchema>;
 
-export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {
+export type RoutineParam = Type.Static<typeof RoutineParamSchema>;
+
+export type RoutineDefinition = {
+  params: RoutineParam[];
   steps: FlowInstruction[];
 };
+
+export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {
+  routines: Record<string, RoutineDefinition>;
+};
+
+// ── Type guard functions ──────────────────────────────────────
+
+export function isParallelInstruction(instr: FlowInstruction): instr is ParallelInstruction {
+  return instr.type === "parallel";
+}
+
+export function isLoopInstruction(instr: FlowInstruction): instr is LoopInstruction {
+  return instr.type === "loop";
+}
+
+export function isContainerInstruction(instr: FlowInstruction): instr is ContainerInstruction {
+  return instr.type === "parallel" || instr.type === "loop";
+}
+
+// ── Helper constructors ────────────────────────────────────────
+
+export function makeParallelInstruction(id: string, steps: FlowInstruction[]): ParallelInstruction {
+  return { type: "parallel", id, steps } as ParallelInstruction;
+}
+
+export function makeLoopInstruction(
+  id: string,
+  maxIterations: number,
+  steps: FlowInstruction[],
+  continueWhile?: string,
+  accumulateFrom?: string[],
+): LoopInstruction {
+  const base: LoopInstruction = { type: "loop", id, maxIterations, steps } as LoopInstruction;
+  if (continueWhile !== undefined) base.continueWhile = continueWhile;
+  if (accumulateFrom !== undefined) base.accumulateFrom = accumulateFrom;
+  return base;
+}

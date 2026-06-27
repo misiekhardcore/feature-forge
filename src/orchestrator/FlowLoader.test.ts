@@ -12,19 +12,22 @@ function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition 
   return {
     name: "test",
     command: "/test",
-    tool: "run_test",
-    toolParams: [{ name: "task" }],
-    orchestrator: { task: "You are the test orchestrator." },
-    steps: [
-      { type: "workspace", id: "ws" },
-      {
-        type: "loop",
-        id: "main_loop",
-        maxIterations: 3,
-        steps: [{ type: "agent", id: "builder", spec: "build", task: "do {{task}}" }],
+    orchestrator: { prompt: "You are the test orchestrator." },
+    routines: {
+      main: {
+        params: [{ name: "task" }],
+        steps: [
+          { type: "workspace", id: "ws", provider: "git-worktree" },
+          {
+            type: "loop",
+            id: "main_loop",
+            maxIterations: 3,
+            steps: [{ type: "agent", id: "builder", spec: "build", task: "do {{task}}" }],
+          },
+          { type: "cleanup", id: "cleanup" },
+        ],
       },
-      { type: "cleanup", id: "cleanup" },
-    ],
+    },
     ...overrides,
   };
 }
@@ -45,13 +48,13 @@ describe("validateStructure", () => {
     expect(() => FlowLoader.validateStructure(makeValidFlow({ name: "" }))).toThrow();
   });
 
-  it("throws for missing tool", () => {
-    const { tool: _, ...rest } = makeValidFlow();
+  it("throws for missing orchestrator", () => {
+    const { orchestrator: _, ...rest } = makeValidFlow();
     expect(() => FlowLoader.validateStructure(rest)).toThrow();
   });
 
-  it("throws for missing steps", () => {
-    const { steps: _, ...rest } = makeValidFlow();
+  it("throws for missing routines", () => {
+    const { routines: _, ...rest } = makeValidFlow();
     expect(() => FlowLoader.validateStructure(rest)).toThrow();
   });
 
@@ -59,7 +62,17 @@ describe("validateStructure", () => {
     expect(() =>
       FlowLoader.validateStructure(
         makeValidFlow({
-          steps: [{ type: "unknown_type", id: "x" } as unknown as FlowDefinition["steps"][number]],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "unknown_type",
+                  id: "x",
+                } as unknown as FlowDefinition["routines"]["_"]["steps"][number],
+              ],
+            },
+          },
         }),
       ),
     ).toThrow();
@@ -69,9 +82,18 @@ describe("validateStructure", () => {
     expect(() =>
       FlowLoader.validateStructure(
         makeValidFlow({
-          steps: [
-            { type: "agent", id: "a", task: "do it" } as unknown as FlowDefinition["steps"][number],
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "agent",
+                  id: "a",
+                  task: "do it",
+                } as unknown as FlowDefinition["routines"]["_"]["steps"][number],
+              ],
+            },
+          },
         }),
       ),
     ).toThrow();
@@ -81,9 +103,18 @@ describe("validateStructure", () => {
     expect(() =>
       FlowLoader.validateStructure(
         makeValidFlow({
-          steps: [
-            { type: "loop", id: "l", steps: [] } as unknown as FlowDefinition["steps"][number],
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  steps: [],
+                } as unknown as FlowDefinition["routines"]["_"]["steps"][number],
+              ],
+            },
+          },
         }),
       ),
     ).toThrow();
@@ -94,10 +125,13 @@ describe("validateStructure", () => {
       FlowLoader.validateStructure({
         name: "x",
         command: "/x",
-        tool: "y",
-        toolParams: [],
-        orchestrator: { task: "t" },
-        steps: [{ type: "agent", id: "a" }],
+        orchestrator: { prompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "agent", id: "a" }],
+          },
+        },
       });
     } catch (e: unknown) {
       const msg = (e as Error).message;
@@ -118,13 +152,18 @@ describe("validateSemantics", () => {
   // ── Duplicate ids ──────────────────────────────────────
 
   describe("duplicate ids", () => {
-    it("detects duplicate top-level ids", () => {
+    it("detects duplicate top-level ids within a routine", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            { type: "workspace", id: "ws" },
-            { type: "workspace", id: "ws" },
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+              ],
+            },
+          },
         }),
       );
       expect(errors).toHaveLength(1);
@@ -135,15 +174,20 @@ describe("validateSemantics", () => {
     it("detects duplicate ids across nesting levels", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            { type: "workspace", id: "ws" },
-            {
-              type: "loop",
-              id: "loop1",
-              maxIterations: 3,
-              steps: [{ type: "agent", id: "ws", spec: "build", task: "x" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+                {
+                  type: "loop",
+                  id: "loop1",
+                  maxIterations: 3,
+                  steps: [{ type: "agent", id: "ws", spec: "build", task: "x" }],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toHaveLength(1);
@@ -154,15 +198,20 @@ describe("validateSemantics", () => {
     it("includes path info in duplicate error", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            { type: "workspace", id: "dup" },
-            {
-              type: "loop",
-              id: "loop1",
-              maxIterations: 3,
-              steps: [{ type: "agent", id: "dup", spec: "build", task: "x" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "dup", provider: "git-worktree" },
+                {
+                  type: "loop",
+                  id: "loop1",
+                  maxIterations: 3,
+                  steps: [{ type: "agent", id: "dup", spec: "build", task: "x" }],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors[0]).toContain("loop1 → dup");
@@ -176,15 +225,20 @@ describe("validateSemantics", () => {
     it("accepts a valid expression", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 5,
-              continueWhile: "!results.review?.parsed?.passed",
-              steps: [],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 5,
+                  continueWhile: "!results.review?.parsed?.passed",
+                  steps: [],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toEqual([]);
@@ -193,16 +247,21 @@ describe("validateSemantics", () => {
     it("accepts the implement expression", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 5,
-              continueWhile:
-                "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
-              steps: [],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 5,
+                  continueWhile:
+                    "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
+                  steps: [],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toEqual([]);
@@ -211,15 +270,20 @@ describe("validateSemantics", () => {
     it("rejects a syntactically invalid expression", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 5,
-              continueWhile: "true + false",
-              steps: [],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 5,
+                  continueWhile: "true + false",
+                  steps: [],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toHaveLength(1);
@@ -229,15 +293,20 @@ describe("validateSemantics", () => {
     it("includes the loop path in the error", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "bad_loop",
-              maxIterations: 3,
-              continueWhile: "@@@",
-              steps: [],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "bad_loop",
+                  maxIterations: 3,
+                  continueWhile: "@@@",
+                  steps: [],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors[0]).toContain("bad_loop");
@@ -246,14 +315,19 @@ describe("validateSemantics", () => {
     it("accepts a loop without continueWhile", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 3,
-              steps: [],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  steps: [],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toEqual([]);
@@ -266,30 +340,35 @@ describe("validateSemantics", () => {
     it("accepts valid direct-child references", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 3,
-              accumulateFrom: ["review", "verify"],
+          routines: {
+            main: {
+              params: [],
               steps: [
                 {
-                  type: "agent",
-                  id: "review",
-                  spec: "review",
-                  task: "review",
-                  parseJson: true,
-                },
-                {
-                  type: "agent",
-                  id: "verify",
-                  spec: "verify",
-                  task: "verify",
-                  parseJson: true,
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  accumulateFrom: ["review", "verify"],
+                  steps: [
+                    {
+                      type: "agent",
+                      id: "review",
+                      spec: "review",
+                      task: "review",
+                      parseJson: true,
+                    },
+                    {
+                      type: "agent",
+                      id: "verify",
+                      spec: "verify",
+                      task: "verify",
+                      parseJson: true,
+                    },
+                  ],
                 },
               ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toEqual([]);
@@ -298,15 +377,20 @@ describe("validateSemantics", () => {
     it("rejects reference to non-existent id", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 3,
-              accumulateFrom: ["nonexistent"],
-              steps: [{ type: "agent", id: "builder", spec: "build", task: "x" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  accumulateFrom: ["nonexistent"],
+                  steps: [{ type: "agent", id: "builder", spec: "build", task: "x" }],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toHaveLength(1);
@@ -317,29 +401,34 @@ describe("validateSemantics", () => {
     it("accepts accumulateFrom referencing id inside nested parallel", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 3,
-              accumulateFrom: ["nested_agent"],
+          routines: {
+            main: {
+              params: [],
               steps: [
                 {
-                  type: "parallel",
-                  id: "inspect",
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  accumulateFrom: ["nested_agent"],
                   steps: [
                     {
-                      type: "agent",
-                      id: "nested_agent",
-                      spec: "review",
-                      task: "r",
-                      parseJson: true,
+                      type: "parallel",
+                      id: "inspect",
+                      steps: [
+                        {
+                          type: "agent",
+                          id: "nested_agent",
+                          spec: "review",
+                          task: "r",
+                          parseJson: true,
+                        },
+                      ],
                     },
                   ],
                 },
               ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toEqual([]);
@@ -348,15 +437,27 @@ describe("validateSemantics", () => {
     it("rejects accumulateFrom targeting instruction without parseJson", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 3,
-              accumulateFrom: ["builder"],
-              steps: [{ type: "agent", id: "builder", spec: "build", task: "do {{task}}" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  accumulateFrom: ["builder"],
+                  steps: [
+                    {
+                      type: "agent",
+                      id: "builder",
+                      spec: "build",
+                      task: "do {{task}}",
+                    },
+                  ],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toHaveLength(1);
@@ -367,14 +468,19 @@ describe("validateSemantics", () => {
     it("accepts a loop without accumulateFrom", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [
-            {
-              type: "loop",
-              id: "l",
-              maxIterations: 3,
-              steps: [],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  steps: [],
+                },
+              ],
             },
-          ],
+          },
         }),
       );
       expect(errors).toEqual([]);
@@ -386,18 +492,23 @@ describe("validateSemantics", () => {
   it("reports multiple semantic errors", () => {
     const errors = FlowLoader.validateSemantics(
       makeValidFlow({
-        steps: [
-          { type: "workspace", id: "dup" },
-          { type: "workspace", id: "dup" },
-          {
-            type: "loop",
-            id: "bad",
-            maxIterations: 3,
-            continueWhile: "@@@",
-            accumulateFrom: ["missing"],
-            steps: [],
+        routines: {
+          main: {
+            params: [],
+            steps: [
+              { type: "workspace", id: "dup", provider: "git-worktree" },
+              { type: "workspace", id: "dup", provider: "git-worktree" },
+              {
+                type: "loop",
+                id: "bad",
+                maxIterations: 3,
+                continueWhile: "@@@",
+                accumulateFrom: ["missing"],
+                steps: [],
+              },
+            ],
           },
-        ],
+        },
       }),
     );
     expect(errors.length).toBeGreaterThanOrEqual(2);
@@ -409,7 +520,12 @@ describe("validateSemantics", () => {
     it("rejects unknown spec when knownSpecs is provided", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+            },
+          },
         }),
         new Set(["build", "review", "verify"]),
       );
@@ -421,7 +537,12 @@ describe("validateSemantics", () => {
     it("accepts known spec when knownSpecs is provided", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [{ type: "agent", id: "a1", spec: "build", task: "do it" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [{ type: "agent", id: "a1", spec: "build", task: "do it" }],
+            },
+          },
         }),
         new Set(["build", "review", "verify"]),
       );
@@ -431,9 +552,64 @@ describe("validateSemantics", () => {
     it("skips spec check when knownSpecs is omitted", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
-          steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+          routines: {
+            main: {
+              params: [],
+              steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+            },
+          },
         }),
-        // knownSpecs omitted
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+
+  // ── knownProviders ──────────────────────────────────────
+
+  describe("knownProviders", () => {
+    it("rejects unknown provider when knownProviders is provided", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: {
+            main: {
+              params: [],
+              steps: [{ type: "workspace", id: "ws1", provider: "docker" as "git-worktree" }],
+            },
+          },
+        }),
+        undefined,
+        new Set(["git-worktree", "current-dir"]),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Unknown provider "docker"');
+    });
+
+    it("accepts known provider when knownProviders is provided", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: {
+            main: {
+              params: [],
+              steps: [{ type: "workspace", id: "ws1", provider: "git-worktree" }],
+            },
+          },
+        }),
+        undefined,
+        new Set(["git-worktree", "current-dir"]),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("skips provider check when knownProviders is omitted", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: {
+            main: {
+              params: [],
+              steps: [{ type: "workspace", id: "ws1", provider: "docker" as "git-worktree" }],
+            },
+          },
+        }),
       );
       expect(errors).toEqual([]);
     });
@@ -459,26 +635,29 @@ describe("FlowLoader", () => {
     const flow: FlowDefinition = {
       name: "test",
       command: "/load-test",
-      tool: "run_test",
-      toolParams: [{ name: "task" }],
-      orchestrator: { task: "t" },
-      steps: [
-        { type: "workspace", id: "ws" },
-        { type: "cleanup", id: "cleanup" },
-      ],
+      orchestrator: { prompt: "t" },
+      routines: {
+        main: {
+          params: [{ name: "task" }],
+          steps: [
+            { type: "workspace", id: "ws", provider: "git-worktree" },
+            { type: "cleanup", id: "cleanup" },
+          ],
+        },
+      },
     };
     await fs.writeFile(path.join(tempDir, "test.json"), JSON.stringify(flow));
 
     const loaded = await loader.load("test");
     expect(loaded.name).toBe("test");
-    expect(loaded.steps).toHaveLength(2);
+    expect(loaded.routines["main"].steps).toHaveLength(2);
   });
 
-  it("loads the real implement.json", async () => {
-    const realLoader = new FlowLoader(path.join(__dirname, "..", "flows"));
-    const flow = await realLoader.load("implement");
+  it("loads the real implement flow", async () => {
+    const realLoader = new FlowLoader(path.join(__dirname, "..", "flows", "implement"));
+    const flow = await realLoader.load("flow");
     expect(flow.name).toBe("implement");
-    expect(flow.steps.length).toBeGreaterThan(0);
+    expect(Object.keys(flow.routines).length).toBeGreaterThan(0);
   });
 
   it("throws for non-existent flow", async () => {
@@ -494,13 +673,16 @@ describe("FlowLoader", () => {
     const flow: FlowDefinition = {
       name: "dup",
       command: "/dup",
-      tool: "x",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [
-        { type: "workspace", id: "dup" },
-        { type: "workspace", id: "dup" },
-      ],
+      orchestrator: { prompt: "t" },
+      routines: {
+        main: {
+          params: [],
+          steps: [
+            { type: "workspace", id: "dup", provider: "git-worktree" },
+            { type: "workspace", id: "dup", provider: "git-worktree" },
+          ],
+        },
+      },
     };
     await fs.writeFile(path.join(tempDir, "dup.json"), JSON.stringify(flow));
 
@@ -513,10 +695,15 @@ describe("FlowLoader", () => {
       JSON.stringify(
         makeValidFlow({
           name: "a",
-          steps: [
-            { type: "workspace", id: "ws" },
-            { type: "cleanup", id: "c" },
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+                { type: "cleanup", id: "c" },
+              ],
+            },
+          },
         }),
       ),
     );
@@ -525,10 +712,15 @@ describe("FlowLoader", () => {
       JSON.stringify(
         makeValidFlow({
           name: "b",
-          steps: [
-            { type: "workspace", id: "ws" },
-            { type: "cleanup", id: "c" },
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+                { type: "cleanup", id: "c" },
+              ],
+            },
+          },
         }),
       ),
     );
@@ -546,10 +738,15 @@ describe("FlowLoader", () => {
       JSON.stringify(
         makeValidFlow({
           name: "a",
-          steps: [
-            { type: "workspace", id: "ws" },
-            { type: "cleanup", id: "c" },
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+                { type: "cleanup", id: "c" },
+              ],
+            },
+          },
         }),
       ),
     );
@@ -566,10 +763,15 @@ describe("FlowLoader", () => {
       JSON.stringify(
         makeValidFlow({
           name: "good",
-          steps: [
-            { type: "workspace", id: "ws" },
-            { type: "cleanup", id: "c" },
-          ],
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                { type: "workspace", id: "ws", provider: "git-worktree" },
+                { type: "cleanup", id: "c" },
+              ],
+            },
+          },
         }),
       ),
     );
@@ -579,13 +781,16 @@ describe("FlowLoader", () => {
       JSON.stringify({
         name: "bad",
         command: "/bad",
-        tool: "x",
-        toolParams: [],
-        orchestrator: { task: "t" },
-        steps: [
-          { type: "workspace", id: "dup" },
-          { type: "workspace", id: "dup" },
-        ],
+        orchestrator: { prompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [
+              { type: "workspace", id: "dup", provider: "git-worktree" },
+              { type: "workspace", id: "dup", provider: "git-worktree" },
+            ],
+          },
+        },
       }),
     );
 
