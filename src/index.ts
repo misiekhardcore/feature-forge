@@ -1,3 +1,4 @@
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -13,6 +14,7 @@ import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
   AgentListCommand,
+  OrchestratorCommand,
   ResearchCommand,
   WorktreeDestroyCommand,
   WorktreeListCommand,
@@ -20,6 +22,8 @@ import {
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { FileLogger } from "./logging";
+import { FlowLoader } from "./orchestrator/FlowLoader";
+import { StepExecutorRegistry } from "./orchestrator/StepExecutorRegistry";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -28,7 +32,13 @@ import {
   SendTaskTool,
   SpawnAgentTool,
 } from "./tools";
-import { GitWorktreeProvider, WorkspaceManager, WorktreeRegistry } from "./workspace";
+import {
+  CurrentDirProvider,
+  GitWorktreeProvider,
+  WorkspaceManager,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+} from "./workspace";
 
 /**
  * Feature Forge — autonomous software engineering platform.
@@ -101,6 +111,89 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ListAgentsTool,
     DestroyAgentTool,
   );
+
+  // ── Workspace provider registry ──────────────────────────────────
+  const workspaceProviderRegistry = new WorkspaceProviderRegistry()
+    .register("git-worktree", provider)
+    .register("current-dir", new CurrentDirProvider());
+
+  // ── Step executor registry ───────────────────────────────────────
+  const _stepExecutorRegistry = new StepExecutorRegistry();
+  // Built-in executors are registered by another agent.
+  // See TODO in src/orchestrator/RoutineTool.ts for the executor wiring.
+
+  // ── Flow-based orchestration commands ────────────────────────────
+  const flowsDir = path.join(__dirname, "flows");
+  const knownSpecs = specRegistry.specNames();
+  const knownProviders = workspaceProviderRegistry.names();
+
+  let flowDirectories: string[];
+  try {
+    const entries = await fs.readdir(flowsDir, { withFileTypes: true });
+    flowDirectories = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch {
+    // flowsDir doesn't exist yet or is empty — skip flow registration silently.
+    flowDirectories = [];
+  }
+
+  for (const flowName of flowDirectories) {
+    const flowDir = path.join(flowsDir, flowName);
+
+    // a. Read the orchestrator prompt from the flow directory.
+    let promptContent: string;
+    try {
+      promptContent = await fs.readFile(path.join(flowDir, "orchestrator.md"), "utf-8");
+    } catch {
+      // Skip flows without an orchestrator prompt.
+      continue;
+    }
+
+    // b. Load and validate the flow definition.
+    const flowLoader = new FlowLoader(flowDir, knownSpecs, knownProviders);
+    let flow;
+    try {
+      flow = await flowLoader.load("flow");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[feature-forge] Failed to load flow "${flowName}": ${message}`);
+      continue;
+    }
+
+    // c. Register an OrchestratorCommand for this flow.
+    const orchestratorCommand = new OrchestratorCommand(
+      supervisor,
+      pi,
+      specManager,
+      workspaceManager,
+      flow,
+      promptContent,
+    );
+
+    // Register directly with pi (not via CommandRegistry) because
+    // OrchestratorCommand carries extra constructor params (flow + promptContent)
+    // that CommandRegistry's generic constructor pattern can't provide.
+    pi.registerCommand(orchestratorCommand.name, {
+      description: orchestratorCommand.description,
+      handler: (args: string, ctx) => orchestratorCommand.handler(args, ctx),
+    });
+
+    // d. TODO: Import and register RoutineTool once src/orchestrator/RoutineTool.ts exists.
+    // import { RoutineTool } from "./orchestrator/RoutineTool";
+    //
+    // for (const [routineName, routineDef] of Object.entries(flow.routines)) {
+    //   const routineTool = new RoutineTool(
+    //     client,
+    //     pi,
+    //     supervisor,
+    //     flowName,
+    //     routineName,
+    //     routineDef,
+    //     workspaceProviderRegistry,
+    //     stepExecutorRegistry,
+    //   );
+    //   toolRegistry.register(() => routineTool);
+    // }
+  }
 };
 
 /**
