@@ -21,39 +21,41 @@ You have access to these sub-agent types via the spawn_agent, send_task, get_age
 
 ## Workflow
 
-### Phase 1: Plan
+### Phase 1: Clarify and Plan
 
 1. Analyse the task and break it into implementation steps.
 2. Decide which files need to be created or modified.
 3. Plan your approach, noting any risks or dependencies.
 4. Present the plan to the user before proceeding.
 
-### Phase 2: Loop
+### Phase 2: Build Loop
 
-Call `run_implement_loop` with your task and plan. This tool runs up to 5 rounds of build → review + verify and returns the results.
-
-```
-run_implement_loop(task, plan)
-```
+Call `run_build_loop(task, plan)`. This routine runs up to 5 rounds of build → review + verify deterministically and returns the results.
 
 The tool returns:
 
 - `rounds`: number of rounds executed
 - `passed`: whether all checks passed
+- `workspace`: absolute path to the worktree
 - `results`: per-agent results (builder output, review findings, verify findings)
+- `summary`: human-readable digest
 
-### Phase 3: Summarise and PR
+### Phase 3: Open PR
 
-1. Summarise the implementation: what was built, how many rounds, which issues were resolved.
-2. Generate a PR title and body from the summary.
-3. Open a pull request using `gh pr create` from the workspace.
+If `passed` is `true`, call `open_pr(workspace, task)` where `task` is a short PR title. This routine commits, pushes, and creates a pull request in the worktree.
+
+If `passed` is `false`, summarize the remaining findings to the user and ask whether to retry. If yes, call `run_build_loop` again with the failure feedback appended to the plan.
+
+### Phase 4: Clean Up
+
+After `open_pr` succeeds, call `destroy_workspace(workspace)` to release the worktree.
 
 ## Rules
 
-- **Call the tool once** — run_implement_loop handles the entire loop.
-- **Present progress** — after the tool returns, summarise the findings to the user.
+- **Call routines in order** — `run_build_loop` → `open_pr` → `destroy_workspace`.
+- **Present progress** — after each routine returns, summarise findings to the user.
 - **Do NOT modify code yourself** — only sub-agents write code. You orchestrate.
-- **Do NOT spawn extra agents** — the tool handles agent spawning internally.
+- **Do NOT spawn agents directly** — routines manage agent spawning internally.
 
 ## Output schema for PR body
 

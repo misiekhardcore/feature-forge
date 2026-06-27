@@ -13,6 +13,7 @@ export type {
   LoopInstruction,
   Orchestrator,
   ParallelInstruction,
+  ShellInstruction,
   WorkspaceInstruction,
 } from "./FlowInstruction";
 export {
@@ -21,6 +22,7 @@ export {
   FlowDefinitionSchema,
   FlowInstructionSchema,
   OrchestratorSchema,
+  ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";

@@ -102,6 +102,17 @@ const defs: Record<string, unknown> = {
       type: { type: "string", const: "cleanup" },
     },
   },
+
+  ShellInstruction: {
+    type: "object",
+    required: ["id", "type", "command"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      type: { type: "string", const: "shell" },
+      command: { type: "string", minLength: 1 },
+      cwd: { type: "string" },
+    },
+  },
 };
 
 defs.FlowInstruction = {
@@ -111,6 +122,7 @@ defs.FlowInstruction = {
     { $ref: "#/$defs/ParallelInstruction" },
     { $ref: "#/$defs/LoopInstruction" },
     { $ref: "#/$defs/CleanupInstruction" },
+    { $ref: "#/$defs/ShellInstruction" },
   ],
 };
 
