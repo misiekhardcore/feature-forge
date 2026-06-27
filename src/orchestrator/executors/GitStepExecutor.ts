@@ -1,7 +1,12 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { GitInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Executes a "git" instruction by running git commands in a worktree.
@@ -17,29 +22,67 @@ import { StepExecutor } from "../StepExecutor";
 export class GitStepExecutor extends StepExecutor<GitInstruction> {
   readonly type = "git";
 
-  async execute(instruction: GitInstruction, context: FlowContext): Promise<FlowContext> {
-    // TODO: Use execFile from node:child_process to run git commands.
-    // 1. Resolve instruction.cwd via context.resolve().
-    // 2. Run the appropriate git command based on instruction.action.
-    // 3. Capture stdout/stderr.
-    // 4. Return context.withResult(instructionId, result).
+  /** Maximum time (ms) a git command may run before being aborted. */
+  private readonly timeout = 60_000;
 
+  async execute(instruction: GitInstruction, context: FlowContext): Promise<FlowContext> {
     const resolvedCwd = context.resolve(instruction.cwd);
-    logger.info("Git step (TODO — stub)", {
+    logger.info("Executing git step", {
       instructionId: instruction.id,
       action: instruction.action,
       cwd: resolvedCwd,
     });
 
-    const result: InstructionResult = {
-      raw: JSON.stringify({ action: instruction.action, cwd: resolvedCwd }),
-      parsed: {
-        kind: "build",
-        passed: true,
-        summary: `Git ${instruction.action} completed (stub) in ${resolvedCwd}`,
-      },
-    };
+    try {
+      if (instruction.action === "add-and-commit") {
+        await GitStepExecutor.addAndCommit(resolvedCwd, this.timeout);
+      } else {
+        await GitStepExecutor.pushCurrent(resolvedCwd, this.timeout);
+      }
 
-    return context.withResult(instruction.id, result);
+      const result: InstructionResult = {
+        raw: JSON.stringify({ action: instruction.action, cwd: resolvedCwd }),
+        parsed: {
+          kind: "build",
+          passed: true,
+          summary: `Git ${instruction.action} completed in ${resolvedCwd}`,
+        },
+      };
+
+      return context.withResult(instruction.id, result);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      logger.error("Git step failed", {
+        instructionId: instruction.id,
+        action: instruction.action,
+        cwd: resolvedCwd,
+        error: err,
+      });
+
+      const result: InstructionResult = {
+        raw: err.message,
+        parsed: {
+          kind: "build",
+          passed: false,
+          summary: `Git ${instruction.action} failed: ${err.message}`,
+        },
+      };
+
+      return context.withResult(instruction.id, result);
+    }
+  }
+
+  private static async addAndCommit(cwd: string, timeout: number): Promise<void> {
+    // Stage all changes (including untracked files).
+    await execFileAsync("git", ["add", "-A"], { cwd, timeout });
+
+    // Commit with a standard message.
+    const message = "feature-forge: automated changes";
+    await execFileAsync("git", ["commit", "-m", message], { cwd, timeout });
+  }
+
+  private static async pushCurrent(cwd: string, timeout: number): Promise<void> {
+    await execFileAsync("git", ["push", "origin", "HEAD"], { cwd, timeout });
   }
 }

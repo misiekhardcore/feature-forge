@@ -6,7 +6,7 @@ import { Value } from "typebox/value";
 
 import { logger } from "../logging";
 import { ExpressionEvaluator } from "./ExpressionEvaluator";
-import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
+import type { AgentInstruction, FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import {
   FlowDefinitionSchema,
   FlowInstructionSchema,
@@ -143,7 +143,7 @@ export class FlowLoader {
     for (const [routineName, routine] of Object.entries(flow.routines)) {
       const scope = `routine "${routineName}"`;
       errors.push(...FlowLoader.checkDuplicateIds(routine.steps, scope));
-      FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders);
+      FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders, new Set());
     }
 
     return errors;
@@ -186,21 +186,31 @@ export class FlowLoader {
     errors: string[],
     knownSpecs?: ReadonlySet<string>,
     knownProviders?: ReadonlySet<string>,
+    declaredWorkspaces: Set<string> = new Set(),
   ): void {
     for (const instruction of instructions) {
       const currentPath = [...path, instruction.id];
 
-      if (instruction.type === "agent" && knownSpecs && !knownSpecs.has(instruction.spec)) {
-        errors.push(
-          `Unknown spec "${instruction.spec}" referenced by agent "${currentPath.join(" → ")}"`,
-        );
+      if (instruction.type === "agent") {
+        if (knownSpecs && !knownSpecs.has(instruction.spec)) {
+          errors.push(
+            `Unknown spec "${instruction.spec}" referenced by agent "${currentPath.join(" → ")}"`,
+          );
+        }
+
+        // Validate workspace reference ordering.
+        FlowLoader.checkAgentWorkspaceRef(instruction, currentPath, errors, declaredWorkspaces);
       }
 
-      if (instruction.type === "workspace" && knownProviders) {
-        if (!knownProviders.has(instruction.provider)) {
-          errors.push(
-            `Unknown provider "${instruction.provider}" on workspace "${currentPath.join(" → ")}"`,
-          );
+      if (instruction.type === "workspace") {
+        declaredWorkspaces.add(instruction.id);
+
+        if (knownProviders) {
+          if (!knownProviders.has(instruction.provider)) {
+            errors.push(
+              `Unknown provider "${instruction.provider}" on workspace "${currentPath.join(" → ")}"`,
+            );
+          }
         }
       }
 
@@ -213,6 +223,7 @@ export class FlowLoader {
           errors,
           knownSpecs,
           knownProviders,
+          new Set(declaredWorkspaces),
         );
       }
 
@@ -223,8 +234,31 @@ export class FlowLoader {
           errors,
           knownSpecs,
           knownProviders,
+          new Set(declaredWorkspaces),
         );
       }
+    }
+  }
+
+  /**
+   * Validate that a `{workspace: "id"}` workingDir reference in an agent
+   * instruction points to a workspace declared earlier in the same routine.
+   */
+  private static checkAgentWorkspaceRef(
+    instruction: AgentInstruction,
+    currentPath: string[],
+    errors: string[],
+    declaredWorkspaces: ReadonlySet<string>,
+  ): void {
+    if (!instruction.workingDir) return;
+    if (!("workspace" in instruction.workingDir)) return;
+
+    const workspaceId = instruction.workingDir.workspace;
+    if (!declaredWorkspaces.has(workspaceId)) {
+      errors.push(
+        `Agent "${currentPath.join(" → ")}" references workspace "${workspaceId}" ` +
+          `in workingDir, but no workspace with that id exists earlier in the same routine`,
+      );
     }
   }
 

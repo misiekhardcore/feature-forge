@@ -22,7 +22,18 @@ import {
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { FileLogger } from "./logging";
+import {
+  AgentStepExecutor,
+  CleanupStepExecutor,
+  GitStepExecutor,
+  LoopStepExecutor,
+  ParallelStepExecutor,
+  ShellStepExecutor,
+  WorkspaceStepExecutor,
+} from "./orchestrator/executors";
 import { FlowLoader } from "./orchestrator/FlowLoader";
+import { RoutineExecutor } from "./orchestrator/RoutineExecutor";
+import { RoutineTool } from "./orchestrator/RoutineTool";
 import { StepExecutorRegistry } from "./orchestrator/StepExecutorRegistry";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
@@ -118,9 +129,17 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     .register("current-dir", new CurrentDirProvider());
 
   // ── Step executor registry ───────────────────────────────────────
-  const _stepExecutorRegistry = new StepExecutorRegistry();
-  // Built-in executors are registered by another agent.
-  // See TODO in src/orchestrator/RoutineTool.ts for the executor wiring.
+  const stepExecutorRegistry = new StepExecutorRegistry();
+  // Register leaf executors first so container executors can use the
+  // populated registry for child dispatch at execution time.
+  stepExecutorRegistry.register(new WorkspaceStepExecutor(workspaceProviderRegistry));
+  stepExecutorRegistry.register(new AgentStepExecutor(supervisor, specManager));
+  stepExecutorRegistry.register(new CleanupStepExecutor(workspaceProviderRegistry));
+  stepExecutorRegistry.register(new GitStepExecutor());
+  stepExecutorRegistry.register(new ShellStepExecutor());
+  // Container executors receive the registry for child step lookups.
+  stepExecutorRegistry.register(new ParallelStepExecutor(stepExecutorRegistry));
+  stepExecutorRegistry.register(new LoopStepExecutor(stepExecutorRegistry));
 
   // ── Flow-based orchestration commands ────────────────────────────
   const flowsDir = path.join(__dirname, "flows");
@@ -177,22 +196,19 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
       handler: (args: string, ctx) => orchestratorCommand.handler(args, ctx),
     });
 
-    // d. TODO: Import and register RoutineTool once src/orchestrator/RoutineTool.ts exists.
-    // import { RoutineTool } from "./orchestrator/RoutineTool";
-    //
-    // for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-    //   const routineTool = new RoutineTool(
-    //     client,
-    //     pi,
-    //     supervisor,
-    //     flowName,
-    //     routineName,
-    //     routineDef,
-    //     workspaceProviderRegistry,
-    //     stepExecutorRegistry,
-    //   );
-    //   toolRegistry.register(() => routineTool);
-    // }
+    // d. Register RoutineTool instances for each routine in this flow.
+    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry);
+    for (const [routineName, routineDef] of Object.entries(flow.routines)) {
+      const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
+      try {
+        toolRegistry.registerInstance(routineTool);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[feature-forge] Failed to register RoutineTool "${routineTool.name}": ${message}`,
+        );
+      }
+    }
   }
 };
 
