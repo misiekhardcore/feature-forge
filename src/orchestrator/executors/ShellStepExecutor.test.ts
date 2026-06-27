@@ -1,0 +1,141 @@
+import { describe, expect, it, vi } from "vitest";
+
+const { execFileMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn(),
+}));
+
+vi.mock("node:child_process", () => ({
+  execFile: execFileMock,
+}));
+
+import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
+import { FlowContext } from "../FlowContext";
+import type { ShellInstruction } from "../FlowInstruction";
+import { ShellStepExecutor } from "./ShellStepExecutor";
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function mockExecSuccess(stdout = "ok", stderr = ""): void {
+  execFileMock.mockImplementation(
+    (
+      _cmd: string,
+      _args: string[],
+      _opts: unknown,
+      cb: (err: null, stdout: string, stderr: string) => void,
+    ) => {
+      cb(null, stdout, stderr);
+    },
+  );
+}
+
+function mockExecFailure(message: string, stderr?: string): void {
+  const err = Object.assign(new Error(message), { stderr: stderr ?? message });
+  execFileMock.mockImplementation(
+    (
+      _cmd: string,
+      _args: string[],
+      _opts: unknown,
+      cb: (err: Error, stdout: string, stderr: string) => void,
+    ) => {
+      cb(err, "", stderr ?? message);
+    },
+  );
+}
+
+// ── Tests ────────────────────────────────────────────────────
+
+describe("ShellStepExecutor", () => {
+  describe("execute", () => {
+    it("runs a shell command in the resolved cwd", async () => {
+      mockExecSuccess("pr created: https://github.com/...");
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh1",
+        command: "gh pr create --title 'fix'",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context);
+
+      expect(execFileMock).toHaveBeenCalledTimes(1);
+      expect(execFileMock.mock.calls[0][0]).toBe("/bin/sh");
+      expect(execFileMock.mock.calls[0][1]).toEqual(["-c", "gh pr create --title 'fix'"]);
+      expect(execFileMock.mock.calls[0][2].cwd).toBe("/tmp/ws");
+
+      expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
+      expect(result.results.get("sh1")!.raw).toBe("pr created: https://github.com/...");
+    });
+
+    it("resolves placeholders in command and cwd", async () => {
+      mockExecSuccess("done");
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh2",
+        command: "echo {{task}}",
+        cwd: "{{workspace.ws}}",
+      };
+      const context = new FlowContext(
+        new Map(),
+        "hello world",
+        new Map([["ws", new WorkspaceHandle("ws", "/tmp/ws", new Date())]]),
+      );
+      await executor.execute(instruction, context);
+
+      expect(execFileMock.mock.calls[0][1][1]).toBe("echo hello world");
+      expect(execFileMock.mock.calls[0][2].cwd).toBe("/tmp/ws");
+    });
+
+    it("includes stderr in output", async () => {
+      mockExecSuccess("ok", "warning: something");
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh3",
+        command: "npm test",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context);
+
+      expect(result.results.get("sh3")!.raw).toContain("warning: something");
+    });
+
+    it("returns a failure result when the command exits non-zero", async () => {
+      mockExecFailure("Command failed", "error output");
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh4",
+        command: "exit 1",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context);
+
+      expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
+      expect(result.results.get("sh4")!.raw).toContain("error output");
+    });
+
+    it("falls back to error message when stderr is empty on failure", async () => {
+      mockExecFailure("ECONNREFUSED");
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh5",
+        command: "curl http://localhost:12345",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context);
+
+      expect(result.results.get("sh5")!.raw).toBe("ECONNREFUSED");
+    });
+  });
+});
