@@ -1,0 +1,71 @@
+{
+  "name": "implement",
+  "command": "/implement",
+  "orchestrator": {
+    "prompt": "orchestrator.md"
+  },
+  "routines": {
+    "run_build_loop": {
+      "params": [
+        { "name": "task", "description": "The task description" },
+        { "name": "plan", "description": "The implementation plan" }
+      ],
+      "steps": [
+        {
+          "type": "workspace",
+          "id": "workspace"
+        },
+        {
+          "type": "loop",
+          "id": "build_loop",
+          "maxIterations": 5,
+          "continueWhile": "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
+          "accumulateFrom": ["review", "verify"],
+          "steps": [
+            {
+              "type": "agent",
+              "id": "builder",
+              "spec": "build",
+              "workingDir": "workspace",
+              "parseJson": true,
+              "task": "Build: {{task}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass. If the build failed, report passed: false with a summary of the failure."
+            },
+            {
+              "type": "parallel",
+              "id": "inspect",
+              "steps": [
+                {
+                  "type": "agent",
+                  "id": "review",
+                  "spec": "review",
+                  "workingDir": "workspace",
+                  "parseJson": true,
+                  "task": "Review the code changes against:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
+                },
+                {
+                  "type": "agent",
+                  "id": "verify",
+                  "spec": "verify",
+                  "workingDir": "workspace",
+                  "parseJson": true,
+                  "task": "Verify acceptance criteria:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "destroy_workspace": {
+      "params": [
+        { "name": "workspace", "description": "Absolute path to the workspace directory" }
+      ],
+      "steps": [
+        {
+          "type": "cleanup",
+          "id": "destroy_workspace_cleanup"
+        }
+      ]
+    }
+  }
+}

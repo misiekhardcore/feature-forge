@@ -2,36 +2,106 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  AgentInstructionSchema,
-  CleanupInstructionSchema,
-  LoopInstructionSchema,
-  OrchestratorSchema,
-  ParallelInstructionSchema,
-  WorkspaceInstructionSchema,
-} from "../src/orchestrator/FlowInstruction";
-
 /**
- * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.
+ * Generate `src/flows/flow-schema.json` as a hand-built JSON Schema document.
  *
- * TypeBox schemas ARE JSON Schema objects — we don't transform them,
- * we just compose them into a `$defs`-based document so the recursive
- * `steps` arrays use `$ref` pointers instead of object-level cycles.
+ * We cannot import TypeBox schemas from FlowInstruction.ts for serialization
+ * because TypeBox 1.3.0's internal memory system uses a deep clone that stack
+ * overflows on the circular `steps` references (patched at module-init time
+ * for Value.Check traversal).
  *
- * Container schemas (parallel, loop) have `steps` added via a property
- * patch at module-init time. We clone them and replace `steps` with a
- * `$ref` to `FlowInstruction` for the export.
+ * Instead, we define the JSON Schema objects directly and keep them in sync
+ * with FlowInstruction.ts through the round-trip contract tests.
  */
 
-// ── Build individual defs (TypeBox schemas → JSON Schema) ──
+// ── Individual defs ─────────────────────────────────────────
 
 const defs: Record<string, unknown> = {
-  Orchestrator: OrchestratorSchema,
-  WorkspaceInstruction: WorkspaceInstructionSchema,
-  AgentInstruction: AgentInstructionSchema,
-  ParallelInstruction: replaceStepsRef(ParallelInstructionSchema),
-  LoopInstruction: replaceStepsRef(LoopInstructionSchema),
-  CleanupInstruction: CleanupInstructionSchema,
+  Orchestrator: {
+    type: "object",
+    required: ["prompt"],
+    properties: {
+      prompt: { type: "string", minLength: 1 },
+      activeTools: {
+        type: "array",
+        items: { type: "string", minLength: 1 },
+      },
+    },
+  },
+
+  FlowParam: {
+    type: "object",
+    required: ["name"],
+    properties: {
+      name: { type: "string", minLength: 1 },
+      description: { type: "string" },
+    },
+  },
+
+  WorkspaceInstruction: {
+    type: "object",
+    required: ["id", "type"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      type: { type: "string", const: "workspace" },
+    },
+  },
+
+  AgentInstruction: {
+    type: "object",
+    required: ["id", "type", "spec", "task"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      type: { type: "string", const: "agent" },
+      spec: { type: "string", minLength: 1 },
+      task: { type: "string" },
+      workingDir: {
+        anyOf: [
+          { type: "string", const: "workspace" },
+          { type: "string", minLength: 1 },
+        ],
+      },
+      parseJson: { type: "boolean" },
+    },
+  },
+
+  ParallelInstruction: {
+    type: "object",
+    required: ["id", "type"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      type: { type: "string", const: "parallel" },
+      steps: {
+        type: "array",
+        items: { $ref: "#/$defs/FlowInstruction" },
+      },
+    },
+  },
+
+  LoopInstruction: {
+    type: "object",
+    required: ["id", "type", "maxIterations"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      type: { type: "string", const: "loop" },
+      maxIterations: { type: "integer", minimum: 1 },
+      continueWhile: { type: "string" },
+      accumulateFrom: { type: "array", items: { type: "string" } },
+      steps: {
+        type: "array",
+        items: { $ref: "#/$defs/FlowInstruction" },
+      },
+    },
+  },
+
+  CleanupInstruction: {
+    type: "object",
+    required: ["id", "type"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      type: { type: "string", const: "cleanup" },
+    },
+  },
 };
 
 defs.FlowInstruction = {
@@ -44,6 +114,21 @@ defs.FlowInstruction = {
   ],
 };
 
+defs.Routine = {
+  type: "object",
+  required: ["params", "steps"],
+  properties: {
+    params: {
+      type: "array",
+      items: { $ref: "#/$defs/FlowParam" },
+    },
+    steps: {
+      type: "array",
+      items: { $ref: "#/$defs/FlowInstruction" },
+    },
+  },
+};
+
 // ── Top-level schema ────────────────────────────────────────
 
 const schema = {
@@ -51,18 +136,16 @@ const schema = {
   title: "Feature Forge Flow Definition",
   description:
     "Self-contained flow definition. " +
-    "Declares a slash command, orchestrator prompt, tool, and deterministic steps.",
+    "Declares a slash command, orchestrator prompt, and named routines with steps.",
   type: "object",
-  required: ["name", "command", "tool", "toolParams", "orchestrator", "steps"],
+  required: ["name", "command", "orchestrator", "routines"],
   properties: {
     name: { type: "string", minLength: 1 },
     command: { type: "string", minLength: 1 },
-    tool: { type: "string", minLength: 1 },
-    toolParams: { type: "array", items: { type: "string" } },
     orchestrator: { $ref: "#/$defs/Orchestrator" },
-    steps: {
-      type: "array",
-      items: { $ref: "#/$defs/FlowInstruction" },
+    routines: {
+      type: "object",
+      additionalProperties: { $ref: "#/$defs/Routine" },
     },
   },
   $defs: defs,
@@ -78,21 +161,3 @@ const outPath = path.join(outDir, "flow-schema.json");
 fs.writeFileSync(outPath, JSON.stringify(schema, null, 2) + "\n");
 
 console.log(`Wrote flow-schema.json to ${outPath}`);
-
-// ── Helpers ─────────────────────────────────────────────────
-
-/**
- * Replace a container schema's `steps` with a `$ref` to `FlowInstruction`.
- * The schema object is cloned so the runtime validation schemas are not mutated.
- */
-function replaceStepsRef(containerSchema: unknown): Record<string, unknown> {
-  const clone = structuredClone(containerSchema) as Record<string, unknown>;
-  const props = clone.properties as Record<string, unknown> | undefined;
-  if (props?.steps) {
-    props.steps = {
-      type: "array",
-      items: { $ref: "#/$defs/FlowInstruction" },
-    };
-  }
-  return clone;
-}

@@ -4,9 +4,12 @@ import { fileURLToPath } from "node:url";
 import { FlowLoader } from "../src/orchestrator/FlowLoader";
 
 /**
- * Validate a flow JSON file against the structural and semantic rules.
+ * Validate a flow package against the structural and semantic rules.
  *
- * Usage: npx tsx scripts/validate-flow.ts <path-to-flow.json>
+ * Usage: npx tsx scripts/validate-flow.ts <path-to-flow-package-dir>
+ *        npx tsx scripts/validate-flow.ts --all
+ *
+ * A flow package is a directory containing flow.json.
  */
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -15,8 +18,8 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    console.error("Usage: npm run flow:validate -- <path-to-flow.json>");
-    console.error("       npm run flow:validate --all");
+    console.error("Usage: npm run flow:validate -- <path-to-flow-package-dir>");
+    console.error("       npm run flow:validate -- --all");
     process.exit(1);
   }
 
@@ -48,42 +51,20 @@ async function main(): Promise<void> {
     return;
   }
 
-  const filepath = path.resolve(args[0]);
+  const pkgDir = path.resolve(args[0]);
 
-  // Read and parse JSON
-  let raw: string;
-  try {
-    const { readFile } = await import("node:fs/promises");
-    raw = await readFile(filepath, "utf-8");
-  } catch {
-    console.error(`✗ File not found: ${filepath}`);
-    process.exit(1);
-  }
+  // Validate the flow package
+  const flowsDir = path.dirname(pkgDir);
+  const pkgName = path.basename(pkgDir);
+  const loader = new FlowLoader(flowsDir);
 
-  let json: unknown;
   try {
-    json = JSON.parse(raw);
+    const flow = await loader.load(pkgName);
+    console.log(`✓ Flow "${flow.name}" is valid`);
   } catch (cause) {
-    console.error(`✗ Invalid JSON: ${(cause as Error).message}`);
+    console.error(`✗ ${(cause as Error).message}`);
     process.exit(1);
   }
-
-  // Structural validation
-  try {
-    FlowLoader.validateStructure(json);
-  } catch (cause) {
-    console.error(`✗ Structural validation failed:\n${(cause as Error).message}`);
-    process.exit(1);
-  }
-
-  // Semantic validation
-  const errors = FlowLoader.validateSemantics(json);
-  if (errors.length > 0) {
-    console.error(`✗ Semantic validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`);
-    process.exit(1);
-  }
-
-  console.log(`✓ Flow "${json.name}" is valid`);
 }
 
 void main();
