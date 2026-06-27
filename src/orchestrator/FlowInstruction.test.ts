@@ -8,6 +8,7 @@ import {
   FlowInstructionSchema,
   LoopInstructionSchema,
   ParallelInstructionSchema,
+  RoutineSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 
@@ -206,6 +207,74 @@ describe("FlowInstructionSchema", () => {
 });
 
 // ---------------------------------------------------------------------------
+// RoutineSchema
+// ---------------------------------------------------------------------------
+
+describe("RoutineSchema", () => {
+  it("validates a routine with params and steps", () => {
+    const valid = {
+      params: [{ name: "task", description: "The task" }],
+      steps: [{ type: "workspace", id: "ws" }],
+    };
+    expect(Value.Check(RoutineSchema, valid)).toBe(true);
+  });
+
+  it("validates a routine with empty params", () => {
+    const valid = {
+      params: [],
+      steps: [{ type: "cleanup", id: "c1" }],
+    };
+    expect(Value.Check(RoutineSchema, valid)).toBe(true);
+  });
+
+  it("validates a routine without param descriptions", () => {
+    const valid = {
+      params: [{ name: "workspace" }],
+      steps: [{ type: "workspace", id: "ws" }],
+    };
+    expect(Value.Check(RoutineSchema, valid)).toBe(true);
+  });
+
+  it("rejects routine with empty param name", () => {
+    const invalid = {
+      params: [{ name: "" }],
+      steps: [{ type: "workspace", id: "ws" }],
+    };
+    expect(Value.Check(RoutineSchema, invalid)).toBe(false);
+  });
+
+  it("rejects routine with missing params", () => {
+    const invalid = {
+      steps: [{ type: "workspace", id: "ws" }],
+    };
+    expect(Value.Check(RoutineSchema, invalid)).toBe(false);
+  });
+
+  it("rejects routine with invalid step type", () => {
+    const invalid = {
+      params: [],
+      steps: [{ type: "unknown", id: "x" }],
+    };
+    expect(Value.Check(RoutineSchema, invalid)).toBe(false);
+  });
+
+  it("rejects routine with nested invalid instruction", () => {
+    const invalid = {
+      params: [],
+      steps: [
+        {
+          type: "loop",
+          id: "l1",
+          maxIterations: 3,
+          steps: [{ type: "agent", id: "a1" }], // missing spec and task
+        },
+      ],
+    };
+    expect(Value.Check(RoutineSchema, invalid)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // FlowDefinitionSchema
 // ---------------------------------------------------------------------------
 
@@ -213,59 +282,65 @@ describe("FlowDefinitionSchema", () => {
   const validFlow = {
     name: "implement",
     command: "/implement",
-    tool: "run_implement_loop",
-    toolParams: [
-      { name: "task", description: "The task description" },
-      { name: "plan", description: "The implementation plan" },
-    ],
-    orchestrator: { task: "You are the orchestrator." },
-    steps: [
-      { type: "workspace" as const, id: "ws" },
-      {
-        type: "loop" as const,
-        id: "build_loop",
-        maxIterations: 5,
-        continueWhile:
-          "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
-        accumulateFrom: ["review", "verify"],
+    orchestrator: { prompt: "orchestrator.md" },
+    routines: {
+      run_build_loop: {
+        params: [
+          { name: "task", description: "The task description" },
+          { name: "plan", description: "The implementation plan" },
+        ],
         steps: [
+          { type: "workspace" as const, id: "ws" },
           {
-            type: "agent" as const,
-            id: "builder",
-            spec: "build",
-            task: "Build: {{task}}",
-            workingDir: "workspace",
-            parseJson: true,
-          },
-          {
-            type: "parallel" as const,
-            id: "inspect",
+            type: "loop" as const,
+            id: "build_loop",
+            maxIterations: 5,
+            continueWhile:
+              "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
+            accumulateFrom: ["review", "verify"],
             steps: [
               {
                 type: "agent" as const,
-                id: "review",
-                spec: "review",
-                task: "Review",
+                id: "builder",
+                spec: "build",
+                task: "Build: {{task}}",
                 workingDir: "workspace",
                 parseJson: true,
               },
               {
-                type: "agent" as const,
-                id: "verify",
-                spec: "verify",
-                task: "Verify",
-                workingDir: "workspace",
-                parseJson: true,
+                type: "parallel" as const,
+                id: "inspect",
+                steps: [
+                  {
+                    type: "agent" as const,
+                    id: "review",
+                    spec: "review",
+                    task: "Review",
+                    workingDir: "workspace",
+                    parseJson: true,
+                  },
+                  {
+                    type: "agent" as const,
+                    id: "verify",
+                    spec: "verify",
+                    task: "Verify",
+                    workingDir: "workspace",
+                    parseJson: true,
+                  },
+                ],
               },
             ],
           },
         ],
       },
-      { type: "cleanup" as const, id: "cleanup" },
-    ],
+      destroy_workspace: {
+        params: [{ name: "workspace" }],
+        steps: [{ type: "cleanup" as const, id: "destroy_cleanup" }],
+      },
+    },
   };
 
-  it("validates a complete implement flow", () => {
+  it("validates a complete implement flow with routines", () => {
     expect(Value.Check(FlowDefinitionSchema, validFlow)).toBe(true);
   });
 
@@ -278,11 +353,6 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, { ...validFlow, name: "" })).toBe(false);
   });
 
-  it("rejects missing tool", () => {
-    const { tool: _, ...rest } = validFlow;
-    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
-  });
-
   it("rejects missing command", () => {
     const { command: _, ...rest } = validFlow;
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
@@ -293,47 +363,65 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("accepts orchestrator with only task", () => {
+  it("accepts orchestrator with only prompt", () => {
     const flow = {
       ...validFlow,
-      orchestrator: { task: "t" },
+      orchestrator: { prompt: "o.md" },
     };
     expect(Value.Check(FlowDefinitionSchema, flow)).toBe(true);
   });
 
-  it("rejects missing orchestrator.task", () => {
+  it("accepts orchestrator with prompt and activeTools", () => {
+    const flow = {
+      ...validFlow,
+      orchestrator: { prompt: "o.md", activeTools: ["run_build_loop", "destroy_workspace"] },
+    };
+    expect(Value.Check(FlowDefinitionSchema, flow)).toBe(true);
+  });
+
+  it("rejects missing orchestrator.prompt", () => {
     expect(
       Value.Check(FlowDefinitionSchema, {
         ...validFlow,
-        orchestrator: { task: "" },
+        orchestrator: { prompt: "" },
       }),
     ).toBe(false);
   });
 
-  it("rejects missing toolParams", () => {
-    const { toolParams: _, ...rest } = validFlow;
+  it("rejects empty activeTools entry", () => {
+    expect(
+      Value.Check(FlowDefinitionSchema, {
+        ...validFlow,
+        orchestrator: { prompt: "o.md", activeTools: [""] },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects missing routines", () => {
+    const { routines: _, ...rest } = validFlow;
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("rejects missing steps", () => {
-    const { steps: _, ...rest } = validFlow;
-    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
-  });
-
-  it("rejects empty steps array", () => {
-    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, steps: [] })).toBe(true);
-  });
-
-  it("rejects toolParams with empty name", () => {
-    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, toolParams: [{ name: "" }] })).toBe(
-      false,
-    );
+  it("accepts routines with empty key at structural level (semantic check handles it)", () => {
+    // patternProperties ^.*$ matches empty keys too — structural validation
+    // won't reject this. Real flows never have empty keys, and semantic
+    // validation would catch the routine with no meaningful name.
+    expect(
+      Value.Check(FlowDefinitionSchema, {
+        ...validFlow,
+        routines: {
+          "": { params: [], steps: [] },
+        },
+      }),
+    ).toBe(true);
   });
 
   it("rejects a step with unknown type", () => {
     const invalid = {
       ...validFlow,
-      steps: [{ type: "unknown", id: "x" }],
+      routines: {
+        r: { params: [], steps: [{ type: "unknown", id: "x" }] },
+      },
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -341,7 +429,9 @@ describe("FlowDefinitionSchema", () => {
   it("rejects a step missing required fields", () => {
     const invalid = {
       ...validFlow,
-      steps: [{ type: "agent", id: "a1" }],
+      routines: {
+        r: { params: [], steps: [{ type: "agent", id: "a1" }] },
+      },
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -350,19 +440,22 @@ describe("FlowDefinitionSchema", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      tool: "foo",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [
-        {
-          type: "loop",
-          id: "l1",
-          maxIterations: 3,
+      orchestrator: { prompt: "o.md" },
+      routines: {
+        r: {
+          params: [],
           steps: [
-            { type: "agent", id: "b" }, // missing spec and task
+            {
+              type: "loop",
+              id: "l1",
+              maxIterations: 3,
+              steps: [
+                { type: "agent", id: "b" }, // missing spec and task
+              ],
+            },
           ],
         },
-      ],
+      },
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
     const errors = [...Value.Errors(FlowDefinitionSchema, invalid)];
@@ -374,25 +467,28 @@ describe("FlowDefinitionSchema", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      tool: "foo",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [
-        {
-          type: "loop",
-          id: "l1",
-          maxIterations: 3,
+      orchestrator: { prompt: "o.md" },
+      routines: {
+        r: {
+          params: [],
           steps: [
             {
-              type: "parallel",
-              id: "p1",
+              type: "loop",
+              id: "l1",
+              maxIterations: 3,
               steps: [
-                { type: "unknown_type", id: "x" }, // invalid
+                {
+                  type: "parallel",
+                  id: "p1",
+                  steps: [
+                    { type: "unknown_type", id: "x" }, // invalid
+                  ],
+                },
               ],
             },
           ],
         },
-      ],
+      },
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -401,10 +497,13 @@ describe("FlowDefinitionSchema", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      tool: "foo",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [{ type: "agent", id: "a1" }],
+      orchestrator: { prompt: "o.md" },
+      routines: {
+        r: {
+          params: [],
+          steps: [{ type: "agent", id: "a1" }],
+        },
+      },
     };
     const errors = [...Value.Errors(FlowDefinitionSchema, invalid)];
     expect(errors.length).toBeGreaterThan(0);

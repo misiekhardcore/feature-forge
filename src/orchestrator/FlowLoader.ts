@@ -18,14 +18,17 @@ function containerSteps(instr: FlowInstruction): FlowInstruction[] {
 }
 
 /**
- * Loads and validates declarative flow JSON files.
+ * Loads and validates declarative flow packages.
+ *
+ * Each flow is a directory under `flowsDir` containing a `flow.json`
+ * file and (optionally) an orchestrator markdown prompt file.
  *
  * Validation happens in two layers:
  * 1. **Structural** — TypeBox schema (Value.Check). Catches wrong types,
  *    missing required fields, invalid literals.
- * 2. **Semantic** — rules TypeBox can't express. Duplicate ids, invalid
- *    expressions, accumulateFrom references to unknown or non-direct-child
- *    ids, empty loop bodies.
+ * 2. **Semantic** — rules TypeBox can't express. Duplicate ids (per routine),
+ *    invalid expressions, accumulateFrom references to unknown or non-direct-child
+ *    ids, empty loop bodies, activeTools referencing unknown routines.
  */
 export class FlowLoader {
   constructor(
@@ -36,20 +39,23 @@ export class FlowLoader {
   // ── Instance methods ──────────────────────────────────────
 
   /**
-   * Load a single flow by name (filename without .json extension).
+   * Load a single flow package by name (directory name under flowsDir).
    *
-   * @throws if the file doesn't exist, isn't valid JSON, or fails
-   *         structural or semantic validation.
+   * Reads `<flowsDir>/<name>/flow.json`.
+   *
+   * @throws if the directory doesn't exist, flow.json isn't valid JSON,
+   *         or fails structural or semantic validation.
    */
   async load(name: string): Promise<FlowDefinition> {
-    const filepath = path.join(this.flowsDir, `${name}.json`);
-    logger.info("Loading flow", { name, filepath });
+    const pkgDir = path.join(this.flowsDir, name);
+    const filepath = path.join(pkgDir, "flow.json");
+    logger.info("Loading flow package", { name, filepath });
 
     let raw: string;
     try {
       raw = await fs.readFile(filepath, "utf-8");
     } catch (error) {
-      logger.warn("Flow file not found", { name, filepath });
+      logger.warn("Flow package not found", { name, filepath });
       throw new Error(`Flow "${name}" not found at ${filepath}`, { cause: error });
     }
 
@@ -78,15 +84,18 @@ export class FlowLoader {
       );
     }
 
-    logger.info("Flow loaded successfully", { name });
+    logger.info("Flow package loaded successfully", { name });
     return parsed;
   }
 
   /**
-   * Load all .json files from the flows directory, skipping the
-   * internal schema file.
+   * Load all flow packages from the flows directory.
    *
-   * Failures from individual files are collected rather than aborting
+   * A subdirectory is a flow package if it contains a `flow.json` file.
+   * The `flow-schema.json` file at the top level is ignored (it's not a
+   * directory).
+   *
+   * Failures from individual packages are collected rather than aborting
    * the whole load — one bad flow won't prevent the rest from loading.
    *
    * @returns loaded flows and a map of flow name → error for any that
@@ -98,25 +107,32 @@ export class FlowLoader {
   }> {
     const flows = new Map<string, FlowDefinition>();
     const failures = new Map<string, Error>();
-    const files = await fs.readdir(this.flowsDir);
-    const jsonFiles = files.filter((f) => f.endsWith(".json") && f !== "flow-schema.json");
+    const entries = await fs.readdir(this.flowsDir, { withFileTypes: true });
+    const pkgDirs = entries.filter((e) => e.isDirectory());
 
-    logger.info("Loading all flows from directory", {
+    logger.info("Loading all flow packages from directory", {
       dir: this.flowsDir,
-      count: jsonFiles.length,
+      count: pkgDirs.length,
     });
 
-    for (const file of jsonFiles) {
-      const name = path.basename(file, ".json");
+    for (const entry of pkgDirs) {
+      const name = entry.name;
+      // Skip if the directory doesn't contain flow.json.
+      try {
+        await fs.access(path.join(this.flowsDir, name, "flow.json"));
+      } catch {
+        continue;
+      }
+
       try {
         flows.set(name, await this.load(name));
       } catch (error) {
-        logger.warn("Skipping invalid flow", { name, error: (error as Error).message });
+        logger.warn("Skipping invalid flow package", { name, error: (error as Error).message });
         failures.set(name, error instanceof Error ? error : new Error(String(error)));
       }
     }
 
-    logger.info("All flows loaded", {
+    logger.info("All flow packages loaded", {
       loaded: flows.size,
       failed: failures.size,
     });
@@ -150,18 +166,40 @@ export class FlowLoader {
   static validateSemantics(flow: FlowDefinition, knownSpecs?: ReadonlySet<string>): string[] {
     const errors: string[] = [];
 
-    // 1. No duplicate instruction ids
-    errors.push(...FlowLoader.checkDuplicateIds(flow.steps));
+    // 1. activeTools must reference known routines in the package
+    FlowLoader.checkActiveTools(flow, errors);
 
-    // 2. Walk the tree and check expressions + accumulateFrom + known specs
-    FlowLoader.walkInstructions(flow.steps, [], errors, knownSpecs);
+    // 2. Validate every routine's steps independently
+    for (const [routineName, routine] of Object.entries(flow.routines)) {
+      // 2a. No duplicate instruction ids within this routine
+      errors.push(...FlowLoader.checkDuplicateIds(routine.steps, `routine "${routineName}"`));
+
+      // 2b. Walk the tree and check expressions + accumulateFrom + known specs
+      FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, routineName);
+    }
 
     return errors;
   }
 
+  // ── Static private: activeTools ───────────────────────────
+
+  private static checkActiveTools(flow: FlowDefinition, errors: string[]): void {
+    const activeTools = flow.orchestrator.activeTools;
+    if (!activeTools) return;
+
+    for (const toolName of activeTools) {
+      if (!(toolName in flow.routines)) {
+        errors.push(
+          `activeTools references unknown routine "${toolName}" ` +
+            `(available routines: ${Object.keys(flow.routines).join(", ")})`,
+        );
+      }
+    }
+  }
+
   // ── Static private: Duplicate id detection ────────────────
 
-  private static checkDuplicateIds(instructions: FlowInstruction[]): string[] {
+  private static checkDuplicateIds(instructions: FlowInstruction[], _scope: string): string[] {
     const seen = new Map<string, string>(); // id → first path
     const errors: string[] = [];
 
@@ -202,6 +240,7 @@ export class FlowLoader {
     path: string[],
     errors: string[],
     knownSpecs?: ReadonlySet<string>,
+    routineName?: string,
   ): void {
     for (const instruction of instructions) {
       const currentPath = [...path, instruction.id];
@@ -215,11 +254,23 @@ export class FlowLoader {
       if (instruction.type === "loop") {
         FlowLoader.checkLoopExpression(instruction, currentPath, errors);
         FlowLoader.checkAccumulateFrom(instruction, currentPath, errors);
-        FlowLoader.walkInstructions(containerSteps(instruction), currentPath, errors, knownSpecs);
+        FlowLoader.walkInstructions(
+          containerSteps(instruction),
+          currentPath,
+          errors,
+          knownSpecs,
+          routineName,
+        );
       }
 
       if (instruction.type === "parallel") {
-        FlowLoader.walkInstructions(containerSteps(instruction), currentPath, errors, knownSpecs);
+        FlowLoader.walkInstructions(
+          containerSteps(instruction),
+          currentPath,
+          errors,
+          knownSpecs,
+          routineName,
+        );
       }
     }
   }

@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Feature Forge Flow Definition",
-  "description": "Self-contained flow definition. Declares a slash command, orchestrator prompt, tool, and deterministic steps.",
+  "description": "Self-contained flow definition. Declares a slash command, orchestrator prompt, and named routines with steps.",
   "type": "object",
-  "required": ["name", "command", "tool", "toolParams", "orchestrator", "steps"],
+  "required": ["name", "command", "orchestrator", "routines"],
   "properties": {
     "name": {
       "type": "string",
@@ -13,34 +13,44 @@
       "type": "string",
       "minLength": 1
     },
-    "tool": {
-      "type": "string",
-      "minLength": 1
-    },
-    "toolParams": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "orchestrator": {
       "$ref": "#/$defs/Orchestrator"
     },
-    "steps": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/FlowInstruction"
+    "routines": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Routine"
       }
     }
   },
   "$defs": {
     "Orchestrator": {
       "type": "object",
-      "required": ["task"],
+      "required": ["prompt"],
       "properties": {
-        "task": {
+        "prompt": {
           "type": "string",
           "minLength": 1
+        },
+        "activeTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "FlowParam": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
         }
       }
     },
@@ -179,6 +189,24 @@
           "$ref": "#/$defs/CleanupInstruction"
         }
       ]
+    },
+    "Routine": {
+      "type": "object",
+      "required": ["params", "steps"],
+      "properties": {
+        "params": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowParam"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowInstruction"
+          }
+        }
+      }
     }
   }
 }

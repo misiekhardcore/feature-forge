@@ -92,22 +92,60 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 
 export const FlowInstructionSchema = FlowInstructionUnion;
 
-export const OrchestratorSchema = Type.Object({
-  task: Type.String({ minLength: 1 }),
+/** Reused parameter shape from ADR 0003 D.2 — a named parameter with optional description. */
+const FlowParamSchema = Type.Object({
+  name: Type.String({ minLength: 1 }),
+  description: Type.Optional(Type.String()),
 });
+
+/**
+ * A routine is a named sequence of flow instructions with declared parameters.
+ * Each routine defines its own `params` array; there is no top-level `toolParams`.
+ *
+ * `steps` is patched in below (same pattern as parallel/loop) to avoid
+ * TypeBox's internal clone from encountering the circular FlowInstructionUnion
+ * reference at module-init time (which would stack-overflow clone.mjs).
+ */
+export const RoutineSchema = Type.Object({
+  params: Type.Array(FlowParamSchema),
+});
+
+// Patch RoutineSchema so `steps` validates recursively.
+// Same pattern as parallel/loop — must run after FlowInstructionUnion is defined
+// and after RoutineSchema is declared.
+Object.defineProperty(RoutineSchema.properties, "steps", {
+  value: Type.Array(FlowInstructionUnion),
+  writable: true,
+  enumerable: true,
+  configurable: true,
+});
+
+export const OrchestratorSchema = Type.Object({
+  prompt: Type.String({ minLength: 1 }),
+  activeTools: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+});
+
+/**
+ * Routines map schema — manually constructed to avoid Type.Record's internal
+ * clone of the value schema, which stack-overflows on circular FlowInstructionUnion
+ * references (clone.mjs).
+ *
+ * Uses `patternProperties` (same structure Type.Record produces) to validate
+ * every routine key against RoutineSchema. TypeBox's Value.Check handles
+ * patternProperties natively.
+ */
+const RoutinesMapSchema = {
+  type: "object" as const,
+  patternProperties: {
+    "^.*$": RoutineSchema as unknown,
+  },
+};
 
 export const FlowDefinitionSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
-  tool: Type.String({ minLength: 1 }),
-  toolParams: Type.Array(
-    Type.Object({
-      name: Type.String({ minLength: 1 }),
-      description: Type.Optional(Type.String()),
-    }),
-  ),
   orchestrator: OrchestratorSchema,
-  steps: Type.Array(FlowInstructionUnion),
+  routines: RoutinesMapSchema as unknown as ReturnType<typeof Type.Object>["properties"][string],
 });
 
 // ── Explicit TypeScript types (kept in sync with schemas) ──
@@ -133,8 +171,14 @@ export type FlowInstruction =
   | LoopInstruction
   | CleanupInstruction;
 
+export type FlowParam = Type.Static<typeof FlowParamSchema>;
+
+export type Routine = Type.Static<typeof RoutineSchema> & {
+  steps: FlowInstruction[];
+};
+
 export type Orchestrator = Type.Static<typeof OrchestratorSchema>;
 
 export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {
-  steps: FlowInstruction[];
+  routines: Record<string, Routine>;
 };
