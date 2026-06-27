@@ -139,6 +139,31 @@ describe("ShellStepExecutor", () => {
       expect(result.results.get("sh4")!.raw).toContain("error output");
     });
 
+    it("handles non-Error rejection from execFile", async () => {
+      execFileRaw.mockImplementation(
+        (
+          _cmd: string,
+          _args: string[],
+          _opts: unknown,
+          cb: (err: string, stdout: string, stderr: string) => void,
+        ) => {
+          cb("plain string error", "", "");
+        },
+      );
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh6",
+        command: "bad",
+        cwd: "/tmp",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context);
+
+      expect(result.results.get("sh6")!.parsed!.passed).toBe(false);
+    });
+
     it("falls back to error message when stderr is empty on failure", async () => {
       mockExecFailure("ECONNREFUSED");
       const executor = new ShellStepExecutor();
