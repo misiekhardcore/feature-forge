@@ -25,4 +25,21 @@ export class ToolRegistry extends Registry<Tool> {
   registerAll(...constructors: (new (client: ChildSocketClient | null) => Tool)[]): Tool[] {
     return constructors.map((constructor) => this.register(constructor));
   }
+
+  /**
+   * Register a pre-constructed {@link Tool} instance directly.
+   *
+   * Use this for tools that need constructor-injected dependencies
+   * rather than the default {@link ChildSocketClient} construction.
+   *
+   * @throws If a tool with the same name is already registered.
+   */
+  registerInstance(tool: Tool): Tool {
+    if (this.has(tool.name)) {
+      throw new Error(`Tool already registered: ${tool.name}`);
+    }
+    this.set(tool.name, tool);
+    this.pi.registerTool(tool);
+    return tool;
+  }
 }
