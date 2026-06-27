@@ -124,6 +124,8 @@ export function makeMockFactory(): AgentFactory {
 export function makeMockPi(): ExtensionAPI {
   return {
     sendMessage: vi.fn(),
+    sendUserMessage: vi.fn(),
+    setActiveTools: vi.fn(),
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
     on: vi.fn(),
