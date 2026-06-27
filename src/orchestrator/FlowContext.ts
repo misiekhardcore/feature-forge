@@ -1,7 +1,8 @@
 import { logger } from "../logging";
+import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 
 /**
- * Immutable value object carrying the state of an in-progress flow execution.
+ * Immutable value object carrying the state of an in-progress routine execution.
  *
  * Every mutation returns a new context — no shared mutable state between
  * instruction executors.
@@ -12,10 +13,10 @@ export class FlowContext {
     readonly results: ReadonlyMap<string, InstructionResult>,
     /** The top-level task description. */
     readonly task: string,
-    /** The implementation plan (may be empty). */
-    readonly plan: string,
-    /** Absolute path to the workspace directory, if created. */
-    readonly workspace?: string,
+    /** Named workspaces created during routine execution. */
+    readonly workspaces: ReadonlyMap<string, WorkspaceHandle> = new Map(),
+    /** Routine parameters passed by the orchestrator LLM. */
+    readonly params: ReadonlyMap<string, string> = new Map(),
     /** Accumulated feedback from prior loop iterations. */
     readonly feedback?: string,
     /** Current loop iteration (0-indexed). */
@@ -24,57 +25,71 @@ export class FlowContext {
 
   // ── Mutations (return new FlowContext) ────────────────────
 
-  /**
-   * Store a result for a given instruction id.
-   */
   withResult(id: string, result: InstructionResult): FlowContext {
     const next = new Map(this.results);
     next.set(id, result);
     return new FlowContext(
       next,
       this.task,
-      this.plan,
-      this.workspace,
+      this.workspaces,
+      this.params,
       this.feedback,
       this.iteration,
     );
   }
 
-  /**
-   * Record the workspace path after a workspace instruction executes.
-   */
-  withWorkspace(path: string): FlowContext {
-    return new FlowContext(this.results, this.task, this.plan, path, this.feedback, this.iteration);
+  withWorkspace(name: string, handle: WorkspaceHandle): FlowContext {
+    const next = new Map(this.workspaces);
+    next.set(name, handle);
+    return new FlowContext(
+      this.results,
+      this.task,
+      next,
+      this.params,
+      this.feedback,
+      this.iteration,
+    );
   }
 
-  /**
-   * Replace the accumulated feedback (used between loop iterations).
-   */
+  withWorkspaceCleared(name: string): FlowContext {
+    const next = new Map(this.workspaces);
+    next.delete(name);
+    return new FlowContext(
+      this.results,
+      this.task,
+      next,
+      this.params,
+      this.feedback,
+      this.iteration,
+    );
+  }
+
+  withParams(params: Record<string, string>): FlowContext {
+    return new FlowContext(
+      this.results,
+      this.task,
+      this.workspaces,
+      new Map(Object.entries(params)),
+      this.feedback,
+      this.iteration,
+    );
+  }
+
   withFeedback(feedback: string): FlowContext {
     return new FlowContext(
       this.results,
       this.task,
-      this.plan,
-      this.workspace,
+      this.workspaces,
+      this.params,
       feedback,
       this.iteration,
     );
   }
 
-  /**
-   * Advance the loop iteration counter.
-   */
   withIteration(n: number): FlowContext {
-    return new FlowContext(this.results, this.task, this.plan, this.workspace, this.feedback, n);
+    return new FlowContext(this.results, this.task, this.workspaces, this.params, this.feedback, n);
   }
 
-  /**
-   * Remove results for the given instruction ids.
-   *
-   * Used between loop iterations to clear results from the previous
-   * iteration so that `continueWhile` expressions and accumulation
-   * operate on the current iteration's outputs.
-   */
   withResultsCleared(removeIds: Set<string>): FlowContext {
     const next = new Map(this.results);
     for (const id of removeIds) {
@@ -83,26 +98,23 @@ export class FlowContext {
     return new FlowContext(
       next,
       this.task,
-      this.plan,
-      this.workspace,
+      this.workspaces,
+      this.params,
       this.feedback,
       this.iteration,
     );
   }
 
+  // ── Workspace access ──────────────────────────────────────
+
+  getWorkspacePath(name: string): string | undefined {
+    return this.workspaces.get(name)?.path;
+  }
+
   // ── Template resolution ───────────────────────────────────
 
   /**
-   * Replace `{{PLACEHOLDER}}` tokens in a template string using
-   * the current context state.
-   *
-   * Supported placeholders:
-   *   {{task}}       — the top-level task
-   *   {{plan}}       — the implementation plan
-   *   {{feedback}}   — accumulated feedback (defaults to "(no prior findings)")
-   *   {{workspace}}  — workspace path
-   *   {{results.<id>.raw}}           — raw output of an instruction
-   *   {{results.<id>.parsed.<field>}} — parsed finding fields
+   * Replace `{{PLACEHOLDER}}` tokens using the current context.
    */
   resolve(template: string): string {
     return template.replaceAll(/\{\{([^}]+)\}\}/g, (_match, key: string) => {
@@ -114,13 +126,18 @@ export class FlowContext {
     switch (key) {
       case "task":
         return this.task;
-      case "plan":
-        return this.plan;
       case "feedback":
         return this.feedback ?? "(no prior findings)";
-      case "workspace":
-        return this.workspace ?? "";
       default: {
+        const paramValue = this.params.get(key);
+        if (paramValue !== undefined) return paramValue;
+
+        if (key.startsWith("workspace.")) {
+          const name = key.slice("workspace.".length);
+          const handle = this.workspaces.get(name);
+          return handle?.path ?? "";
+        }
+
         const resolved = this.resolveNested(key, this);
         if (resolved.startsWith("{{") && resolved.endsWith("}}")) {
           logger.debug("Unresolved placeholder in flow template", { placeholder: key });
@@ -130,32 +147,20 @@ export class FlowContext {
     }
   }
 
-  // ── Nested placeholder resolution ───────────────────────────
-
-  /**
-   * Resolve dotted placeholders like `results.review.raw` or
-   * `results.review.parsed.passed` against the current context.
-   */
   private resolveNested(key: string, ctx: FlowContext): string {
     const segments = key.split(".");
 
-    // Must start with "results"
     if (segments[0] !== "results" || segments.length < 3) {
-      return `{{${key}}}`; // unknown — leave as-is
+      return `{{${key}}}`;
     }
 
     const instructionId = segments[1];
     const result = ctx.results.get(instructionId);
-    if (!result) {
-      return "";
-    }
+    if (!result) return "";
 
-    // Walk into the result object
     let current: unknown = result;
     for (let i = 2; i < segments.length; i++) {
-      if (current === null || current === undefined) {
-        return "";
-      }
+      if (current === null || current === undefined) return "";
       current = (current as Record<string, unknown>)[segments[i]];
     }
 
@@ -165,9 +170,6 @@ export class FlowContext {
 
 // ── Types ────────────────────────────────────────────────────
 
-/**
- * Findings shape produced by review/verify agents when parseJson: true.
- */
 export interface ReviewFindings {
   kind: "review";
   passed: boolean;
@@ -178,9 +180,6 @@ export interface ReviewFindings {
   };
 }
 
-/**
- * Outcome shape produced by the builder agent when parseJson: true.
- */
 export interface BuildOutcome {
   kind: "build";
   passed: boolean;
@@ -189,12 +188,7 @@ export interface BuildOutcome {
 
 export type ParsedResult = ReviewFindings | BuildOutcome;
 
-/**
- * The result produced by executing a single flow instruction.
- */
 export interface InstructionResult {
-  /** Raw text output from the agent (or error message). */
   raw: string;
-  /** Parsed findings or build outcome, if parseJson was configured. */
   parsed?: ParsedResult;
 }

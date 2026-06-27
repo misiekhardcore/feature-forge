@@ -5,11 +5,16 @@ export { FlowContext } from "./FlowContext";
 export type {
   AgentInstruction,
   CleanupInstruction,
+  ContainerInstruction,
   FlowDefinition,
   FlowInstruction,
+  GitInstruction,
   LoopInstruction,
-  Orchestrator,
+  OrchestratorConfig,
   ParallelInstruction,
+  RoutineDefinition,
+  RoutineParam,
+  ShellInstruction,
   WorkspaceInstruction,
 } from "./FlowInstruction";
 export {
@@ -17,10 +22,23 @@ export {
   CleanupInstructionSchema,
   FlowDefinitionSchema,
   FlowInstructionSchema,
-  OrchestratorSchema,
+  GitInstructionSchema,
+  isContainerInstruction,
+  isLoopInstruction,
+  isParallelInstruction,
+  LoopInstructionSchema,
+  makeLoopInstruction,
+  makeParallelInstruction,
+  OrchestratorConfigSchema,
+  ParallelInstructionSchema,
+  RoutineParamSchema,
+  ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
+export type { RoutineResult } from "./RoutineResult";
+export { StepExecutor } from "./StepExecutor";
+export { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 import {
   FlowInstructionSchema,
@@ -28,11 +46,11 @@ import {
   ParallelInstructionSchema as ParallelInstructionSchemaBase,
 } from "./FlowInstruction";
 
-const LoopInstructionSchema = LoopInstructionSchemaBase as typeof LoopInstructionSchemaBase & {
-  properties: { steps: typeof FlowInstructionSchema };
-};
-const ParallelInstructionSchema =
+export const LoopInstructionSchemaWithSteps =
+  LoopInstructionSchemaBase as typeof LoopInstructionSchemaBase & {
+    properties: { steps: typeof FlowInstructionSchema };
+  };
+export const ParallelInstructionSchemaWithSteps =
   ParallelInstructionSchemaBase as typeof ParallelInstructionSchemaBase & {
     properties: { steps: typeof FlowInstructionSchema };
   };
-export { LoopInstructionSchema, ParallelInstructionSchema };

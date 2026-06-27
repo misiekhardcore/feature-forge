@@ -6,28 +6,53 @@ import {
   CleanupInstructionSchema,
   FlowDefinitionSchema,
   FlowInstructionSchema,
+  GitInstructionSchema,
+  isContainerInstruction,
+  isLoopInstruction,
+  isParallelInstruction,
   LoopInstructionSchema,
+  makeLoopInstruction,
+  makeParallelInstruction,
+  OrchestratorConfigSchema,
   ParallelInstructionSchema,
+  RoutineParamSchema,
+  ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
+import { FlowLoader } from "./FlowLoader";
 
 // ---------------------------------------------------------------------------
 // Individual instruction schemas
 // ---------------------------------------------------------------------------
 
 describe("WorkspaceInstructionSchema", () => {
-  it("validates a minimal workspace instruction", () => {
-    const valid = { type: "workspace", id: "ws1" };
+  it("validates a minimal workspace instruction with provider", () => {
+    const valid = { type: "workspace", id: "ws1", provider: "git-worktree" };
     expect(Value.Check(WorkspaceInstructionSchema, valid)).toBe(true);
   });
 
+  it("accepts current-dir provider", () => {
+    const valid = { type: "workspace", id: "ws1", provider: "current-dir" };
+    expect(Value.Check(WorkspaceInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects missing provider", () => {
+    const invalid = { type: "workspace", id: "ws1" };
+    expect(Value.Check(WorkspaceInstructionSchema, invalid)).toBe(false);
+  });
+
   it("rejects wrong type", () => {
-    const invalid = { type: "agent", id: "ws1" };
+    const invalid = { type: "agent", id: "ws1", provider: "git-worktree" };
     expect(Value.Check(WorkspaceInstructionSchema, invalid)).toBe(false);
   });
 
   it("rejects empty id", () => {
-    const invalid = { type: "workspace", id: "" };
+    const invalid = { type: "workspace", id: "", provider: "git-worktree" };
+    expect(Value.Check(WorkspaceInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects unknown provider", () => {
+    const invalid = { type: "workspace", id: "ws1", provider: "docker" };
     expect(Value.Check(WorkspaceInstructionSchema, invalid)).toBe(false);
   });
 });
@@ -44,43 +69,75 @@ describe("AgentInstructionSchema", () => {
       id: "a1",
       spec: "build",
       task: "do it",
-      workingDir: "/tmp/ws",
       parseJson: true,
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
-  it("accepts workingDir: 'workspace' literal", () => {
+  it("accepts workingDir as workspace reference object", () => {
     const valid = {
       type: "agent",
       id: "a1",
       spec: "build",
       task: "do it",
-      workingDir: "workspace",
+      workingDir: { workspace: "ws" },
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
-  it("accepts workingDir as a custom path", () => {
+  it("accepts workingDir as path object", () => {
     const valid = {
       type: "agent",
       id: "a1",
       spec: "build",
       task: "do it",
-      workingDir: "/tmp/custom-path",
+      workingDir: { path: "/tmp/custom-path" },
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
-  it("rejects empty workingDir string", () => {
+  it("rejects workingDir with empty workspace name", () => {
     const invalid = {
       type: "agent",
       id: "a1",
       spec: "build",
       task: "do it",
-      workingDir: "",
+      workingDir: { workspace: "" },
     };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects workingDir with empty path", () => {
+    const invalid = {
+      type: "agent",
+      id: "a1",
+      spec: "build",
+      task: "do it",
+      workingDir: { path: "" },
+    };
+    expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects workingDir with unknown shape", () => {
+    const invalid = {
+      type: "agent",
+      id: "a1",
+      spec: "build",
+      task: "do it",
+      workingDir: { foo: "bar" },
+    };
+    expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("accepts specInput record", () => {
+    const valid = {
+      type: "agent",
+      id: "a1",
+      spec: "build",
+      task: "do it",
+      specInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
+    };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
   it("rejects missing spec", () => {
@@ -124,7 +181,7 @@ describe("LoopInstructionSchema", () => {
       type: "loop",
       id: "l1",
       maxIterations: 5,
-      continueWhile: "!steps.review?.parsed?.passed",
+      continueWhile: "!results.review?.parsed?.passed",
       accumulateFrom: ["review", "verify"],
       steps: [{ type: "agent", id: "a1", spec: "build", task: "do it" }],
     };
@@ -162,6 +219,70 @@ describe("CleanupInstructionSchema", () => {
     const valid = { type: "cleanup", id: "c1" };
     expect(Value.Check(CleanupInstructionSchema, valid)).toBe(true);
   });
+
+  it("validates a cleanup instruction with of field", () => {
+    const valid = { type: "cleanup", id: "c1", of: "ws" };
+    expect(Value.Check(CleanupInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty of", () => {
+    const invalid = { type: "cleanup", id: "c1", of: "" };
+    expect(Value.Check(CleanupInstructionSchema, invalid)).toBe(false);
+  });
+});
+
+describe("GitInstructionSchema", () => {
+  it("validates add-and-commit action", () => {
+    const valid = { type: "git", id: "g1", action: "add-and-commit", cwd: "/tmp/ws" };
+    expect(Value.Check(GitInstructionSchema, valid)).toBe(true);
+  });
+
+  it("validates push-current action", () => {
+    const valid = { type: "git", id: "g1", action: "push-current", cwd: "/tmp/ws" };
+    expect(Value.Check(GitInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects unknown action", () => {
+    const invalid = { type: "git", id: "g1", action: "rebase", cwd: "/tmp/ws" };
+    expect(Value.Check(GitInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing action", () => {
+    const invalid = { type: "git", id: "g1", cwd: "/tmp/ws" };
+    expect(Value.Check(GitInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing cwd", () => {
+    const invalid = { type: "git", id: "g1", action: "add-and-commit" };
+    expect(Value.Check(GitInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty cwd", () => {
+    const invalid = { type: "git", id: "g1", action: "add-and-commit", cwd: "" };
+    expect(Value.Check(GitInstructionSchema, invalid)).toBe(false);
+  });
+});
+
+describe("ShellInstructionSchema", () => {
+  it("validates a shell instruction", () => {
+    const valid = { type: "shell", id: "s1", command: "echo hello", cwd: "/tmp/ws" };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects missing command", () => {
+    const invalid = { type: "shell", id: "s1", cwd: "/tmp/ws" };
+    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty command", () => {
+    const invalid = { type: "shell", id: "s1", command: "", cwd: "/tmp/ws" };
+    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing cwd", () => {
+    const invalid = { type: "shell", id: "s1", command: "echo hello" };
+    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -170,7 +291,13 @@ describe("CleanupInstructionSchema", () => {
 
 describe("FlowInstructionSchema", () => {
   it("matches workspace type", () => {
-    expect(Value.Check(FlowInstructionSchema, { type: "workspace", id: "ws1" })).toBe(true);
+    expect(
+      Value.Check(FlowInstructionSchema, {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+      }),
+    ).toBe(true);
   });
 
   it("matches agent type", () => {
@@ -200,8 +327,101 @@ describe("FlowInstructionSchema", () => {
     expect(Value.Check(FlowInstructionSchema, { type: "cleanup", id: "c1" })).toBe(true);
   });
 
+  it("matches git type", () => {
+    expect(
+      Value.Check(FlowInstructionSchema, {
+        type: "git",
+        id: "g1",
+        action: "add-and-commit",
+        cwd: "/ws",
+      }),
+    ).toBe(true);
+  });
+
+  it("matches shell type", () => {
+    expect(
+      Value.Check(FlowInstructionSchema, {
+        type: "shell",
+        id: "s1",
+        command: "ls",
+        cwd: "/ws",
+      }),
+    ).toBe(true);
+  });
+
   it("rejects unknown type", () => {
     expect(Value.Check(FlowInstructionSchema, { type: "unknown", id: "x" })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OrchestratorConfigSchema
+// ---------------------------------------------------------------------------
+
+describe("OrchestratorConfigSchema", () => {
+  it("validates minimal config with prompt", () => {
+    const valid = { prompt: "You are the orchestrator." };
+    expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
+  });
+
+  it("validates with activeTools", () => {
+    const valid = {
+      prompt: "You are the orchestrator.",
+      activeTools: ["run_build_loop", "open_pr"],
+    };
+    expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
+  });
+
+  it("accepts empty activeTools array", () => {
+    const valid = { prompt: "t", activeTools: [] };
+    expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty prompt", () => {
+    const invalid = { prompt: "" };
+    expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing prompt", () => {
+    const invalid = { activeTools: ["x"] };
+    expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty tool name in activeTools", () => {
+    const invalid = { prompt: "t", activeTools: [""] };
+    expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RoutineParamSchema
+// ---------------------------------------------------------------------------
+
+describe("RoutineParamSchema", () => {
+  it("validates minimal param with name", () => {
+    const valid = { name: "task" };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
+  });
+
+  it("validates param with description", () => {
+    const valid = { name: "task", description: "The task description" };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty name", () => {
+    const invalid = { name: "" };
+    expect(Value.Check(RoutineParamSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing name", () => {
+    const invalid = { description: "desc" };
+    expect(Value.Check(RoutineParamSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty string description (allowed)", () => {
+    // description is Optional(string), no minLength constraint
+    const valid = { name: "task", description: "" };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
   });
 });
 
@@ -213,60 +433,93 @@ describe("FlowDefinitionSchema", () => {
   const validFlow = {
     name: "implement",
     command: "/implement",
-    tool: "run_implement_loop",
-    toolParams: [
-      { name: "task", description: "The task description" },
-      { name: "plan", description: "The implementation plan" },
-    ],
-    orchestrator: { task: "You are the orchestrator." },
-    steps: [
-      { type: "workspace" as const, id: "ws" },
-      {
-        type: "loop" as const,
-        id: "build_loop",
-        maxIterations: 5,
-        continueWhile:
-          "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
-        accumulateFrom: ["review", "verify"],
+    orchestrator: {
+      prompt: "You are the orchestrator.",
+      activeTools: ["run_build_loop", "open_pr"],
+    },
+    routines: {
+      run_build_loop: {
+        params: [
+          { name: "task", description: "The task description" },
+          { name: "plan", description: "The implementation plan" },
+        ],
         steps: [
+          { type: "workspace" as const, id: "ws", provider: "git-worktree" as const },
           {
-            type: "agent" as const,
-            id: "builder",
-            spec: "build",
-            task: "Build: {{task}}",
-            workingDir: "workspace",
-            parseJson: true,
-          },
-          {
-            type: "parallel" as const,
-            id: "inspect",
+            type: "loop" as const,
+            id: "build_loop",
+            maxIterations: 5,
+            continueWhile:
+              "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
+            accumulateFrom: ["review", "verify"],
             steps: [
               {
                 type: "agent" as const,
-                id: "review",
-                spec: "review",
-                task: "Review",
-                workingDir: "workspace",
+                id: "builder",
+                spec: "build",
+                task: "Build: {{task}}",
+                workingDir: { workspace: "ws" },
                 parseJson: true,
+                specInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
               },
               {
-                type: "agent" as const,
-                id: "verify",
-                spec: "verify",
-                task: "Verify",
-                workingDir: "workspace",
-                parseJson: true,
+                type: "parallel" as const,
+                id: "inspect",
+                steps: [
+                  {
+                    type: "agent" as const,
+                    id: "review",
+                    spec: "review",
+                    task: "Review",
+                    workingDir: { workspace: "ws" },
+                    parseJson: true,
+                  },
+                  {
+                    type: "agent" as const,
+                    id: "verify",
+                    spec: "verify",
+                    task: "Verify",
+                    workingDir: { workspace: "ws" },
+                    parseJson: true,
+                  },
+                ],
               },
             ],
           },
+          { type: "cleanup" as const, id: "cleanup", of: "ws" },
         ],
       },
-      { type: "cleanup" as const, id: "cleanup" },
-    ],
+      open_pr: {
+        params: [{ name: "workspace" }, { name: "title" }],
+        steps: [
+          {
+            type: "git" as const,
+            id: "commit",
+            action: "add-and-commit" as const,
+            cwd: "{{workspace}}",
+          },
+          {
+            type: "git" as const,
+            id: "push",
+            action: "push-current" as const,
+            cwd: "{{workspace}}",
+          },
+          { type: "shell" as const, id: "pr", command: "gh pr create", cwd: "{{workspace}}" },
+        ],
+      },
+    },
   };
 
   it("validates a complete implement flow", () => {
     expect(Value.Check(FlowDefinitionSchema, validFlow)).toBe(true);
+  });
+
+  it("validates with orchestrator without activeTools", () => {
+    const flow = {
+      ...validFlow,
+      orchestrator: { prompt: "You are the orchestrator." },
+    };
+    expect(Value.Check(FlowDefinitionSchema, flow)).toBe(true);
   });
 
   it("rejects missing name", () => {
@@ -276,11 +529,6 @@ describe("FlowDefinitionSchema", () => {
 
   it("rejects empty name", () => {
     expect(Value.Check(FlowDefinitionSchema, { ...validFlow, name: "" })).toBe(false);
-  });
-
-  it("rejects missing tool", () => {
-    const { tool: _, ...rest } = validFlow;
-    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
   it("rejects missing command", () => {
@@ -293,122 +541,269 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("accepts orchestrator with only task", () => {
-    const flow = {
-      ...validFlow,
-      orchestrator: { task: "t" },
-    };
-    expect(Value.Check(FlowDefinitionSchema, flow)).toBe(true);
-  });
-
-  it("rejects missing orchestrator.task", () => {
+  it("rejects orchestrator with empty prompt", () => {
     expect(
       Value.Check(FlowDefinitionSchema, {
         ...validFlow,
-        orchestrator: { task: "" },
+        orchestrator: { prompt: "" },
       }),
     ).toBe(false);
   });
 
-  it("rejects missing toolParams", () => {
-    const { toolParams: _, ...rest } = validFlow;
+  it("rejects missing routines", () => {
+    const { routines: _, ...rest } = validFlow;
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("rejects missing steps", () => {
-    const { steps: _, ...rest } = validFlow;
-    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
+  it("accepts empty routines object", () => {
+    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, routines: {} })).toBe(true);
   });
 
-  it("rejects empty steps array", () => {
-    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, steps: [] })).toBe(true);
+  it("rejects a routine with missing params", () => {
+    const invalid = {
+      ...validFlow,
+      routines: {
+        main: {
+          steps: [{ type: "cleanup", id: "c" }],
+        },
+      },
+    };
+    expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
 
-  it("rejects toolParams with empty name", () => {
-    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, toolParams: [{ name: "" }] })).toBe(
-      false,
-    );
+  it("rejects a routine with missing steps", () => {
+    const invalid = {
+      ...validFlow,
+      routines: {
+        main: {
+          params: [{ name: "task" }],
+        },
+      },
+    };
+    expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
 
   it("rejects a step with unknown type", () => {
     const invalid = {
       ...validFlow,
-      steps: [{ type: "unknown", id: "x" }],
+      routines: {
+        main: {
+          params: [],
+          steps: [{ type: "unknown", id: "x" }],
+        },
+      },
     };
-    expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
-  });
-
-  it("rejects a step missing required fields", () => {
-    const invalid = {
-      ...validFlow,
-      steps: [{ type: "agent", id: "a1" }],
-    };
-    expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
+    expect(() => FlowLoader.validateStructure(invalid)).toThrow();
   });
 
   it("rejects a nested instruction missing required fields (recursive validation)", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      tool: "foo",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [
-        {
-          type: "loop",
-          id: "l1",
-          maxIterations: 3,
+      orchestrator: { prompt: "t" },
+      routines: {
+        main: {
+          params: [],
           steps: [
-            { type: "agent", id: "b" }, // missing spec and task
+            {
+              type: "loop",
+              id: "l1",
+              maxIterations: 3,
+              steps: [
+                { type: "agent", id: "b" }, // missing spec and task
+              ],
+            },
           ],
         },
-      ],
+      },
     };
-    expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
-    const errors = [...Value.Errors(FlowDefinitionSchema, invalid)];
-    const messages = errors.map((e) => e.message);
-    expect(messages.some((m) => m.includes("spec") || m.includes("task"))).toBe(true);
+    expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
 
   it("rejects deeply nested invalid instruction type", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      tool: "foo",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [
-        {
-          type: "loop",
-          id: "l1",
-          maxIterations: 3,
+      orchestrator: { prompt: "t" },
+      routines: {
+        main: {
+          params: [],
           steps: [
             {
-              type: "parallel",
-              id: "p1",
+              type: "loop",
+              id: "l1",
+              maxIterations: 3,
               steps: [
-                { type: "unknown_type", id: "x" }, // invalid
+                {
+                  type: "parallel",
+                  id: "p1",
+                  steps: [
+                    { type: "unknown_type", id: "x" }, // invalid
+                  ],
+                },
               ],
             },
           ],
         },
-      ],
+      },
     };
-    expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
+    expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
 
   it("produces human-readable errors for invalid flows", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      tool: "foo",
-      toolParams: [],
-      orchestrator: { task: "t" },
-      steps: [{ type: "agent", id: "a1" }],
+      orchestrator: { prompt: "t" },
+      routines: {
+        main: {
+          params: [],
+          steps: [{ type: "agent", id: "a1" }],
+        },
+      },
     };
-    const errors = [...Value.Errors(FlowDefinitionSchema, invalid)];
-    expect(errors.length).toBeGreaterThan(0);
-    const messages = errors.map((e) => e.message);
-    expect(messages.some((m) => m.includes("spec") || m.includes("task"))).toBe(true);
+    expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Type guards
+// ---------------------------------------------------------------------------
+
+describe("isParallelInstruction", () => {
+  it("returns true for parallel instructions", () => {
+    expect(isParallelInstruction({ type: "parallel", id: "p1", steps: [] })).toBe(true);
+  });
+
+  it("returns false for loop instructions", () => {
+    expect(isParallelInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for agent instructions", () => {
+    expect(isParallelInstruction({ type: "agent", id: "a1", spec: "build", task: "do it" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("isLoopInstruction", () => {
+  it("returns true for loop instructions", () => {
+    expect(isLoopInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(true);
+  });
+
+  it("returns false for parallel instructions", () => {
+    expect(isLoopInstruction({ type: "parallel", id: "p1", steps: [] })).toBe(false);
+  });
+
+  it("returns false for agent instructions", () => {
+    expect(isLoopInstruction({ type: "agent", id: "a1", spec: "build", task: "do it" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("isContainerInstruction", () => {
+  it("returns true for parallel instructions", () => {
+    expect(isContainerInstruction({ type: "parallel", id: "p1", steps: [] })).toBe(true);
+  });
+
+  it("returns true for loop instructions", () => {
+    expect(isContainerInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(
+      true,
+    );
+  });
+
+  it("returns false for agent instructions", () => {
+    expect(isContainerInstruction({ type: "agent", id: "a1", spec: "build", task: "do it" })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for workspace instructions", () => {
+    expect(isContainerInstruction({ type: "workspace", id: "ws1", provider: "git-worktree" })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for cleanup instructions", () => {
+    expect(isContainerInstruction({ type: "cleanup", id: "c1" })).toBe(false);
+  });
+
+  it("returns false for git instructions", () => {
+    expect(
+      isContainerInstruction({
+        type: "git",
+        id: "g1",
+        action: "add-and-commit",
+        cwd: "/ws",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for shell instructions", () => {
+    expect(isContainerInstruction({ type: "shell", id: "s1", command: "ls", cwd: "/ws" })).toBe(
+      false,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helper constructors
+// ---------------------------------------------------------------------------
+
+describe("makeParallelInstruction", () => {
+  it("creates a parallel instruction with steps", () => {
+    const steps = [{ type: "agent" as const, id: "a1", spec: "build", task: "do it" }];
+    const instr = makeParallelInstruction("p1", steps);
+    expect(instr.type).toBe("parallel");
+    expect(instr.id).toBe("p1");
+    expect(instr.steps).toBe(steps);
+  });
+
+  it("creates a parallel instruction with empty steps", () => {
+    const instr = makeParallelInstruction("p1", []);
+    expect(instr.type).toBe("parallel");
+    expect(instr.steps).toEqual([]);
+  });
+});
+
+describe("makeLoopInstruction", () => {
+  it("creates a minimal loop instruction", () => {
+    const steps = [{ type: "agent" as const, id: "a1", spec: "build", task: "do it" }];
+    const instr = makeLoopInstruction("l1", 3, steps);
+    expect(instr.type).toBe("loop");
+    expect(instr.id).toBe("l1");
+    expect(instr.maxIterations).toBe(3);
+    expect(instr.steps).toBe(steps);
+    expect(instr.continueWhile).toBeUndefined();
+    expect(instr.accumulateFrom).toBeUndefined();
+  });
+
+  it("creates a loop instruction with continueWhile", () => {
+    const instr = makeLoopInstruction("l1", 3, [], "!results.r?.parsed?.passed");
+    expect(instr.continueWhile).toBe("!results.r?.parsed?.passed");
+  });
+
+  it("creates a loop instruction with accumulateFrom", () => {
+    const instr = makeLoopInstruction("l1", 3, [], undefined, ["review", "verify"]);
+    expect(instr.accumulateFrom).toEqual(["review", "verify"]);
+  });
+
+  it("creates a full loop instruction", () => {
+    const instr = makeLoopInstruction(
+      "l1",
+      5,
+      [{ type: "agent" as const, id: "a1", spec: "build", task: "do it" }],
+      "!results.r?.parsed?.passed",
+      ["review"],
+    );
+    expect(instr.type).toBe("loop");
+    expect(instr.id).toBe("l1");
+    expect(instr.maxIterations).toBe(5);
+    expect(instr.steps).toHaveLength(1);
+    expect(instr.continueWhile).toBe("!results.r?.parsed?.passed");
+    expect(instr.accumulateFrom).toEqual(["review"]);
   });
 });
