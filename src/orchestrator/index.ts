@@ -1,3 +1,12 @@
+export {
+  AgentStepExecutor,
+  CleanupStepExecutor,
+  GitStepExecutor,
+  LoopStepExecutor,
+  ParallelStepExecutor,
+  ShellStepExecutor,
+  WorkspaceStepExecutor,
+} from "./executors";
 export type { ExpressionEvaluator, FlowContextLike } from "./ExpressionEvaluator";
 export { BinaryOp, Expr, ExpressionParser, ParseError, UnaryOp } from "./ExpressionParser";
 export type { InstructionResult } from "./FlowContext";
@@ -36,7 +45,9 @@ export {
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
+export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineResult } from "./RoutineResult";
+export { RoutineTool } from "./RoutineTool";
 export { StepExecutor } from "./StepExecutor";
 export { StepExecutorRegistry } from "./StepExecutorRegistry";
 
