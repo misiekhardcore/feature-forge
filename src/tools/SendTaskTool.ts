@@ -27,6 +27,13 @@ export class SendTaskTool extends Tool {
         "If true, wait for the agent to finish. " +
         "If false, dispatch in background and receive result later",
     }),
+    timeout: Type.Optional(
+      Type.Number({
+        description:
+          "Optional timeout in milliseconds for this dispatch. " +
+          "Overrides the default when set.",
+      }),
+    ),
   });
 
   renderShell = "self";
@@ -49,7 +56,7 @@ export class SendTaskTool extends Tool {
     }
 
     try {
-      const result = await this.client.request("send_task", params);
+      const result = await this.client.request("send_task", params, params.timeout);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,

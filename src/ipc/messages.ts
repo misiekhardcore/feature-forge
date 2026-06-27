@@ -51,6 +51,11 @@ export interface SendTaskParams {
    * If false, respond immediately and push an `agent_update` event later.
    */
   await: boolean;
+  /**
+   * Optional timeout in milliseconds for this specific dispatch.
+   * Overrides the default IPC and agent-execution timeouts when set.
+   */
+  timeout?: number;
 }
 export interface GetAgentResultParams {
   /** Target agent's id string. */

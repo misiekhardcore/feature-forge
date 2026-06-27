@@ -194,15 +194,20 @@ export class ParentSocketServer {
     }
 
     if (params.await) {
-      // Block until the agent completes
-      const result = await agent.executeTask(params.task);
-      this.sendResponse(socket, correlationId, { result });
+      try {
+        // Block until the agent completes
+        const result = await agent.executeTask(params.task, { timeout: params.timeout });
+        this.sendResponse(socket, correlationId, { result });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+      }
     } else {
       // Fire and forget — respond immediately, push update later
       this.sendResponse(socket, correlationId, { status: "dispatched" });
 
       // Execute in background and push result when done
-      agent.executeTask(params.task).then(
+      agent.executeTask(params.task, { timeout: params.timeout }).then(
         (result) => {
           this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
         },

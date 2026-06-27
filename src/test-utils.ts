@@ -10,7 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
 import { SpecManager } from "./agents";
-import { Agent } from "./agents/agents/Agent";
+import { Agent, type ExecuteTaskOptions } from "./agents/agents/Agent";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
 import { AgentSpecification } from "./agents/specifications/AgentSpecification";
@@ -69,7 +69,7 @@ export class MockAgent extends Agent {
     this.specification = makeSpec(id, { role: overrides.role ?? "mock" });
   }
 
-  async executeTask(task: string): Promise<string> {
+  async executeTask(task: string, _options?: ExecuteTaskOptions): Promise<string> {
     this.lastTask = task;
     this.status = AgentStatus.Running;
     this._result = `result for: ${task}`;

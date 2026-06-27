@@ -12,6 +12,14 @@ import type {
 } from "./messages";
 
 /**
+ * Default timeout for IPC requests (ms).
+ * Override via the `FORGE_TASK_TIMEOUT_MS` environment variable
+ * (shares the same env var as {@link DEFAULT_TASK_TIMEOUT_MS} so both
+ * layers stay synchronized by default).
+ */
+export const IPC_REQUEST_TIMEOUT_MS = Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000; // 1 hour
+
+/**
  * Client for connecting to the parent's `ParentSocketServer` over a Unix socket.
  *
  * Usage (inside a child extension):
@@ -88,7 +96,7 @@ export class ChildSocketClient {
   async request<ST extends SocketMessage["type"]>(
     type: ST,
     params: Extract<SocketMessage, { type: ST }>["params"],
-    timeout = 300_000,
+    timeout = IPC_REQUEST_TIMEOUT_MS,
   ): Promise<ParamsToResponseMap[ST]> {
     const correlationId = randomUUID();
 

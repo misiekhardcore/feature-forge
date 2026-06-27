@@ -1,7 +1,18 @@
+import type { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
+
+/**
+ * Options for {@link Agent.executeTask}.
+ */
+export interface ExecuteTaskOptions {
+  /** Optional image content to include in the prompt. */
+  images?: ImageContent[];
+  /** Timeout in milliseconds for this task execution. */
+  timeout?: number;
+}
 
 /**
  * A running agent instance.
@@ -21,7 +32,7 @@ export abstract class Agent {
    * Send a task to the agent for execution.
    * The agent processes the task and returns once complete.
    */
-  public abstract executeTask(task: string): Promise<string>;
+  public abstract executeTask(task: string, options?: ExecuteTaskOptions): Promise<string>;
 
   /**
    * Signal the agent to stop what it's doing and shut down.

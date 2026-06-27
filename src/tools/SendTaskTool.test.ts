@@ -59,11 +59,15 @@ describe("SendTaskTool", () => {
         await: true,
       });
 
-      expect(client.request).toHaveBeenCalledWith("send_task", {
-        agentId: "agent-1",
-        task: "do something",
-        await: true,
-      });
+      expect(client.request).toHaveBeenCalledWith(
+        "send_task",
+        {
+          agentId: "agent-1",
+          task: "do something",
+          await: true,
+        },
+        undefined,
+      );
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ result: "task completed" }, null, 2) }],
         details: { result: "task completed" },
@@ -79,15 +83,36 @@ describe("SendTaskTool", () => {
         await: false,
       });
 
-      expect(client.request).toHaveBeenCalledWith("send_task", {
-        agentId: "agent-1",
-        task: "background task",
-        await: false,
-      });
+      expect(client.request).toHaveBeenCalledWith(
+        "send_task",
+        {
+          agentId: "agent-1",
+          task: "background task",
+          await: false,
+        },
+        undefined,
+      );
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ status: "dispatched" }, null, 2) }],
         details: { status: "dispatched" },
       });
+    });
+
+    it("threads timeout through to client.request when set", async () => {
+      client.request.mockResolvedValue({ result: "done" });
+
+      await tool.execute("call-1", {
+        agentId: "agent-1",
+        task: "long task",
+        await: true,
+        timeout: 1_800_000,
+      });
+
+      expect(client.request).toHaveBeenCalledWith(
+        "send_task",
+        expect.objectContaining({ timeout: 1_800_000 }),
+        1_800_000,
+      );
     });
 
     it("wraps IPC errors", async () => {
