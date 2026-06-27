@@ -2,7 +2,8 @@
   "name": "implement",
   "command": "/implement",
   "orchestrator": {
-    "prompt": "orchestrator.md"
+    "prompt": "orchestrator.md",
+    "activeTools": ["run_build_loop", "open_pr", "destroy_workspace"]
   },
   "routines": {
     "run_build_loop": {
@@ -53,6 +54,29 @@
               ]
             }
           ]
+        }
+      ]
+    },
+    "open_pr": {
+      "params": [
+        { "name": "workspace", "description": "Absolute path to the workspace worktree" },
+        { "name": "task", "description": "PR title" }
+      ],
+      "steps": [
+        {
+          "type": "shell",
+          "id": "commit",
+          "command": "git add -A && git commit -m \"{{task}}\" --allow-empty"
+        },
+        {
+          "type": "shell",
+          "id": "push",
+          "command": "git push origin HEAD"
+        },
+        {
+          "type": "shell",
+          "id": "pr",
+          "command": "gh pr create --title \"{{task}}\" --body \"Automated PR from /implement flow\""
         }
       ]
     },

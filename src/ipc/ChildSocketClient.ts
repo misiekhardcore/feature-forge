@@ -67,6 +67,7 @@ export class ChildSocketClient {
     return new Promise<void>((resolve, reject) => {
       const socket = connect(this.socketPath, () => {
         this.socket = socket;
+        this.socket.setTimeout(0);
         resolve();
       });
 

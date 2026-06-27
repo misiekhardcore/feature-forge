@@ -9,6 +9,7 @@ import {
   LoopInstructionSchema,
   ParallelInstructionSchema,
   RoutineSchema,
+  ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 
@@ -165,6 +166,33 @@ describe("CleanupInstructionSchema", () => {
   });
 });
 
+describe("ShellInstructionSchema", () => {
+  it("validates a minimal shell instruction", () => {
+    const valid = { type: "shell", id: "s1", command: "echo hello" };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
+  });
+
+  it("validates with optional cwd", () => {
+    const valid = { type: "shell", id: "s1", command: "echo hello", cwd: "/tmp" };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects missing command", () => {
+    const invalid = { type: "shell", id: "s1" };
+    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty command", () => {
+    const invalid = { type: "shell", id: "s1", command: "" };
+    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects wrong type", () => {
+    const invalid = { type: "agent", id: "s1", command: "echo hello" };
+    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // FlowInstructionSchema (union)
 // ---------------------------------------------------------------------------
@@ -199,6 +227,12 @@ describe("FlowInstructionSchema", () => {
 
   it("matches cleanup type", () => {
     expect(Value.Check(FlowInstructionSchema, { type: "cleanup", id: "c1" })).toBe(true);
+  });
+
+  it("matches shell type", () => {
+    expect(
+      Value.Check(FlowInstructionSchema, { type: "shell", id: "s1", command: "echo hello" }),
+    ).toBe(true);
   });
 
   it("rejects unknown type", () => {

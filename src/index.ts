@@ -17,9 +17,22 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
+import { OrchestratorCommand } from "./commands/OrchestratorCommand";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { FileLogger } from "./logging";
+import {
+  AgentStepExecutor,
+  CleanupStepExecutor,
+  FlowLoader,
+  LoopStepExecutor,
+  ParallelStepExecutor,
+  RoutineExecutor,
+  RoutineTool,
+  ShellStepExecutor,
+  StepExecutorRegistry,
+  WorkspaceStepExecutor,
+} from "./orchestrator";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -48,7 +61,7 @@ import { GitWorktreeProvider, WorkspaceManager, WorktreeRegistry } from "./works
  */
 const featureForgeExtension: ExtensionFactory = async (pi) => {
   // ── Logging ────────────────────────────────────────────────────────
-  FileLogger.initialize();
+  const logger = FileLogger.initialize();
 
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
@@ -99,6 +112,55 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ListAgentsTool,
     DestroyAgentTool,
   );
+
+  // ── Flow orchestrator wiring ────────────────────────────────────────
+
+  const flowsDir = path.join(__dirname, "flows");
+  const flowLoader = new FlowLoader(flowsDir);
+
+  const stepExecutorRegistry = new StepExecutorRegistry().registerAll(
+    new WorkspaceStepExecutor(workspaceManager),
+    new AgentStepExecutor(supervisor, specManager),
+    new ParallelStepExecutor(),
+    new LoopStepExecutor(),
+    new CleanupStepExecutor(workspaceManager),
+    new ShellStepExecutor(),
+  );
+
+  try {
+    const implementFlow = await flowLoader.load("implement");
+    const routineExecutor = new RoutineExecutor(implementFlow, stepExecutorRegistry);
+
+    for (const routineName of Object.keys(implementFlow.routines)) {
+      const routineTool = new RoutineTool(routineName, implementFlow, routineExecutor);
+      toolRegistry.registerInstance(routineTool);
+    }
+
+    const orchestratorCmd = new OrchestratorCommand(
+      supervisor,
+      pi,
+      specManager,
+      "implement",
+      flowsDir,
+      workspaceManager,
+    );
+
+    // CommandRegistry.register uses constructors with a standard signature;
+    // OrchestratorCommand has extra constructor params (flowName, flowsDir).
+    // Register directly via pi to avoid needing a registerInstance method.
+    pi.registerCommand(orchestratorCmd.name, {
+      ...orchestratorCmd,
+      handler: (args: string, ctx: Parameters<typeof orchestratorCmd.handler>[1]) =>
+        orchestratorCmd.handler(args, ctx),
+    });
+  } catch (error) {
+    // Flow loading failure is non-fatal at init — the extension still
+    // starts with the remaining commands/tools. The error is logged so
+    // operators can diagnose missing or invalid flow packages.
+    logger.error("Failed to load flow package", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 };
 
 /**

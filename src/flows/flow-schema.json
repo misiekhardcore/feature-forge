@@ -171,6 +171,27 @@
         }
       }
     },
+    "ShellInstruction": {
+      "type": "object",
+      "required": ["id", "type", "command"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "shell"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string"
+        }
+      }
+    },
     "FlowInstruction": {
       "anyOf": [
         {
@@ -187,6 +208,9 @@
         },
         {
           "$ref": "#/$defs/CleanupInstruction"
+        },
+        {
+          "$ref": "#/$defs/ShellInstruction"
         }
       ]
     },

@@ -51,6 +51,11 @@ export const AgentInstructionSchema = defineInstruction("agent", {
 
 export const CleanupInstructionSchema = defineInstruction("cleanup");
 
+export const ShellInstructionSchema = defineInstruction("shell", {
+  command: Type.String({ minLength: 1 }),
+  cwd: Type.Optional(Type.String()),
+});
+
 // ── Container schemas (steps added via patch below) ─────────
 
 export const ParallelInstructionSchema = defineInstruction("parallel");
@@ -69,6 +74,7 @@ const FlowInstructionUnion = Type.Union([
   ParallelInstructionSchema,
   LoopInstructionSchema,
   CleanupInstructionSchema,
+  ShellInstructionSchema,
 ]);
 
 // Patch container schemas so `steps` validates recursively.
@@ -164,12 +170,15 @@ export type LoopInstruction = Type.Static<typeof LoopInstructionSchema> & {
 
 export type CleanupInstruction = Type.Static<typeof CleanupInstructionSchema>;
 
+export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
+
 export type FlowInstruction =
   | WorkspaceInstruction
   | AgentInstruction
   | ParallelInstruction
   | LoopInstruction
-  | CleanupInstruction;
+  | CleanupInstruction
+  | ShellInstruction;
 
 export type FlowParam = Type.Static<typeof FlowParamSchema>;
 
