@@ -202,7 +202,7 @@ describe("SpecManager", () => {
 
       await manager.load();
 
-      expect(registry.list()).toContain("research");
+      expect(registry.specNames()).toContain("research");
       const spec = registry.create("research", { CONTEXT: "test context" });
       expect(spec.role).toBe("researcher");
       expect(spec.systemPrompt).toBe("Research: test context");
@@ -232,7 +232,7 @@ describe("SpecManager", () => {
 
       await manager.load();
 
-      expect(registry.list()).toEqual(["build", "review"]);
+      expect(Array.from(registry.specNames()).sort()).toEqual(["build", "review"]);
     });
   });
 });

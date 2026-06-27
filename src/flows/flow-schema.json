@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Feature Forge Flow Definition",
+  "description": "Self-contained flow definition. Declares a slash command, orchestrator prompt, tool, and deterministic steps.",
+  "type": "object",
+  "required": ["name", "command", "tool", "toolParams", "orchestrator", "steps"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tool": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolParams": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "orchestrator": {
+      "$ref": "#/$defs/Orchestrator"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FlowInstruction"
+      }
+    }
+  },
+  "$defs": {
+    "Orchestrator": {
+      "type": "object",
+      "required": ["task"],
+      "properties": {
+        "task": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "WorkspaceInstruction": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "workspace"
+        }
+      }
+    },
+    "AgentInstruction": {
+      "type": "object",
+      "required": ["id", "type", "spec", "task"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "agent"
+        },
+        "spec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task": {
+          "type": "string"
+        },
+        "workingDir": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "workspace"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "parseJson": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ParallelInstruction": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "parallel"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowInstruction"
+          }
+        }
+      }
+    },
+    "LoopInstruction": {
+      "type": "object",
+      "required": ["id", "type", "maxIterations"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "loop"
+        },
+        "maxIterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "continueWhile": {
+          "type": "string"
+        },
+        "accumulateFrom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowInstruction"
+          }
+        }
+      }
+    },
+    "CleanupInstruction": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "cleanup"
+        }
+      }
+    },
+    "FlowInstruction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkspaceInstruction"
+        },
+        {
+          "$ref": "#/$defs/AgentInstruction"
+        },
+        {
+          "$ref": "#/$defs/ParallelInstruction"
+        },
+        {
+          "$ref": "#/$defs/LoopInstruction"
+        },
+        {
+          "$ref": "#/$defs/CleanupInstruction"
+        }
+      ]
+    }
+  }
+}

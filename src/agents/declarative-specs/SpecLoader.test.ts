@@ -46,7 +46,7 @@ Task: {{TASK}}
     }
 
     // Verify the spec was registered
-    const specs = registry.list();
+    const specs = registry.specNames();
     expect(specs).toContain("test");
 
     // Verify we can create the spec
@@ -90,7 +90,7 @@ ephemeral: true
     }
 
     // Verify both specs were registered
-    const specs = registry.list();
+    const specs = registry.specNames();
     expect(specs).toContain("build");
     expect(specs).toContain("review");
 

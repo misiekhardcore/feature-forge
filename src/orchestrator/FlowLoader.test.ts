@@ -1,0 +1,605 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import type { FlowDefinition } from "./FlowInstruction";
+import { FlowLoader } from "./FlowLoader";
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
+  return {
+    name: "test",
+    command: "/test",
+    tool: "run_test",
+    toolParams: [{ name: "task" }],
+    orchestrator: { task: "You are the test orchestrator." },
+    steps: [
+      { type: "workspace", id: "ws" },
+      {
+        type: "loop",
+        id: "main_loop",
+        maxIterations: 3,
+        steps: [{ type: "agent", id: "builder", spec: "build", task: "do {{task}}" }],
+      },
+      { type: "cleanup", id: "cleanup" },
+    ],
+    ...overrides,
+  };
+}
+
+// ── Structural validation ────────────────────────────────────
+
+describe("validateStructure", () => {
+  it("accepts a valid flow definition", () => {
+    expect(() => FlowLoader.validateStructure(makeValidFlow())).not.toThrow();
+  });
+
+  it("throws for missing name", () => {
+    const { name: _, ...rest } = makeValidFlow();
+    expect(() => FlowLoader.validateStructure(rest)).toThrow("Invalid flow definition");
+  });
+
+  it("throws for empty name", () => {
+    expect(() => FlowLoader.validateStructure(makeValidFlow({ name: "" }))).toThrow();
+  });
+
+  it("throws for missing tool", () => {
+    const { tool: _, ...rest } = makeValidFlow();
+    expect(() => FlowLoader.validateStructure(rest)).toThrow();
+  });
+
+  it("throws for missing steps", () => {
+    const { steps: _, ...rest } = makeValidFlow();
+    expect(() => FlowLoader.validateStructure(rest)).toThrow();
+  });
+
+  it("throws for unknown instruction type", () => {
+    expect(() =>
+      FlowLoader.validateStructure(
+        makeValidFlow({
+          steps: [{ type: "unknown_type", id: "x" } as unknown as FlowDefinition["steps"][number]],
+        }),
+      ),
+    ).toThrow();
+  });
+
+  it("throws for agent missing spec", () => {
+    expect(() =>
+      FlowLoader.validateStructure(
+        makeValidFlow({
+          steps: [
+            { type: "agent", id: "a", task: "do it" } as unknown as FlowDefinition["steps"][number],
+          ],
+        }),
+      ),
+    ).toThrow();
+  });
+
+  it("throws for loop missing maxIterations", () => {
+    expect(() =>
+      FlowLoader.validateStructure(
+        makeValidFlow({
+          steps: [
+            { type: "loop", id: "l", steps: [] } as unknown as FlowDefinition["steps"][number],
+          ],
+        }),
+      ),
+    ).toThrow();
+  });
+
+  it("produces human-readable error messages", () => {
+    try {
+      FlowLoader.validateStructure({
+        name: "x",
+        command: "/x",
+        tool: "y",
+        toolParams: [],
+        orchestrator: { task: "t" },
+        steps: [{ type: "agent", id: "a" }],
+      });
+    } catch (e: unknown) {
+      const msg = (e as Error).message;
+      expect(msg).toContain("Invalid flow definition");
+      expect(msg).toContain("spec");
+    }
+  });
+});
+
+// ── Semantic validation ──────────────────────────────────────
+
+describe("validateSemantics", () => {
+  it("returns no errors for a valid flow", () => {
+    const errors = FlowLoader.validateSemantics(makeValidFlow());
+    expect(errors).toEqual([]);
+  });
+
+  // ── Duplicate ids ──────────────────────────────────────
+
+  describe("duplicate ids", () => {
+    it("detects duplicate top-level ids", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            { type: "workspace", id: "ws" },
+            { type: "workspace", id: "ws" },
+          ],
+        }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain("Duplicate instruction id");
+      expect(errors[0]).toContain("ws");
+    });
+
+    it("detects duplicate ids across nesting levels", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            { type: "workspace", id: "ws" },
+            {
+              type: "loop",
+              id: "loop1",
+              maxIterations: 3,
+              steps: [{ type: "agent", id: "ws", spec: "build", task: "x" }],
+            },
+          ],
+        }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain("Duplicate");
+      expect(errors[0]).toContain("ws");
+    });
+
+    it("includes path info in duplicate error", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            { type: "workspace", id: "dup" },
+            {
+              type: "loop",
+              id: "loop1",
+              maxIterations: 3,
+              steps: [{ type: "agent", id: "dup", spec: "build", task: "x" }],
+            },
+          ],
+        }),
+      );
+      expect(errors[0]).toContain("loop1 → dup");
+      expect(errors[0]).toContain("first seen");
+    });
+  });
+
+  // ── continueWhile expressions ───────────────────────────
+
+  describe("continueWhile", () => {
+    it("accepts a valid expression", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 5,
+              continueWhile: "!results.review?.parsed?.passed",
+              steps: [],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("accepts the implement expression", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 5,
+              continueWhile:
+                "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
+              steps: [],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("rejects a syntactically invalid expression", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 5,
+              continueWhile: "true + false",
+              steps: [],
+            },
+          ],
+        }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain("Invalid continueWhile expression");
+    });
+
+    it("includes the loop path in the error", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "bad_loop",
+              maxIterations: 3,
+              continueWhile: "@@@",
+              steps: [],
+            },
+          ],
+        }),
+      );
+      expect(errors[0]).toContain("bad_loop");
+    });
+
+    it("accepts a loop without continueWhile", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 3,
+              steps: [],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+
+  // ── accumulateFrom ──────────────────────────────────────
+
+  describe("accumulateFrom", () => {
+    it("accepts valid direct-child references", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 3,
+              accumulateFrom: ["review", "verify"],
+              steps: [
+                {
+                  type: "agent",
+                  id: "review",
+                  spec: "review",
+                  task: "review",
+                  parseJson: true,
+                },
+                {
+                  type: "agent",
+                  id: "verify",
+                  spec: "verify",
+                  task: "verify",
+                  parseJson: true,
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("rejects reference to non-existent id", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 3,
+              accumulateFrom: ["nonexistent"],
+              steps: [{ type: "agent", id: "builder", spec: "build", task: "x" }],
+            },
+          ],
+        }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain("accumulateFrom references unknown");
+      expect(errors[0]).toContain("nonexistent");
+    });
+
+    it("accepts accumulateFrom referencing id inside nested parallel", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 3,
+              accumulateFrom: ["nested_agent"],
+              steps: [
+                {
+                  type: "parallel",
+                  id: "inspect",
+                  steps: [
+                    {
+                      type: "agent",
+                      id: "nested_agent",
+                      spec: "review",
+                      task: "r",
+                      parseJson: true,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("rejects accumulateFrom targeting instruction without parseJson", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 3,
+              accumulateFrom: ["builder"],
+              steps: [{ type: "agent", id: "builder", spec: "build", task: "do {{task}}" }],
+            },
+          ],
+        }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain("accumulateFrom");
+      expect(errors[0]).toContain("without parseJson: true");
+    });
+
+    it("accepts a loop without accumulateFrom", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [
+            {
+              type: "loop",
+              id: "l",
+              maxIterations: 3,
+              steps: [],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+
+  // ── Multiple errors ─────────────────────────────────────
+
+  it("reports multiple semantic errors", () => {
+    const errors = FlowLoader.validateSemantics(
+      makeValidFlow({
+        steps: [
+          { type: "workspace", id: "dup" },
+          { type: "workspace", id: "dup" },
+          {
+            type: "loop",
+            id: "bad",
+            maxIterations: 3,
+            continueWhile: "@@@",
+            accumulateFrom: ["missing"],
+            steps: [],
+          },
+        ],
+      }),
+    );
+    expect(errors.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // ── knownSpecs ──────────────────────────────────────────
+
+  describe("knownSpecs", () => {
+    it("rejects unknown spec when knownSpecs is provided", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+        }),
+        new Set(["build", "review", "verify"]),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Unknown spec "unknown-spec"');
+      expect(errors[0]).toContain("a1");
+    });
+
+    it("accepts known spec when knownSpecs is provided", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [{ type: "agent", id: "a1", spec: "build", task: "do it" }],
+        }),
+        new Set(["build", "review", "verify"]),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("skips spec check when knownSpecs is omitted", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+        }),
+        // knownSpecs omitted
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+});
+
+// ── FlowLoader (integration) ─────────────────────────────────
+
+describe("FlowLoader", () => {
+  let tempDir: string;
+  let loader: FlowLoader;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp("/tmp/flow-loader-test-");
+    loader = new FlowLoader(tempDir);
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("loads and validates a flow file", async () => {
+    const flow: FlowDefinition = {
+      name: "test",
+      command: "/load-test",
+      tool: "run_test",
+      toolParams: [{ name: "task" }],
+      orchestrator: { task: "t" },
+      steps: [
+        { type: "workspace", id: "ws" },
+        { type: "cleanup", id: "cleanup" },
+      ],
+    };
+    await fs.writeFile(path.join(tempDir, "test.json"), JSON.stringify(flow));
+
+    const loaded = await loader.load("test");
+    expect(loaded.name).toBe("test");
+    expect(loaded.steps).toHaveLength(2);
+  });
+
+  it("loads the real implement.json", async () => {
+    const realLoader = new FlowLoader(path.join(__dirname, "..", "flows"));
+    const flow = await realLoader.load("implement");
+    expect(flow.name).toBe("implement");
+    expect(flow.steps.length).toBeGreaterThan(0);
+  });
+
+  it("throws for non-existent flow", async () => {
+    await expect(loader.load("nonexistent")).rejects.toThrow("not found");
+  });
+
+  it("throws for invalid JSON", async () => {
+    await fs.writeFile(path.join(tempDir, "bad.json"), "not json");
+    await expect(loader.load("bad")).rejects.toThrow("contains invalid JSON");
+  });
+
+  it("throws for semantically invalid flow (duplicate ids)", async () => {
+    const flow: FlowDefinition = {
+      name: "dup",
+      command: "/dup",
+      tool: "x",
+      toolParams: [],
+      orchestrator: { task: "t" },
+      steps: [
+        { type: "workspace", id: "dup" },
+        { type: "workspace", id: "dup" },
+      ],
+    };
+    await fs.writeFile(path.join(tempDir, "dup.json"), JSON.stringify(flow));
+
+    await expect(loader.load("dup")).rejects.toThrow("Duplicate instruction id");
+  });
+
+  it("loadAll returns all .json files", async () => {
+    await fs.writeFile(
+      path.join(tempDir, "a.json"),
+      JSON.stringify(
+        makeValidFlow({
+          name: "a",
+          steps: [
+            { type: "workspace", id: "ws" },
+            { type: "cleanup", id: "c" },
+          ],
+        }),
+      ),
+    );
+    await fs.writeFile(
+      path.join(tempDir, "b.json"),
+      JSON.stringify(
+        makeValidFlow({
+          name: "b",
+          steps: [
+            { type: "workspace", id: "ws" },
+            { type: "cleanup", id: "c" },
+          ],
+        }),
+      ),
+    );
+
+    const { flows, failures } = await loader.loadAll();
+    expect(flows.size).toBe(2);
+    expect(flows.has("a")).toBe(true);
+    expect(flows.has("b")).toBe(true);
+    expect(failures.size).toBe(0);
+  });
+
+  it("loadAll ignores non-JSON files", async () => {
+    await fs.writeFile(
+      path.join(tempDir, "a.json"),
+      JSON.stringify(
+        makeValidFlow({
+          name: "a",
+          steps: [
+            { type: "workspace", id: "ws" },
+            { type: "cleanup", id: "c" },
+          ],
+        }),
+      ),
+    );
+    await fs.writeFile(path.join(tempDir, "readme.md"), "# docs");
+
+    const { flows } = await loader.loadAll();
+    expect(flows.size).toBe(1);
+  });
+
+  it("loadAll collects failures instead of aborting", async () => {
+    // Valid flow
+    await fs.writeFile(
+      path.join(tempDir, "good.json"),
+      JSON.stringify(
+        makeValidFlow({
+          name: "good",
+          steps: [
+            { type: "workspace", id: "ws" },
+            { type: "cleanup", id: "c" },
+          ],
+        }),
+      ),
+    );
+    // Invalid flow — duplicate ids
+    await fs.writeFile(
+      path.join(tempDir, "bad.json"),
+      JSON.stringify({
+        name: "bad",
+        command: "/bad",
+        tool: "x",
+        toolParams: [],
+        orchestrator: { task: "t" },
+        steps: [
+          { type: "workspace", id: "dup" },
+          { type: "workspace", id: "dup" },
+        ],
+      }),
+    );
+
+    const { flows, failures } = await loader.loadAll();
+    expect(flows.size).toBe(1);
+    expect(flows.has("good")).toBe(true);
+    expect(failures.size).toBe(1);
+    expect(failures.has("bad")).toBe(true);
+    expect(failures.get("bad")!.message).toContain("Duplicate instruction id");
+  });
+
+  it("loadAll returns empty when no json files present", async () => {
+    const { flows, failures } = await loader.loadAll();
+    expect(flows.size).toBe(0);
+    expect(failures.size).toBe(0);
+  });
+});

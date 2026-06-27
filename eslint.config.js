@@ -24,7 +24,7 @@ export default tseslint.config(
       "simple-import-sort": simpleImportSort,
     },
     // Test files: relax rules that clash with vitest mocking patterns
-    files: ["src/**/*.ts", "e2e/**/*.ts"],
+    files: ["src/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
     rules: {
       "simple-import-sort/imports": "error",
       "simple-import-sort/exports": "error",

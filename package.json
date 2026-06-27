@@ -26,6 +26,8 @@
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "typecheck": "tsc --noEmit",
+    "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts",
+    "flow:validate": "npx tsx scripts/validate-flow.ts",
     "changelog": "git-cliff -o CHANGELOG.md",
     "check": "npm run lint && npm run format && npm run test",
     "prepare": "husky"
@@ -44,8 +46,8 @@
     "js-yaml": "5.1.0"
   },
   "devDependencies": {
-    "@types/js-yaml": "4.0.9",
     "@eslint/js": "10.0.1",
+    "@types/js-yaml": "4.0.9",
     "@types/node": "26.0.0",
     "@vitest/coverage-v8": "4.1.9",
     "eslint": "10.5.0",

@@ -8,7 +8,7 @@ import { fillTemplate } from "./templates";
 describe("SpecRegistry", () => {
   it("is empty on construction", () => {
     const registry = new SpecRegistry();
-    expect(registry.list()).toEqual([]);
+    expect(Array.from(registry.specNames())).toEqual([]);
   });
 
   it("creates a build spec with filled template params", () => {
@@ -168,7 +168,7 @@ describe("SpecRegistry", () => {
         ephemeral: true,
       });
     });
-    expect(registry.list()).toContain("custom");
+    expect(registry.specNames()).toContain("custom");
     const spec = registry.create("custom", { ROLE: "helper", TOPIC: "testing" });
     expect(spec.role).toBe("helper");
     expect(spec.systemPrompt).toBe("Custom prompt: testing");

@@ -55,7 +55,7 @@ export class SpecRegistry extends Registry<SpecFactory> {
   create(name: string, params?: Record<string, string>): AgentSpecification {
     const factory = this.get(name);
     if (!factory) {
-      const available = this.list().join(", ");
+      const available = Array.from(this.specNames()).join(", ");
       throw new Error(
         `Unknown spec: "${name}". Available specs: ${available || "(none registered)"}`,
       );
@@ -64,9 +64,12 @@ export class SpecRegistry extends Registry<SpecFactory> {
   }
 
   /**
-   * List all registered spec names.
+   * Return a read-only set of registered spec names.
+   *
+   * Suitable for dependency injection into components that only need
+   * to check membership (e.g., FlowLoader spec validation).
    */
-  list(): string[] {
-    return [...this.items.keys()];
+  specNames(): ReadonlySet<string> {
+    return new Set(this.items.keys());
   }
 }
