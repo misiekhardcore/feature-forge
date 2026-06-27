@@ -78,5 +78,11 @@ describe("ToolRegistry", () => {
       registry.unregister("test-tool");
       expect(registry.has("test-tool")).toBe(false);
     });
+
+    it("registerInstance throws on duplicate", () => {
+      const instance = new TestTool();
+      registry.registerInstance(instance);
+      expect(() => registry.registerInstance(instance)).toThrow("already registered");
+    });
   });
 });

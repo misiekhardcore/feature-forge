@@ -1,11 +1,24 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execFileMock } = vi.hoisted(() => ({
-  execFileMock: vi.fn(),
+const { execFileRaw } = vi.hoisted(() => ({
+  execFileRaw: vi.fn(),
 }));
 
 vi.mock("node:child_process", () => ({
-  execFile: execFileMock,
+  execFile: Object.assign(execFileRaw, {
+    [Symbol.for("nodejs.util.promisify.custom")]: (
+      command: string,
+      args?: string[] | null,
+      options?: unknown,
+    ) => {
+      return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        execFileRaw(command, args, options, (err: Error | null, stdout: string, stderr: string) => {
+          if (err) reject(Object.assign(err, { stdout, stderr }));
+          else resolve({ stdout, stderr });
+        });
+      });
+    },
+  }),
 }));
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
@@ -16,7 +29,7 @@ import { ShellStepExecutor } from "./ShellStepExecutor";
 // ── Helpers ──────────────────────────────────────────────────
 
 function mockExecSuccess(stdout = "ok", stderr = ""): void {
-  execFileMock.mockImplementation(
+  execFileRaw.mockImplementation(
     (
       _cmd: string,
       _args: string[],
@@ -30,7 +43,7 @@ function mockExecSuccess(stdout = "ok", stderr = ""): void {
 
 function mockExecFailure(message: string, stderr?: string): void {
   const err = Object.assign(new Error(message), { stderr: stderr ?? message });
-  execFileMock.mockImplementation(
+  execFileRaw.mockImplementation(
     (
       _cmd: string,
       _args: string[],
@@ -45,6 +58,10 @@ function mockExecFailure(message: string, stderr?: string): void {
 // ── Tests ────────────────────────────────────────────────────
 
 describe("ShellStepExecutor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe("execute", () => {
     it("runs a shell command in the resolved cwd", async () => {
       mockExecSuccess("pr created: https://github.com/...");
@@ -59,10 +76,10 @@ describe("ShellStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const result = await executor.execute(instruction, context);
 
-      expect(execFileMock).toHaveBeenCalledTimes(1);
-      expect(execFileMock.mock.calls[0][0]).toBe("/bin/sh");
-      expect(execFileMock.mock.calls[0][1]).toEqual(["-c", "gh pr create --title 'fix'"]);
-      expect(execFileMock.mock.calls[0][2].cwd).toBe("/tmp/ws");
+      expect(execFileRaw).toHaveBeenCalledTimes(1);
+      expect(execFileRaw.mock.calls[0][0]).toBe("/bin/sh");
+      expect(execFileRaw.mock.calls[0][1]).toEqual(["-c", "gh pr create --title 'fix'"]);
+      expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
 
       expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
       expect(result.results.get("sh1")!.raw).toBe("pr created: https://github.com/...");
@@ -85,8 +102,8 @@ describe("ShellStepExecutor", () => {
       );
       await executor.execute(instruction, context);
 
-      expect(execFileMock.mock.calls[0][1][1]).toBe("echo hello world");
-      expect(execFileMock.mock.calls[0][2].cwd).toBe("/tmp/ws");
+      expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
+      expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
     });
 
     it("includes stderr in output", async () => {

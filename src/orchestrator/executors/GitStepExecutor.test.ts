@@ -1,11 +1,24 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execFileMock } = vi.hoisted(() => ({
-  execFileMock: vi.fn(),
+const { execFileRaw } = vi.hoisted(() => ({
+  execFileRaw: vi.fn(),
 }));
 
 vi.mock("node:child_process", () => ({
-  execFile: execFileMock,
+  execFile: Object.assign(execFileRaw, {
+    [Symbol.for("nodejs.util.promisify.custom")]: (
+      command: string,
+      args?: string[] | null,
+      options?: unknown,
+    ) => {
+      return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+        execFileRaw(command, args, options, (err: Error | null, stdout: string, stderr: string) => {
+          if (err) reject(Object.assign(err, { stdout, stderr }));
+          else resolve({ stdout, stderr });
+        });
+      });
+    },
+  }),
 }));
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
@@ -16,7 +29,7 @@ import { GitStepExecutor } from "./GitStepExecutor";
 // ── Helpers ──────────────────────────────────────────────────
 
 function mockExecSuccess(stdout = "ok", stderr = ""): void {
-  execFileMock.mockImplementation(
+  execFileRaw.mockImplementation(
     (
       _cmd: string,
       _args: string[],
@@ -29,7 +42,7 @@ function mockExecSuccess(stdout = "ok", stderr = ""): void {
 }
 
 function mockExecFailure(message: string): void {
-  execFileMock.mockImplementation(
+  execFileRaw.mockImplementation(
     (
       _cmd: string,
       _args: string[],
@@ -44,6 +57,10 @@ function mockExecFailure(message: string): void {
 // ── Tests ────────────────────────────────────────────────────
 
 describe("GitStepExecutor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe("execute", () => {
     it("runs add-and-commit in the resolved cwd", async () => {
       mockExecSuccess();
@@ -59,13 +76,13 @@ describe("GitStepExecutor", () => {
       const result = await executor.execute(instruction, context);
 
       // Should have called git add -A and git commit.
-      expect(execFileMock).toHaveBeenCalledTimes(2);
-      const addCall = execFileMock.mock.calls[0];
+      expect(execFileRaw).toHaveBeenCalledTimes(2);
+      const addCall = execFileRaw.mock.calls[0];
       expect(addCall[0]).toBe("git");
       expect(addCall[1]).toEqual(["add", "-A"]);
       expect(addCall[2].cwd).toBe("/tmp/ws");
 
-      const commitCall = execFileMock.mock.calls[1];
+      const commitCall = execFileRaw.mock.calls[1];
       expect(commitCall[0]).toBe("git");
       expect(commitCall[1]).toEqual(["commit", "-m", "feature-forge: automated changes"]);
 
@@ -86,9 +103,9 @@ describe("GitStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const result = await executor.execute(instruction, context);
 
-      expect(execFileMock).toHaveBeenCalledTimes(1);
-      expect(execFileMock.mock.calls[0][0]).toBe("git");
-      expect(execFileMock.mock.calls[0][1]).toEqual(["push", "origin", "HEAD"]);
+      expect(execFileRaw).toHaveBeenCalledTimes(1);
+      expect(execFileRaw.mock.calls[0][0]).toBe("git");
+      expect(execFileRaw.mock.calls[0][1]).toEqual(["push", "origin", "HEAD"]);
 
       expect(result.results.get("git2")!.parsed!.passed).toBe(true);
     });
@@ -110,7 +127,7 @@ describe("GitStepExecutor", () => {
       );
       await executor.execute(instruction, context);
 
-      expect(execFileMock.mock.calls[0][2].cwd).toBe("/resolved/ws");
+      expect(execFileRaw.mock.calls[0][2].cwd).toBe("/resolved/ws");
     });
 
     it("returns a failure result when git command fails", async () => {
