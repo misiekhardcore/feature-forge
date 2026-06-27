@@ -48,7 +48,7 @@ describe("FlowContext", () => {
     });
 
     it("initialises with all optional fields", () => {
-      const ctx = new FlowContext(new Map(), "task", "plan", "/tmp/ws", "fix x", 2);
+      const ctx = new FlowContext(new Map(), "task", "plan", "/tmp/ws", "fix x", undefined, 2);
       expect(ctx.workspace).toBe("/tmp/ws");
       expect(ctx.feedback).toBe("fix x");
       expect(ctx.iteration).toBe(2);
@@ -96,13 +96,14 @@ describe("FlowContext", () => {
   describe("withWorkspace", () => {
     it("sets the workspace path", () => {
       const ctx = new FlowContext(new Map(), "task", "");
-      const next = ctx.withWorkspace("/tmp/ws");
+      const next = ctx.withWorkspace("/tmp/ws", "ws1");
       expect(next.workspace).toBe("/tmp/ws");
+      expect(next.workspaceId).toBe("ws1");
     });
 
     it("does not mutate the original context", () => {
       const ctx = new FlowContext(new Map(), "task", "");
-      ctx.withWorkspace("/tmp/ws");
+      ctx.withWorkspace("/tmp/ws", "ws1");
       expect(ctx.workspace).toBeUndefined();
     });
   });
@@ -284,7 +285,7 @@ describe("FlowContext", () => {
     it("supports fluent chaining without mutating intermediates", () => {
       const ctx = new FlowContext(new Map(), "task", "");
 
-      const ctx2 = ctx.withWorkspace("/tmp/ws");
+      const ctx2 = ctx.withWorkspace("/tmp/ws", "ws1");
       const ctx3 = ctx2.withFeedback("f");
       const ctx4 = ctx3.withIteration(1);
 
