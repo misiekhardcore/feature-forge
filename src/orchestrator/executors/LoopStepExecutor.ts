@@ -43,6 +43,13 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     }
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
+      // Clear body results from the previous iteration before starting
+      // the next one. The first iteration has nothing to clear so results
+      // from the final iteration are preserved.
+      if (iteration > 0) {
+        current = current.withResultsCleared(bodyIds);
+      }
+
       current = current.withIteration(iteration);
 
       logger.debug("Loop iteration", { id: instruction.id, iteration, maxIterations });
@@ -72,7 +79,9 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
         current = current.withFeedback(lines.join("\n"));
       }
 
-      // Evaluate continueWhile expression.
+      // Evaluate continueWhile expression after every iteration.
+      // When the loop should NOT continue, break to preserve the final
+      // iteration's results.
       if (continueWhileExpr) {
         const shouldContinue = ExpressionEvaluator.evaluateExpression(
           current.resolve(continueWhileExpr),
@@ -92,10 +101,6 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
           break;
         }
       }
-
-      // Clear stale body results before the next iteration so fresh
-      // results are always recorded.
-      current = current.withResultsCleared(bodyIds);
     }
 
     // Record a summary result for the loop itself.

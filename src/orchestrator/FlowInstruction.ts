@@ -75,6 +75,14 @@ export const ShellInstructionSchema = defineInstruction("shell", {
 
 export const ParallelInstructionSchema = defineInstruction("parallel");
 
+/**
+ * Loop instruction schema.
+ *
+ * **Do-while semantics**: the loop body (`steps`) always executes at least
+ * once. The `continueWhile` condition is evaluated **after** each iteration,
+ * so the body runs before the first check. When `continueWhile` is omitted
+ * the loop runs exactly `maxIterations` times.
+ */
 export const LoopInstructionSchema = defineInstruction("loop", {
   maxIterations: Type.Integer({ minimum: 1 }),
   continueWhile: Type.Optional(Type.String()),
