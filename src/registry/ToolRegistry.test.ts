@@ -64,6 +64,21 @@ describe("ToolRegistry", () => {
     });
   });
 
+  describe("registerInstance", () => {
+    it("registers an already-constructed tool instance", () => {
+      const tool = new TestTool();
+      registry.registerInstance(tool);
+      expect(registry.get("test-tool")).toBe(tool);
+    });
+
+    it("throws when registering a duplicate instance", () => {
+      registry.registerInstance(new TestTool());
+      expect(() => registry.registerInstance(new TestTool())).toThrow(
+        "Tool already registered: test-tool",
+      );
+    });
+  });
+
   describe("inherited registry features", () => {
     it("reports correct size", () => {
       expect(registry.size).toBe(0);
