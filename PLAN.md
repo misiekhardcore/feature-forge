@@ -192,5 +192,7 @@ them in sequence).
 | `docs/adr/0002-…schema…md`               | Schema accuracy + semantic validation completeness (parseJson, workingDir, specs)     | Valid                           |
 | `docs/adr/0003-…loop-gate…md`            | Loop gates on builder outcome; typed `toolParams`                                     | Valid                           |
 | `docs/adr/0004-…loader…md`               | Loader resilience + flow asset packaging                                              | Valid                           |
+| `docs/adr/0005-…named-workspaces…md`     | Named workspaces + real `provider` selection; reverses ADR 0002 B.1/B.2               | Accepted (impl deferred)        |
+| `docs/adr/0006-…shell-instruction…md`    | The `shell` instruction type (`{ type:"shell", id, command, cwd? }`)                  | Accepted                        |
 | ~~`docs/flow-engine.md`~~                | Old single-tool detailed design — contradicted by the routine model                   | **Removed**                     |
 | ~~`src/agents/prompts/orchestrator.md`~~ | Legacy manual-spawn orchestrator prompt — deleted in working tree                     | Removed                         |
