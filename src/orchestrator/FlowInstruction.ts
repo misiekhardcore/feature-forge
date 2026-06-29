@@ -46,7 +46,7 @@ export const WorkspaceInstructionSchema = defineInstruction("workspace", {
 
 export const AgentInstructionSchema = defineInstruction("agent", {
   systemPrompt: Type.String({ minLength: 1 }),
-  task: Type.String(),
+  prompt: Type.String(),
   workingDir: Type.Optional(
     Type.Union([
       Type.Object({ workspace: Type.String({ minLength: 1 }) }),
@@ -54,7 +54,7 @@ export const AgentInstructionSchema = defineInstruction("agent", {
     ]),
   ),
   parseJson: Type.Optional(Type.Boolean()),
-  taskInput: Type.Optional(Type.Record(Type.String(), Type.String())),
+  promptParams: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 export const CleanupInstructionSchema = defineInstruction("cleanup", {
@@ -125,8 +125,8 @@ export const FlowInstructionSchema = FlowInstructionUnion;
 
 export const OrchestratorConfigSchema = Type.Object({
   systemPrompt: Type.String({ minLength: 1 }),
-  task: Type.Optional(Type.String()),
-  taskInput: Type.Optional(Type.Record(Type.String(), Type.String())),
+  prompt: Type.Optional(Type.String()),
+  promptParams: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 export const RoutineParamSchema = Type.Object({

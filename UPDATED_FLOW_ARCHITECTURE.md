@@ -92,7 +92,7 @@ flows/implement/
   // NOT a fake AgentSpecification / spec.
   "orchestrator": {
     "prompt": "orchestrator.md",
-    "activeTools": ["run_build_loop", "open_pr", "bash"],
+    "tools": ["run_build_loop", "open_pr", "bash"],
   },
 
   // Named deterministic subroutines. EACH becomes a registered Pi tool.
@@ -184,7 +184,7 @@ only the routines do. Do not spawn agents directly — routines manage agents.
   "command": "/implement",
   "orchestrator": {
     "prompt": "orchestrator.md",
-    "activeTools": ["run_build_loop", "open_pr", "destroy_workspace", "bash"],
+    "tools": ["run_build_loop", "open_pr", "destroy_workspace", "bash"],
   },
   "routines": {
     "run_build_loop": {
@@ -208,12 +208,12 @@ only the routines do. Do not spawn agents directly — routines manage agents.
               "workingDir": { "workspace": "ws" },
               "parseJson": true,
               "specInput": {
-                "TASK": "{{task}}",
+                "TASK": "{{prompt}}",
                 "PLAN": "{{plan}}",
                 "FEEDBACK": "{{feedback}}",
                 "WORKSPACE": "{{workspace}}",
               },
-              "task": "Build per the plan. End with ```json { \"passed\": true|false, \"summary\": \"...\" } ```.",
+              "prompt": "Build per the plan. End with ```json { \"passed\": true|false, \"summary\": \"...\" } ```.",
             },
             {
               "type": "parallel",
@@ -225,7 +225,7 @@ only the routines do. Do not spawn agents directly — routines manage agents.
                   "spec": "review",
                   "workingDir": { "workspace": "ws" },
                   "parseJson": true,
-                  "task": "Review against: {{task}}\nBuild output:\n{{results.builder.raw}}",
+                  "prompt": "Review against: {{prompt}}\nBuild output:\n{{results.builder.raw}}",
                 },
                 {
                   "type": "agent",
@@ -233,7 +233,7 @@ only the routines do. Do not spawn agents directly — routines manage agents.
                   "spec": "verify",
                   "workingDir": { "workspace": "ws" },
                   "parseJson": true,
-                  "task": "Verify AC against: {{task}}\nBuild output:\n{{results.builder.raw}}",
+                  "prompt": "Verify AC against: {{prompt}}\nBuild output:\n{{results.builder.raw}}",
                 },
               ],
             },
@@ -267,7 +267,7 @@ only the routines do. Do not spawn agents directly — routines manage agents.
 
 1. User types `/implement add auth`.
 2. `/implement` command loads `orchestrator.md` into the session and sets
-   `activeTools`, then returns. The session is now an "implement orchestrator"
+   `tools`, then returns. The session is now an "implement orchestrator"
    persona.
 3. The LLM (main session) clarifies with the user, drafts a plan.
 4. The LLM calls tool `run_build_loop(task=..., plan=...)`.
@@ -517,7 +517,7 @@ judgment as a prompt — each in its natural medium.
    to pi. One instance per routine, registered via `registerInstance`.
 3. **`ToolRegistry.registerInstance(tool)`** — already a todo; required.
 4. **`OrchestratorCommand`** (generic): loads `orchestrator.prompt` into the
-   session via `sendUserMessage`, sets `activeTools` if declared, returns.
+   session via `sendUserMessage`, sets `tools` if declared, returns.
 5. **New step executors** for `git` / `shell` (or one generic `shell` that
    covers both), registered in `StepExecutorRegistry`. Required so a
    routine can produce a committed, pushed, PR-able state.

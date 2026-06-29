@@ -1,7 +1,7 @@
 ---
 id: "implement"
 role: "orchestrator"
-activeTools:
+tools:
   - run_build_loop
   - open_pr
   - destroy_workspace

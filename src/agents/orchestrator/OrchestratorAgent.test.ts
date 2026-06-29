@@ -13,8 +13,8 @@ import { OrchestratorAgent } from "./OrchestratorAgent";
 function makeFlow(
   overrides: {
     systemPrompt?: string;
-    task?: string;
-    taskInput?: Record<string, string>;
+    prompt?: string;
+    promptParams?: Record<string, string>;
   } = {},
 ): FlowDefinition {
   return {
@@ -22,8 +22,8 @@ function makeFlow(
     command: "/test",
     orchestrator: {
       systemPrompt: overrides.systemPrompt ?? "orchestrator.md",
-      ...(overrides.task !== undefined ? { task: overrides.task } : {}),
-      ...(overrides.taskInput !== undefined ? { taskInput: overrides.taskInput } : {}),
+      ...(overrides.prompt !== undefined ? { prompt: overrides.prompt } : {}),
+      ...(overrides.promptParams !== undefined ? { promptParams: overrides.promptParams } : {}),
     },
     routines: {},
   };
@@ -45,17 +45,17 @@ describe("OrchestratorAgent", () => {
   });
 
   describe("create", () => {
-    it("reads orchestrator markdown and extracts persona and activeTools", async () => {
+    it("reads orchestrator markdown and extracts persona and tools", async () => {
       await writeOrchestratorMd(
         tempDir,
-        "---\nid: test\nrole: orchestrator\nactiveTools:\n  - tool_a\n  - tool_b\n---\n\n# Persona\n\nBe helpful.",
+        "---\nid: test\nrole: orchestrator\ntools:\n  - tool_a\n  - tool_b\n---\n\n# Persona\n\nBe helpful.",
       );
 
       const flow = makeFlow();
       const agent = await OrchestratorAgent.create(flow, tempDir);
 
-      expect(agent.persona).toBe("# Persona\n\nBe helpful.");
-      expect(agent.activeTools).toEqual(["tool_a", "tool_b"]);
+      expect(agent.systemPrompt).toBe("# Persona\n\nBe helpful.");
+      expect(agent.tools).toEqual(["tool_a", "tool_b"]);
     });
 
     it("handles missing frontmatter fields gracefully", async () => {
@@ -64,24 +64,24 @@ describe("OrchestratorAgent", () => {
       const flow = makeFlow();
       const agent = await OrchestratorAgent.create(flow, tempDir);
 
-      expect(agent.persona).toBe("# Just a title\n\nNo frontmatter.");
-      expect(agent.activeTools).toBeUndefined();
+      expect(agent.systemPrompt).toBe("# Just a title\n\nNo frontmatter.");
+      expect(agent.tools).toBeUndefined();
     });
 
-    it("handles empty activeTools", async () => {
-      await writeOrchestratorMd(tempDir, "---\nid: test\nactiveTools: []\n---\n\nBody.");
+    it("handles empty tools", async () => {
+      await writeOrchestratorMd(tempDir, "---\nid: test\ntools: []\n---\n\nBody.");
 
       const flow = makeFlow();
       const agent = await OrchestratorAgent.create(flow, tempDir);
 
-      expect(agent.persona).toBe("Body.");
-      expect(agent.activeTools).toEqual([]);
+      expect(agent.systemPrompt).toBe("Body.");
+      expect(agent.tools).toEqual([]);
     });
 
     it("stores task template from flow.orchestrator.task", async () => {
       await writeOrchestratorMd(tempDir, "---\n---\n\nPersona content.");
 
-      const flow = makeFlow({ task: "{{task}}" });
+      const flow = makeFlow({ prompt: "{{prompt}}" });
       const agent = await OrchestratorAgent.create(flow, tempDir);
 
       // Task template is stored internally — verify through mount behaviour
@@ -94,15 +94,15 @@ describe("OrchestratorAgent", () => {
         .calls[0][0] as string;
       expect(sentMessage).toContain("Persona content.");
       expect(sentMessage).toContain("fix bug");
-      expect(sentMessage).not.toContain("{{task}}");
+      expect(sentMessage).not.toContain("{{prompt}}");
     });
   });
 
   describe("mount", () => {
-    it("sends persona and resolved task as user message", async () => {
+    it("sends system prompt and resolved prompt as user message", async () => {
       await writeOrchestratorMd(tempDir, "# Orchestrator\n\nYou are helpful.");
 
-      const flow = makeFlow({ task: "Build: {{task}}" });
+      const flow = makeFlow({ prompt: "Build: {{prompt}}" });
       const agent = await OrchestratorAgent.create(flow, tempDir);
 
       const pi = makeMockPi();
@@ -117,10 +117,7 @@ describe("OrchestratorAgent", () => {
     });
 
     it("sets active tools when declared in frontmatter", async () => {
-      await writeOrchestratorMd(
-        tempDir,
-        "---\nactiveTools:\n  - routine_x\n  - bash\n---\n\nPersona.",
-      );
+      await writeOrchestratorMd(tempDir, "---\ntools:\n  - routine_x\n  - bash\n---\n\nPersona.");
 
       const flow = makeFlow();
       const agent = await OrchestratorAgent.create(flow, tempDir);
@@ -132,7 +129,7 @@ describe("OrchestratorAgent", () => {
       expect(pi.setActiveTools).toHaveBeenCalledWith(["routine_x", "bash"]);
     });
 
-    it("does not call setActiveTools when frontmatter has no activeTools", async () => {
+    it("does not call setActiveTools when frontmatter has no tools", async () => {
       await writeOrchestratorMd(tempDir, "---\nid: test\n---\n\nPersona.");
 
       const flow = makeFlow();
@@ -145,8 +142,8 @@ describe("OrchestratorAgent", () => {
       expect(pi.setActiveTools).not.toHaveBeenCalled();
     });
 
-    it("does not call setActiveTools when activeTools is empty", async () => {
-      await writeOrchestratorMd(tempDir, "---\nactiveTools: []\n---\n\nPersona.");
+    it("does not call setActiveTools when tools is empty", async () => {
+      await writeOrchestratorMd(tempDir, "---\ntools: []\n---\n\nPersona.");
 
       const flow = makeFlow();
       const agent = await OrchestratorAgent.create(flow, tempDir);
@@ -168,8 +165,8 @@ describe("OrchestratorAgent", () => {
       const ctx = new FlowContext(new Map(), "unused");
       agent.mount(pi, ctx);
 
-      const message = (pi.sendUserMessage as unknown as ReturnType<typeof vi.fn>).mock
-        .calls[0][0] as string;
+      const message = (pi.on as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as string;
+      console.log((pi.on as unknown as ReturnType<typeof vi.fn>).mock.calls);
       expect(message).toContain("Persona without task.");
     });
   });
