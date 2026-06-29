@@ -45,7 +45,7 @@ export class RoutineTool implements ToolDefinition<
     private readonly routineDef: RoutineDefinition,
   ) {
     this.routineName = routineName;
-    this.name = `${flowName}:${routineName}`;
+    this.name = routineName;
     this.label = `Routine: ${flowName}/${routineName}`;
     this.description =
       routineDef.params.length === 0
