@@ -27,8 +27,8 @@ export function makeSpec(
   overrides: Partial<{
     role: string;
     systemPrompt: string;
-    toolNames: readonly string[];
-    modelPreference: string;
+    tools: readonly string[];
+    model: string;
     ephemeral: boolean;
   }> = {},
 ): AgentSpecification {
@@ -38,8 +38,8 @@ export function makeSpec(
         id,
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
-        toolNames: overrides.toolNames,
-        modelPreference: overrides.modelPreference,
+        tools: overrides.tools,
+        model: overrides.model,
         ephemeral: overrides.ephemeral,
       });
     }
@@ -312,7 +312,7 @@ export function makeMockSpecManager() {
         id: params.spec ?? params.role ?? "mock",
         role: params.role ?? "mock",
         systemPrompt: params.systemPrompt ?? "Mock system prompt",
-        toolNames: params.toolNames ?? [],
+        tools: params.tools ?? [],
         cwd: params.cwd,
         disableBuiltinTools: false,
         disableExtensions: false,
@@ -320,8 +320,8 @@ export function makeMockSpecManager() {
         disablePromptTemplates: false,
         disableContextFiles: false,
         ephemeral: false,
-        excludeToolNames: [],
-        modelPreference: undefined,
+        excludedTools: [],
+        model: undefined,
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),

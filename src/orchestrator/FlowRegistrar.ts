@@ -5,6 +5,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
+import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import { FlowLoader } from "./FlowLoader";
@@ -117,8 +118,7 @@ export class FlowRegistrar {
     try {
       flow = await flowLoader.load("flow");
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[feature-forge] Failed to load flow "${flowName}": ${message}`);
+      logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, { error });
       return;
     }
 
@@ -133,7 +133,16 @@ export class FlowRegistrar {
       flow,
       flowDir,
     );
-    cmdRegistry.registerInstance(orchestratorCommand);
+    try {
+      cmdRegistry.registerInstance(orchestratorCommand);
+    } catch (error) {
+      logger.warn(
+        `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
+        {
+          error,
+        },
+      );
+    }
 
     // Register routine tools for this flow.
     const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry);
@@ -142,10 +151,9 @@ export class FlowRegistrar {
       try {
         toolRegistry.registerInstance(routineTool);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[feature-forge] Failed to register RoutineTool "${routineTool.name}": ${message}`,
-        );
+        logger.warn(`[feature-forge] Failed to register RoutineTool "${routineTool.name}"`, {
+          error,
+        });
       }
     }
   }

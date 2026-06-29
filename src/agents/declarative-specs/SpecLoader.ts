@@ -97,7 +97,7 @@ export class SpecLoader {
 
     return (_params: Record<string, string> = {}) => {
       // Resolve tool preset
-      const toolNames = this.resolveToolPreset(metadata.toolPreset);
+      const tools = this.resolveToolPreset(metadata.toolPreset);
 
       const systemPrompt = templateBody.trim();
 
@@ -105,7 +105,7 @@ export class SpecLoader {
         id: metadata.id,
         role: metadata.role,
         systemPrompt,
-        toolNames,
+        tools,
         ephemeral: metadata.ephemeral,
       });
     };

@@ -14,7 +14,6 @@ export {
   DynamicAgentSpecification,
   fillTemplate,
   SpecRegistry,
-  ThinkingLevel,
   TOOL_PRESETS,
 } from "./specifications";
 export type { SpecResolutionParams } from "./SpecManager";

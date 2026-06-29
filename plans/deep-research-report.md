@@ -624,7 +624,7 @@ pi.registerTool({
     const spec = new DynamicAgentSpecification({
       role: params.role,
       systemPrompt: `You are a ${params.role} agent. Complete the following task:\n${params.task}`,
-      modelPreference: params.model,
+      model: params.model,
       ephemeral: true,
     });
     const agent = await supervisor.spawn(spec);
@@ -751,7 +751,7 @@ Each concrete tool:
 
 ### One Extension, Loaded Everywhere
 
-The separate `forge-subagent.ts` extension file is deleted. The main `src/index.ts` is the only extension file. It's loaded by both parent and child agents via `--extension src/index.ts`. Tool visibility is controlled per-agent by the spec `toolNames` field.
+The separate `forge-subagent.ts` extension file is deleted. The main `src/index.ts` is the only extension file. It's loaded by both parent and child agents via `--extension src/index.ts`. Tool visibility is controlled per-agent by the spec `tools` field.
 
 Socket tools (`spawn_agent`, `send_task`, etc.) are registered unconditionally. Their constructors accept `ChildSocketClient | null`. When the client is null (parent process, no socket available), execution returns `{ error: "Not available in orchestrator mode" }`. This ensures safe operation in both contexts without conditional registration logic.
 

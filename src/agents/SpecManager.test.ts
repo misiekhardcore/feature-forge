@@ -28,7 +28,7 @@ function makeLoader(
             id: spec.id,
             role: spec.role,
             systemPrompt: fillTemplate(spec.body, {}),
-            toolNames: [...TOOL_PRESETS.fullAccess],
+            tools: [...TOOL_PRESETS.fullAccess],
             ephemeral: spec.ephemeral ?? false,
           });
         });
@@ -43,7 +43,7 @@ describe("SpecManager", () => {
     it("returns true when params have a spec field", () => {
       const result = SpecManager.isSpecParams({
         spec: "build",
-        toolNames: ["read"],
+        tools: ["read"],
       });
       expect(result).toBe(true);
     });
@@ -60,7 +60,7 @@ describe("SpecManager", () => {
     it("returns false when spec is not a string", () => {
       const result = SpecManager.isSpecParams({
         spec: undefined as unknown as string,
-        toolNames: ["read"],
+        tools: ["read"],
       });
       expect(result).toBe(false);
     });
@@ -74,7 +74,7 @@ describe("SpecManager", () => {
           id: "build",
           role: "build",
           systemPrompt: "Task: build",
-          toolNames: [...TOOL_PRESETS.fullAccess],
+          tools: [...TOOL_PRESETS.fullAccess],
           ephemeral: true,
         });
       });

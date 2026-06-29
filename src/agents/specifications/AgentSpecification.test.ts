@@ -1,6 +1,7 @@
+import { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { describe, expect, it } from "vitest";
 
-import { AgentSpecification, ThinkingLevel } from "./AgentSpecification";
+import { AgentSpecification } from "./AgentSpecification";
 
 class TestSpecification extends AgentSpecification {
   constructor(overrides: Partial<ConstructorParameters<typeof AgentSpecification>[0]> = {}) {
@@ -22,19 +23,19 @@ describe("AgentSpecification", () => {
   });
 
   describe("defaults", () => {
-    it("toolNames defaults to empty array", () => {
+    it("tools defaults to empty array", () => {
       const spec = new TestSpecification();
-      expect(spec.toolNames).toEqual([]);
+      expect(spec.tools).toEqual([]);
     });
 
-    it("excludeToolNames defaults to empty array", () => {
+    it("excludedTools defaults to empty array", () => {
       const spec = new TestSpecification();
-      expect(spec.excludeToolNames).toEqual([]);
+      expect(spec.excludedTools).toEqual([]);
     });
 
-    it("modelPreference defaults to undefined", () => {
+    it("model defaults to undefined", () => {
       const spec = new TestSpecification();
-      expect(spec.modelPreference).toBeUndefined();
+      expect(spec.model).toBeUndefined();
     });
 
     it("thinkingLevel defaults to undefined", () => {
@@ -74,19 +75,19 @@ describe("AgentSpecification", () => {
   });
 
   describe("overrides", () => {
-    it("accepts toolNames override", () => {
-      const spec = new TestSpecification({ toolNames: ["read", "grep"] });
-      expect(spec.toolNames).toEqual(["read", "grep"]);
+    it("accepts tools override", () => {
+      const spec = new TestSpecification({ tools: ["read", "grep"] });
+      expect(spec.tools).toEqual(["read", "grep"]);
     });
 
-    it("accepts excludeToolNames override", () => {
-      const spec = new TestSpecification({ excludeToolNames: ["bash"] });
-      expect(spec.excludeToolNames).toEqual(["bash"]);
+    it("accepts excludedTools override", () => {
+      const spec = new TestSpecification({ excludedTools: ["bash"] });
+      expect(spec.excludedTools).toEqual(["bash"]);
     });
 
-    it("accepts modelPreference override", () => {
-      const spec = new TestSpecification({ modelPreference: "claude-sonnet-4-5" });
-      expect(spec.modelPreference).toBe("claude-sonnet-4-5");
+    it("accepts model override", () => {
+      const spec = new TestSpecification({ model: "claude-sonnet-4-5" });
+      expect(spec.model).toBe("claude-sonnet-4-5");
     });
 
     it("accepts thinkingLevel override", () => {

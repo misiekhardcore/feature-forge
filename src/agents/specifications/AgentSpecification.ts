@@ -1,16 +1,12 @@
-/**
- * Thinking/reasoning level for the agent.
- * Mirrors pi's --thinking flag.
- */
-export type ThinkingLevel = "off" | "low" | "medium" | "high";
+import { ThinkingLevel } from "@earendil-works/pi-agent-core";
 
 export type AgentSpecificationParams = {
   id: string;
   role: string;
   systemPrompt: string;
-  toolNames?: readonly string[];
-  excludeToolNames?: readonly string[];
-  modelPreference?: string;
+  tools?: readonly string[];
+  excludedTools?: readonly string[];
+  model?: string;
   thinkingLevel?: ThinkingLevel;
   disableBuiltinTools?: boolean;
   disableExtensions?: boolean;
@@ -34,11 +30,11 @@ export abstract class AgentSpecification {
   public readonly systemPrompt: string;
 
   /** Allowlist of tool names. Empty = use default tools. */
-  public readonly toolNames: readonly string[];
+  public readonly tools: readonly string[];
   /** Denylist of tool names to disable even if they'd otherwise be active. */
-  public readonly excludeToolNames: readonly string[];
+  public readonly excludedTools: readonly string[];
   /** Model pattern (e.g. "claude-sonnet-4-5"). Undefined = use default. */
-  public readonly modelPreference?: string | undefined;
+  public readonly model?: string | undefined;
   /** Thinking/reasoning level. Undefined = use default. */
   public readonly thinkingLevel?: ThinkingLevel | undefined;
   /** Disable all built-in tools (read, bash, edit, write, etc.). */
@@ -63,9 +59,9 @@ export abstract class AgentSpecification {
     this.id = params.id;
     this.role = params.role;
     this.systemPrompt = params.systemPrompt;
-    this.toolNames = params.toolNames ?? [];
-    this.excludeToolNames = params.excludeToolNames ?? [];
-    this.modelPreference = params.modelPreference;
+    this.tools = params.tools ?? [];
+    this.excludedTools = params.excludedTools ?? [];
+    this.model = params.model;
     this.thinkingLevel = params.thinkingLevel;
     this.disableBuiltinTools = params.disableBuiltinTools ?? false;
     this.disableExtensions = params.disableExtensions ?? false;

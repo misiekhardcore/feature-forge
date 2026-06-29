@@ -50,9 +50,9 @@ ephemeral: true
     const spec = registry.create("test");
     expect(spec.role).toBe("test");
     expect(spec.systemPrompt).toContain("# Test Agent");
-    expect(spec.toolNames).toContain("read");
-    expect(spec.toolNames).toContain("bash");
-    expect(spec.toolNames).toContain("write");
+    expect(spec.tools).toContain("read");
+    expect(spec.tools).toContain("bash");
+    expect(spec.tools).toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
@@ -94,13 +94,13 @@ ephemeral: true
     // Verify we can create both specs
     const buildSpecInstance = registry.create("build");
     expect(buildSpecInstance.role).toBe("build");
-    expect(buildSpecInstance.toolNames).toContain("read");
-    expect(buildSpecInstance.toolNames).toContain("bash");
-    expect(buildSpecInstance.toolNames).toContain("write");
+    expect(buildSpecInstance.tools).toContain("read");
+    expect(buildSpecInstance.tools).toContain("bash");
+    expect(buildSpecInstance.tools).toContain("write");
 
     const reviewSpecInstance = registry.create("review");
     expect(reviewSpecInstance.role).toBe("review");
-    expect(reviewSpecInstance.toolNames).toEqual(["read", "grep"]);
+    expect(reviewSpecInstance.tools).toEqual(["read", "grep"]);
   });
 
   it("throws for invalid spec file format", async () => {
@@ -163,7 +163,7 @@ ephemeral: true
     // Verify each preset resolves correctly
     for (const { name, expected } of presets) {
       const spec = registry.create(name);
-      expect(spec.toolNames).toEqual(expected);
+      expect(spec.tools).toEqual(expected);
     }
   });
 });
