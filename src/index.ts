@@ -49,6 +49,7 @@ import {
   WorkspaceManager,
   WorkspaceProviderRegistry,
   WorktreeRegistry,
+  WorktrunkProvider,
 } from "./workspace";
 
 /**
