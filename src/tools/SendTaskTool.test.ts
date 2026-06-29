@@ -29,7 +29,7 @@ describe("SendTaskTool", () => {
       const tool = new SendTaskTool(null);
       const result = await tool.execute("call-1", {
         agentId: "agent-1",
-        task: "do something",
+        prompt: "do something",
         await: true,
       });
       expect(result).toEqual({
@@ -55,7 +55,7 @@ describe("SendTaskTool", () => {
 
       const result = await tool.execute("call-1", {
         agentId: "agent-1",
-        task: "do something",
+        prompt: "do something",
         await: true,
       });
 
@@ -63,7 +63,7 @@ describe("SendTaskTool", () => {
         "send_task",
         {
           agentId: "agent-1",
-          task: "do something",
+          prompt: "do something",
           await: true,
         },
         undefined,
@@ -79,7 +79,7 @@ describe("SendTaskTool", () => {
 
       const result = await tool.execute("call-1", {
         agentId: "agent-1",
-        task: "background task",
+        prompt: "background task",
         await: false,
       });
 
@@ -87,7 +87,7 @@ describe("SendTaskTool", () => {
         "send_task",
         {
           agentId: "agent-1",
-          task: "background task",
+          prompt: "background task",
           await: false,
         },
         undefined,
@@ -103,7 +103,7 @@ describe("SendTaskTool", () => {
 
       await tool.execute("call-1", {
         agentId: "agent-1",
-        task: "long task",
+        prompt: "long task",
         await: true,
         timeout: 1_800_000,
       });
@@ -120,7 +120,7 @@ describe("SendTaskTool", () => {
 
       const result = await tool.execute("call-1", {
         agentId: "missing-agent",
-        task: "test",
+        prompt: "test",
         await: true,
       });
 
@@ -135,7 +135,7 @@ describe("SendTaskTool", () => {
 
       const result = await tool.execute("call-1", {
         agentId: "bad-agent",
-        task: "test",
+        prompt: "test",
         await: true,
       });
 

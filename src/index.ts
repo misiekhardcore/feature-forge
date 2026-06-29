@@ -87,7 +87,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const specManager = new SpecManager(specRegistry, specLoader);
   await specManager.load();
   const supervisor = new InMemoryAgentSupervisor(factory);
-  const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
+  const ipcServer = new ParentSocketServer(supervisor, pi);
   const socketPath = await ipcServer.start();
   childEnv.FORGE_PARENT_SOCKET = socketPath;
   const targetSocketPath = process.env.FORGE_PARENT_SOCKET ?? socketPath;

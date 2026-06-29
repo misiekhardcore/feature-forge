@@ -9,7 +9,7 @@ import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi, makeMockSpecManager } from "../test-utils";
+import { makeMockPi } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -61,7 +61,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
+    server = new ParentSocketServer(supervisor, makeMockPi());
     socketPath = await server.start();
   });
 
@@ -74,14 +74,14 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     await client.connect();
 
     const result = await client.request("spawn_agent", {
-      role: "researcher",
+      label: "researcher",
       systemPrompt: "You are a researcher",
-      toolNames: ["read", "grep"],
+      tools: ["read", "grep"],
     });
 
-    expect(result).toEqual({
-      agentId: "researcher",
-      role: "researcher",
+    expect(result).toMatchObject({
+      agentId: expect.stringContaining("researcher"),
+      label: "researcher",
     });
 
     await client.disconnect();
@@ -103,16 +103,16 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
     // First spawn an agent
     await client.connect();
-    await client.request("spawn_agent", {
-      role: "worker",
+    const spawnResult = await client.request("spawn_agent", {
+      label: "worker",
       systemPrompt: "You are a worker",
-      toolNames: ["read"],
+      tools: ["read"],
     });
 
-    // Send a task
+    // Send a task using the actual agentId from spawn
     const result = await client.request("send_task", {
-      agentId: "worker",
-      task: "Do the work",
+      agentId: spawnResult.agentId,
+      prompt: "Do the work",
       await: true,
     });
 
@@ -128,7 +128,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     await expect(
       client.request("send_task", {
         agentId: "non-existent",
-        task: "do something",
+        prompt: "do something",
         await: true,
       }),
     ).rejects.toThrow(IpcRequestError);
@@ -141,15 +141,15 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     await client.connect();
 
     // Spawn first
-    await client.request("spawn_agent", {
-      role: "temp",
+    const spawnResult = await client.request("spawn_agent", {
+      label: "temp",
       systemPrompt: "temp",
-      toolNames: ["read"],
+      tools: ["read"],
     });
 
-    // Destroy
+    // Destroy using the actual agentId from spawn
     const result = await client.request("destroy_agent", {
-      agentId: "temp",
+      agentId: spawnResult.agentId,
     });
 
     expect(result).toEqual({ status: "destroyed" });
@@ -168,16 +168,16 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     await client.connect();
 
     // Spawn an agent
-    await client.request("spawn_agent", {
-      role: "pusher",
+    const spawnResult = await client.request("spawn_agent", {
+      label: "pusher",
       systemPrompt: "pusher",
-      toolNames: ["read"],
+      tools: ["read"],
     });
 
     // Fire a non-awaited task (this triggers pushAgentUpdate)
     await client.request("send_task", {
-      agentId: "pusher",
-      task: "background work",
+      agentId: spawnResult.agentId,
+      prompt: "background work",
       await: false,
     });
 
@@ -217,7 +217,7 @@ describe("ChildSocketClient error handling", () => {
 
     // Request with very short timeout
     await expect(
-      client.request("spawn_agent", { role: "x", systemPrompt: "x", toolNames: [] }, 100),
+      client.request("spawn_agent", { label: "x", systemPrompt: "x", tools: [] }, 100),
     ).rejects.toThrow(IpcTimeoutError);
 
     silentServer.close();
