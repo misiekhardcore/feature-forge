@@ -7,6 +7,20 @@ import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
 
+// Build a dispatch callback that delegates through a StepExecutorRegistry.
+function makeDispatch(
+  registry: StepExecutorRegistry,
+): (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext> {
+  const dispatch = async (instruction: FlowInstruction, ctx: FlowContext): Promise<FlowContext> => {
+    const executor = registry.get(instruction.type);
+    if (!executor) {
+      throw new Error(`No executor registered for step type "${instruction.type}"`);
+    }
+    return executor.execute(instruction, ctx, dispatch);
+  };
+  return dispatch;
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 class ConfigurableExecutor extends StepExecutor {
@@ -65,7 +79,7 @@ describe("ParallelStepExecutor", () => {
     registry.register(new ConfigurableExecutor("op-a", "child-a-out"));
     registry.register(new ConfigurableExecutor("op-b", "child-b-out"));
 
-    const executor = new ParallelStepExecutor(registry);
+    const executor = new ParallelStepExecutor();
 
     const instruction: ParallelInstruction = {
       type: "parallel",
@@ -77,7 +91,8 @@ describe("ParallelStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     expect(result.results.get("a")!.raw).toBe("child-a-out");
     expect(result.results.get("b")!.raw).toBe("child-b-out");
@@ -88,7 +103,7 @@ describe("ParallelStepExecutor", () => {
     const registry = new StepExecutorRegistry();
     registry.register(new WorkspaceCreatingExecutor());
 
-    const executor = new ParallelStepExecutor(registry);
+    const executor = new ParallelStepExecutor();
 
     const instruction: ParallelInstruction = {
       type: "parallel",
@@ -100,7 +115,8 @@ describe("ParallelStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     expect(result.workspaces.has("ws1")).toBe(true);
     expect(result.workspaces.has("ws2")).toBe(true);
@@ -111,7 +127,7 @@ describe("ParallelStepExecutor", () => {
     registry.register(new DelayedExecutor(10));
     registry.register(new FailingExecutor());
 
-    const executor = new ParallelStepExecutor(registry);
+    const executor = new ParallelStepExecutor();
 
     const instruction: ParallelInstruction = {
       type: "parallel",
@@ -124,12 +140,14 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context)).rejects.toThrow("step b failed");
+    await expect(executor.execute(instruction, context, makeDispatch(registry))).rejects.toThrow(
+      "step b failed",
+    );
   });
 
   it("throws for an unknown step type in children", async () => {
     const registry = new StepExecutorRegistry();
-    const executor = new ParallelStepExecutor(registry);
+    const executor = new ParallelStepExecutor();
 
     const instruction: ParallelInstruction = {
       type: "parallel",
@@ -139,14 +157,14 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context)).rejects.toThrow(
+    await expect(executor.execute(instruction, context, makeDispatch(registry))).rejects.toThrow(
       'No executor registered for step type "unknown"',
     );
   });
 
   it("handles an empty block (no children)", async () => {
     const registry = new StepExecutorRegistry();
-    const executor = new ParallelStepExecutor(registry);
+    const executor = new ParallelStepExecutor();
 
     const instruction: ParallelInstruction = {
       type: "parallel",
@@ -155,7 +173,8 @@ describe("ParallelStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     expect(result.results.get("empty")!.parsed!.passed).toBe(true);
   });

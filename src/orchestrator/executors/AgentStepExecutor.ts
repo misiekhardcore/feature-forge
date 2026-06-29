@@ -1,9 +1,10 @@
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
-import type { FlowContext, InstructionResult, ParsedResult } from "../FlowContext";
-import type { AgentInstruction } from "../FlowInstruction";
+import type { FlowContext, InstructionResult } from "../FlowContext";
+import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
+import { extractJson } from "./extractJson";
 
 /**
  * Executes an "agent" instruction by spawning an agent via
@@ -28,7 +29,11 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     super();
   }
 
-  async execute(instruction: AgentInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: AgentInstruction,
+    context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const instructionId = instruction.id;
 
     // 1. Resolve specInput placeholders, then build the specification.
@@ -89,48 +94,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       return { raw };
     }
 
-    let parsed: ParsedResult | undefined;
-    try {
-      parsed = AgentStepExecutor.parseJsonOutput(raw);
-    } catch {
-      logger.warn("Failed to parse agent JSON output", { raw: raw.slice(0, 200) });
-    }
-
+    const parsed = extractJson(raw);
     return { raw, parsed };
-  }
-
-  private static parseJsonOutput(raw: string): ParsedResult {
-    const jsonBlock = AgentStepExecutor.extractJsonBlock(raw);
-    const parsed = JSON.parse(jsonBlock);
-
-    if (parsed.findings) {
-      return {
-        kind: "review",
-        passed: parsed.passed ?? false,
-        findings: {
-          critical: parsed.findings.critical ?? [],
-          warnings: parsed.findings.warnings ?? [],
-          info: parsed.findings.info ?? [],
-        },
-      };
-    }
-
-    return {
-      kind: "build",
-      passed: parsed.passed ?? false,
-      summary: parsed.summary ?? "",
-    };
-  }
-
-  private static extractJsonBlock(raw: string): string {
-    // Look for a ```json … ``` fenced block.
-    const fencedMatch = raw.match(/```json\s*\n([\s\S]*?)\n```/);
-    if (fencedMatch) return fencedMatch[1];
-
-    // Fall back: look for a bare { … } block.
-    const braceMatch = raw.match(/\{[\s\S]*\}/);
-    if (braceMatch) return braceMatch[0];
-
-    throw new Error("No JSON block found in agent output");
   }
 }

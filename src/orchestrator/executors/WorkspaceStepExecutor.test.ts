@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
@@ -37,7 +37,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const result = await executor.execute(instruction, context, vi.fn());
 
     expect(provider.created).toContain("/test/ws1");
     expect(result.workspaces.has("ws1")).toBe(true);
@@ -57,7 +57,7 @@ describe("WorkspaceStepExecutor", () => {
     };
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context)).rejects.toThrow(
+    await expect(executor.execute(instruction, context, vi.fn())).rejects.toThrow(
       'Unknown workspace provider "current-dir"',
     );
   });
@@ -73,7 +73,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext(new Map(), "task");
-    await executor.execute(instruction, context);
+    await executor.execute(instruction, context, vi.fn());
 
     expect(context.workspaces.size).toBe(0);
     expect(context.results.size).toBe(0);

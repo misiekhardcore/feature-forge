@@ -1,9 +1,9 @@
 import { logger } from "../../logging";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { LoopInstruction } from "../FlowInstruction";
+import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
-import type { StepExecutorRegistry } from "../StepExecutorRegistry";
+import { collectAllIds } from "./helpers";
 
 /**
  * Executes a "loop" instruction by repeatedly running its body steps,
@@ -17,11 +17,11 @@ import type { StepExecutorRegistry } from "../StepExecutorRegistry";
 export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
   readonly type = "loop";
 
-  constructor(private readonly stepRegistry: StepExecutorRegistry) {
-    super();
-  }
-
-  async execute(instruction: LoopInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: LoopInstruction,
+    context: FlowContext,
+    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const maxIterations = instruction.maxIterations;
     const continueWhileExpr = instruction.continueWhile;
     const accumulateFrom = instruction.accumulateFrom ?? [];
@@ -37,10 +37,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
     // Track all result ids produced across iterations so we can clear
     // stale results between rounds.
-    const bodyIds = new Set<string>();
-    for (const step of instruction.steps) {
-      bodyIds.add(step.id);
-    }
+    const bodyIds = collectAllIds(instruction.steps);
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       // Clear body results from the previous iteration before starting
@@ -56,11 +53,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
       // Execute each body step in sequence.
       for (const step of instruction.steps) {
-        const executor = this.stepRegistry.get(step.type);
-        if (!executor) {
-          throw new Error(`No executor registered for step type "${step.type}"`);
-        }
-        current = await executor.execute(step, current);
+        current = await executeStep(step, current);
       }
 
       // Build feedback from accumulated results.

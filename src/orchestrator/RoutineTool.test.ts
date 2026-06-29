@@ -28,12 +28,12 @@ function makeFlow(routineParamNames: string[] = []): FlowDefinition {
 
 describe("RoutineTool", () => {
   describe("constructor", () => {
-    it("sets name to flowName:routineName", () => {
+    it("sets name to routineName", () => {
       const flow = makeFlow();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
-      expect(tool.name).toBe("myflow:build");
+      expect(tool.name).toBe("build");
     });
 
     it("sets a human-readable label", () => {
@@ -60,12 +60,16 @@ describe("RoutineTool", () => {
       expect(tool.description).toContain("task, plan");
     });
 
-    it("has parameters schema as a static Record of string→string", () => {
-      const flow = makeFlow();
+    it("has typed parameters built from the routine's param declarations", () => {
+      const flow = makeFlow(["task", "plan"]);
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
-      expect(tool.parameters).toBe(RoutineTool.parameters);
+      expect(tool.parameters).toBeDefined();
+      // The schema is built dynamically — verify it has the expected structure.
+      const schemaJson = JSON.stringify(tool.parameters);
+      expect(schemaJson).toContain('"task"');
+      expect(schemaJson).toContain('"plan"');
     });
   });
 

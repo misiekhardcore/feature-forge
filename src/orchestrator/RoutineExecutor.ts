@@ -1,7 +1,7 @@
 import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
-import type { FlowDefinition, RoutineDefinition } from "./FlowInstruction";
+import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -53,15 +53,24 @@ export class RoutineExecutor {
 
     let context = new FlowContext(new Map(), task, new Map(), new Map(Object.entries(params)));
 
-    for (const step of routine.steps) {
-      const executor = this.stepRegistry.get(step.type);
+    // Recursive step dispatcher — passes itself to executors so container
+    // instructions (loop, parallel) can dispatch their children without
+    // depending on the StepExecutorRegistry directly.
+    const executeStep = async (
+      instruction: FlowInstruction,
+      ctx: FlowContext,
+    ): Promise<FlowContext> => {
+      const executor = this.stepRegistry.get(instruction.type);
       if (!executor) {
         throw new Error(
-          `No step executor registered for type "${step.type}" ` +
-            `(routine "${routineName}", step "${step.id}")`,
+          `No step executor registered for type "${instruction.type}" ` +
+            `(routine "${routineName}", step "${instruction.id}")`,
         );
       }
+      return executor.execute(instruction, ctx, executeStep);
+    };
 
+    for (const step of routine.steps) {
       logger.debug("Executing step", {
         routine: routineName,
         step: step.id,
@@ -69,7 +78,7 @@ export class RoutineExecutor {
       });
 
       try {
-        context = await executor.execute(step, context);
+        context = await executeStep(step, context);
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         logger.error("Step execution failed", {

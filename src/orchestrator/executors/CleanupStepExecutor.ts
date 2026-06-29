@@ -1,7 +1,7 @@
 import { logger } from "../../logging";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { CleanupInstruction } from "../FlowInstruction";
+import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -22,7 +22,11 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     super();
   }
 
-  async execute(instruction: CleanupInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: CleanupInstruction,
+    context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const targetName = instruction.of ? context.resolve(instruction.of) : undefined;
     const cleaned: string[] = [];
 

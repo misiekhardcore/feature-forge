@@ -196,15 +196,16 @@ describe("RoutineExecutor", () => {
       );
     });
 
-    it("throws for an unknown step type", async () => {
+    it("returns a failure result for an unknown step type", async () => {
       const registry = new StepExecutorRegistry();
       // No "record" executor registered.
       const flow = makeTestFlow();
       const executor = new RoutineExecutor(flow, registry);
 
-      await expect(executor.run("main", {}, "task")).rejects.toThrow(
-        'No step executor registered for type "record"',
-      );
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(false);
+      expect(result.summary).toContain('No step executor registered for type "record"');
     });
 
     it("includes available routines in the unknown routine error", async () => {

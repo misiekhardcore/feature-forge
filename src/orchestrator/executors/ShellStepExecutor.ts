@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { ShellInstruction } from "../FlowInstruction";
+import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -22,7 +22,11 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
   /** Maximum time (ms) a shell command may run before being aborted. */
   private readonly timeout = 120_000;
 
-  async execute(instruction: ShellInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: ShellInstruction,
+    context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
 
