@@ -35,7 +35,7 @@ describe("ResearchCommand", () => {
           id: "research",
           role: "researcher",
           systemPrompt: `Research: ${params.CONTEXT ?? ""}`,
-          toolNames: [...TOOL_PRESETS.readOnly],
+          tools: [...TOOL_PRESETS.readOnly],
           ephemeral: true,
         }),
     );

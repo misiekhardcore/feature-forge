@@ -174,8 +174,8 @@ export class ParentSocketServer {
     const specification = new DynamicAgentSpecification({
       role: params.label,
       systemPrompt: params.systemPrompt,
-      toolNames: params.tools,
-      modelPreference: params.model,
+      tools: params.tools,
+      model: params.model,
       cwd: params.cwd,
     });
     const agent = await this.supervisor.spawn(specification);
