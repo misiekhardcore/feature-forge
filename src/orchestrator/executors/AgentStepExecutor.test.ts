@@ -4,7 +4,6 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications/AgentSpecification";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
 import { AgentStepExecutor } from "./AgentStepExecutor";
@@ -136,7 +135,7 @@ describe("AgentStepExecutor", () => {
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
     });
 
-    it("consumes taskInput and resolves placeholders in it", async () => {
+    it("calls specManager.resolve with the instruction's systemPrompt as the spec name", async () => {
       const agent = makeMockAgent("done");
       const supervisor = makeMockSupervisor(agent);
       const specManager = makeMockSpecManager();
@@ -147,23 +146,13 @@ describe("AgentStepExecutor", () => {
         id: "builder",
         systemPrompt: "build",
         task: "build it",
-        taskInput: {
-          TASK: "{{task}}",
-          WORKSPACE: "{{workspace.ws}}",
-        },
       };
-      const context = new FlowContext(
-        new Map(),
-        "add auth",
-        new Map([["ws", new WorkspaceHandle("ws", "/tmp/ws", new Date())]]),
-      );
+      const context = new FlowContext(new Map(), "task");
 
       await executor.execute(instruction, context, vi.fn());
 
       const resolveCall = (specManager.resolve as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(resolveCall.spec).toBe("build");
-      expect(resolveCall.specParams.TASK).toBe("add auth");
-      expect(resolveCall.specParams.WORKSPACE).toBe("/tmp/ws");
     });
 
     it("handles gracefully when parseJson is true but JSON is malformed", async () => {

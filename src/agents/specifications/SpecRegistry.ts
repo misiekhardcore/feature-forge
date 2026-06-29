@@ -2,7 +2,11 @@ import { Registry } from "../../registry";
 import type { AgentSpecification } from "./AgentSpecification";
 
 /**
- * Factory function that creates an {@link AgentSpecification} from template params.
+ * Factory function that creates an {@link AgentSpecification}.
+ *
+ * The factory receives an empty params object — all configuration
+ * is embedded in the factory closure. Template variables were removed
+ * when specs transitioned to persona-only definitions.
  */
 export type SpecFactory = (params: Record<string, string>) => AgentSpecification;
 
@@ -19,13 +23,10 @@ export type SpecFactory = (params: Record<string, string>) => AgentSpecification
  * @example
  * ```ts
  * const registry = new SpecRegistry();
- * registry.register("build", (params) => {
+ * registry.register("build", () => {
  *   return new DynamicAgentSpecification({ ... });
  * });
- * const spec = registry.create("build", {
- *   TASK: "Add login endpoint",
- *   WORKSPACE: "/tmp/forge-workspace-123",
- * });
+ * const spec = registry.create("build");
  * ```
  */
 export class SpecRegistry extends Registry<SpecFactory> {
@@ -48,11 +49,10 @@ export class SpecRegistry extends Registry<SpecFactory> {
    * Create an agent specification by name.
    *
    * @param name — a previously registered spec name.
-   * @param params — template variable values for the spec's system prompt.
    * @returns a fully configured AgentSpecification.
    * @throws if no spec is registered under the given name.
    */
-  create(name: string, params?: Record<string, string>): AgentSpecification {
+  create(name: string): AgentSpecification {
     const factory = this.get(name);
     if (!factory) {
       const available = Array.from(this.specNames()).join(", ");
@@ -60,7 +60,7 @@ export class SpecRegistry extends Registry<SpecFactory> {
         `Unknown spec: "${name}". Available specs: ${available || "(none registered)"}`,
       );
     }
-    return factory(params ?? {});
+    return factory({});
   }
 
   /**

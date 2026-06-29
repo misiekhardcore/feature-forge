@@ -18,7 +18,7 @@ import type { Agent } from "../src/agents/agents";
 import { AgentStatus } from "../src/agents/base";
 import type { AgentSupervisor } from "../src/agents/supervisors";
 import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
-import { makeMockPi, makeMockSpecManager } from "../src/test-utils";
+import { makeMockPi } from "../src/test-utils";
 
 function createMockAgent(): Agent {
   const id = "e2e-agent";
@@ -69,7 +69,7 @@ describe("forge-subagent E2E", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
+    server = new ParentSocketServer(supervisor, makeMockPi());
     socketPath = await server.start();
     piProcess = null;
   });

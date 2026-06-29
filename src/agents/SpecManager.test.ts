@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type { SpawnAgentParams } from "../ipc/messages";
 import type { SpecLoader } from "./declarative-specs/SpecLoader";
 import { TOOL_PRESETS } from "./specifications/constants";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
@@ -24,11 +23,11 @@ function makeLoader(
     loadAll: async () => {
       const map = new Map();
       for (const [name, spec] of Object.entries(specs)) {
-        map.set(name, (params: Record<string, string> = {}) => {
+        map.set(name, (_params: Record<string, string> = {}) => {
           return new DynamicAgentSpecification({
             id: spec.id,
             role: spec.role,
-            systemPrompt: fillTemplate(spec.body, params),
+            systemPrompt: fillTemplate(spec.body, {}),
             toolNames: [...TOOL_PRESETS.fullAccess],
             ephemeral: spec.ephemeral ?? false,
           });
@@ -49,11 +48,11 @@ describe("SpecManager", () => {
       expect(result).toBe(true);
     });
 
-    it("returns false when params have a role and systemPrompt instead of spec", () => {
+    it("returns false when params have a label and systemPrompt instead of spec", () => {
       const result = SpecManager.isSpecParams({
-        role: "custom",
+        label: "custom",
         systemPrompt: "You are helpful",
-        toolNames: ["read"],
+        tools: ["read"],
       });
       expect(result).toBe(false);
     });
@@ -70,11 +69,11 @@ describe("SpecManager", () => {
   describe("resolve", () => {
     it("resolves a named spec from the registry", () => {
       const registry = new SpecRegistry();
-      registry.register("build", (params) => {
+      registry.register("build", () => {
         return new DynamicAgentSpecification({
           id: "build",
           role: "build",
-          systemPrompt: fillTemplate("Task: {{TASK}}", params),
+          systemPrompt: "Task: build",
           toolNames: [...TOOL_PRESETS.fullAccess],
           ephemeral: true,
         });
@@ -84,13 +83,11 @@ describe("SpecManager", () => {
 
       const spec = manager.resolve({
         spec: "build",
-        specParams: { TASK: "Add login" },
-        toolNames: ["read"],
       });
 
       expect(spec.id).toBe("build");
       expect(spec.role).toBe("build");
-      expect(spec.systemPrompt).toBe("Task: Add login");
+      expect(spec.systemPrompt).toBe("Task: build");
       expect(spec.ephemeral).toBe(true);
     });
 
@@ -102,85 +99,8 @@ describe("SpecManager", () => {
       expect(() =>
         manager.resolve({
           spec: "nonexistent",
-          toolNames: ["read"],
         }),
       ).toThrow("Spec 'nonexistent' not found");
-    });
-
-    it("falls back to DynamicAgentSpecification when no spec is provided", () => {
-      const registry = new SpecRegistry();
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      const spec = manager.resolve({
-        role: "custom",
-        systemPrompt: "You are a custom agent",
-        toolNames: ["read", "bash"],
-      });
-
-      expect(spec.role).toBe("custom");
-      expect(spec.systemPrompt).toBe("You are a custom agent");
-      expect(spec.toolNames).toEqual(["read", "bash"]);
-    });
-
-    it("passes model preference through in fallback mode", () => {
-      const registry = new SpecRegistry();
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      const spec = manager.resolve({
-        role: "researcher",
-        systemPrompt: "Research",
-        toolNames: ["read"],
-        model: "claude-sonnet-4-5",
-      });
-
-      expect(spec.role).toBe("researcher");
-      expect(spec.modelPreference).toBe("claude-sonnet-4-5");
-    });
-
-    it("passes cwd through in fallback mode", () => {
-      const registry = new SpecRegistry();
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      const spec = manager.resolve({
-        role: "worker",
-        systemPrompt: "Work",
-        toolNames: ["bash"],
-        cwd: "/tmp/workspace",
-      });
-
-      expect(spec.cwd).toBe("/tmp/workspace");
-    });
-
-    it("does not pass model or cwd through named spec path (registry handles it)", () => {
-      const registry = new SpecRegistry();
-      registry.register("build", (params) => {
-        return new DynamicAgentSpecification({
-          id: "build",
-          role: "build",
-          systemPrompt: fillTemplate("{{TASK}}", params),
-          toolNames: [...TOOL_PRESETS.fullAccess],
-          ephemeral: true,
-        });
-      });
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      // model and cwd passed alongside spec but registry factory ignores them by design
-      const spec = manager.resolve({
-        spec: "build",
-        specParams: { TASK: "test" },
-        toolNames: ["read"],
-        model: "claude-opus",
-        cwd: "/other",
-      } as SpawnAgentParams);
-
-      // Registry factory didn't set modelPreference or cwd, so they remain undefined
-      expect(spec.modelPreference).toBeUndefined();
-      expect(spec.cwd).toBeUndefined();
-      expect(spec.systemPrompt).toBe("test");
     });
   });
 
@@ -193,7 +113,7 @@ describe("SpecManager", () => {
           role: "researcher",
           toolPreset: "readOnly",
           ephemeral: true,
-          body: "Research: {{CONTEXT}}",
+          body: "Research: default",
         },
       });
       const manager = new SpecManager(registry, loader);
@@ -201,9 +121,9 @@ describe("SpecManager", () => {
       await manager.load();
 
       expect(registry.specNames()).toContain("research");
-      const spec = registry.create("research", { CONTEXT: "test context" });
+      const spec = registry.create("research");
       expect(spec.role).toBe("researcher");
-      expect(spec.systemPrompt).toBe("Research: test context");
+      expect(spec.systemPrompt).toBe("Research: default");
     });
 
     it("loads multiple specs in one call", async () => {
@@ -214,14 +134,14 @@ describe("SpecManager", () => {
           role: "build",
           toolPreset: "fullAccess",
           ephemeral: true,
-          body: "Build: {{TASK}}",
+          body: "Build: default",
         },
         review: {
           id: "review",
           role: "review",
           toolPreset: "reviewOnly",
           ephemeral: true,
-          body: "Review: {{OUTPUT}}",
+          body: "Review: default",
         },
       });
       const manager = new SpecManager(registry, loader);

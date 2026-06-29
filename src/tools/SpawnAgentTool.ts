@@ -9,10 +9,26 @@ import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
 
-// Two modes: (A) spec + specParams, or (B) role + systemPrompt.
-// Must be a plain object schema — the API requires type: "object" at the root.
+/**
+ * Schema for the spawn_agent tool — single unambiguous mode.
+ *
+ * All values are fully resolved before they reach the IPC layer:
+ * `systemPrompt` is the complete persona text, `prompt` is an optional
+ * initial task. No template variables or spec name lookups.
+ */
 export const SpawnAgentParameters = Type.Object({
-  toolNames: Type.Readonly(
+  label: Type.String({
+    description: "Display label / role name for the spawned agent.",
+  }),
+  systemPrompt: Type.String({
+    description: "Resolved persona text sent as the system prompt (no placeholders).",
+  }),
+  prompt: Type.Optional(
+    Type.String({
+      description: "Optional initial task the agent should execute immediately.",
+    }),
+  ),
+  tools: Type.Readonly(
     Type.Array(Type.String(), {
       description: "Tool names to grant the agent.",
     }),
@@ -27,37 +43,14 @@ export const SpawnAgentParameters = Type.Object({
       description: "Optional working directory.",
     }),
   ),
-  // Mode A: named spec
-  spec: Type.Optional(
-    Type.String({
-      description: 'Mode A — named spec identifier (e.g. "build", "review", "verify", "research").',
-    }),
-  ),
-  specParams: Type.Optional(
-    Type.Record(Type.String(), Type.String(), {
-      description: "Mode A — template variable values for the named spec's system prompt.",
-    }),
-  ),
-  // Mode B: custom role
-  role: Type.Optional(
-    Type.String({
-      description: 'Mode B — agent role (e.g. "researcher", "reviewer").',
-    }),
-  ),
-  systemPrompt: Type.Optional(
-    Type.String({
-      description: "Mode B — full system prompt for the spawned agent.",
-    }),
-  ),
 });
 
 export class SpawnAgentTool extends Tool {
   readonly name = "spawn_agent";
   readonly label = "Spawn Agent";
   readonly description =
-    "Create a sub-agent with a specific role and system prompt. " +
-    "Returns an agentId for use with send_task, get_agent_result, and destroy_agent. " +
-    "Two modes: provide spec + specParams (role from spec), or role + systemPrompt + toolNames (custom fallback).";
+    "Create a sub-agent with a label, system prompt, and optional initial task. " +
+    "Returns an agentId for use with send_task, get_agent_result, and destroy_agent.";
 
   readonly parameters = SpawnAgentParameters;
 
