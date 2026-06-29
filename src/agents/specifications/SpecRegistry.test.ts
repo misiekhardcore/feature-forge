@@ -11,7 +11,7 @@ describe("SpecRegistry", () => {
     expect(Array.from(registry.specNames())).toEqual([]);
   });
 
-  it("creates a build spec with filled template params", () => {
+  it("creates a build spec from the registered factory", () => {
     const registry = new SpecRegistry();
     registry.register("build", (params) => {
       return new DynamicAgentSpecification({
@@ -25,22 +25,17 @@ describe("SpecRegistry", () => {
         ephemeral: true,
       });
     });
-    const spec = registry.create("build", {
-      TASK: "Add login",
-      WORKSPACE: "/tmp/workspace",
-    });
+    const spec = registry.create("build");
     expect(spec.role).toBe("build");
-    expect(spec.systemPrompt).toContain("Add login");
-    expect(spec.systemPrompt).not.toContain("{{TASK}}");
-    expect(spec.systemPrompt).toContain("/tmp/workspace");
-    expect(spec.systemPrompt).not.toContain("{{WORKSPACE}}");
+    expect(spec.systemPrompt).toContain("{{TASK}}");
+    expect(spec.systemPrompt).toContain("{{WORKSPACE}}");
     expect(spec.toolNames).toContain("read");
     expect(spec.toolNames).toContain("bash");
     expect(spec.toolNames).toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
-  it("creates a review spec with filled template params", () => {
+  it("creates a review spec from the registered factory", () => {
     const registry = new SpecRegistry();
     registry.register("review", (params) => {
       return new DynamicAgentSpecification({
@@ -54,20 +49,15 @@ describe("SpecRegistry", () => {
         ephemeral: true,
       });
     });
-    const spec = registry.create("review", {
-      BUILD_OUTPUT: "Created src/auth.ts",
-      ACCEPTANCE_CRITERIA: "User can log in",
-    });
+    const spec = registry.create("review");
     expect(spec.role).toBe("review");
-    expect(spec.systemPrompt).toContain("Created src/auth.ts");
-    expect(spec.systemPrompt).not.toContain("{{BUILD_OUTPUT}}");
-    expect(spec.systemPrompt).toContain("User can log in");
-    expect(spec.systemPrompt).not.toContain("{{ACCEPTANCE_CRITERIA}}");
+    expect(spec.systemPrompt).toContain("{{BUILD_OUTPUT}}");
+    expect(spec.systemPrompt).toContain("{{ACCEPTANCE_CRITERIA}}");
     expect(spec.toolNames).toEqual(["read", "grep"]);
     expect(spec.ephemeral).toBe(true);
   });
 
-  it("creates a verify spec with filled template params", () => {
+  it("creates a verify spec from the registered factory", () => {
     const registry = new SpecRegistry();
     registry.register("verify", (params) => {
       return new DynamicAgentSpecification({
@@ -81,20 +71,16 @@ describe("SpecRegistry", () => {
         ephemeral: true,
       });
     });
-    const spec = registry.create("verify", {
-      BUILD_OUTPUT: "Created src/auth.ts",
-      ACCEPTANCE_CRITERIA: "User can log in",
-    });
+    const spec = registry.create("verify");
     expect(spec.role).toBe("verify");
-    expect(spec.systemPrompt).toContain("Created src/auth.ts");
-    expect(spec.systemPrompt).not.toContain("{{BUILD_OUTPUT}}");
+    expect(spec.systemPrompt).toContain("{{BUILD_OUTPUT}}");
     expect(spec.toolNames).toContain("read");
     expect(spec.toolNames).toContain("bash");
     expect(spec.toolNames).not.toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
-  it("creates a research spec with filled template params", () => {
+  it("creates a research spec from the registered factory", () => {
     const registry = new SpecRegistry();
     registry.register("research", (params) => {
       return new DynamicAgentSpecification({
@@ -105,12 +91,9 @@ describe("SpecRegistry", () => {
         ephemeral: true,
       });
     });
-    const spec = registry.create("research", {
-      CONTEXT: "Focus: authentication",
-    });
+    const spec = registry.create("research");
     expect(spec.role).toBe("research");
-    expect(spec.systemPrompt).toContain("Focus: authentication");
-    expect(spec.systemPrompt).not.toContain("{{CONTEXT}}");
+    expect(spec.systemPrompt).toContain("{{CONTEXT}}");
     expect(spec.toolNames).toEqual(["read", "grep", "ls"]);
     expect(spec.ephemeral).toBe(true);
   });
@@ -169,9 +152,9 @@ describe("SpecRegistry", () => {
       });
     });
     expect(registry.specNames()).toContain("custom");
-    const spec = registry.create("custom", { ROLE: "helper", TOPIC: "testing" });
-    expect(spec.role).toBe("helper");
-    expect(spec.systemPrompt).toBe("Custom prompt: testing");
+    const spec = registry.create("custom");
+    expect(spec.role).toBe("custom");
+    expect(spec.systemPrompt).toBe("Custom prompt: ");
   });
 
   it("throws when registering a duplicate spec name", () => {

@@ -309,9 +309,9 @@ export function makeMockSpecManager() {
   return {
     resolve: vi.fn().mockImplementation((params) => {
       return {
-        id: params.spec ?? params.role ?? "mock",
-        role: params.role ?? "mock",
-        systemPrompt: params.systemPrompt ?? "Mock system prompt",
+        id: params.spec ?? "mock",
+        role: params.spec ?? "mock",
+        systemPrompt: `Mock system prompt for ${params.spec ?? "unknown"}`,
         toolNames: params.toolNames ?? [],
         cwd: params.cwd,
         disableBuiltinTools: false,

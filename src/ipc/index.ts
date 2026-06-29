@@ -21,8 +21,6 @@ export type {
   SocketResponseError,
   SocketResponseResult,
   SpawnAgentParams,
-  SpawnAgentParamsWithRole,
-  SpawnAgentParamsWithSpec,
   SpawnAgentResult,
   SpawnSocketMessage,
 } from "./messages";

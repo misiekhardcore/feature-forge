@@ -11,41 +11,33 @@ import type { AgentStatus } from "../agents";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
-// Params
-interface CommonSpawnParams {
+/**
+ * Parameters for spawning a sub-agent.
+ *
+ * Single unambiguous mode — all values are fully resolved by the caller.
+ * The parent socket server creates a {@link DynamicAgentSpecification}
+ * directly from these fields.
+ */
+export interface SpawnAgentParams {
+  /** Display label / role name for the agent. */
+  label: string;
+  /** Resolved persona text (already filled, no placeholders). */
+  systemPrompt: string;
+  /** Optional initial task (can be sent later via send_task). */
+  prompt?: string;
   /** Tool names to grant the agent. */
-  toolNames: readonly string[];
+  tools: string[];
   /** Optional model preference (e.g. "claude-sonnet-4-5"). */
   model?: string;
   /** Optional working directory. */
   cwd?: string;
 }
 
-export interface SpawnAgentParamsWithSpec extends CommonSpawnParams {
-  /** Named spec identifier (e.g. "build", "review", "verify", "research"). */
-  spec: string;
-  /** Template variable values for the named spec's system prompt. */
-  specParams?: Record<string, string>;
-  role?: never;
-  systemPrompt?: never;
-}
-
-export interface SpawnAgentParamsWithRole extends CommonSpawnParams {
-  /** Agent role (e.g. "researcher", "reviewer"). */
-  role: string;
-  /** Full system prompt for the spawned agent. */
-  systemPrompt: string;
-  spec?: never;
-  specParams?: never;
-}
-
-export type SpawnAgentParams = SpawnAgentParamsWithSpec | SpawnAgentParamsWithRole;
-
 export interface SendTaskParams {
   /** Target agent's id string. */
   agentId: string;
-  /** The task message to send. */
-  task: string;
+  /** The task prompt to send. */
+  prompt: string;
   /**
    * If true, block the socket response until the agent completes.
    * If false, respond immediately and push an `agent_update` event later.
@@ -110,7 +102,7 @@ export type SocketMessage =
 
 export type SpawnAgentResult = {
   agentId: string;
-  role: string;
+  label: string;
 };
 export type SendTaskResult = { result: string | null } | { status: "dispatched" };
 export type GetAgentResultResult = {

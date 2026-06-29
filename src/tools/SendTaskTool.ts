@@ -21,7 +21,7 @@ export class SendTaskTool extends Tool {
 
   readonly parameters = Type.Object({
     agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
-    task: Type.String({ description: "The task description to send to the agent" }),
+    task: Type.String({ description: "The task prompt to send to the agent" }),
     await: Type.Boolean({
       description:
         "If true, wait for the agent to finish. " +

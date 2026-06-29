@@ -48,11 +48,10 @@ export class SpecRegistry extends Registry<SpecFactory> {
    * Create an agent specification by name.
    *
    * @param name — a previously registered spec name.
-   * @param params — template variable values for the spec's system prompt.
    * @returns a fully configured AgentSpecification.
    * @throws if no spec is registered under the given name.
    */
-  create(name: string, params?: Record<string, string>): AgentSpecification {
+  create(name: string): AgentSpecification {
     const factory = this.get(name);
     if (!factory) {
       const available = Array.from(this.specNames()).join(", ");
@@ -60,7 +59,7 @@ export class SpecRegistry extends Registry<SpecFactory> {
         `Unknown spec: "${name}". Available specs: ${available || "(none registered)"}`,
       );
     }
-    return factory(params ?? {});
+    return factory({});
   }
 
   /**

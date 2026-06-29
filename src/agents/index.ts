@@ -17,5 +17,5 @@ export {
   ThinkingLevel,
   TOOL_PRESETS,
 } from "./specifications";
-export { SpecManager } from "./SpecManager";
+export { SpecManager, type SpecResolutionParams } from "./SpecManager";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";

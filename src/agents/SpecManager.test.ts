@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { SpawnAgentParams } from "../ipc/messages";
 import type { SpecLoader } from "./declarative-specs/SpecLoader";
 import { TOOL_PRESETS } from "./specifications/constants";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import { SpecRegistry } from "./specifications/SpecRegistry";
 import { fillTemplate } from "./specifications/templates";
-import { SpecManager } from "./SpecManager";
+import { SpecManager, type SpecResolutionParams } from "./SpecManager";
 
 function makeLoader(
   specs: Record<
@@ -45,24 +44,15 @@ describe("SpecManager", () => {
       const result = SpecManager.isSpecParams({
         spec: "build",
         toolNames: ["read"],
-      });
+      } as SpecResolutionParams);
       expect(result).toBe(true);
-    });
-
-    it("returns false when params have a role and systemPrompt instead of spec", () => {
-      const result = SpecManager.isSpecParams({
-        role: "custom",
-        systemPrompt: "You are helpful",
-        toolNames: ["read"],
-      });
-      expect(result).toBe(false);
     });
 
     it("returns false when spec is not a string", () => {
       const result = SpecManager.isSpecParams({
         spec: undefined as unknown as string,
         toolNames: ["read"],
-      });
+      } as SpecResolutionParams);
       expect(result).toBe(false);
     });
   });
@@ -84,13 +74,12 @@ describe("SpecManager", () => {
 
       const spec = manager.resolve({
         spec: "build",
-        specParams: { TASK: "Add login" },
         toolNames: ["read"],
       });
 
       expect(spec.id).toBe("build");
       expect(spec.role).toBe("build");
-      expect(spec.systemPrompt).toBe("Task: Add login");
+      expect(spec.systemPrompt).toBe("Task: {{TASK}}");
       expect(spec.ephemeral).toBe(true);
     });
 
@@ -105,82 +94,6 @@ describe("SpecManager", () => {
           toolNames: ["read"],
         }),
       ).toThrow("Spec 'nonexistent' not found");
-    });
-
-    it("falls back to DynamicAgentSpecification when no spec is provided", () => {
-      const registry = new SpecRegistry();
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      const spec = manager.resolve({
-        role: "custom",
-        systemPrompt: "You are a custom agent",
-        toolNames: ["read", "bash"],
-      });
-
-      expect(spec.role).toBe("custom");
-      expect(spec.systemPrompt).toBe("You are a custom agent");
-      expect(spec.toolNames).toEqual(["read", "bash"]);
-    });
-
-    it("passes model preference through in fallback mode", () => {
-      const registry = new SpecRegistry();
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      const spec = manager.resolve({
-        role: "researcher",
-        systemPrompt: "Research",
-        toolNames: ["read"],
-        model: "claude-sonnet-4-5",
-      });
-
-      expect(spec.role).toBe("researcher");
-      expect(spec.modelPreference).toBe("claude-sonnet-4-5");
-    });
-
-    it("passes cwd through in fallback mode", () => {
-      const registry = new SpecRegistry();
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      const spec = manager.resolve({
-        role: "worker",
-        systemPrompt: "Work",
-        toolNames: ["bash"],
-        cwd: "/tmp/workspace",
-      });
-
-      expect(spec.cwd).toBe("/tmp/workspace");
-    });
-
-    it("does not pass model or cwd through named spec path (registry handles it)", () => {
-      const registry = new SpecRegistry();
-      registry.register("build", (params) => {
-        return new DynamicAgentSpecification({
-          id: "build",
-          role: "build",
-          systemPrompt: fillTemplate("{{TASK}}", params),
-          toolNames: [...TOOL_PRESETS.fullAccess],
-          ephemeral: true,
-        });
-      });
-      const loader = makeLoader({});
-      const manager = new SpecManager(registry, loader);
-
-      // model and cwd passed alongside spec but registry factory ignores them by design
-      const spec = manager.resolve({
-        spec: "build",
-        specParams: { TASK: "test" },
-        toolNames: ["read"],
-        model: "claude-opus",
-        cwd: "/other",
-      } as SpawnAgentParams);
-
-      // Registry factory didn't set modelPreference or cwd, so they remain undefined
-      expect(spec.modelPreference).toBeUndefined();
-      expect(spec.cwd).toBeUndefined();
-      expect(spec.systemPrompt).toBe("test");
     });
   });
 
@@ -201,9 +114,9 @@ describe("SpecManager", () => {
       await manager.load();
 
       expect(registry.specNames()).toContain("research");
-      const spec = registry.create("research", { CONTEXT: "test context" });
+      const spec = registry.create("research");
       expect(spec.role).toBe("researcher");
-      expect(spec.systemPrompt).toBe("Research: test context");
+      expect(spec.systemPrompt).toBe("Research: {{CONTEXT}}");
     });
 
     it("loads multiple specs in one call", async () => {

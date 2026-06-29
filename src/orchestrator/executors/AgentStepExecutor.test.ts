@@ -162,8 +162,7 @@ describe("AgentStepExecutor", () => {
 
       const resolveCall = (specManager.resolve as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(resolveCall.spec).toBe("build");
-      expect(resolveCall.specParams.TASK).toBe("add auth");
-      expect(resolveCall.specParams.WORKSPACE).toBe("/tmp/ws");
+      expect(resolveCall.toolNames).toEqual([]);
     });
 
     it("handles gracefully when parseJson is true but JSON is malformed", async () => {
