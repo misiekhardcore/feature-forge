@@ -21,7 +21,7 @@ function createMockAgent(): Agent {
     specification: {
       role: "test",
       systemPrompt: "",
-      toolNames: ["read"],
+      tools: ["read"],
       id,
     } as never,
     status: AgentStatus.Running,

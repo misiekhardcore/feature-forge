@@ -15,7 +15,7 @@ export interface SpecResolutionParams {
   /** Named spec identifier (e.g. "build", "review", "verify", "research"). */
   spec: string;
   /** Tool names to grant the agent. */
-  toolNames?: readonly string[];
+  tools?: readonly string[];
   /** Optional model preference. */
   model?: string;
   /** Optional working directory. */

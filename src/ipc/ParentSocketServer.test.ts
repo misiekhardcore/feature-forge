@@ -15,7 +15,7 @@ function createMockAgent(): Agent {
     specification: {
       role: "test",
       systemPrompt: "",
-      toolNames: ["read"],
+      tools: ["read"],
       id,
     } as never,
     status: AgentStatus.Running,
@@ -304,8 +304,8 @@ describe("ParentSocketServer", () => {
     const calledSpec = vi.mocked(localSupervisor.spawn).mock.calls[0][0];
     expect(calledSpec.role).toBe("build");
     expect(calledSpec.systemPrompt).toBe("You are a builder agent");
-    expect(calledSpec.toolNames).toEqual(["read", "bash"]);
-    expect(calledSpec.modelPreference).toBe("claude-sonnet-4-5");
+    expect(calledSpec.tools).toEqual(["read", "bash"]);
+    expect(calledSpec.model).toBe("claude-sonnet-4-5");
     expect(calledSpec.cwd).toBe("/tmp/ws");
 
     client.end();

@@ -22,7 +22,7 @@ export class ResearchCommand extends Command {
     }
 
     const specification = this.specManager.resolve({
-      toolNames: TOOL_PRESETS.readOnly,
+      tools: TOOL_PRESETS.readOnly,
       spec: "research",
     });
 

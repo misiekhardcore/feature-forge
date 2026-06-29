@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InMemoryAgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
+import { logger } from "../logging";
 import type { CommandRegistry, ToolRegistry } from "../registry";
 import { makeMockPi } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
@@ -177,7 +178,7 @@ describe("FlowRegistrar", () => {
     });
 
     it("skips flows that fail to load and logs a warning (non-Error throw)", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue("raw string error");
@@ -192,13 +193,14 @@ describe("FlowRegistrar", () => {
       expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to load flow "broken-flow"'),
+        expect.any(Object),
       );
 
       warnSpy.mockRestore();
     });
 
     it("skips flows that fail to load and logs a warning (Error throw)", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue(new Error("Invalid JSON"));
@@ -213,6 +215,7 @@ describe("FlowRegistrar", () => {
       expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('[feature-forge] Failed to load flow "broken-flow"'),
+        expect.any(Object),
       );
 
       warnSpy.mockRestore();
@@ -269,7 +272,7 @@ describe("FlowRegistrar", () => {
     });
 
     it("handles RoutineTool registration failures gracefully (non-Error throw)", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
@@ -292,13 +295,14 @@ describe("FlowRegistrar", () => {
       expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
+        expect.any(Object),
       );
 
       warnSpy.mockRestore();
     });
 
     it("handles RoutineTool registration failures gracefully (Error throw)", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
@@ -326,6 +330,7 @@ describe("FlowRegistrar", () => {
       expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
+        expect.any(Object),
       );
 
       warnSpy.mockRestore();

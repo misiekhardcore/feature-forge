@@ -17,16 +17,16 @@ describe("SpecRegistry", () => {
         id: "build",
         role: "build",
         systemPrompt: "# Build Agent\n\nReady to build.",
-        toolNames: [...TOOL_PRESETS.fullAccess],
+        tools: [...TOOL_PRESETS.fullAccess],
         ephemeral: true,
       });
     });
     const spec = registry.create("build");
     expect(spec.role).toBe("build");
     expect(spec.systemPrompt).toBe("# Build Agent\n\nReady to build.");
-    expect(spec.toolNames).toContain("read");
-    expect(spec.toolNames).toContain("bash");
-    expect(spec.toolNames).toContain("write");
+    expect(spec.tools).toContain("read");
+    expect(spec.tools).toContain("bash");
+    expect(spec.tools).toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
@@ -37,14 +37,14 @@ describe("SpecRegistry", () => {
         id: "review",
         role: "review",
         systemPrompt: "# Review Agent\n\nReview the output.",
-        toolNames: [...TOOL_PRESETS.reviewOnly],
+        tools: [...TOOL_PRESETS.reviewOnly],
         ephemeral: true,
       });
     });
     const spec = registry.create("review");
     expect(spec.role).toBe("review");
     expect(spec.systemPrompt).toBe("# Review Agent\n\nReview the output.");
-    expect(spec.toolNames).toEqual(["read", "grep"]);
+    expect(spec.tools).toEqual(["read", "grep"]);
     expect(spec.ephemeral).toBe(true);
   });
 
@@ -55,16 +55,16 @@ describe("SpecRegistry", () => {
         id: "verify",
         role: "verify",
         systemPrompt: "# Verify Agent\n\nVerify the output.",
-        toolNames: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.BASH, BUILT_IN_TOOLS.GREP],
+        tools: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.BASH, BUILT_IN_TOOLS.GREP],
         ephemeral: true,
       });
     });
     const spec = registry.create("verify");
     expect(spec.role).toBe("verify");
     expect(spec.systemPrompt).toBe("# Verify Agent\n\nVerify the output.");
-    expect(spec.toolNames).toContain("read");
-    expect(spec.toolNames).toContain("bash");
-    expect(spec.toolNames).not.toContain("write");
+    expect(spec.tools).toContain("read");
+    expect(spec.tools).toContain("bash");
+    expect(spec.tools).not.toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
@@ -75,14 +75,14 @@ describe("SpecRegistry", () => {
         id: "research",
         role: "research",
         systemPrompt: "# Research Agent\n\n",
-        toolNames: [...TOOL_PRESETS.readOnly],
+        tools: [...TOOL_PRESETS.readOnly],
         ephemeral: true,
       });
     });
     const spec = registry.create("research");
     expect(spec.role).toBe("research");
     expect(spec.systemPrompt).toBe("# Research Agent\n\n");
-    expect(spec.toolNames).toEqual(["read", "grep", "ls"]);
+    expect(spec.tools).toEqual(["read", "grep", "ls"]);
     expect(spec.ephemeral).toBe(true);
   });
 
@@ -100,7 +100,7 @@ describe("SpecRegistry", () => {
           id: "alpha",
           role: "alpha",
           systemPrompt: "",
-          toolNames: ["read"],
+          tools: ["read"],
           ephemeral: true,
         }),
     );
@@ -118,7 +118,7 @@ describe("SpecRegistry", () => {
           id: "build",
           role: "build",
           systemPrompt: "# Build Agent",
-          toolNames: ["read"],
+          tools: ["read"],
           ephemeral: true,
         }),
     );
@@ -135,7 +135,7 @@ describe("SpecRegistry", () => {
         id: "custom",
         role: "helper",
         systemPrompt: "Custom prompt: testing",
-        toolNames: ["read"],
+        tools: ["read"],
         ephemeral: true,
       });
     });
@@ -154,7 +154,7 @@ describe("SpecRegistry", () => {
           id: "dup",
           role: "dup",
           systemPrompt: "dup",
-          toolNames: ["read"],
+          tools: ["read"],
           ephemeral: true,
         }),
     );
@@ -163,7 +163,7 @@ describe("SpecRegistry", () => {
         id: "dup",
         role: "dup",
         systemPrompt: "dup",
-        toolNames: ["read"],
+        tools: ["read"],
         ephemeral: true,
       });
     expect(() => registry.register("dup", factory)).toThrow("Spec already registered: dup");
