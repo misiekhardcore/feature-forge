@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
+import type { ShellInstruction } from "./FlowInstruction";
 import { createShellStepExecutor, ShellStepExecutor } from "./ShellStepExecutor";
 
 type MockExec = (
@@ -24,11 +24,11 @@ describe("ShellStepExecutor", () => {
         .mockResolvedValue({ stdout: "success output", stderr: "" });
       const executor = createShellStepExecutor(customExec);
 
-      const instruction: FlowInstruction = {
+      const instruction: ShellInstruction = {
         type: "shell",
         id: "pr",
         command: "echo hello",
-      } as unknown as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "", "/tmp/ws");
 
@@ -42,11 +42,11 @@ describe("ShellStepExecutor", () => {
       const customExec: MockExec = vi.fn().mockResolvedValue({ stdout: "ok", stderr: "" });
       const executor = createShellStepExecutor(customExec);
 
-      const instruction: FlowInstruction = {
+      const instruction: ShellInstruction = {
         type: "shell",
         id: "pr",
         command: "gh pr create --title '{{task}}'",
-      } as unknown as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "add auth", "");
 
@@ -62,12 +62,12 @@ describe("ShellStepExecutor", () => {
       const customExec: MockExec = vi.fn().mockResolvedValue({ stdout: "ok", stderr: "" });
       const executor = createShellStepExecutor(customExec);
 
-      const instruction: FlowInstruction = {
+      const instruction: ShellInstruction = {
         type: "shell",
         id: "pr",
         command: "echo hello",
         cwd: "{{workspace}}/subdir",
-      } as unknown as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "", "/tmp/ws");
 
@@ -83,11 +83,11 @@ describe("ShellStepExecutor", () => {
       const customExec: MockExec = vi.fn().mockResolvedValue({ stdout: "ok", stderr: "" });
       const executor = createShellStepExecutor(customExec);
 
-      const instruction: FlowInstruction = {
+      const instruction: ShellInstruction = {
         type: "shell",
         id: "pr",
         command: "echo hello",
-      } as unknown as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "", "/tmp/ws");
 
@@ -102,11 +102,11 @@ describe("ShellStepExecutor", () => {
         .mockResolvedValue({ stdout: "stdout", stderr: "some error" });
       const executor = createShellStepExecutor(customExec);
 
-      const instruction: FlowInstruction = {
+      const instruction: ShellInstruction = {
         type: "shell",
         id: "pr",
         command: "failing command",
-      } as unknown as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "");
 
@@ -121,11 +121,11 @@ describe("ShellStepExecutor", () => {
       const customExec: MockExec = vi.fn().mockRejectedValue(new Error("command not found"));
       const executor = createShellStepExecutor(customExec);
 
-      const instruction: FlowInstruction = {
+      const instruction: ShellInstruction = {
         type: "shell",
         id: "pr",
         command: "nonexistent",
-      } as unknown as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "");
 

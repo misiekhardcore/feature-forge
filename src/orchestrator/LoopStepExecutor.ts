@@ -12,21 +12,20 @@ import { StepExecutor } from "./StepExecutor";
  * Between iterations, results from the previous iteration are cleared
  * and feedback is accumulated from `accumulateFrom` result ids.
  */
-export class LoopStepExecutor extends StepExecutor {
+export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
   readonly type = "loop";
 
   override async execute(
-    instruction: FlowInstruction,
+    instruction: LoopInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
-    const loopInstruction = instruction as LoopInstruction;
     const steps = containerSteps(instruction);
 
     const allStepIds = collectAllIds(steps);
     let currentCtx = context;
 
-    for (let iteration = 0; iteration < loopInstruction.maxIterations; iteration++) {
+    for (let iteration = 0; iteration < instruction.maxIterations; iteration++) {
       currentCtx = currentCtx.withIteration(iteration);
 
       if (iteration > 0) {
@@ -37,24 +36,21 @@ export class LoopStepExecutor extends StepExecutor {
         currentCtx = await executeStep(step, currentCtx);
       }
 
-      if (loopInstruction.continueWhile) {
-        const shouldContinue = ExpressionEvaluator.evaluateExpression(
-          loopInstruction.continueWhile,
-          {
-            results: currentCtx.results as unknown as Map<
-              string,
-              { raw: string; parsed?: { passed: boolean } }
-            >,
-          },
-        );
+      if (instruction.continueWhile) {
+        const shouldContinue = ExpressionEvaluator.evaluateExpression(instruction.continueWhile, {
+          results: currentCtx.results as unknown as Map<
+            string,
+            { raw: string; parsed?: { passed: boolean } }
+          >,
+        });
         if (!shouldContinue) break;
       } else {
         break;
       }
 
-      if (loopInstruction.accumulateFrom && loopInstruction.accumulateFrom.length > 0) {
+      if (instruction.accumulateFrom && instruction.accumulateFrom.length > 0) {
         const feedbackParts: string[] = [];
-        for (const id of loopInstruction.accumulateFrom) {
+        for (const id of instruction.accumulateFrom) {
           const result = currentCtx.results.get(id);
           if (result) {
             if (result.parsed) {

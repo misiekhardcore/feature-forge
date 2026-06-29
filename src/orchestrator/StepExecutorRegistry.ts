@@ -8,10 +8,12 @@ import type { StepExecutor } from "./StepExecutor";
  * new step types before flows are loaded.
  */
 export class StepExecutorRegistry {
-  private readonly executors = new Map<string, StepExecutor>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private readonly executors = new Map<string, StepExecutor<any>>();
 
   /** Register a step executor for a given instruction type. */
-  register(executor: StepExecutor): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  register(executor: StepExecutor<any>): void {
     if (this.executors.has(executor.type)) {
       throw new Error(`Step executor already registered for type: ${executor.type}`);
     }
@@ -24,7 +26,8 @@ export class StepExecutorRegistry {
    * Convenience for init-time registration of built-in executors.
    * Returns the registry for chaining.
    */
-  registerAll(...executors: StepExecutor[]): this {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerAll(...executors: StepExecutor<any>[]): this {
     for (const executor of executors) {
       this.register(executor);
     }
@@ -32,7 +35,8 @@ export class StepExecutorRegistry {
   }
 
   /** Find an executor by instruction type. Returns undefined if not found. */
-  find(type: string): StepExecutor | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  find(type: string): StepExecutor<any> | undefined {
     return this.executors.get(type);
   }
 

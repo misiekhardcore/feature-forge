@@ -9,6 +9,7 @@ export class FlowContext {
     readonly feedback?: string,
     readonly workspaceId?: string,
     readonly iteration: number = 0,
+    readonly params: Readonly<Record<string, string>> = {},
   ) {}
 
   withResult(id: string, result: InstructionResult): FlowContext {
@@ -22,6 +23,7 @@ export class FlowContext {
       this.feedback,
       this.workspaceId,
       this.iteration,
+      this.params,
     );
   }
 
@@ -34,6 +36,7 @@ export class FlowContext {
       this.feedback,
       workspaceId,
       this.iteration,
+      this.params,
     );
   }
 
@@ -46,6 +49,7 @@ export class FlowContext {
       feedback,
       this.workspaceId,
       this.iteration,
+      this.params,
     );
   }
 
@@ -58,6 +62,7 @@ export class FlowContext {
       this.feedback,
       this.workspaceId,
       n,
+      this.params,
     );
   }
 
@@ -72,6 +77,7 @@ export class FlowContext {
       this.feedback,
       this.workspaceId,
       this.iteration,
+      this.params,
     );
   }
 
@@ -92,6 +98,10 @@ export class FlowContext {
       case "workspace":
         return this.workspace ?? "";
       default: {
+        if (key.startsWith("params.")) {
+          const paramName = key.slice(7);
+          return this.params[paramName] ?? "";
+        }
         const resolved = this.resolveNested(key, this);
         if (resolved.startsWith("{{") && resolved.endsWith("}}")) {
           logger.debug("Unresolved placeholder in flow template", { placeholder: key });

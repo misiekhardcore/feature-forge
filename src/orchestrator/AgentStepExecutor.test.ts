@@ -4,7 +4,7 @@ import { InMemoryAgentSupervisor } from "../agents/supervisors/InMemoryAgentSupe
 import { makeMockFactory, makeMockSpecManager, MockAgent } from "../test-utils";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 import { FlowContext } from "./FlowContext";
-import type { AgentInstruction, FlowInstruction } from "./FlowInstruction";
+import type { AgentInstruction } from "./FlowInstruction";
 
 function makeAgentInstruction(overrides: Partial<AgentInstruction> = {}): AgentInstruction {
   return {
@@ -175,23 +175,6 @@ describe("AgentStepExecutor", () => {
           },
         }),
       );
-    });
-
-    it("throws when instruction type is not 'agent'", async () => {
-      const factory = makeMockFactory();
-      const supervisor = new InMemoryAgentSupervisor(factory);
-      const specManager = makeMockSpecManager();
-      const executor = new AgentStepExecutor(supervisor, specManager);
-
-      const context = new FlowContext(new Map(), "task", "");
-
-      await expect(
-        executor.execute(
-          { type: "workspace", id: "ws" } as FlowInstruction,
-          context,
-          async () => context,
-        ),
-      ).rejects.toThrow('AgentStepExecutor cannot execute instruction type "workspace"');
     });
 
     it("destroys the agent after execution", async () => {

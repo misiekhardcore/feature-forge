@@ -10,7 +10,7 @@ import { StepExecutor } from "./StepExecutor";
  * The workspace is registered under the instruction's `id` and both its
  * absolute path and id are stored in the flow context.
  */
-export class WorkspaceStepExecutor extends StepExecutor {
+export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
   readonly type = "workspace";
 
   constructor(private readonly workspaceManager: WorkspaceManager) {
@@ -18,12 +18,11 @@ export class WorkspaceStepExecutor extends StepExecutor {
   }
 
   override async execute(
-    instruction: FlowInstruction,
+    instruction: WorkspaceInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
-    const workspaceInstruction = instruction as WorkspaceInstruction;
-    const handle = await this.workspaceManager.create(workspaceInstruction.id);
-    return context.withWorkspace(handle.path, workspaceInstruction.id);
+    const handle = await this.workspaceManager.create(instruction.id);
+    return context.withWorkspace(handle.path, instruction.id);
   }
 }
