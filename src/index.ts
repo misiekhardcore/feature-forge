@@ -138,8 +138,8 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   stepExecutorRegistry.register(new GitStepExecutor());
   stepExecutorRegistry.register(new ShellStepExecutor());
   // Container executors receive the registry for child step lookups.
-  stepExecutorRegistry.register(new ParallelStepExecutor(stepExecutorRegistry));
-  stepExecutorRegistry.register(new LoopStepExecutor(stepExecutorRegistry));
+  stepExecutorRegistry.register(new ParallelStepExecutor());
+  stepExecutorRegistry.register(new LoopStepExecutor());
 
   // ── Flow-based orchestration commands ────────────────────────────
   const flowsDir = path.join(__dirname, "flows");

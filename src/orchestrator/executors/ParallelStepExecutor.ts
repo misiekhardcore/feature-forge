@@ -1,12 +1,10 @@
 import { logger } from "../../logging";
 import type { BuildOutcome, FlowContext, InstructionResult, ReviewFindings } from "../FlowContext";
-import type { ParallelInstruction } from "../FlowInstruction";
+import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
-import type { StepExecutorRegistry } from "../StepExecutorRegistry";
 
 /**
- * Executes a "parallel" instruction by running all child steps concurrently
- * via the {@link StepExecutorRegistry}.
+ * Executes a "parallel" instruction by running all child steps concurrently.
  *
  * Each child is dispatched independently; aggregation waits for all to settle.
  * If any child throws, the error is propagated after all siblings complete.
@@ -14,11 +12,11 @@ import type { StepExecutorRegistry } from "../StepExecutorRegistry";
 export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
   readonly type = "parallel";
 
-  constructor(private readonly stepRegistry: StepExecutorRegistry) {
-    super();
-  }
-
-  async execute(instruction: ParallelInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: ParallelInstruction,
+    context: FlowContext,
+    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const childInstructions = instruction.steps;
 
     logger.info("Executing parallel block", {
@@ -27,13 +25,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
     });
 
     const settled = await Promise.allSettled(
-      childInstructions.map(async (child) => {
-        const executor = this.stepRegistry.get(child.type);
-        if (!executor) {
-          throw new Error(`No executor registered for step type "${child.type}"`);
-        }
-        return executor.execute(child, context);
-      }),
+      childInstructions.map(async (child) => executeStep(child, context)),
     );
 
     // Collect errors; throw the first one after all settle.

@@ -36,6 +36,9 @@ import {
   isParallelInstruction,
 } from "../orchestrator/FlowInstruction";
 import { FlowLoader } from "../orchestrator/FlowLoader";
+import { RoutineExecutor } from "../orchestrator/RoutineExecutor";
+import { RoutineTool } from "../orchestrator/RoutineTool";
+import { StepExecutorRegistry } from "../orchestrator/StepExecutorRegistry";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -250,6 +253,33 @@ describe("flow round-trip", () => {
         expect(() => ExpressionEvaluator.evaluateExpression(expr, empty)).toThrow(
           "No result found for id",
         );
+      }
+    });
+
+    // ── 6. RoutineTool name alignment with activeTools ──────────
+
+    it("activeTools entries match registered RoutineTool names", () => {
+      const activeTools = flow.orchestrator.activeTools;
+      if (!activeTools) return;
+
+      const registry = new StepExecutorRegistry();
+      const executor = new RoutineExecutor(flow, registry);
+      const routineToolNames = new Set<string>();
+
+      for (const [routineName, routineDef] of Object.entries(flow.routines)) {
+        const tool = new RoutineTool(flow.name, routineName, executor, routineDef);
+        routineToolNames.add(tool.name);
+      }
+
+      for (const toolName of activeTools) {
+        // Only check names that reference routines (skip built-ins like "bash")
+        if (toolName in flow.routines) {
+          expect(
+            routineToolNames.has(toolName),
+            `activeTool "${toolName}" references routine "${toolName}" ` +
+              `but registered RoutineTool names are: ${[...routineToolNames].join(", ")}`,
+          ).toBe(true);
+        }
       }
     });
   });

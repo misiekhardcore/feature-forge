@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { GitInstruction } from "../FlowInstruction";
+import type { FlowInstruction, GitInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -25,7 +25,11 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
   /** Maximum time (ms) a git command may run before being aborted. */
   private readonly timeout = 60_000;
 
-  async execute(instruction: GitInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: GitInstruction,
+    context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const resolvedCwd = context.resolve(instruction.cwd);
     logger.info("Executing git step", {
       instructionId: instruction.id,

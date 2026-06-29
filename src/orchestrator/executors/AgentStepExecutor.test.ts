@@ -64,7 +64,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(specManager.resolve).toHaveBeenCalled();
       expect(supervisor.spawn).toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "add auth");
 
-      await executor.execute(instruction, context);
+      await executor.execute(instruction, context, vi.fn());
 
       expect(agent.executeTask).toHaveBeenCalledWith("do add auth");
     });
@@ -109,7 +109,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("builder")!.parsed).toBeDefined();
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
@@ -130,7 +130,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -158,7 +158,7 @@ describe("AgentStepExecutor", () => {
         new Map([["ws", new WorkspaceHandle("ws", "/tmp/ws", new Date())]]),
       );
 
-      await executor.execute(instruction, context);
+      await executor.execute(instruction, context, vi.fn());
 
       const resolveCall = (specManager.resolve as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(resolveCall.spec).toBe("build");
@@ -181,7 +181,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("builder")!.raw).toBe("not json at all");
       expect(result.results.get("builder")!.parsed).toBeUndefined();
@@ -204,7 +204,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
@@ -229,7 +229,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -250,7 +250,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       // Raw preserved, parsed is undefined because no JSON found
       expect(result.results.get("builder")!.raw).toBe("just plain text, no json at all");
@@ -272,9 +272,115 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      await executor.execute(instruction, context);
+      await executor.execute(instruction, context, vi.fn());
 
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
+    });
+  });
+
+  describe("parseJsonOutput edge cases", () => {
+    it("parses bare JSON block without ```json fence", async () => {
+      const agent = makeMockAgent('{"passed": true, "summary": "bare json"}');
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        spec: "build",
+        task: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("builder")!.parsed!.passed).toBe(true);
+      expect(result.results.get("builder")!.parsed!.kind).toBe("build");
+    });
+
+    it("defaults passed to false when missing in build JSON", async () => {
+      const agent = makeMockAgent('{"summary": "no passed field"}');
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        spec: "build",
+        task: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(result.results.get("builder")!.parsed!.kind).toBe("build");
+    });
+
+    it("defaults summary to empty string when missing in build JSON", async () => {
+      const agent = makeMockAgent('{"passed": true}');
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        spec: "build",
+        task: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("builder")!.parsed!.passed).toBe(true);
+    });
+
+    it("defaults findings sub-fields to empty arrays when missing", async () => {
+      const agent = makeMockAgent('{"passed": false, "findings": {}}');
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "reviewer",
+        spec: "review",
+        task: "review",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
+    });
+
+    it("defaults passed to false when missing in review JSON", async () => {
+      const agent = makeMockAgent('{"findings": {"critical": [], "warnings": [], "info": []}}');
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "reviewer",
+        spec: "review",
+        task: "review",
+        parseJson: true,
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
   });
 });

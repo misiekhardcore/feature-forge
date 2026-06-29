@@ -74,7 +74,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("/bin/sh");
@@ -100,7 +100,7 @@ describe("ShellStepExecutor", () => {
         "hello world",
         new Map([["ws", new WorkspaceHandle("ws", "/tmp/ws", new Date())]]),
       );
-      await executor.execute(instruction, context);
+      await executor.execute(instruction, context, vi.fn());
 
       expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
@@ -117,7 +117,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("sh3")!.raw).toContain("warning: something");
     });
@@ -133,7 +133,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
       expect(result.results.get("sh4")!.raw).toContain("error output");
@@ -159,7 +159,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("sh6")!.parsed!.passed).toBe(false);
     });
@@ -175,7 +175,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("sh5")!.raw).toBe("ECONNREFUSED");
     });

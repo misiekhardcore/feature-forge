@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Feature Forge Flow Definition",
-  "description": "Self-contained flow definition. Declares a slash command, orchestrator prompt, tool, and deterministic steps.",
+  "description": "Self-contained flow definition. Declares a slash command, orchestrator config, and named deterministic routines.",
   "type": "object",
-  "required": ["name", "command", "tool", "toolParams", "orchestrator", "steps"],
+  "required": ["name", "command", "orchestrator", "routines"],
   "properties": {
     "name": {
       "type": "string",
@@ -13,40 +13,65 @@
       "type": "string",
       "minLength": 1
     },
-    "tool": {
-      "type": "string",
-      "minLength": 1
-    },
-    "toolParams": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "orchestrator": {
-      "$ref": "#/$defs/Orchestrator"
+      "$ref": "#/$defs/OrchestratorConfig"
     },
-    "steps": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/FlowInstruction"
+    "routines": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["params", "steps"],
+        "properties": {
+          "params": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/RoutineParam"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FlowInstruction"
+            }
+          }
+        }
       }
     }
   },
   "$defs": {
-    "Orchestrator": {
+    "OrchestratorConfig": {
       "type": "object",
-      "required": ["task"],
+      "required": ["prompt"],
       "properties": {
-        "task": {
+        "prompt": {
           "type": "string",
           "minLength": 1
+        },
+        "activeTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "RoutineParam": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
         }
       }
     },
     "WorkspaceInstruction": {
       "type": "object",
-      "required": ["id", "type"],
+      "required": ["id", "type", "provider"],
       "properties": {
         "id": {
           "type": "string",
@@ -55,6 +80,18 @@
         "type": {
           "type": "string",
           "const": "workspace"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "git-worktree"
+            },
+            {
+              "type": "string",
+              "const": "current-dir"
+            }
+          ]
         }
       }
     },
@@ -80,17 +117,37 @@
         "workingDir": {
           "anyOf": [
             {
-              "type": "string",
-              "const": "workspace"
+              "type": "object",
+              "required": ["workspace"],
+              "properties": {
+                "workspace": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
             },
             {
-              "type": "string",
-              "minLength": 1
+              "type": "object",
+              "required": ["path"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
             }
           ]
         },
         "parseJson": {
           "type": "boolean"
+        },
+        "specInput": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -158,6 +215,62 @@
         "type": {
           "type": "string",
           "const": "cleanup"
+        },
+        "of": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "GitInstruction": {
+      "type": "object",
+      "required": ["id", "type", "action", "cwd"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "git"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "add-and-commit"
+            },
+            {
+              "type": "string",
+              "const": "push-current"
+            }
+          ]
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ShellInstruction": {
+      "type": "object",
+      "required": ["id", "type", "command", "cwd"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "shell"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -177,6 +290,12 @@
         },
         {
           "$ref": "#/$defs/CleanupInstruction"
+        },
+        {
+          "$ref": "#/$defs/GitInstruction"
+        },
+        {
+          "$ref": "#/$defs/ShellInstruction"
         }
       ]
     }
