@@ -258,8 +258,26 @@ describe("WorktrunkProvider", () => {
       expect(mocks.execFile).not.toHaveBeenCalled();
     });
 
-    it("runs git worktree remove and prune on success", async () => {
+    it("runs wt remove with --force --yes --foreground", async () => {
       mocks.addExistingPath(wtPath);
+      mocks.willSucceed("wt", ["remove", wtPath, "--force", "--yes", "--foreground"], "removed");
+
+      await provider.destroyWorkspace(wtPath);
+      expect(mocks.execFile).toHaveBeenCalledWith(
+        "wt",
+        ["remove", wtPath, "--force", "--yes", "--foreground"],
+        expect.any(Object),
+        expect.any(Function),
+      );
+    });
+
+    it("falls back to git worktree remove when wt remove fails", async () => {
+      mocks.addExistingPath(wtPath);
+      mocks.willFail(
+        "wt",
+        ["remove", wtPath, "--force", "--yes", "--foreground"],
+        "wt remove failed",
+      );
       mocks.willSucceed("git", ["worktree", "remove", wtPath, "--force"], "removed");
       mocks.willSucceed("git", ["worktree", "prune"], "");
 
@@ -270,16 +288,15 @@ describe("WorktrunkProvider", () => {
         expect.any(Object),
         expect.any(Function),
       );
-      expect(mocks.execFile).toHaveBeenCalledWith(
-        "git",
-        ["worktree", "prune"],
-        expect.any(Object),
-        expect.any(Function),
-      );
     });
 
-    it("falls back to rmSync when git worktree remove fails", async () => {
+    it("falls back to rmSync when both wt and git fail", async () => {
       mocks.addExistingPath(wtPath);
+      mocks.willFail(
+        "wt",
+        ["remove", wtPath, "--force", "--yes", "--foreground"],
+        "wt remove failed",
+      );
       mocks.willFail("git", ["worktree", "remove", wtPath, "--force"], "fatal error");
       mocks.willSucceed("git", ["worktree", "prune"], "");
 

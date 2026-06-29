@@ -59,8 +59,9 @@ export class WorktrunkProvider extends WorkspaceProvider {
   }
 
   /**
-   * Remove the worktree via `git worktree remove` (the worktree is still a
-   * git worktree even when created by Worktrunk) and prune stale metadata.
+   * Remove the worktree via Worktrunk's own `wt remove` command.
+   * Uses `--force` for dirty worktrees and `--yes` to skip prompts.
+   * Falls back to `git worktree remove` if wt fails.
    *
    * Safe to call multiple times — subsequent calls are no-ops if the
    * path no longer exists.
@@ -71,20 +72,25 @@ export class WorktrunkProvider extends WorkspaceProvider {
     }
 
     try {
-      await this.execCommand("git", ["worktree", "remove", path, "--force"]);
+      await this.execCommand("wt", ["remove", path, "--force", "--yes", "--foreground"]);
     } catch (error) {
-      logger.warn("Worktree remove fallback", { path, error });
+      logger.warn("wt remove failed, falling back to git", { path, error });
       try {
-        rmSync(path, { recursive: true, force: true });
+        await this.execCommand("git", ["worktree", "remove", path, "--force"]);
       } catch (error) {
-        logger.warn("Directory removal fallback", { path, error });
+        logger.warn("git worktree remove fallback", { path, error });
+        try {
+          rmSync(path, { recursive: true, force: true });
+        } catch (error) {
+          logger.warn("Directory removal fallback", { path, error });
+        }
       }
-    }
 
-    try {
-      await this.execCommand("git", ["worktree", "prune"]);
-    } catch (error) {
-      logger.warn("Prune failed", { error });
+      try {
+        await this.execCommand("git", ["worktree", "prune"]);
+      } catch (error) {
+        logger.warn("Prune failed", { error });
+      }
     }
   }
 
