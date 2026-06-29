@@ -38,14 +38,23 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
     });
 
     try {
+      let raw: string;
       if (instruction.action === "add-and-commit") {
-        await GitStepExecutor.addAndCommit(resolvedCwd, this.timeout);
+        const message =
+          instruction.message !== undefined
+            ? context.resolve(instruction.message)
+            : "feature-forge: automated changes";
+        await GitStepExecutor.addAndCommit(resolvedCwd, this.timeout, message);
+        raw = JSON.stringify({ action: instruction.action, cwd: resolvedCwd, message });
       } else {
-        await GitStepExecutor.pushCurrent(resolvedCwd, this.timeout);
+        const output = await GitStepExecutor.pushCurrent(resolvedCwd, this.timeout);
+        raw =
+          `${output.stdout}${output.stderr}`.trim() ||
+          JSON.stringify({ action: instruction.action, cwd: resolvedCwd });
       }
 
       const result: InstructionResult = {
-        raw: JSON.stringify({ action: instruction.action, cwd: resolvedCwd }),
+        raw,
         parsed: {
           kind: "build",
           passed: true,
@@ -77,16 +86,18 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
     }
   }
 
-  private static async addAndCommit(cwd: string, timeout: number): Promise<void> {
+  private static async addAndCommit(cwd: string, timeout: number, message: string): Promise<void> {
     // Stage all changes (including untracked files).
     await execFileAsync("git", ["add", "-A"], { cwd, timeout });
 
-    // Commit with a standard message.
-    const message = "feature-forge: automated changes";
+    // Commit with the resolved message.
     await execFileAsync("git", ["commit", "-m", message], { cwd, timeout });
   }
 
-  private static async pushCurrent(cwd: string, timeout: number): Promise<void> {
-    await execFileAsync("git", ["push", "origin", "HEAD"], { cwd, timeout });
+  private static async pushCurrent(
+    cwd: string,
+    timeout: number,
+  ): Promise<{ stdout: string; stderr: string }> {
+    return await execFileAsync("git", ["push", "origin", "HEAD"], { cwd, timeout });
   }
 }
