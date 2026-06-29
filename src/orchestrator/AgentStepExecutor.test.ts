@@ -4,7 +4,7 @@ import { InMemoryAgentSupervisor } from "../agents/supervisors/InMemoryAgentSupe
 import { makeMockFactory, makeMockSpecManager, MockAgent } from "../test-utils";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 import { FlowContext } from "./FlowContext";
-import type { AgentInstruction } from "./FlowInstruction";
+import type { AgentInstruction, FlowInstruction } from "./FlowInstruction";
 
 function makeAgentInstruction(overrides: Partial<AgentInstruction> = {}): AgentInstruction {
   return {
@@ -117,6 +117,81 @@ describe("AgentStepExecutor", () => {
 
       const result = next.results.get("builder");
       expect(result!.parsed).toBeUndefined();
+    });
+
+    it("resolves specInput values through context and passes them as specParams", async () => {
+      const factory = makeMockFactory();
+      const supervisor = new InMemoryAgentSupervisor(factory);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction = makeAgentInstruction({
+        id: "builder",
+        task: "Build",
+        specInput: {
+          TASK: "{{task}}",
+          WORKSPACE: "{{workspace}}",
+          FEEDBACK: "{{feedback}}",
+          CONTEXT: "Context: {{task}}",
+        },
+      });
+      const context = new FlowContext(new Map(), "add auth", "", "/tmp/ws", "prior findings");
+
+      await executor.execute(instruction, context, async () => context);
+
+      expect(specManager.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          specParams: {
+            TASK: "add auth",
+            WORKSPACE: "/tmp/ws",
+            FEEDBACK: "prior findings",
+            CONTEXT: "Context: add auth",
+          },
+        }),
+      );
+    });
+
+    it("uses resolved defaults when specInput is absent", async () => {
+      const factory = makeMockFactory();
+      const supervisor = new InMemoryAgentSupervisor(factory);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction = makeAgentInstruction({
+        id: "builder",
+        task: "Do {{task}}",
+      });
+      const context = new FlowContext(new Map(), "add auth", "the plan");
+
+      await executor.execute(instruction, context, async () => context);
+
+      expect(specManager.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          specParams: {
+            TASK: "Do add auth",
+            WORKSPACE: "",
+            FEEDBACK: "",
+            CONTEXT: "add auth\nthe plan",
+          },
+        }),
+      );
+    });
+
+    it("throws when instruction type is not 'agent'", async () => {
+      const factory = makeMockFactory();
+      const supervisor = new InMemoryAgentSupervisor(factory);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const context = new FlowContext(new Map(), "task", "");
+
+      await expect(
+        executor.execute(
+          { type: "workspace", id: "ws" } as FlowInstruction,
+          context,
+          async () => context,
+        ),
+      ).rejects.toThrow('AgentStepExecutor cannot execute instruction type "workspace"');
     });
 
     it("destroys the agent after execution", async () => {

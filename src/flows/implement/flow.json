@@ -29,7 +29,13 @@
               "spec": "build",
               "workingDir": "workspace",
               "parseJson": true,
-              "task": "Build: {{task}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass. If the build failed, report passed: false with a summary of the failure."
+              "specInput": {
+                "CONTEXT": "{{task}}\n\nPlan:\n{{plan}}",
+                "TASK": "{{task}}",
+                "FEEDBACK": "{{feedback}}",
+                "WORKSPACE": "{{workspace}}"
+              },
+              "task": "Build per the plan. End your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass. If the build failed, report passed: false with a summary of the failure."
             },
             {
               "type": "parallel",
@@ -41,7 +47,12 @@
                   "spec": "review",
                   "workingDir": "workspace",
                   "parseJson": true,
-                  "task": "Review the code changes against:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
+                  "specInput": {
+                    "CONTEXT": "{{task}}",
+                    "BUILD_OUTPUT": "{{results.builder.raw}}",
+                    "ACCEPTANCE_CRITERIA": "{{task}}"
+                  },
+                  "task": "Review the code changes."
                 },
                 {
                   "type": "agent",
@@ -49,7 +60,12 @@
                   "spec": "verify",
                   "workingDir": "workspace",
                   "parseJson": true,
-                  "task": "Verify acceptance criteria:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
+                  "specInput": {
+                    "CONTEXT": "{{task}}",
+                    "BUILD_OUTPUT": "{{results.builder.raw}}",
+                    "ACCEPTANCE_CRITERIA": "{{task}}"
+                  },
+                  "task": "Verify acceptance criteria."
                 }
               ]
             }

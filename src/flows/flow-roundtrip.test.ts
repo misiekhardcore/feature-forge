@@ -88,6 +88,26 @@ function collectAgentTasks(instructions: FlowInstruction[], tasks: string[]): vo
   }
 }
 
+/** Recursively collect agent specInput entries from a routine's steps. */
+function collectAgentSpecInputs(
+  instructions: FlowInstruction[],
+  specInputs: Array<{ id: string; entries: Record<string, string> }>,
+): void {
+  for (const instr of instructions) {
+    if (instr.type === "agent") {
+      const agentInstr = instr as AgentInstruction;
+      if (agentInstr.specInput) {
+        specInputs.push({ id: agentInstr.id, entries: agentInstr.specInput });
+      } else {
+        specInputs.push({ id: agentInstr.id, entries: {} });
+      }
+    }
+    if (instr.type === "parallel" || instr.type === "loop") {
+      collectAgentSpecInputs(containerSteps(instr), specInputs);
+    }
+  }
+}
+
 /** Recursively collect agent spec references from a routine's steps. */
 function collectAgentSpecs(instructions: FlowInstruction[], specs: string[]): void {
   for (const instr of instructions) {
@@ -260,7 +280,54 @@ describe("flow round-trip", () => {
         }
       });
 
-      // ── 5. Orchestrator prompt resolves correctly ─────────────────
+      // ── 5. Every agent step declares specInput ────────────────────
+
+      it("every agent step declares specInput", () => {
+        for (const [routineName, routine] of Object.entries(flow.routines)) {
+          const specInputs: Array<{ id: string; entries: Record<string, string> }> = [];
+          collectAgentSpecInputs(routine.steps, specInputs);
+
+          for (const { id, entries } of specInputs) {
+            const keys = Object.keys(entries);
+            expect(
+              keys.length,
+              `agent "${id}" in routine "${routineName}" must declare specInput`,
+            ).toBeGreaterThan(0);
+          }
+        }
+      });
+
+      // ── 5b. No unresolved placeholders in specInput values ────────
+
+      it("resolves all agent specInput values with no {{...}} survivors", () => {
+        const ctx = new FlowContext(
+          new Map(),
+          "test-task",
+          "test-plan",
+          "/tmp/test-workspace",
+          "test-feedback",
+        );
+        // Stub a builder result so {{results.builder.raw}} resolves.
+        const ctxWithResults = ctx.withResult("builder", { raw: "<stub build output>" });
+
+        for (const [routineName, routine] of Object.entries(flow.routines)) {
+          const specInputs: Array<{ id: string; entries: Record<string, string> }> = [];
+          collectAgentSpecInputs(routine.steps, specInputs);
+
+          for (const { id, entries } of specInputs) {
+            for (const [key, value] of Object.entries(entries)) {
+              const resolved = ctxWithResults.resolve(value);
+              expect(
+                resolved,
+                `unresolved placeholder in routine "${routineName}" agent "${id}" ` +
+                  `specInput.${key}: "${value.slice(0, 80)}..."`,
+              ).not.toMatch(/\{\{/);
+            }
+          }
+        }
+      });
+
+      // ── 6. Orchestrator prompt resolves correctly ─────────────────
 
       it("orchestrator prompt resolves {{task}} with no survivors", async () => {
         const mdPath = path.join(flowsDir, flowName, flow.orchestrator.prompt);
