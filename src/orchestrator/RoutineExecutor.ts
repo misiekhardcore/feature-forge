@@ -37,6 +37,10 @@ export class RoutineExecutor {
       params.task ?? "",
       params.plan ?? "",
       params.workspace,
+      undefined,
+      undefined,
+      undefined,
+      params,
     );
 
     let currentCtx = context;

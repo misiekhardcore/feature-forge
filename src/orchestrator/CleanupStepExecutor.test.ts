@@ -4,7 +4,7 @@ import { MockWorkspaceProvider, MockWorktreeRegistry } from "../test-utils";
 import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 import { FlowContext } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
+import type { CleanupInstruction } from "./FlowInstruction";
 
 describe("CleanupStepExecutor", () => {
   describe("type", () => {
@@ -29,10 +29,10 @@ describe("CleanupStepExecutor", () => {
 
       const executor = new CleanupStepExecutor(manager);
 
-      const instruction: FlowInstruction = {
+      const instruction: CleanupInstruction = {
         type: "cleanup",
         id: "destroy",
-      } as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "", "/tmp/ws1", undefined, "ws1");
 
@@ -49,10 +49,10 @@ describe("CleanupStepExecutor", () => {
 
       const executor = new CleanupStepExecutor(manager);
 
-      const instruction: FlowInstruction = {
+      const instruction: CleanupInstruction = {
         type: "cleanup",
         id: "destroy",
-      } as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "");
 
@@ -72,10 +72,10 @@ describe("CleanupStepExecutor", () => {
 
       const executor = new CleanupStepExecutor(manager);
 
-      const instruction: FlowInstruction = {
+      const instruction: CleanupInstruction = {
         type: "cleanup",
         id: "destroy",
-      } as FlowInstruction;
+      };
 
       const context = new FlowContext(new Map(), "task", "", "/tmp/ws1", undefined, "ws1");
 

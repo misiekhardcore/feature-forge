@@ -275,6 +275,35 @@ describe("FlowContext", () => {
       const ctx = new FlowContext(new Map(), "task", "");
       expect(ctx.resolve("Hello {{UNKNOWN}}")).toBe("Hello {{UNKNOWN}}");
     });
+
+    it("resolves {{params.<key>}} from the params map", () => {
+      const ctx = new FlowContext(
+        new Map(),
+        "task",
+        "",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { task: "custom task", extra: "value" },
+      );
+      expect(ctx.resolve("{{params.task}}")).toBe("custom task");
+      expect(ctx.resolve("{{params.extra}}")).toBe("value");
+    });
+
+    it("resolves {{params.<key>}} as empty string for missing key", () => {
+      const ctx = new FlowContext(
+        new Map(),
+        "task",
+        "",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {},
+      );
+      expect(ctx.resolve("{{params.missing}}")).toBe("");
+    });
   });
 
   // -----------------------------------------------------------------------

@@ -2,25 +2,10 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
 import type { FlowContext } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
+import type { FlowInstruction, ShellInstruction } from "./FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 
 const execAsync = promisify(exec);
-
-/**
- * Shape of a `shell` instruction.
- *
- * Runs an arbitrary shell command in the workspace directory (if set).
- * The command string supports FlowContext placeholder resolution.
- */
-interface ShellInstruction {
-  type: "shell";
-  id: string;
-  /** Shell command to execute (supports {{...}} placeholders). */
-  command: string;
-  /** Working directory for the command (optional, resolved via context). */
-  cwd?: string;
-}
 
 /**
  * Executes a `shell` instruction by running the given command in a child
@@ -31,7 +16,7 @@ interface ShellInstruction {
  *
  * The internal `_execAsync` dependency is overridable for testing.
  */
-export class ShellStepExecutor extends StepExecutor {
+export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
   readonly type = "shell";
 
   private readonly _execAsync: typeof execAsync;
@@ -42,16 +27,12 @@ export class ShellStepExecutor extends StepExecutor {
   }
 
   override async execute(
-    instruction: FlowInstruction,
+    instruction: ShellInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
-    const shellInstruction = instruction as unknown as ShellInstruction;
-
-    const resolvedCommand = context.resolve(shellInstruction.command);
-    const resolvedCwd = shellInstruction.cwd
-      ? context.resolve(shellInstruction.cwd)
-      : context.workspace;
+    const resolvedCommand = context.resolve(instruction.command);
+    const resolvedCwd = instruction.cwd ? context.resolve(instruction.cwd) : context.workspace;
 
     try {
       const { stdout, stderr } = await this._execAsync(resolvedCommand, {
@@ -59,10 +40,10 @@ export class ShellStepExecutor extends StepExecutor {
         timeout: 30_000,
       });
       const raw = stderr ? `${stdout}\n${stderr}` : stdout;
-      return context.withResult(shellInstruction.id, { raw });
+      return context.withResult(instruction.id, { raw });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return context.withResult(shellInstruction.id, { raw: `Command failed: ${message}` });
+      return context.withResult(instruction.id, { raw: `Command failed: ${message}` });
     }
   }
 }

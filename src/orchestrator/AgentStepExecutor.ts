@@ -2,7 +2,7 @@ import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { extractJson } from "./extractJson";
 import type { FlowContext, InstructionResult, ParsedResult } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
+import type { AgentInstruction, FlowInstruction } from "./FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 
 /**
@@ -12,7 +12,7 @@ import { StepExecutor } from "./StepExecutor";
  * When `parseJson: true` is configured, a JSON fenced block is extracted
  * from the agent's raw output and stored as `parsed`.
  */
-export class AgentStepExecutor extends StepExecutor {
+export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   readonly type = "agent";
 
   constructor(
@@ -23,14 +23,10 @@ export class AgentStepExecutor extends StepExecutor {
   }
 
   override async execute(
-    instruction: FlowInstruction,
+    instruction: AgentInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
-    if (instruction.type !== "agent") {
-      throw new Error(`AgentStepExecutor cannot execute instruction type "${instruction.type}"`);
-    }
-
     const resolvedTask = context.resolve(instruction.task);
 
     // Build specParams from specInput (resolved) or fall back to defaults.

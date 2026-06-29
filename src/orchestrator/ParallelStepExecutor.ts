@@ -10,15 +10,14 @@ import { StepExecutor } from "./StepExecutor";
  * Each child step starts from the same incoming context. Results from all
  * branches are merged into the returned context.
  */
-export class ParallelStepExecutor extends StepExecutor {
+export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
   readonly type = "parallel";
 
   override async execute(
-    instruction: FlowInstruction,
+    instruction: ParallelInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
-    const _parallelInstruction = instruction as ParallelInstruction;
     const steps = containerSteps(instruction);
 
     const branchContexts = await Promise.all(steps.map((step) => executeStep(step, context)));

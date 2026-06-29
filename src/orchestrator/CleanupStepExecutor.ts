@@ -1,6 +1,6 @@
 import type { WorkspaceManager } from "../workspace";
 import type { FlowContext } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
+import type { CleanupInstruction, FlowInstruction } from "./FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 
 /**
@@ -10,7 +10,7 @@ import { StepExecutor } from "./StepExecutor";
  * With named workspaces deferred (ADR 0005), this destroys the single
  * tracked workspace identified by `FlowContext.workspaceId`.
  */
-export class CleanupStepExecutor extends StepExecutor {
+export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   readonly type = "cleanup";
 
   constructor(private readonly workspaceManager: WorkspaceManager) {
@@ -18,7 +18,7 @@ export class CleanupStepExecutor extends StepExecutor {
   }
 
   override async execute(
-    instruction: FlowInstruction,
+    _instruction: CleanupInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {

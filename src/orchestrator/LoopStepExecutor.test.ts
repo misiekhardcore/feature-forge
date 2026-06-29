@@ -4,7 +4,7 @@ import { FlowContext, type InstructionResult, type ParsedResult } from "./FlowCo
 import type { FlowInstruction, LoopInstruction } from "./FlowInstruction";
 import { LoopStepExecutor } from "./LoopStepExecutor";
 
-function makeLoopInstruction(overrides: Partial<LoopInstruction> = {}): FlowInstruction {
+function makeLoopInstruction(overrides: Partial<LoopInstruction> = {}): LoopInstruction {
   return {
     type: "loop",
     id: "build_loop",
@@ -21,7 +21,7 @@ function makeLoopInstruction(overrides: Partial<LoopInstruction> = {}): FlowInst
       } as unknown as FlowInstruction,
     ],
     ...overrides,
-  } as unknown as FlowInstruction;
+  } as unknown as LoopInstruction;
 }
 
 describe("LoopStepExecutor", () => {

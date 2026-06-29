@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext, type InstructionResult } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
+import type { FlowInstruction, ParallelInstruction } from "./FlowInstruction";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
 
 describe("ParallelStepExecutor", () => {
@@ -15,14 +15,14 @@ describe("ParallelStepExecutor", () => {
 
   describe("execute", () => {
     it("runs all child steps concurrently and merges results", async () => {
-      const instruction: FlowInstruction = {
+      const instruction: ParallelInstruction = {
         type: "parallel",
         id: "inspect",
         steps: [
           { type: "agent", id: "a", spec: "build", task: "task a" } as unknown as FlowInstruction,
           { type: "agent", id: "b", spec: "build", task: "task b" } as unknown as FlowInstruction,
         ],
-      } as unknown as FlowInstruction;
+      } as unknown as ParallelInstruction;
 
       const context = new FlowContext(new Map(), "task", "");
 
@@ -42,7 +42,7 @@ describe("ParallelStepExecutor", () => {
     });
 
     it("does not merge duplicate results from branches", async () => {
-      const instruction: FlowInstruction = {
+      const instruction: ParallelInstruction = {
         type: "parallel",
         id: "inspect",
         steps: [
@@ -59,7 +59,7 @@ describe("ParallelStepExecutor", () => {
             task: "also shared",
           } as unknown as FlowInstruction,
         ],
-      } as unknown as FlowInstruction;
+      } as unknown as ParallelInstruction;
 
       const context = new FlowContext(new Map(), "task", "");
 
@@ -76,14 +76,14 @@ describe("ParallelStepExecutor", () => {
     });
 
     it("passes the same starting context to all branches", async () => {
-      const instruction: FlowInstruction = {
+      const instruction: ParallelInstruction = {
         type: "parallel",
         id: "inspect",
         steps: [
           { type: "agent", id: "a", spec: "build", task: "task a" } as unknown as FlowInstruction,
           { type: "agent", id: "b", spec: "build", task: "task b" } as unknown as FlowInstruction,
         ],
-      } as unknown as FlowInstruction;
+      } as unknown as ParallelInstruction;
 
       const context = new FlowContext(new Map(), "shared-task", "shared-plan");
       const capturedContexts: FlowContext[] = [];

@@ -41,7 +41,12 @@ import {
   SendTaskTool,
   SpawnAgentTool,
 } from "./tools";
-import { GitWorktreeProvider, WorkspaceManager, WorktreeRegistry } from "./workspace";
+import {
+  GitWorktreeProvider,
+  WorkspaceManager,
+  WorktreeRegistry,
+  WorktrunkProvider,
+} from "./workspace";
 
 /**
  * Feature Forge — autonomous software engineering platform.

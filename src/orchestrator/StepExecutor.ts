@@ -7,8 +7,10 @@ import type { FlowInstruction } from "./FlowInstruction";
  * Each concrete executor handles one instruction type (workspace, agent, etc.).
  * Container executors (parallel, loop) use the {@link executeStep} callback to
  * recursively execute their child steps.
+ *
+ * @typeParam TInstruction — the specific instruction type this executor handles (defaults to FlowInstruction).
  */
-export abstract class StepExecutor {
+export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowInstruction> {
   /** The instruction type this executor handles (e.g., "workspace", "agent"). */
   abstract readonly type: string;
 
@@ -21,7 +23,7 @@ export abstract class StepExecutor {
    * @returns a new FlowContext with any state updates applied
    */
   abstract execute(
-    instruction: FlowInstruction,
+    instruction: TInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext>;
