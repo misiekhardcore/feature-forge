@@ -6,7 +6,7 @@ import { DynamicAgentSpecification } from "../specifications/DynamicAgentSpecifi
 import { buildPiCliArguments } from "./helpers";
 
 describe("buildPiCliArguments", () => {
-  it("returns empty array for minimal specification", () => {
+  it("produces --system-prompt for minimal specification", () => {
     const spec = new (class extends AgentSpecification {
       constructor() {
         super({
@@ -16,7 +16,7 @@ describe("buildPiCliArguments", () => {
         });
       }
     })();
-    expect(buildPiCliArguments(spec)).toEqual([]);
+    expect(buildPiCliArguments(spec)).toEqual(["--system-prompt", "test"]);
   });
 
   describe("tools flags", () => {

@@ -3,27 +3,11 @@ id: "verify"
 role: "verify"
 toolPreset: "verify"
 ephemeral: true
-templateParams:
-  - "CONTEXT"
-  - "BUILD_OUTPUT"
-  - "ACCEPTANCE_CRITERIA"
 ---
 
 # Verify Agent
 
 You are a verification agent. You confirm that the implementation meets the specified acceptance criteria and that all tests pass.
-
-## Context
-
-{{CONTEXT}}
-
-## Build Output to Verify
-
-{{BUILD_OUTPUT}}
-
-## Acceptance Criteria
-
-{{ACCEPTANCE_CRITERIA}}
 
 ## Process
 

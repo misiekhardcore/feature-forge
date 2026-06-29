@@ -7,9 +7,9 @@
  * 1. Loads via FlowLoader (structural + semantic validation).
  * 2. Resolves every agent task through FlowContext
  *    and asserts no {{...}} survivors (catch dead/misspelled placeholders).
- * 3. Asserts every agent.spec is in the set loaded from the real
+ * 3. Asserts every agent.systemPrompt is in the set loaded from the real
  *    declarative-specs directory (catch missing/renamed specs).
- * 4. Asserts orchestrator.prompt resolves cleanly (catch placeholder drift).
+ * 4. Asserts orchestrator.systemPrompt resolves cleanly (catch placeholder drift).
  * 5. Asserts every continueWhile parses and evaluates with stubbed results
  *    matching the loop body's parseJson ids (catch expression errors at load time).
  *
@@ -89,7 +89,7 @@ function collectAgentInstructions(instructions: FlowInstruction[], tasks: string
 function collectAgentSpecs(instructions: FlowInstruction[], specs: string[]): void {
   for (const instr of instructions) {
     if (instr.type === "agent") {
-      specs.push(instr.spec);
+      specs.push(instr.systemPrompt);
     }
     if (isContainerInstruction(instr)) {
       collectAgentSpecs(instr.steps, specs);
@@ -167,9 +167,9 @@ describe("flow round-trip", () => {
 
     // ── 2. No unresolved placeholders in any task ──────────────────
 
-    it("resolves orchestrator.prompt with no {{...}} survivors", () => {
+    it("resolves orchestrator.systemPrompt with no {{...}} survivors", () => {
       const ctx = new FlowContext(new Map(), "test-task");
-      const resolved = ctx.resolve(flow.orchestrator.prompt);
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
       expect(resolved).not.toMatch(/\{\{/);
     });
 
@@ -189,7 +189,7 @@ describe("flow round-trip", () => {
       }
     });
 
-    // ── 3. Every agent.spec references a known spec ───────────────
+    // ── 3. Every agent.systemPrompt references a known spec ───────────────
 
     it("references only known agent specs", () => {
       const { specRefs } = collectFromRoutines(flow.routines);
@@ -201,13 +201,13 @@ describe("flow round-trip", () => {
       }
     });
 
-    // ── 4. Orchestrator.prompt resolves cleanly ──────────────────
+    // ── 4. Orchestrator.systemPrompt resolves cleanly ──────────────────
 
-    it("orchestrator.prompt is non-empty and resolves cleanly", () => {
-      expect(flow.orchestrator.prompt.length).toBeGreaterThan(0);
+    it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
+      expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
 
       const ctx = new FlowContext(new Map(), "test-task");
-      const resolved = ctx.resolve(flow.orchestrator.prompt);
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
 
       expect(resolved).not.toMatch(/\{\{/);
       expect(resolved).not.toMatch(/\}\}/);
@@ -258,10 +258,9 @@ describe("flow round-trip", () => {
 
     // ── 6. RoutineTool name alignment with activeTools ──────────
 
-    it("activeTools entries match registered RoutineTool names", () => {
-      const activeTools = flow.orchestrator.activeTools;
-      if (!activeTools) return;
-
+    it("routine-based tools match registered RoutineTool names", () => {
+      // activeTools now come from orchestrator.md frontmatter, not flow.json.
+      // Verify that routine-based tool names match the routine names in the flow.
       const registry = new StepExecutorRegistry();
       const executor = new RoutineExecutor(flow, registry);
       const routineToolNames = new Set<string>();
@@ -271,15 +270,9 @@ describe("flow round-trip", () => {
         routineToolNames.add(tool.name);
       }
 
-      for (const toolName of activeTools) {
-        // Only check names that reference routines (skip built-ins like "bash")
-        if (toolName in flow.routines) {
-          expect(
-            routineToolNames.has(toolName),
-            `activeTool "${toolName}" references routine "${toolName}" ` +
-              `but registered RoutineTool names are: ${[...routineToolNames].join(", ")}`,
-          ).toBe(true);
-        }
+      // Each routine is registered as a tool — verify the names match
+      for (const routineName of Object.keys(flow.routines)) {
+        expect(routineToolNames.has(routineName)).toBe(true);
       }
     });
   });

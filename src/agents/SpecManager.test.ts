@@ -16,7 +16,6 @@ function makeLoader(
       role: string;
       toolPreset: string;
       ephemeral?: boolean;
-      templateParams?: string[];
       body: string;
     }
   >,
@@ -194,7 +193,6 @@ describe("SpecManager", () => {
           role: "researcher",
           toolPreset: "readOnly",
           ephemeral: true,
-          templateParams: ["CONTEXT"],
           body: "Research: {{CONTEXT}}",
         },
       });
@@ -216,7 +214,6 @@ describe("SpecManager", () => {
           role: "build",
           toolPreset: "fullAccess",
           ephemeral: true,
-          templateParams: ["TASK"],
           body: "Build: {{TASK}}",
         },
         review: {
@@ -224,7 +221,6 @@ describe("SpecManager", () => {
           role: "review",
           toolPreset: "reviewOnly",
           ephemeral: true,
-          templateParams: ["OUTPUT"],
           body: "Review: {{OUTPUT}}",
         },
       });

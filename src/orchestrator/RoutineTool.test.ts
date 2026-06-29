@@ -14,7 +14,7 @@ function makeFlow(routineParamNames: string[] = []): FlowDefinition {
   return {
     name: "test-flow",
     command: "/test",
-    orchestrator: { prompt: "t" },
+    orchestrator: { systemPrompt: "t" },
     routines: {
       build: {
         params: routineParamNames.map((name) => ({ name })),
@@ -78,7 +78,7 @@ describe("RoutineTool", () => {
       const flow: FlowDefinition = {
         name: "test-flow",
         command: "/test",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           build: {
             params: [],
@@ -118,7 +118,7 @@ describe("RoutineTool", () => {
       const flow: FlowDefinition = {
         name: "test-flow",
         command: "/test",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           build: {
             params: [{ name: "task" }],
@@ -126,7 +126,7 @@ describe("RoutineTool", () => {
               {
                 type: "agent",
                 id: "s1",
-                spec: "build",
+                systemPrompt: "build",
                 task: "do {{task}}",
               } as unknown as import("./FlowInstruction").FlowInstruction,
             ],
@@ -154,7 +154,7 @@ describe("RoutineTool", () => {
       const flow: FlowDefinition = {
         name: "test-flow",
         command: "/test",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           build: { params: [], steps: [] },
         },
@@ -180,7 +180,7 @@ describe("RoutineTool", () => {
       const flow: FlowDefinition = {
         name: "test-flow",
         command: "/test",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           build: {
             params: [{ name: "task" }, { name: "plan" }],
@@ -209,7 +209,7 @@ describe("RoutineTool", () => {
       const flow: FlowDefinition = {
         name: "test-flow",
         command: "/test",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           build: {
             params: [{ name: "branch" }],
