@@ -4,7 +4,6 @@ import { join, resolve } from "node:path";
 
 import { logger } from "../logging";
 import {
-  DirtyWorkingTreeError,
   WorkspaceError,
   WorktreeBranchExistsError,
   WorktreePathExistsError,
@@ -36,40 +35,42 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   /**
    * Create a git worktree at `.forge/worktrees/<workspaceId>`.
    *
-   * 1. Checks for a clean working tree (no uncommitted changes).
-   * 2. Checks that neither the branch nor the target path already exist.
-   * 3. Attempts Worktrunk (`wt add`), falls back to `git worktree add`.
+   * 1. Checks that neither the branch nor the target path already exist.
+   * 2. Attempts Worktrunk (`wt add`), falls back to `git worktree add`.
+   *
+   * When Worktrunk is used, `wt` chooses its own directory and returns the
+   * path in stdout — the pre-computed path is ignored in that case.
    */
   public override async createWorkspace(workspaceId: string): Promise<string> {
     const worktreePath = this.getWorktreePath(workspaceId);
     const branchName = this.getBranchName(workspaceId);
 
     // Safety checks
-    await this.assertCleanWorkingTree();
-    await this.assertNoStalePath(worktreePath);
     await this.assertNoConflictingBranch(branchName);
 
-    // Try Worktrunk first, then fall back to git worktree
+    // Try Worktrunk first, then fall back to git worktree.
+    // Worktrunk chooses its own directory and returns the path on stdout.
     const wtCli = await this.findWorktrunk();
     if (wtCli) {
-      await this.execCommand(wtCli, [
+      const stdout = await this.execCommand(wtCli, [
         "add",
-        worktreePath,
         "--base-ref",
         this.baseRef,
         "--branch",
         branchName,
       ]);
-    } else {
-      await this.execCommand("git", [
-        "worktree",
-        "add",
-        worktreePath,
-        this.baseRef,
-        "-b",
-        branchName,
-      ]);
+      return this.parseWtPath(stdout);
     }
+
+    await this.assertNoStalePath(worktreePath);
+    await this.execCommand("git", [
+      "worktree",
+      "add",
+      worktreePath,
+      this.baseRef,
+      "-b",
+      branchName,
+    ]);
 
     return worktreePath;
   }
@@ -119,17 +120,16 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   }
 
   /**
-   * Check that the working tree is clean (no uncommitted changes).
-   * A dirty tree can make it impossible to create a clean worktree from HEAD.
+   * Parse the worktree path from Worktrunk's stdout.
+   * Worktrunk emits the path as a single line (typically the last non-empty line).
    */
-  private async assertCleanWorkingTree(): Promise<void> {
-    const output = await this.execCommand("git", ["status", "--porcelain"]);
-    if (output.trim().length > 0) {
-      throw new DirtyWorkingTreeError(
-        "Cannot create worktree: working tree has uncommitted changes. " +
-          "Commit or stash your changes first.",
-      );
+  private parseWtPath(stdout: string): string {
+    const lines = stdout.trim().split("\n");
+    const pathLine = lines[lines.length - 1]?.trim();
+    if (!pathLine) {
+      throw new WorkspaceError("Worktrunk returned no path in output");
     }
+    return pathLine;
   }
 
   /**

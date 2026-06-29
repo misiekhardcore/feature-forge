@@ -93,11 +93,7 @@ vi.mock("node:fs", async () => {
 });
 
 import { GitWorktreeProvider } from "./GitWorktreeProvider";
-import {
-  DirtyWorkingTreeError,
-  WorktreeBranchExistsError,
-  WorktreePathExistsError,
-} from "./WorkspaceError";
+import { WorktreeBranchExistsError, WorktreePathExistsError } from "./WorkspaceError";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -105,9 +101,8 @@ const repoRoot = "/home/user/my-repo";
 const worktreePath = "/home/user/my-repo/.forge/worktrees/task-1";
 const branchName = "forge/task-1";
 
-/** Set up the three safety checks to all pass. */
-function cleanSafetyChecks() {
-  mocks.willSucceed("git", ["status", "--porcelain"], "");
+/** Set up the branch check to pass. */
+function branchCheckPasses() {
   mocks.willSucceed("git", ["branch", "--list", branchName], "");
 }
 
@@ -156,21 +151,22 @@ describe("GitWorktreeProvider", () => {
   // ── createWorkspace: happy path ──────────────────────────────────────
 
   describe("createWorkspace", () => {
-    it("uses Worktrunk CLI when wt is available", async () => {
-      cleanSafetyChecks();
+    it("uses Worktrunk CLI when wt is available and parses returned path", async () => {
+      branchCheckPasses();
       wtAvailable();
+      const wtResultPath = "/tmp/wt-worktrees/task-1";
       mocks.willSucceed(
         "wt",
-        ["add", worktreePath, "--base-ref", "HEAD", "--branch", branchName],
-        "worktree created",
+        ["add", "--base-ref", "HEAD", "--branch", branchName],
+        `Created worktree\n${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
-      expect(path).toBe(worktreePath);
+      expect(path).toBe(wtResultPath);
     });
 
     it("falls back to git worktree when wt is not available", async () => {
-      cleanSafetyChecks();
+      branchCheckPasses();
       wtNotAvailable();
       mocks.willSucceed(
         "git",
@@ -184,7 +180,6 @@ describe("GitWorktreeProvider", () => {
 
     it("uses custom baseRef in the worktree command", async () => {
       const p = new GitWorktreeProvider(repoRoot, "main");
-      mocks.willSucceed("git", ["status", "--porcelain"], "");
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
       wtNotAvailable();
       mocks.willSucceed(
@@ -201,28 +196,34 @@ describe("GitWorktreeProvider", () => {
   // ── createWorkspace: safety checks ───────────────────────────────────
 
   describe("createWorkspace safety checks", () => {
-    it("throws DirtyWorkingTreeError when repo has uncommitted changes", async () => {
-      mocks.willSucceed("git", ["status", "--porcelain"], "M src/file.ts");
+    it("allows worktree creation with dirty working tree", async () => {
+      // Dirty working tree no longer blocks — git worktree creates from the commit.
+      wtNotAvailable();
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
 
-      await expect(provider.createWorkspace("task-1")).rejects.toThrow(DirtyWorkingTreeError);
+      await expect(provider.createWorkspace("task-1")).resolves.toBe(worktreePath);
     });
 
-    it("throws WorktreePathExistsError when target path already exists", async () => {
-      mocks.willSucceed("git", ["status", "--porcelain"], "");
+    it("throws WorktreePathExistsError when target path already exists (git fallback)", async () => {
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      wtNotAvailable();
       mocks.addExistingPath(worktreePath);
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorktreePathExistsError);
     });
 
     it("throws WorktreeBranchExistsError when branch already exists", async () => {
-      mocks.willSucceed("git", ["status", "--porcelain"], "");
       mocks.willSucceed("git", ["branch", "--list", branchName], "  forge/task-1");
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorktreeBranchExistsError);
     });
 
     it("proceeds when git branch --list itself fails", async () => {
-      mocks.willSucceed("git", ["status", "--porcelain"], "");
       mocks.willFail("git", ["branch", "--list", branchName], "fatal: not a git repo");
       wtNotAvailable();
       mocks.willSucceed(
@@ -236,7 +237,7 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("wraps execCommand failures in WorkspaceError", async () => {
-      cleanSafetyChecks();
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
       wtNotAvailable();
       mocks.willFail(
         "git",
@@ -247,6 +248,30 @@ describe("GitWorktreeProvider", () => {
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(
         "Command failed: git worktree add",
       );
+    });
+
+    it("throws when wt returns empty output", async () => {
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      wtAvailable();
+      mocks.willSucceed("wt", ["add", "--base-ref", "HEAD", "--branch", branchName], "");
+
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(
+        "Worktrunk returned no path in output",
+      );
+    });
+
+    it("parses last line from wt output as path", async () => {
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      wtAvailable();
+      const wtResultPath = "/home/user/projects/.forge/wt-12345";
+      mocks.willSucceed(
+        "wt",
+        ["add", "--base-ref", "HEAD", "--branch", branchName],
+        `Created worktree\n${wtResultPath}`,
+      );
+
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(wtResultPath);
     });
   });
 
