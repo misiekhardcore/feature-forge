@@ -74,9 +74,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Root parent: no env var, so connect to our own server (loopback).
   const client = await connectChildClient(targetSocketPath, pi);
 
-  // Set up worktree infrastructure
+  // Set up worktree infrastructure — prefer Worktrunk if available
   const repoRoot = process.cwd();
-  const provider = new GitWorktreeProvider(repoRoot);
+  const provider = (await WorktrunkProvider.canActivate(repoRoot))
+    ? new WorktrunkProvider(repoRoot)
+    : new GitWorktreeProvider(repoRoot);
   const worktreeRegistry = new WorktreeRegistry();
   await worktreeRegistry.load();
   const workspaceManager = new WorkspaceManager(provider, worktreeRegistry);

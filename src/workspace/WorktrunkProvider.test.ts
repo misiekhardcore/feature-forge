@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => {
   let existsSyncPaths = new Set<string>();
   const existsSync = vi.fn((path: string) => existsSyncPaths.has(path));
   const rmSync = vi.fn();
-  /** Maps "cmd::JSON.stringify(args)" → { stdout } | { error, stderr } */
   const execResults = new Map<
     string,
     { stdout: string } | { errorMessage: string; stderr: string }
@@ -88,14 +87,13 @@ vi.mock("node:fs", async () => {
   };
 });
 
-import { GitWorktreeProvider } from "./GitWorktreeProvider";
-import { WorktreeBranchExistsError, WorktreePathExistsError } from "./WorkspaceError";
+import { WorktreeBranchExistsError } from "./WorkspaceError";
 import { WorkspaceProvider } from "./WorkspaceProvider";
+import { WorktrunkProvider } from "./WorktrunkProvider";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 const repoRoot = "/home/user/my-repo";
-const worktreePath = "/home/user/my-repo/.forge/worktrees/task-1";
 const branchName = "forge/task-1";
 
 function branchCheckPasses() {
@@ -104,33 +102,24 @@ function branchCheckPasses() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
-describe("GitWorktreeProvider", () => {
-  let provider: GitWorktreeProvider;
+describe("WorktrunkProvider", () => {
+  let provider: WorktrunkProvider;
 
   beforeEach(() => {
     mocks.reset();
-    provider = new GitWorktreeProvider(repoRoot);
+    provider = new WorktrunkProvider(repoRoot);
   });
 
   // ── Constructor ──────────────────────────────────────────────────────
 
   describe("constructor", () => {
     it("defaults repoRoot to process.cwd()", () => {
-      const p = new GitWorktreeProvider();
+      const p = new WorktrunkProvider();
       expect(p.repoRoot).toBe(process.cwd());
     });
 
     it("accepts a custom repoRoot", () => {
       expect(provider.repoRoot).toBe(repoRoot);
-    });
-
-    it("defaults baseRef to HEAD", () => {
-      expect(provider.baseRef).toBe("HEAD");
-    });
-
-    it("accepts a custom baseRef", () => {
-      const p = new GitWorktreeProvider(repoRoot, "main");
-      expect(p.baseRef).toBe("main");
     });
 
     it("extends WorkspaceProvider", () => {
@@ -141,24 +130,24 @@ describe("GitWorktreeProvider", () => {
   // ── canActivate ──────────────────────────────────────────────────────
 
   describe("canActivate", () => {
-    it("returns true when in a git worktree", async () => {
-      mocks.willSucceed("git", ["rev-parse", "--is-inside-work-tree"], "true\n");
+    it("returns true when wt switch --help succeeds", async () => {
+      mocks.willSucceed("wt", ["switch", "--help"], "usage: wt switch ...");
 
-      const result = await GitWorktreeProvider.canActivate(repoRoot);
+      const result = await WorktrunkProvider.canActivate(repoRoot);
       expect(result).toBe(true);
     });
 
-    it("returns false when not in a git repo", async () => {
-      mocks.willFail("git", ["rev-parse", "--is-inside-work-tree"], "fatal: not a git repository");
+    it("returns false when wt is not available", async () => {
+      mocks.willFail("wt", ["switch", "--help"], "command not found: wt");
 
-      const result = await GitWorktreeProvider.canActivate(repoRoot);
+      const result = await WorktrunkProvider.canActivate(repoRoot);
       expect(result).toBe(false);
     });
 
     it("defaults repoRoot to process.cwd()", async () => {
-      mocks.willSucceed("git", ["rev-parse", "--is-inside-work-tree"], "true\n");
+      mocks.willSucceed("wt", ["switch", "--help"], "usage: wt switch ...");
 
-      const result = await GitWorktreeProvider.canActivate();
+      const result = await WorktrunkProvider.canActivate();
       expect(result).toBe(true);
     });
   });
@@ -166,48 +155,83 @@ describe("GitWorktreeProvider", () => {
   // ── createWorkspace ──────────────────────────────────────────────────
 
   describe("createWorkspace", () => {
-    it("creates a git worktree", async () => {
+    it("runs wt switch -c and parses path after @ from stdout", async () => {
       branchCheckPasses();
+      const wtResultPath = "/tmp/wt-worktrees/task-1";
       mocks.willSucceed(
-        "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
-        "worktree created",
+        "wt",
+        ["switch", "-c", branchName],
+        `✓ Created branch ${branchName} from main and worktree @ ${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
-      expect(path).toBe(worktreePath);
+      expect(path).toBe(wtResultPath);
     });
 
-    it("uses custom baseRef", async () => {
-      const p = new GitWorktreeProvider(repoRoot, "main");
-      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+    it("derives branch name from workspace id", async () => {
+      mocks.willSucceed("git", ["branch", "--list", "forge/task-2"], "");
+      const wtResultPath = "/tmp/wt-worktrees/task-2";
       mocks.willSucceed(
-        "git",
-        ["worktree", "add", worktreePath, "main", "-b", branchName],
-        "worktree created",
+        "wt",
+        ["switch", "-c", "forge/task-2"],
+        `✓ Created branch forge/task-2 from main and worktree @ ${wtResultPath}`,
       );
 
-      const path = await p.createWorkspace("task-1");
-      expect(path).toBe(worktreePath);
+      const path = await provider.createWorkspace("task-2");
+      expect(path).toBe(wtResultPath);
     });
 
-    it("allows creation with dirty working tree", async () => {
-      // Dirty tree does not block — git worktree creates from the commit.
+    it("throws when wt returns empty output", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willSucceed("wt", ["switch", "-c", branchName], "");
+
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(
+        "Worktrunk returned no path in output",
+      );
+    });
+
+    it("handles @ at end of line as fallback to whole line", async () => {
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willSucceed("wt", ["switch", "-c", branchName], "Some message ending with @");
+
+      // No " @ " delimiter (no space after @), so falls back to whole line.
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe("Some message ending with @");
+    });
+
+    it("parses path after @ from multiline wt output", async () => {
+      branchCheckPasses();
+      const wtResultPath = "/home/user/projects/.forge/wt-12345";
       mocks.willSucceed(
-        "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
-        "worktree created",
+        "wt",
+        ["switch", "-c", branchName],
+        `Setting up branch ${branchName}\n✓ Created branch ${branchName} from main and worktree @ ${wtResultPath}`,
       );
 
-      await expect(provider.createWorkspace("task-1")).resolves.toBe(worktreePath);
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(wtResultPath);
     });
 
-    it("throws WorktreePathExistsError when target path already exists", async () => {
-      mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.addExistingPath(worktreePath);
+    it("expands tilde in wt path to home directory", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "wt",
+        ["switch", "-c", branchName],
+        `✓ Created branch ${branchName} from main and worktree @ ~/Projects/feature-forge.task-1`,
+      );
 
-      await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorktreePathExistsError);
+      const path = await provider.createWorkspace("task-1");
+      const { homedir } = await import("node:os");
+      expect(path).toBe(`${homedir()}/Projects/feature-forge.task-1`);
+    });
+
+    it("falls back to whole last line when no @ delimiter found", async () => {
+      branchCheckPasses();
+      const fallbackPath = "/some/provider/output/path";
+      mocks.willSucceed("wt", ["switch", "-c", branchName], fallbackPath);
+
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(fallbackPath);
     });
 
     it("throws WorktreeBranchExistsError when branch already exists", async () => {
@@ -216,97 +240,68 @@ describe("GitWorktreeProvider", () => {
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorktreeBranchExistsError);
     });
 
-    it("proceeds when git branch --list itself fails", async () => {
-      mocks.willFail("git", ["branch", "--list", branchName], "fatal: not a git repo");
-      mocks.willSucceed(
-        "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
-        "worktree created",
-      );
-
-      const path = await provider.createWorkspace("task-1");
-      expect(path).toBe(worktreePath);
-    });
-
     it("wraps execCommand failures in WorkspaceError", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willFail(
-        "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
-        "fatal: worktree add failed",
-      );
+      mocks.willFail("wt", ["switch", "-c", branchName], "fatal: wt switch failed");
 
-      await expect(provider.createWorkspace("task-1")).rejects.toThrow(
-        "Command failed: git worktree add",
-      );
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow("Command failed: wt");
     });
   });
 
   // ── destroyWorkspace ─────────────────────────────────────────────────
 
   describe("destroyWorkspace", () => {
+    const wtPath = "/tmp/wt-worktrees/task-1";
+
     it("returns early when path does not exist", async () => {
-      await expect(provider.destroyWorkspace(worktreePath)).resolves.toBeUndefined();
+      await expect(provider.destroyWorkspace(wtPath)).resolves.toBeUndefined();
       expect(mocks.execFile).not.toHaveBeenCalled();
     });
 
-    it("runs git worktree remove and prune on success", async () => {
-      mocks.addExistingPath(worktreePath);
-      mocks.willSucceed("git", ["worktree", "remove", worktreePath, "--force"], "removed");
-      mocks.willSucceed("git", ["worktree", "prune"], "");
+    it("runs wt remove with --force --yes --foreground", async () => {
+      mocks.addExistingPath(wtPath);
+      mocks.willSucceed("wt", ["remove", wtPath, "--force", "--yes", "--foreground"], "removed");
 
-      await provider.destroyWorkspace(worktreePath);
-
+      await provider.destroyWorkspace(wtPath);
       expect(mocks.execFile).toHaveBeenCalledWith(
-        "git",
-        ["worktree", "remove", worktreePath, "--force"],
-        expect.any(Object),
-        expect.any(Function),
-      );
-      expect(mocks.execFile).toHaveBeenCalledWith(
-        "git",
-        ["worktree", "prune"],
+        "wt",
+        ["remove", wtPath, "--force", "--yes", "--foreground"],
         expect.any(Object),
         expect.any(Function),
       );
     });
 
-    it("falls back to rmSync when git worktree remove fails", async () => {
-      mocks.addExistingPath(worktreePath);
-      mocks.willFail("git", ["worktree", "remove", worktreePath, "--force"], "fatal error");
+    it("falls back to git worktree remove when wt remove fails", async () => {
+      mocks.addExistingPath(wtPath);
+      mocks.willFail(
+        "wt",
+        ["remove", wtPath, "--force", "--yes", "--foreground"],
+        "wt remove failed",
+      );
+      mocks.willSucceed("git", ["worktree", "remove", wtPath, "--force"], "removed");
       mocks.willSucceed("git", ["worktree", "prune"], "");
 
-      await provider.destroyWorkspace(worktreePath);
-
-      expect(mocks.rmSync).toHaveBeenCalledWith(worktreePath, {
-        recursive: true,
-        force: true,
-      });
-    });
-
-    it("survives rmSync failure and still prunes", async () => {
-      mocks.addExistingPath(worktreePath);
-      mocks.willFail("git", ["worktree", "remove", worktreePath, "--force"], "fatal error");
-      mocks.rmSync.mockImplementation(() => {
-        throw new Error("permission denied");
-      });
-      mocks.willSucceed("git", ["worktree", "prune"], "");
-
-      await expect(provider.destroyWorkspace(worktreePath)).resolves.toBeUndefined();
+      await provider.destroyWorkspace(wtPath);
       expect(mocks.execFile).toHaveBeenCalledWith(
         "git",
-        ["worktree", "prune"],
+        ["worktree", "remove", wtPath, "--force"],
         expect.any(Object),
         expect.any(Function),
       );
     });
 
-    it("survives prune failure", async () => {
-      mocks.addExistingPath(worktreePath);
-      mocks.willSucceed("git", ["worktree", "remove", worktreePath, "--force"], "removed");
-      mocks.willFail("git", ["worktree", "prune"], "prune failed");
+    it("falls back to rmSync when both wt and git fail", async () => {
+      mocks.addExistingPath(wtPath);
+      mocks.willFail(
+        "wt",
+        ["remove", wtPath, "--force", "--yes", "--foreground"],
+        "wt remove failed",
+      );
+      mocks.willFail("git", ["worktree", "remove", wtPath, "--force"], "fatal error");
+      mocks.willSucceed("git", ["worktree", "prune"], "");
 
-      await expect(provider.destroyWorkspace(worktreePath)).resolves.toBeUndefined();
+      await provider.destroyWorkspace(wtPath);
+      expect(mocks.rmSync).toHaveBeenCalledWith(wtPath, { recursive: true, force: true });
     });
   });
 });
