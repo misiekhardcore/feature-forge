@@ -186,7 +186,7 @@ describe("WorktrunkProvider", () => {
       mocks.willSucceed("wt", ["switch", "-c", branchName], "");
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(
-        "Worktrunk returned no path in output",
+        "Command produced no output",
       );
     });
 
