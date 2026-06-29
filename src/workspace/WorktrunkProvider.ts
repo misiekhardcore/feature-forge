@@ -11,31 +11,31 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
  * faster, AI-workflow-optimised worktree management.
  *
  * Worktrunk chooses its own directory — the provider does not pre-compute
- * the worktree path. Instead it parses it from `wt add` stdout.
+ * the worktree path. Instead it parses it from `wt switch -c` stdout.
  *
  * Falls back to {@link GitWorktreeProvider} when Worktrunk is not available.
  */
 export class WorktrunkProvider extends WorkspaceProvider {
   /** Absolute path to the root of the git repository. */
   public readonly repoRoot: string;
-  /** Base ref to create the worktree from. Immutable after construction. */
-  public readonly baseRef: string;
 
-  constructor(repoRoot?: string, baseRef = "HEAD") {
+  constructor(repoRoot?: string) {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
-    this.baseRef = baseRef;
   }
 
   /**
    * Check whether Worktrunk CLI is available on this system.
    *
-   * Probes `wt add --help` rather than `wt --version` to avoid false positives
-   * from other tools named `wt` (e.g., Go's webtool).
+   * Probes `wt switch --help` rather than `wt --version` to avoid false
+   * positives from other tools named `wt` (e.g., Go's webtool).
    */
   static async canActivate(repoRoot?: string): Promise<boolean> {
     try {
-      await WorktrunkProvider.execCommandStatic(repoRoot ?? process.cwd(), "wt", ["add", "--help"]);
+      await WorktrunkProvider.execCommandStatic(repoRoot ?? process.cwd(), "wt", [
+        "switch",
+        "--help",
+      ]);
       return true;
     } catch {
       return false;
@@ -45,21 +45,15 @@ export class WorktrunkProvider extends WorkspaceProvider {
   /**
    * Create a worktree via Worktrunk.
    *
-   * Worktrunk chooses its own directory — no path is passed as an argument.
-   * The returned path is parsed from the last line of stdout.
+   * `wt switch -c <branch>` creates a new branch and worktree in one command.
+   * Worktrunk chooses its own directory and prints the path on stdout.
    */
   public override async createWorkspace(workspaceId: string): Promise<string> {
     const branchName = this.getBranchName(workspaceId);
 
     await this.assertNoConflictingBranch(branchName);
 
-    const stdout = await this.execCommand("wt", [
-      "add",
-      "--base-ref",
-      this.baseRef,
-      "--branch",
-      branchName,
-    ]);
+    const stdout = await this.execCommand("wt", ["switch", "-c", branchName]);
 
     return this.parseWtPath(stdout);
   }

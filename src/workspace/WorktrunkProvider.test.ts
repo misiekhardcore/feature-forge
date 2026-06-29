@@ -122,15 +122,6 @@ describe("WorktrunkProvider", () => {
       expect(provider.repoRoot).toBe(repoRoot);
     });
 
-    it("defaults baseRef to HEAD", () => {
-      expect(provider.baseRef).toBe("HEAD");
-    });
-
-    it("accepts a custom baseRef", () => {
-      const p = new WorktrunkProvider(repoRoot, "main");
-      expect(p.baseRef).toBe("main");
-    });
-
     it("extends WorkspaceProvider", () => {
       expect(provider).toBeInstanceOf(WorkspaceProvider);
     });
@@ -139,22 +130,22 @@ describe("WorktrunkProvider", () => {
   // ── canActivate ──────────────────────────────────────────────────────
 
   describe("canActivate", () => {
-    it("returns true when wt add --help succeeds", async () => {
-      mocks.willSucceed("wt", ["add", "--help"], "usage: wt add ...");
+    it("returns true when wt switch --help succeeds", async () => {
+      mocks.willSucceed("wt", ["switch", "--help"], "usage: wt switch ...");
 
       const result = await WorktrunkProvider.canActivate(repoRoot);
       expect(result).toBe(true);
     });
 
     it("returns false when wt is not available", async () => {
-      mocks.willFail("wt", ["add", "--help"], "command not found: wt");
+      mocks.willFail("wt", ["switch", "--help"], "command not found: wt");
 
       const result = await WorktrunkProvider.canActivate(repoRoot);
       expect(result).toBe(false);
     });
 
     it("defaults repoRoot to process.cwd()", async () => {
-      mocks.willSucceed("wt", ["add", "--help"], "usage: wt add ...");
+      mocks.willSucceed("wt", ["switch", "--help"], "usage: wt switch ...");
 
       const result = await WorktrunkProvider.canActivate();
       expect(result).toBe(true);
@@ -164,36 +155,35 @@ describe("WorktrunkProvider", () => {
   // ── createWorkspace ──────────────────────────────────────────────────
 
   describe("createWorkspace", () => {
-    it("runs wt add and parses path after @ from stdout", async () => {
+    it("runs wt switch -c and parses path after @ from stdout", async () => {
       branchCheckPasses();
       const wtResultPath = "/tmp/wt-worktrees/task-1";
       mocks.willSucceed(
         "wt",
-        ["add", "--base-ref", "HEAD", "--branch", branchName],
-        `✓ Created branch ${branchName} from HEAD and worktree @ ${wtResultPath}`,
+        ["switch", "-c", branchName],
+        `✓ Created branch ${branchName} from main and worktree @ ${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
       expect(path).toBe(wtResultPath);
     });
 
-    it("passes custom baseRef to wt add", async () => {
-      const p = new WorktrunkProvider(repoRoot, "main");
+    it("derives branch name from workspace id", async () => {
       mocks.willSucceed("git", ["branch", "--list", "forge/task-2"], "");
       const wtResultPath = "/tmp/wt-worktrees/task-2";
       mocks.willSucceed(
         "wt",
-        ["add", "--base-ref", "main", "--branch", "forge/task-2"],
+        ["switch", "-c", "forge/task-2"],
         `✓ Created branch forge/task-2 from main and worktree @ ${wtResultPath}`,
       );
 
-      const path = await p.createWorkspace("task-2");
+      const path = await provider.createWorkspace("task-2");
       expect(path).toBe(wtResultPath);
     });
 
     it("throws when wt returns empty output", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willSucceed("wt", ["add", "--base-ref", "HEAD", "--branch", branchName], "");
+      mocks.willSucceed("wt", ["switch", "-c", branchName], "");
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(
         "Worktrunk returned no path in output",
@@ -202,11 +192,7 @@ describe("WorktrunkProvider", () => {
 
     it("handles @ at end of line as fallback to whole line", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willSucceed(
-        "wt",
-        ["add", "--base-ref", "HEAD", "--branch", branchName],
-        "Some message ending with @",
-      );
+      mocks.willSucceed("wt", ["switch", "-c", branchName], "Some message ending with @");
 
       // No " @ " delimiter (no space after @), so falls back to whole line.
       const path = await provider.createWorkspace("task-1");
@@ -218,8 +204,8 @@ describe("WorktrunkProvider", () => {
       const wtResultPath = "/home/user/projects/.forge/wt-12345";
       mocks.willSucceed(
         "wt",
-        ["add", "--base-ref", "HEAD", "--branch", branchName],
-        `Setting up branch forge/task-1\n✓ Created branch ${branchName} from HEAD and worktree @ ${wtResultPath}`,
+        ["switch", "-c", branchName],
+        `Setting up branch ${branchName}\n✓ Created branch ${branchName} from main and worktree @ ${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
@@ -230,12 +216,11 @@ describe("WorktrunkProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "wt",
-        ["add", "--base-ref", "HEAD", "--branch", branchName],
-        `✓ Created branch ${branchName} from HEAD and worktree @ ~/Projects/feature-forge.task-1`,
+        ["switch", "-c", branchName],
+        `✓ Created branch ${branchName} from main and worktree @ ~/Projects/feature-forge.task-1`,
       );
 
       const path = await provider.createWorkspace("task-1");
-      // homedir() returns the actual home directory
       const { homedir } = await import("node:os");
       expect(path).toBe(`${homedir()}/Projects/feature-forge.task-1`);
     });
@@ -243,7 +228,7 @@ describe("WorktrunkProvider", () => {
     it("falls back to whole last line when no @ delimiter found", async () => {
       branchCheckPasses();
       const fallbackPath = "/some/provider/output/path";
-      mocks.willSucceed("wt", ["add", "--base-ref", "HEAD", "--branch", branchName], fallbackPath);
+      mocks.willSucceed("wt", ["switch", "-c", branchName], fallbackPath);
 
       const path = await provider.createWorkspace("task-1");
       expect(path).toBe(fallbackPath);
@@ -257,13 +242,9 @@ describe("WorktrunkProvider", () => {
 
     it("wraps execCommand failures in WorkspaceError", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willFail(
-        "wt",
-        ["add", "--base-ref", "HEAD", "--branch", branchName],
-        "fatal: wt add failed",
-      );
+      mocks.willFail("wt", ["switch", "-c", branchName], "fatal: wt switch failed");
 
-      await expect(provider.createWorkspace("task-1")).rejects.toThrow("Command failed: wt add");
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow("Command failed: wt");
     });
   });
 
