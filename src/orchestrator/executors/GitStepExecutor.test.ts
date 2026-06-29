@@ -62,7 +62,7 @@ describe("GitStepExecutor", () => {
   });
 
   describe("execute", () => {
-    it("runs add-and-commit in the resolved cwd", async () => {
+    it("runs add-and-commit in the resolved cwd with the default message", async () => {
       mockExecSuccess();
       const executor = new GitStepExecutor();
 
@@ -90,6 +90,42 @@ describe("GitStepExecutor", () => {
       expect(result.results.get("git1")!.raw).toContain("/tmp/ws");
     });
 
+    it("uses a custom commit message when provided", async () => {
+      mockExecSuccess();
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-custom",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+        message: "chore: bump version",
+      };
+      const context = new FlowContext(new Map(), "task");
+      await executor.execute(instruction, context, vi.fn());
+
+      const commitCall = execFileRaw.mock.calls[1];
+      expect(commitCall[1]).toEqual(["commit", "-m", "chore: bump version"]);
+    });
+
+    it("resolves {{...}} placeholders inside the custom commit message", async () => {
+      mockExecSuccess();
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-template",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+        message: "feat: {{task}}",
+      };
+      const context = new FlowContext(new Map(), "implement login");
+      await executor.execute(instruction, context, vi.fn());
+
+      const commitCall = execFileRaw.mock.calls[1];
+      expect(commitCall[1]).toEqual(["commit", "-m", "feat: implement login"]);
+    });
+
     it("runs push-current in the resolved cwd", async () => {
       mockExecSuccess();
       const executor = new GitStepExecutor();
@@ -108,6 +144,60 @@ describe("GitStepExecutor", () => {
       expect(execFileRaw.mock.calls[0][1]).toEqual(["push", "origin", "HEAD"]);
 
       expect(result.results.get("git2")!.parsed!.passed).toBe(true);
+    });
+
+    it("records captured stdout and stderr in raw on a successful push", async () => {
+      mockExecSuccess("To github.com:repo.git\n", "remote: ok\n");
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-push",
+        action: "push-current",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("git-push")!.parsed!.passed).toBe(true);
+      const raw = result.results.get("git-push")!.raw;
+      expect(raw).toContain("To github.com:repo.git");
+      expect(raw).toContain("remote: ok");
+    });
+
+    it("falls back to a structured raw when push output is empty", async () => {
+      mockExecSuccess("", "");
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-push-empty",
+        action: "push-current",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("git-push-empty")!.parsed!.passed).toBe(true);
+      expect(result.results.get("git-push-empty")!.raw).toContain("push-current");
+      expect(result.results.get("git-push-empty")!.raw).toContain("/tmp/ws");
+    });
+
+    it("returns a failure result when the push command fails", async () => {
+      mockExecFailure("fatal: could not read remote repository");
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-push-fail",
+        action: "push-current",
+        cwd: "/bad/path",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.results.get("git-push-fail")!.parsed!.passed).toBe(false);
+      expect(result.results.get("git-push-fail")!.raw).toContain("fatal:");
     });
 
     it("resolves placeholders in cwd", async () => {
