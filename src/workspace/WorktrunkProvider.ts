@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
 
 import { logger } from "../logging";
 import { WorkspaceError, WorktreeBranchExistsError } from "./WorkspaceError";
@@ -101,15 +102,28 @@ export class WorktrunkProvider extends WorkspaceProvider {
 
   /**
    * Parse the worktree path from Worktrunk's stdout.
-   * Worktrunk emits the path as the last non-empty line.
+   *
+   * Worktrunk output looks like:
+   * `✓ Created branch forge/myid from main and worktree @ ~/Projects/feature-forge.myid`
+   *
+   * The path follows the last ` @ ` on the last line. Tilde (`~`) is expanded
+   * to the user's home directory.
    */
   private parseWtPath(stdout: string): string {
     const lines = stdout.trim().split("\n");
-    const pathLine = lines[lines.length - 1]?.trim();
-    if (!pathLine) {
+    const lastLine = lines[lines.length - 1]?.trim();
+    if (!lastLine) {
       throw new WorkspaceError("Worktrunk returned no path in output");
     }
-    return pathLine;
+
+    const atIndex = lastLine.lastIndexOf(" @ ");
+    const rawPath = atIndex !== -1 ? lastLine.slice(atIndex + 3).trim() : lastLine;
+
+    if (!rawPath) {
+      throw new WorkspaceError("Worktrunk returned no path in output");
+    }
+
+    return rawPath.startsWith("~/") || rawPath === "~" ? rawPath.replace(/^~/, homedir()) : rawPath;
   }
 
   private async assertNoConflictingBranch(branchName: string): Promise<void> {

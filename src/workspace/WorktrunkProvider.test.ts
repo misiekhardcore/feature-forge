@@ -164,13 +164,13 @@ describe("WorktrunkProvider", () => {
   // ── createWorkspace ──────────────────────────────────────────────────
 
   describe("createWorkspace", () => {
-    it("runs wt add and parses returned path from stdout", async () => {
+    it("runs wt add and parses path after @ from stdout", async () => {
       branchCheckPasses();
       const wtResultPath = "/tmp/wt-worktrees/task-1";
       mocks.willSucceed(
         "wt",
         ["add", "--base-ref", "HEAD", "--branch", branchName],
-        `Created worktree\n${wtResultPath}`,
+        `✓ Created branch ${branchName} from HEAD and worktree @ ${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
@@ -184,7 +184,7 @@ describe("WorktrunkProvider", () => {
       mocks.willSucceed(
         "wt",
         ["add", "--base-ref", "main", "--branch", "forge/task-2"],
-        wtResultPath,
+        `✓ Created branch forge/task-2 from main and worktree @ ${wtResultPath}`,
       );
 
       const path = await p.createWorkspace("task-2");
@@ -200,17 +200,53 @@ describe("WorktrunkProvider", () => {
       );
     });
 
-    it("parses last line from wt output as path", async () => {
+    it("handles @ at end of line as fallback to whole line", async () => {
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willSucceed(
+        "wt",
+        ["add", "--base-ref", "HEAD", "--branch", branchName],
+        "Some message ending with @",
+      );
+
+      // No " @ " delimiter (no space after @), so falls back to whole line.
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe("Some message ending with @");
+    });
+
+    it("parses path after @ from multiline wt output", async () => {
       branchCheckPasses();
       const wtResultPath = "/home/user/projects/.forge/wt-12345";
       mocks.willSucceed(
         "wt",
         ["add", "--base-ref", "HEAD", "--branch", branchName],
-        `Setup branch forge/task-1\n${wtResultPath}`,
+        `Setting up branch forge/task-1\n✓ Created branch ${branchName} from HEAD and worktree @ ${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
       expect(path).toBe(wtResultPath);
+    });
+
+    it("expands tilde in wt path to home directory", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "wt",
+        ["add", "--base-ref", "HEAD", "--branch", branchName],
+        `✓ Created branch ${branchName} from HEAD and worktree @ ~/Projects/feature-forge.task-1`,
+      );
+
+      const path = await provider.createWorkspace("task-1");
+      // homedir() returns the actual home directory
+      const { homedir } = await import("node:os");
+      expect(path).toBe(`${homedir()}/Projects/feature-forge.task-1`);
+    });
+
+    it("falls back to whole last line when no @ delimiter found", async () => {
+      branchCheckPasses();
+      const fallbackPath = "/some/provider/output/path";
+      mocks.willSucceed("wt", ["add", "--base-ref", "HEAD", "--branch", branchName], fallbackPath);
+
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(fallbackPath);
     });
 
     it("throws WorktreeBranchExistsError when branch already exists", async () => {
