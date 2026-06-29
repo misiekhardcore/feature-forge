@@ -1,24 +1,20 @@
 import { execFile } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import { logger } from "../logging";
-import {
-  WorkspaceError,
-  WorktreeBranchExistsError,
-  WorktreePathExistsError,
-} from "./WorkspaceError";
+import { WorkspaceError, WorktreeBranchExistsError } from "./WorkspaceError";
 import { WorkspaceProvider } from "./WorkspaceProvider";
 
 /**
- * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
+ * Concrete {@link WorkspaceProvider} that uses Worktrunk CLI (`wt`) for
+ * faster, AI-workflow-optimised worktree management.
  *
- * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
- * Branch name: `forge/<workspaceId>`
+ * Worktrunk chooses its own directory — the provider does not pre-compute
+ * the worktree path. Instead it parses it from `wt add` stdout.
  *
- * When Worktrunk CLI is available, prefer {@link WorktrunkProvider} instead.
+ * Falls back to {@link GitWorktreeProvider} when Worktrunk is not available.
  */
-export class GitWorktreeProvider extends WorkspaceProvider {
+export class WorktrunkProvider extends WorkspaceProvider {
   /** Absolute path to the root of the git repository. */
   public readonly repoRoot: string;
   /** Base ref to create the worktree from. Immutable after construction. */
@@ -31,14 +27,14 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   }
 
   /**
-   * Check whether this directory is inside a git repository.
+   * Check whether Worktrunk CLI is available on this system.
+   *
+   * Probes `wt add --help` rather than `wt --version` to avoid false positives
+   * from other tools named `wt` (e.g., Go's webtool).
    */
   static async canActivate(repoRoot?: string): Promise<boolean> {
     try {
-      await GitWorktreeProvider.execCommandStatic(repoRoot ?? process.cwd(), "git", [
-        "rev-parse",
-        "--is-inside-work-tree",
-      ]);
+      await WorktrunkProvider.execCommandStatic(repoRoot ?? process.cwd(), "wt", ["add", "--help"]);
       return true;
     } catch {
       return false;
@@ -46,34 +42,30 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   }
 
   /**
-   * Create a git worktree at `.forge/worktrees/<workspaceId>`.
+   * Create a worktree via Worktrunk.
    *
-   * Checks that neither the branch nor the target path already exist,
-   * then calls `git worktree add`. The dirty-tree state of the main
-   * repo is not checked — worktrees are created from the commit, not
-   * the working tree.
+   * Worktrunk chooses its own directory — no path is passed as an argument.
+   * The returned path is parsed from the last line of stdout.
    */
   public override async createWorkspace(workspaceId: string): Promise<string> {
-    const worktreePath = this.getWorktreePath(workspaceId);
     const branchName = this.getBranchName(workspaceId);
 
     await this.assertNoConflictingBranch(branchName);
-    await this.assertNoStalePath(worktreePath);
 
-    await this.execCommand("git", [
-      "worktree",
+    const stdout = await this.execCommand("wt", [
       "add",
-      worktreePath,
+      "--base-ref",
       this.baseRef,
-      "-b",
+      "--branch",
       branchName,
     ]);
 
-    return worktreePath;
+    return this.parseWtPath(stdout);
   }
 
   /**
-   * Remove the worktree and prune git worktree metadata.
+   * Remove the worktree via `git worktree remove` (the worktree is still a
+   * git worktree even when created by Worktrunk) and prune stale metadata.
    *
    * Safe to call multiple times — subsequent calls are no-ops if the
    * path no longer exists.
@@ -103,18 +95,21 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
   // ─── Private helpers ─────────────────────────────────────────────────
 
-  private getWorktreePath(workspaceId: string): string {
-    return resolve(join(this.repoRoot, ".forge", "worktrees", workspaceId));
-  }
-
   private getBranchName(workspaceId: string): string {
     return `forge/${workspaceId}`;
   }
 
-  private async assertNoStalePath(worktreePath: string): Promise<void> {
-    if (existsSync(worktreePath)) {
-      throw new WorktreePathExistsError(worktreePath);
+  /**
+   * Parse the worktree path from Worktrunk's stdout.
+   * Worktrunk emits the path as the last non-empty line.
+   */
+  private parseWtPath(stdout: string): string {
+    const lines = stdout.trim().split("\n");
+    const pathLine = lines[lines.length - 1]?.trim();
+    if (!pathLine) {
+      throw new WorkspaceError("Worktrunk returned no path in output");
     }
+    return pathLine;
   }
 
   private async assertNoConflictingBranch(branchName: string): Promise<void> {
@@ -132,7 +127,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   }
 
   private async execCommand(command: string, args: string[]): Promise<string> {
-    return GitWorktreeProvider.execCommandStatic(this.repoRoot, command, args);
+    return WorktrunkProvider.execCommandStatic(this.repoRoot, command, args);
   }
 
   private static async execCommandStatic(
