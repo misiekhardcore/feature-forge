@@ -65,7 +65,7 @@ class ParseJsonExecutor extends StepExecutor {
 describe("LoopStepExecutor", () => {
   it("executes body steps for each iteration up to maxIterations", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new IncrementingExecutor("val"));
+    registry.register(() => new IncrementingExecutor("val"));
     const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
@@ -87,7 +87,7 @@ describe("LoopStepExecutor", () => {
 
   it("stops early when continueWhile evaluates to false", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new ParseJsonExecutor());
+    registry.register(() => new ParseJsonExecutor());
     const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
@@ -112,7 +112,7 @@ describe("LoopStepExecutor", () => {
 
   it("always runs at least one iteration (do-while semantics)", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new ParseJsonExecutor());
+    registry.register(() => new ParseJsonExecutor());
     const executor = new LoopStepExecutor();
 
     // continueWhile immediately evaluates false because results.check doesn't
@@ -139,19 +139,20 @@ describe("LoopStepExecutor", () => {
     // The loop should run all maxIterations iterations.
     const registry = new StepExecutorRegistry();
     registry.register(
-      new (class extends StepExecutor {
-        readonly type = "always-fail";
-        async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
-          return context.withResult(instruction.id, {
-            raw: JSON.stringify({ passed: false, summary: "fail" }),
-            parsed: {
-              kind: "review" as const,
-              passed: false,
-              findings: { critical: ["always fails"], warnings: [], info: [] },
-            },
-          });
-        }
-      })(),
+      () =>
+        new (class extends StepExecutor {
+          readonly type = "always-fail";
+          async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+            return context.withResult(instruction.id, {
+              raw: JSON.stringify({ passed: false, summary: "fail" }),
+              parsed: {
+                kind: "review" as const,
+                passed: false,
+                findings: { critical: ["always fails"], warnings: [], info: [] },
+              },
+            });
+          }
+        })(),
     );
     const executor = new LoopStepExecutor();
 
@@ -173,7 +174,7 @@ describe("LoopStepExecutor", () => {
 
   it("accumulates feedback from accumulateFrom steps", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new IncrementingExecutor("build"));
+    registry.register(() => new IncrementingExecutor("build"));
     const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
@@ -196,7 +197,7 @@ describe("LoopStepExecutor", () => {
     // Use two counter steps. Between iterations, both should be cleared
     // so fresh results are recorded.
     const registry = new StepExecutorRegistry();
-    registry.register(new IncrementingExecutor("a"));
+    registry.register(() => new IncrementingExecutor("a"));
     const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
@@ -222,7 +223,7 @@ describe("LoopStepExecutor", () => {
     // If the context already has a result from outside the loop body,
     // that result should persist across iterations.
     const registry = new StepExecutorRegistry();
-    registry.register(new IncrementingExecutor("val"));
+    registry.register(() => new IncrementingExecutor("val"));
     const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {

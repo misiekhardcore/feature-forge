@@ -1,3 +1,4 @@
+export { createStepExecutorRegistry } from "./createStepExecutorRegistry";
 export {
   AgentStepExecutor,
   CleanupStepExecutor,
@@ -45,6 +46,7 @@ export {
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
+export { FlowRegistrar } from "./FlowRegistrar";
 export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineResult } from "./RoutineResult";
 export { RoutineTool } from "./RoutineTool";
