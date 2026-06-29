@@ -99,6 +99,42 @@ describe("AgentInstructionSchema", () => {
     const invalid = { type: "agent", id: "a1", spec: "", task: "do it" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
+
+  it("accepts optional specInput with string values", () => {
+    const valid = {
+      type: "agent",
+      id: "a1",
+      spec: "build",
+      task: "do it",
+      specInput: {
+        TASK: "{{task}}",
+        WORKSPACE: "{{workspace}}",
+      },
+    };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("accepts empty specInput object", () => {
+    const valid = {
+      type: "agent",
+      id: "a1",
+      spec: "build",
+      task: "do it",
+      specInput: {},
+    };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects specInput with non-string value", () => {
+    const invalid = {
+      type: "agent",
+      id: "a1",
+      spec: "build",
+      task: "do it",
+      specInput: { TASK: 123 },
+    };
+    expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
 });
 
 describe("ParallelInstructionSchema", () => {

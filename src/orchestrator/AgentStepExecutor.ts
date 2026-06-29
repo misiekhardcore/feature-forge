@@ -2,7 +2,7 @@ import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { extractJson } from "./extractJson";
 import type { FlowContext, InstructionResult, ParsedResult } from "./FlowContext";
-import type { AgentInstruction, FlowInstruction } from "./FlowInstruction";
+import type { FlowInstruction } from "./FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 
 /**
@@ -27,19 +27,31 @@ export class AgentStepExecutor extends StepExecutor {
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
-    const agentInstruction = instruction as AgentInstruction;
+    if (instruction.type !== "agent") {
+      throw new Error(`AgentStepExecutor cannot execute instruction type "${instruction.type}"`);
+    }
 
-    const resolvedTask = context.resolve(agentInstruction.task);
+    const resolvedTask = context.resolve(instruction.task);
+
+    // Build specParams from specInput (resolved) or fall back to defaults.
+    const specParams: Record<string, string> = instruction.specInput
+      ? Object.fromEntries(
+          Object.entries(instruction.specInput).map(([key, value]) => [
+            key,
+            context.resolve(value),
+          ]),
+        )
+      : {
+          TASK: resolvedTask,
+          WORKSPACE: context.workspace ?? "",
+          FEEDBACK: context.feedback ?? "",
+          CONTEXT: [context.task, context.plan].filter(Boolean).join("\n"),
+        };
 
     const spec = this.specManager.resolve({
-      spec: agentInstruction.spec,
+      spec: instruction.spec,
       toolNames: [],
-      specParams: {
-        TASK: resolvedTask,
-        WORKSPACE: context.workspace ?? "",
-        FEEDBACK: context.feedback ?? "",
-        CONTEXT: [context.task, context.plan].filter(Boolean).join("\n"),
-      },
+      specParams,
     });
 
     const agent = await this.supervisor.spawn(spec);
@@ -51,7 +63,7 @@ export class AgentStepExecutor extends StepExecutor {
     }
 
     let parsed: ParsedResult | undefined;
-    if (agentInstruction.parseJson) {
+    if (instruction.parseJson) {
       parsed = extractJson(raw);
     }
 
@@ -60,6 +72,6 @@ export class AgentStepExecutor extends StepExecutor {
       result.parsed = parsed;
     }
 
-    return context.withResult(agentInstruction.id, result);
+    return context.withResult(instruction.id, result);
   }
 }

@@ -47,6 +47,7 @@ export const AgentInstructionSchema = defineInstruction("agent", {
   task: Type.String(),
   workingDir: Type.Optional(Type.Union([Type.Literal("workspace"), Type.String({ minLength: 1 })])),
   parseJson: Type.Optional(Type.Boolean()),
+  specInput: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 export const CleanupInstructionSchema = defineInstruction("cleanup");

@@ -148,15 +148,15 @@ Write the executor **after** the contract settles (U2–U5), to avoid rewriting
 it under ourselves — see watch-out.
 
 ```
-U1  Settle the contract: flow package, RoutineResult, routine params schema  [design]   ⬜
-U2  StepExecutorRegistry (open); register built-in executors                  [infra]    ⬜
-U3  Named workspaces + workingDir-by-ref + real provider selection            [resource] ⬜
-U4  git/shell step executor (PR-able state)                                   [resource] ⬜
-U5  Resolver unification + specInput on agent                                  [agent]    ⬜
-U6  RoutineExecutor (one-routine runner) + RoutineResult                      [core]     ⬜
-U7  RoutineTool + ToolRegistry.registerInstance                                [activation]⬜
-U8  OrchestratorCommand (load prompt + setActiveTools) + index.ts wiring       [activation]⬜
-U9  Per-routine + round-trip drift-guardrail tests                             [tests]    ⬜
+U1  Settle the contract: flow package, RoutineResult, routine params schema  [design]   ✅
+U2  StepExecutorRegistry (open); register built-in executors                  [infra]    ✅
+U3  Named workspaces + workingDir-by-ref + real provider selection            [resource] ⬜ (deferred — ADR 0005)
+U4  git/shell step executor (PR-able state)                                   [resource] ✅
+U5  Resolver unification + specInput on agent                                  [agent]    ✅
+U6  RoutineExecutor (one-routine runner) + RoutineResult                      [core]     ✅
+U7  RoutineTool + ToolRegistry.registerInstance                                [activation]✅
+U8  OrchestratorCommand (load prompt + setActiveTools) + index.ts wiring       [activation]✅
+U9  Per-routine + round-trip drift-guardrail tests                             [tests]    ✅
   ✅ means done, ⬜ means todo
 ```
 
