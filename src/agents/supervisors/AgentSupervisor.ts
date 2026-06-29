@@ -23,7 +23,7 @@ export abstract class AgentSupervisor {
    */
   public abstract runAgent(
     specification: AgentSpecification,
-    task: string,
+    prompt: string,
     pi?: ExtensionAPI,
   ): Promise<void>;
 

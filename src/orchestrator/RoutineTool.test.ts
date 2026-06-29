@@ -128,7 +128,7 @@ describe("RoutineTool", () => {
                 type: "agent",
                 id: "s1",
                 systemPrompt: "build",
-                task: "do {{task}}",
+                task: "do {{prompt}}",
               } as unknown as import("./FlowInstruction").FlowInstruction,
             ],
           },

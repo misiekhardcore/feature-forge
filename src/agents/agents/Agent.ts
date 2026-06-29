@@ -10,7 +10,7 @@ import { AgentSpecification } from "../specifications";
 export interface ExecuteTaskOptions {
   /** Optional image content to include in the prompt. */
   images?: ImageContent[];
-  /** Timeout in milliseconds for this task execution. */
+  /** Timeout in milliseconds for this prompt execution. */
   timeout?: number;
 }
 
@@ -29,10 +29,10 @@ export abstract class Agent {
   public readonly createdAt: Date = new Date();
 
   /**
-   * Send a task to the agent for execution.
-   * The agent processes the task and returns once complete.
+   * Send a prompt to the agent for execution.
+   * The agent processes the prompt and returns once complete.
    */
-  public abstract executeTask(task: string, options?: ExecuteTaskOptions): Promise<string>;
+  public abstract executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string>;
 
   /**
    * Signal the agent to stop what it's doing and shut down.
@@ -56,11 +56,11 @@ export abstract class Agent {
    * Deliver a successful result to the parent session via pi.sendMessage().
    * Each agent type formats its own output (markdown, json, etc.).
    */
-  public abstract deliverResult(task: string, result: string, pi: ExtensionAPI): void;
+  public abstract deliverResult(prompt: string, result: string, pi: ExtensionAPI): void;
 
   /**
    * Deliver a failure notification to the parent session via pi.sendMessage().
    * Each agent type formats its own error presentation.
    */
-  public abstract deliverError(task: string, error: Error, pi: ExtensionAPI): void;
+  public abstract deliverError(prompt: string, error: Error, pi: ExtensionAPI): void;
 }

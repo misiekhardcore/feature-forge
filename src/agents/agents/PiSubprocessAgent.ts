@@ -76,19 +76,19 @@ export class PiSubprocessAgent extends Agent {
    * Send a prompt (task) to the subagent and wait for completion.
    * Returns the extracted assistant text response.
    */
-  public async executeTask(task: string, options?: ExecuteTaskOptions): Promise<string> {
+  public async executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
     if (this._status !== AgentStatus.Running) {
       throw new Error(`Cannot execute task on agent "${this.id}" in state "${this._status}"`);
     }
 
     try {
       const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
-      const events = await this.rpcClient.promptAndWait(task, options?.images, timeout);
+      const events = await this.rpcClient.promptAndWait(prompt, options?.images, timeout);
       this.result = extractAssistantText(events);
       this._status = AgentStatus.Completed;
       return this.result;
     } catch (error) {
-      logger.error("Task execution failed", { agentId: this.id, task, error });
+      logger.error("Task execution failed", { agentId: this.id, prompt, error });
       this._status = AgentStatus.Failed;
       this.error = error instanceof Error ? error : new Error(String(error));
       throw this.error;
@@ -136,12 +136,12 @@ export class PiSubprocessAgent extends Agent {
    * Uses the agent's role as the section header so each agent type gets
    * its own visual identity in the chat output.
    */
-  public override deliverResult(task: string, result: string, pi: ExtensionAPI): void {
+  public override deliverResult(prompt: string, result: string, pi: ExtensionAPI): void {
     const header = this.capitalize(this.specification.role);
     pi.sendMessage(
       {
         customType: `${this.specification.role}_result`,
-        content: `## ${header}: ${task}\n\n${result || "_(no findings produced)_"}`,
+        content: `## ${header}: ${prompt}\n\n${result || "_(no findings produced)_"}`,
         display: true,
       },
       { triggerTurn: false },
@@ -151,11 +151,11 @@ export class PiSubprocessAgent extends Agent {
   /**
    * Format and deliver an error notification to the parent session.
    */
-  public override deliverError(task: string, error: Error, pi: ExtensionAPI): void {
+  public override deliverError(prompt: string, error: Error, pi: ExtensionAPI): void {
     pi.sendMessage(
       {
         customType: `${this.specification.role}_error`,
-        content: `## ❌ ${this.capitalize(this.specification.role)} failed: ${task}\n\n${error.message}`,
+        content: `## ❌ ${this.capitalize(this.specification.role)} failed: ${prompt}\n\n${error.message}`,
         display: true,
       },
       { triggerTurn: false },

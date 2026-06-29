@@ -12,7 +12,7 @@ export class FlowContext {
     /** Step results keyed by instruction id. */
     readonly results: ReadonlyMap<string, InstructionResult>,
     /** The top-level task description. */
-    readonly task: string,
+    readonly prompt: string,
     /** Named workspaces created during routine execution. */
     readonly workspaces: ReadonlyMap<string, WorkspaceHandle> = new Map(),
     /** Routine parameters passed by the orchestrator LLM. */
@@ -30,7 +30,7 @@ export class FlowContext {
     next.set(id, result);
     return new FlowContext(
       next,
-      this.task,
+      this.prompt,
       this.workspaces,
       this.params,
       this.feedback,
@@ -43,7 +43,7 @@ export class FlowContext {
     next.set(name, handle);
     return new FlowContext(
       this.results,
-      this.task,
+      this.prompt,
       next,
       this.params,
       this.feedback,
@@ -56,7 +56,7 @@ export class FlowContext {
     next.delete(name);
     return new FlowContext(
       this.results,
-      this.task,
+      this.prompt,
       next,
       this.params,
       this.feedback,
@@ -67,7 +67,7 @@ export class FlowContext {
   withParams(params: Record<string, string>): FlowContext {
     return new FlowContext(
       this.results,
-      this.task,
+      this.prompt,
       this.workspaces,
       new Map(Object.entries(params)),
       this.feedback,
@@ -78,7 +78,7 @@ export class FlowContext {
   withFeedback(feedback: string): FlowContext {
     return new FlowContext(
       this.results,
-      this.task,
+      this.prompt,
       this.workspaces,
       this.params,
       feedback,
@@ -87,7 +87,14 @@ export class FlowContext {
   }
 
   withIteration(n: number): FlowContext {
-    return new FlowContext(this.results, this.task, this.workspaces, this.params, this.feedback, n);
+    return new FlowContext(
+      this.results,
+      this.prompt,
+      this.workspaces,
+      this.params,
+      this.feedback,
+      n,
+    );
   }
 
   withResultsCleared(removeIds: Set<string>): FlowContext {
@@ -97,7 +104,7 @@ export class FlowContext {
     }
     return new FlowContext(
       next,
-      this.task,
+      this.prompt,
       this.workspaces,
       this.params,
       this.feedback,
@@ -124,8 +131,8 @@ export class FlowContext {
 
   private resolvePlaceholder(key: string): string {
     switch (key) {
-      case "task":
-        return this.task;
+      case "prompt":
+        return this.prompt;
       case "feedback":
         return this.feedback ?? "(no prior findings)";
       default: {

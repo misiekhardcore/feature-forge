@@ -44,7 +44,7 @@ describe("FlowContext", () => {
   describe("construction", () => {
     it("initialises with required fields and sensible defaults", () => {
       const ctx = new FlowContext(new Map(), "add auth");
-      expect(ctx.task).toBe("add auth");
+      expect(ctx.prompt).toBe("add auth");
       expect(ctx.results.size).toBe(0);
       expect(ctx.workspaces.size).toBe(0);
       expect(ctx.params.size).toBe(0);
@@ -181,17 +181,17 @@ describe("FlowContext", () => {
   describe("withParams", () => {
     it("stores params and returns a new context", () => {
       const ctx = new FlowContext(new Map(), "task");
-      const next = ctx.withParams({ plan: "use JWT", task: "add auth" });
+      const next = ctx.withParams({ plan: "use JWT", prompt: "add auth" });
       expect(next.params.get("plan")).toBe("use JWT");
-      expect(next.params.get("task")).toBe("add auth");
+      expect(next.params.get("prompt")).toBe("add auth");
     });
 
     it("replaces existing params entirely", () => {
       const ctx = new FlowContext(new Map(), "task", undefined, new Map([["plan", "old"]]));
-      const next = ctx.withParams({ task: "new task" });
+      const next = ctx.withParams({ prompt: "new task" });
       expect(next.params.size).toBe(1);
       expect(next.params.has("plan")).toBe(false);
-      expect(next.params.get("task")).toBe("new task");
+      expect(next.params.get("prompt")).toBe("new task");
     });
 
     it("does not mutate the original context", () => {
@@ -288,9 +288,9 @@ describe("FlowContext", () => {
   // -----------------------------------------------------------------------
 
   describe("resolve", () => {
-    it("resolves {{task}}", () => {
+    it("resolves {{prompt}}", () => {
       const ctx = new FlowContext(new Map(), "add auth");
-      expect(ctx.resolve("Build: {{task}}")).toBe("Build: add auth");
+      expect(ctx.resolve("Build: {{prompt}}")).toBe("Build: add auth");
     });
 
     it("resolves {{feedback}} with a default when none set", () => {
@@ -369,7 +369,7 @@ describe("FlowContext", () => {
       const ctx = new FlowContext(new Map(), "add auth")
         .withWorkspace("ws", makeHandle("ws", "/ws"))
         .withParams({ plan: "use JWT" });
-      expect(ctx.resolve("Task: {{task}} | Plan: {{plan}} | WS: {{workspace.ws}}")).toBe(
+      expect(ctx.resolve("Task: {{prompt}} | Plan: {{plan}} | WS: {{workspace.ws}}")).toBe(
         "Task: add auth | Plan: use JWT | WS: /ws",
       );
     });

@@ -13,7 +13,7 @@ import type { FlowDefinition } from "../../orchestrator/FlowInstruction";
 interface OrchestratorFrontmatter extends Record<string, unknown> {
   id?: string;
   role?: string;
-  activeTools?: string[];
+  tools?: string[];
 }
 
 /**
@@ -21,7 +21,7 @@ interface OrchestratorFrontmatter extends Record<string, unknown> {
  * main pi conversation.
  *
  * The orchestrator markdown file uses YAML frontmatter to declare metadata
- * (e.g. `activeTools`) and a plain-text body for the persona/system prompt.
+ * (e.g. `tools`) and a plain-text body for the persona/system prompt.
  * The task to execute is defined in `flow.json` → `orchestrator.task` and
  * resolved through the current {@link FlowContext}.
  *
@@ -39,11 +39,11 @@ interface OrchestratorFrontmatter extends Record<string, unknown> {
 export class OrchestratorAgent {
   private constructor(
     /** The persona/system prompt extracted from the orchestrator markdown body. */
-    readonly persona: string,
+    readonly systemPrompt: string,
     /** Active tools declared in the frontmatter. */
-    readonly activeTools: string[] | undefined,
-    /** The resolved task template from flow.orchestrator.task. */
-    private readonly resolvedTask: string,
+    readonly tools: string[] | undefined,
+    /** The resolved prompt template from flow.orchestrator.task. */
+    private readonly prompt: string,
   ) {}
 
   /**
@@ -53,14 +53,20 @@ export class OrchestratorAgent {
    * @param context — The flow execution context for template resolution.
    */
   mount(pi: ExtensionAPI, context: FlowContext): void {
-    const resolved = context.resolve(this.resolvedTask);
+    const resolved = context.resolve(this.prompt);
 
+    pi.on("before_agent_start", (event) => {
+      return {
+        systemPrompt:
+          event.systemPrompt + "\n\n---\n\n## Custom system prompt\n\n" + this.systemPrompt,
+      };
+    });
     // Send the persona + resolved task as a user message to trigger a turn
-    pi.sendUserMessage(`${this.persona}\n\n${resolved}`);
+    pi.sendUserMessage(resolved);
 
-    // Apply active tools if declared in the frontmatter
-    if (this.activeTools && this.activeTools.length > 0) {
-      pi.setActiveTools(this.activeTools);
+    // Apply active tools if declared in the frontmatter, even if empty array
+    if (this.tools) {
+      pi.setActiveTools(this.tools);
     }
   }
 
@@ -78,10 +84,6 @@ export class OrchestratorAgent {
 
     const { frontmatter, body } = parseFrontmatter<OrchestratorFrontmatter>(content);
 
-    return new OrchestratorAgent(
-      body.trim(),
-      frontmatter.activeTools,
-      flow.orchestrator.task ?? "",
-    );
+    return new OrchestratorAgent(body.trim(), frontmatter.tools, flow.orchestrator.prompt ?? "");
   }
 }

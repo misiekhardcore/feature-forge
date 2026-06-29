@@ -60,7 +60,7 @@ flows/<name>/
   "command": "/implement",
   "orchestrator": {                          // honest: a prompt + tools, NOT a fake spec
     "prompt": "orchestrator.md",
-    "activeTools": ["run_build_loop", "open_pr", "destroy_workspace", "bash"]
+    "tools": ["run_build_loop", "open_pr", "destroy_workspace", "bash"]
   },
   "routines": {                              // each routine -> one registered Pi tool
     "run_build_loop":     { "params": [...], "steps": [ ... ] },
@@ -97,7 +97,7 @@ interface RoutineResult {
    registered via `ToolRegistry.registerInstance`.
 3. **`ToolRegistry.registerInstance(tool)`** — instance-based registration.
 4. **`OrchestratorCommand`** (generic) — loads `orchestrator.prompt` into the
-   main session (`sendUserMessage`), applies `activeTools` if declared, returns.
+   main session (`sendUserMessage`), applies `tools` if declared, returns.
 5. **`StepExecutorRegistry`** (open) — built-in executors register at init:
    `agent`, `parallel`, `loop`, `workspace`, `cleanup`, `git`/`shell`.
 6. **`git`/`shell` step executors** — commit/branch/push/`gh pr create`.
@@ -108,7 +108,7 @@ interface RoutineResult {
    template slots (`{{TASK}}`/`{{FEEDBACK}}`…) instead of stuffing everything
    into `task`.
 9. **Single placeholder/template resolver** — one convention (lowercase
-   `{{task}}` _or_ uppercase `{{TASK}}`) across spec-loader, flow, and
+   `{{prompt}}` _or_ uppercase `{{TASK}}`) across spec-loader, flow, and
    orchestrator prompt; never both.
 10. **`FlowLoader`** (v2) — loads a flow _package_, two-phase validation
     (schema + semantics), per-file resilient `loadAll` (one bad flow doesn't
@@ -135,7 +135,7 @@ review/verify findings + build outcome, per ADR 0003).
 
 ADR 0001 (orchestrator-prompt-lives-in-flow-json) is **superseded** — its
 "embedded `orchestrator.task` string" model is replaced by `orchestrator.prompt`
-(a referenced markdown file) + `activeTools`. The "one prompt, one resolver"
+(a referenced markdown file) + `tools`. The "one prompt, one resolver"
 principle it captured still holds. ADRs 0002 (schema accuracy + semantic
 validation), 0003 (loop gate on builder outcome + typed `toolParams`), and
 0004 (loader resilience + packaging) **remain valid** and carry into this
@@ -184,13 +184,13 @@ them in sequence).
 
 ## 10. Doc map (so it stops being confusing)
 
-| Document                                 | Role                                                                                  | Status                          |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------- |
-| `PLAN.md` (this file)                    | Authoritative implementation plan + decision summary + tracker                        | current                         |
-| `UPDATED_FLOW_ARCHITECTURE.md`           | Rationale, worked example, dependency/execution/user-flow charts                      | current                         |
-| `docs/adr/0001-…orchestrator…md`         | "One orchestrator prompt, one resolver" (now via `orchestrator.prompt`+`activeTools`) | **Superseded** (principle kept) |
-| `docs/adr/0002-…schema…md`               | Schema accuracy + semantic validation completeness (parseJson, workingDir, specs)     | Valid                           |
-| `docs/adr/0003-…loop-gate…md`            | Loop gates on builder outcome; typed `toolParams`                                     | Valid                           |
-| `docs/adr/0004-…loader…md`               | Loader resilience + flow asset packaging                                              | Valid                           |
-| ~~`docs/flow-engine.md`~~                | Old single-tool detailed design — contradicted by the routine model                   | **Removed**                     |
-| ~~`src/agents/prompts/orchestrator.md`~~ | Legacy manual-spawn orchestrator prompt — deleted in working tree                     | Removed                         |
+| Document                                 | Role                                                                              | Status                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------- |
+| `PLAN.md` (this file)                    | Authoritative implementation plan + decision summary + tracker                    | current                         |
+| `UPDATED_FLOW_ARCHITECTURE.md`           | Rationale, worked example, dependency/execution/user-flow charts                  | current                         |
+| `docs/adr/0001-…orchestrator…md`         | "One orchestrator prompt, one resolver" (now via `orchestrator.prompt`+`tools`)   | **Superseded** (principle kept) |
+| `docs/adr/0002-…schema…md`               | Schema accuracy + semantic validation completeness (parseJson, workingDir, specs) | Valid                           |
+| `docs/adr/0003-…loop-gate…md`            | Loop gates on builder outcome; typed `toolParams`                                 | Valid                           |
+| `docs/adr/0004-…loader…md`               | Loader resilience + flow asset packaging                                          | Valid                           |
+| ~~`docs/flow-engine.md`~~                | Old single-tool detailed design — contradicted by the routine model               | **Removed**                     |
+| ~~`src/agents/prompts/orchestrator.md`~~ | Legacy manual-spawn orchestrator prompt — deleted in working tree                 | Removed                         |

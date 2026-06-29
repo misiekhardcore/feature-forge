@@ -73,7 +73,7 @@ describe("OrchestratorCommand", () => {
       ...flow,
       orchestrator: {
         systemPrompt: "orchestrator.md",
-        task: "Do the {{task}}",
+        prompt: "Do the {{prompt}}",
       },
     };
     const cmd = makeCmd(flowWithTask);
@@ -92,7 +92,7 @@ describe("OrchestratorCommand", () => {
       ...flow,
       orchestrator: {
         systemPrompt: "orchestrator.md",
-        task: "Do the {{task}}",
+        prompt: "Do the {{prompt}}",
       },
     });
 
@@ -109,7 +109,7 @@ describe("OrchestratorCommand", () => {
       ...flow,
       orchestrator: {
         systemPrompt: "orchestrator.md",
-        task: "Do the {{task}}",
+        prompt: "Do the {{prompt}}",
       },
     });
 

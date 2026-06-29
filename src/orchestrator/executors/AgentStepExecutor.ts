@@ -43,7 +43,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     });
 
     // 2. Resolve the task template.
-    const resolvedTask = context.resolve(instruction.task);
+    const resolvedTask = context.resolve(instruction.prompt);
 
     // 2b. Resolve the agent's working directory when declared on the
     // instruction. The flow loader has already validated that any
@@ -58,7 +58,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     logger.info("Spawning agent", {
       instructionId,
       spec: instruction.systemPrompt,
-      task: resolvedTask.slice(0, 200),
+      prompt: resolvedTask,
       cwd: effectiveSpecification.cwd,
     });
 

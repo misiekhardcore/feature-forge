@@ -78,7 +78,7 @@ function makeStubContext(
 function collectAgentInstructions(instructions: FlowInstruction[], tasks: string[]): void {
   for (const instr of instructions) {
     if (instr.type === "agent") {
-      tasks.push(instr.task);
+      tasks.push(instr.prompt);
     }
     if (isContainerInstruction(instr)) {
       collectAgentInstructions(instr.steps, tasks);
@@ -256,10 +256,10 @@ describe("flow round-trip", () => {
       }
     });
 
-    // ── 6. RoutineTool name alignment with activeTools ──────────
+    // ── 6. RoutineTool name alignment with tools ──────────
 
     it("routine-based tools match registered RoutineTool names", () => {
-      // activeTools now come from orchestrator.md frontmatter, not flow.json.
+      // tools now come from orchestrator.md frontmatter, not flow.json.
       // Verify that routine-based tool names match the routine names in the flow.
       const registry = new StepExecutorRegistry();
       const executor = new RoutineExecutor(flow, registry);

@@ -65,7 +65,7 @@ export class RoutineTool implements ToolDefinition<
       params: Object.keys(params),
     });
 
-    const task = params["task"] ?? params["_task"] ?? "";
+    const prompt = params["prompt"] ?? params["_prompt"] ?? "";
     const routineParams: Record<string, string> = {};
     for (const param of this.routineDef.params) {
       if (param.name in params) {
@@ -73,7 +73,7 @@ export class RoutineTool implements ToolDefinition<
       }
     }
 
-    const result = await this.executor.run(this.routineName, routineParams, task);
+    const result = await this.executor.run(this.routineName, routineParams, prompt);
 
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
