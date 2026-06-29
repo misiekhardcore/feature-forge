@@ -11,7 +11,7 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
  * faster, AI-workflow-optimised worktree management.
  *
  * Worktrunk chooses its own directory — the provider does not pre-compute
- * the worktree path. Instead it parses it from `wt switch -c` stdout.
+ * the worktree path. Instead it parses it from `wt switch -c` output.
  *
  * Falls back to {@link GitWorktreeProvider} when Worktrunk is not available.
  */
@@ -46,7 +46,7 @@ export class WorktrunkProvider extends WorkspaceProvider {
    * Create a worktree via Worktrunk.
    *
    * `wt switch -c <branch>` creates a new branch and worktree in one command.
-   * Worktrunk chooses its own directory and prints the path on stdout.
+   * Worktrunk chooses its own directory and prints the path on stdout or stderr.
    */
   public override async createWorkspace(workspaceId: string): Promise<string> {
     const branchName = this.getBranchName(workspaceId);
@@ -101,7 +101,7 @@ export class WorktrunkProvider extends WorkspaceProvider {
   }
 
   /**
-   * Parse the worktree path from Worktrunk's stdout.
+   * Parse the worktree path from Worktrunk's output.
    *
    * Worktrunk output looks like:
    * `✓ Created branch forge/myid from main and worktree @ ~/Projects/feature-forge.myid`
@@ -157,7 +157,12 @@ export class WorktrunkProvider extends WorkspaceProvider {
             new WorkspaceError(`Command failed: ${command} ${args.join(" ")}\n${message}`, error),
           );
         } else {
-          resolvePromise(stdout);
+          const output = stdout?.trim() || stderr?.trim() || "";
+          if (!output) {
+            reject(new WorkspaceError("Command produced no output"));
+          } else {
+            resolvePromise(output);
+          }
         }
       });
     });
