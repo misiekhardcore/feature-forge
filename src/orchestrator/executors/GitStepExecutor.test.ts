@@ -73,7 +73,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       // Should have called git add -A and git commit.
       expect(execFileRaw).toHaveBeenCalledTimes(2);
@@ -101,7 +101,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("git");
@@ -125,7 +125,7 @@ describe("GitStepExecutor", () => {
         "task",
         new Map([["ws", new WorkspaceHandle("ws", "/resolved/ws", new Date())]]),
       );
-      await executor.execute(instruction, context);
+      await executor.execute(instruction, context, vi.fn());
 
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/resolved/ws");
     });
@@ -141,7 +141,7 @@ describe("GitStepExecutor", () => {
         cwd: "/bad/path",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("git4")!.parsed!.passed).toBe(false);
       expect(result.results.get("git4")!.raw).toContain("fatal:");

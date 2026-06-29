@@ -4,6 +4,7 @@ import type {
   ExtensionContext,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
 import { logger } from "../logging";
@@ -17,24 +18,23 @@ import { RoutineExecutor } from "./RoutineExecutor";
  * Each routine gets its own {@link RoutineTool} instance, registered
  * at flow-load time.
  *
+ * The tool's parameter schema is built dynamically from the routine's
+ * declared `params` array so the LLM receives accurate parameter hints
+ * with names and descriptions.
+ *
  * Implements {@link ToolDefinition} directly rather than extending
  * the abstract {@link Tool} class, because the Tool base class
- * constrains TParams to extend TSchema, while we use a flat
- * Record<string, string> that is the runtime shape but not a
- * TypeBox schema.
+ * constrains TParams to extend TSchema, while we build a dynamic
+ * schema that varies per routine.
  */
 export class RoutineTool implements ToolDefinition<
-  typeof RoutineTool.parameters,
+  TObject<TProperties>,
   { routine: string; passed: boolean; summary: string }
 > {
   readonly name: string;
   readonly label: string;
   readonly description: string;
-
-  /** Parameters schema for the tool — a flat record of string→string. */
-  static readonly parameters = Type.Record(Type.String(), Type.String());
-
-  readonly parameters = RoutineTool.parameters;
+  readonly parameters: TObject<TProperties>;
 
   private readonly routineName: string;
 
@@ -47,11 +47,8 @@ export class RoutineTool implements ToolDefinition<
     this.routineName = routineName;
     this.name = routineName;
     this.label = `Routine: ${flowName}/${routineName}`;
-    this.description =
-      routineDef.params.length === 0
-        ? `Run the "${routineName}" routine from the "${flowName}" flow.`
-        : `Run the "${routineName}" routine from the "${flowName}" flow. ` +
-          `Parameters: ${routineDef.params.map((p) => p.name).join(", ")}.`;
+    this.description = this.buildDescription(routineName, routineDef);
+    this.parameters = RoutineTool.buildParamsSchema(routineDef);
   }
 
   async execute(
@@ -82,5 +79,25 @@ export class RoutineTool implements ToolDefinition<
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       details: { routine: result.routine, passed: result.passed, summary: result.summary },
     };
+  }
+
+  // ── Static helpers ────────────────────────────────────────
+
+  private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {
+    const properties: Record<string, ReturnType<typeof Type.String>> = {};
+    for (const param of routineDef.params) {
+      properties[param.name] = Type.String({
+        description: param.description,
+      });
+    }
+    return Type.Object(properties) as unknown as TObject<TProperties>;
+  }
+
+  private buildDescription(routineName: string, routineDef: RoutineDefinition): string {
+    if (routineDef.params.length === 0) {
+      return `Run the "${routineName}" routine.`;
+    }
+    const paramList = routineDef.params.map((p) => p.name).join(", ");
+    return `Run the "${routineName}" routine with params: ${paramList}.`;
   }
 }

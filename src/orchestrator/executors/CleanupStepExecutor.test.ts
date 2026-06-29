@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
@@ -34,7 +34,7 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -55,7 +55,7 @@ describe("CleanupStepExecutor", () => {
 
       // `of` uses a placeholder that resolves to the workspace id.
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "{{target}}" };
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -76,7 +76,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(provider.destroyedPaths).toContain("/fake/ws2");
@@ -107,7 +107,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       // The good provider still destroyed the path.
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
@@ -121,10 +121,29 @@ describe("CleanupStepExecutor", () => {
 
       const context = new FlowContext(new Map(), "task");
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context);
+      const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       expect(result.results.get("c1")!.raw).toContain('"cleaned":[]');
+    });
+
+    it("skips providers that return undefined from get", async () => {
+      const goodProvider = new TrackingProvider();
+      const registry = new WorkspaceProviderRegistry().register("git-worktree", goodProvider);
+      const executor = new CleanupStepExecutor(registry);
+
+      const context = new FlowContext(
+        new Map(),
+        "task",
+        new Map([["ws1", new WorkspaceHandle("ws1", "/fake/ws1", new Date())]]),
+      );
+
+      // Use `of` to target a workspace that uses the resolve path.
+      const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
+      expect(result.results.get("c1")!.parsed!.passed).toBe(true);
     });
   });
 });

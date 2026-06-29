@@ -6,6 +6,20 @@ import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { LoopStepExecutor } from "./LoopStepExecutor";
 
+// Build a dispatch callback that delegates through a StepExecutorRegistry.
+function makeDispatch(
+  registry: StepExecutorRegistry,
+): (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext> {
+  const dispatch = async (instruction: FlowInstruction, ctx: FlowContext): Promise<FlowContext> => {
+    const executor = registry.get(instruction.type);
+    if (!executor) {
+      throw new Error(`No executor registered for step type "${instruction.type}"`);
+    }
+    return executor.execute(instruction, ctx, dispatch);
+  };
+  return dispatch;
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 class IncrementingExecutor extends StepExecutor {
@@ -52,7 +66,7 @@ describe("LoopStepExecutor", () => {
   it("executes body steps for each iteration up to maxIterations", async () => {
     const registry = new StepExecutorRegistry();
     registry.register(new IncrementingExecutor("val"));
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -62,7 +76,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     // After 3 iterations the counter should be 3.
     expect(result.results.get("counter")!.raw).toBe("val-round-3");
@@ -73,7 +88,7 @@ describe("LoopStepExecutor", () => {
   it("stops early when continueWhile evaluates to false", async () => {
     const registry = new StepExecutorRegistry();
     registry.register(new ParseJsonExecutor());
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -85,7 +100,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     // Iteration 1 fails (passed=false → continueWhile true → continues)
     // Iteration 2 passes (passed=true → continueWhile false → stops)
@@ -97,7 +113,7 @@ describe("LoopStepExecutor", () => {
   it("always runs at least one iteration (do-while semantics)", async () => {
     const registry = new StepExecutorRegistry();
     registry.register(new ParseJsonExecutor());
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     // continueWhile immediately evaluates false because results.check doesn't
     // exist yet, but the body always runs at least once.
@@ -111,7 +127,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     // Body ran at least once even though condition was initially false-like.
     expect(result.results.get("l")!.raw).toContain('"iterations":1');
@@ -136,7 +153,7 @@ describe("LoopStepExecutor", () => {
         }
       })(),
     );
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -148,7 +165,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
   });
@@ -156,7 +174,7 @@ describe("LoopStepExecutor", () => {
   it("accumulates feedback from accumulateFrom steps", async () => {
     const registry = new StepExecutorRegistry();
     registry.register(new IncrementingExecutor("build"));
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -167,7 +185,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     // After 2 iterations, the accumulated feedback should contain both rounds.
     expect(result.results.get("step")!.raw).toBe("build-round-2");
@@ -178,7 +197,7 @@ describe("LoopStepExecutor", () => {
     // so fresh results are recorded.
     const registry = new StepExecutorRegistry();
     registry.register(new IncrementingExecutor("a"));
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -191,7 +210,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     // Each counter should show the final iteration's value (2), not 4.
     expect(result.results.get("first")!.raw).toBe("a-round-2");
@@ -203,7 +223,7 @@ describe("LoopStepExecutor", () => {
     // that result should persist across iterations.
     const registry = new StepExecutorRegistry();
     registry.register(new IncrementingExecutor("val"));
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -215,14 +235,14 @@ describe("LoopStepExecutor", () => {
     const initial = new FlowContext(new Map(), "task").withResult("external", {
       raw: "keep me",
     });
-    const result = await executor.execute(instruction, initial);
+    const result = await executor.execute(instruction, initial, makeDispatch(registry));
 
     expect(result.results.get("external")!.raw).toBe("keep me");
   });
 
   it("throws for an unknown step type in body", async () => {
     const registry = new StepExecutorRegistry();
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -233,14 +253,14 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context)).rejects.toThrow(
+    await expect(executor.execute(instruction, context, makeDispatch(registry))).rejects.toThrow(
       'No executor registered for step type "unknown"',
     );
   });
 
   it("handles an empty loop body", async () => {
     const registry = new StepExecutorRegistry();
-    const executor = new LoopStepExecutor(registry);
+    const executor = new LoopStepExecutor();
 
     const instruction: LoopInstruction = {
       type: "loop",
@@ -250,7 +270,8 @@ describe("LoopStepExecutor", () => {
     };
 
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context);
+    const executeStep = makeDispatch(registry);
+    const result = await executor.execute(instruction, context, executeStep);
 
     expect(result.results.get("l")!.parsed!.passed).toBe(true);
     expect(result.results.get("l")!.raw).toContain('"iterations":3');

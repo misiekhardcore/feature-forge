@@ -2,7 +2,7 @@ import { logger } from "../../logging";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { WorkspaceInstruction } from "../FlowInstruction";
+import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -19,7 +19,11 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     super();
   }
 
-  async execute(instruction: WorkspaceInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: WorkspaceInstruction,
+    context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
     const providerName = instruction.provider;
     const workspaceId = instruction.id;
 
