@@ -4,8 +4,10 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications/AgentSpecification";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
+import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -264,6 +266,100 @@ describe("AgentStepExecutor", () => {
       await executor.execute(instruction, context, vi.fn());
 
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
+    });
+  });
+
+  describe("workingDir", () => {
+    function contextWithWorkspace(name: string, path: string): FlowContext {
+      const base = new FlowContext(new Map(), "task");
+      return base.withWorkspace(
+        name,
+        new WorkspaceHandle(name, path, new Date("2025-01-01T00:00:00Z")),
+      );
+    }
+
+    it("resolves a {workspace} workingDir to the workspace path and passes it as cwd to spawn", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        task: "build",
+        workingDir: { workspace: "ws" },
+      };
+      const context = contextWithWorkspace("ws", "/repos/worktree-ws");
+
+      await executor.execute(instruction, context, vi.fn());
+
+      const spawnedSpec = (supervisor.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnedSpec.cwd).toBe("/repos/worktree-ws");
+      expect(spawnedSpec.id).toBe("test-agent");
+    });
+
+    it("throws AgentInstructionWorkingDirMissing when the referenced workspace is not present", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        task: "build",
+        workingDir: { workspace: "missing" },
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      await expect(executor.execute(instruction, context, vi.fn())).rejects.toBeInstanceOf(
+        AgentInstructionWorkingDirMissing,
+      );
+      expect(supervisor.spawn).not.toHaveBeenCalled();
+    });
+
+    it("uses a {path} workingDir verbatim (after template resolution) as cwd", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        task: "build",
+        workingDir: { path: "/abs/x" },
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      await executor.execute(instruction, context, vi.fn());
+
+      const spawnedSpec = (supervisor.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnedSpec.cwd).toBe("/abs/x");
+    });
+
+    it("leaves cwd unset (default behaviour) when workingDir is absent", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        task: "build",
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      await executor.execute(instruction, context, vi.fn());
+
+      const spawnedSpec = (supervisor.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnedSpec.cwd).toBeUndefined();
     });
   });
 
