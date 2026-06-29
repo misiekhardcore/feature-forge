@@ -5,7 +5,6 @@ import * as path from "path";
 import { TOOL_PRESETS, ToolPresetName } from "../specifications/constants";
 import { DynamicAgentSpecification } from "../specifications/DynamicAgentSpecification";
 import type { SpecFactory } from "../specifications/SpecRegistry";
-import { fillTemplate } from "../specifications/templates";
 
 /**
  * Metadata extracted from the frontmatter of a declarative spec file.
@@ -19,8 +18,6 @@ interface DeclarativeSpecMetadata {
   toolPreset: ToolPresetName;
   /** Whether the agent should be ephemeral (destroyed after use). */
   ephemeral: boolean;
-  /** List of template parameter names that should be filled. */
-  templateParams?: string[];
 }
 
 /**
@@ -37,12 +34,8 @@ interface DeclarativeSpecMetadata {
  * spec: "build"
  * toolPreset: "fullAccess"
  * ephemeral: true
- * templateParams: ["TASK", "WORKSPACE"]
- * ---
  *
  * # Build Agent
- * Task: {{TASK}}
- * Workspace: {{WORKSPACE}}
  * ```
  */
 export class SpecLoader {
@@ -102,20 +95,11 @@ export class SpecLoader {
       );
     }
 
-    return (params: Record<string, string> = {}) => {
+    return (_params: Record<string, string> = {}) => {
       // Resolve tool preset
       const toolNames = this.resolveToolPreset(metadata.toolPreset);
 
-      // Fill template parameters
-      const templateParams: Record<string, string> = {};
-      if (metadata.templateParams) {
-        for (const param of metadata.templateParams) {
-          templateParams[param] = params[param] ?? "";
-        }
-      }
-
-      // Use the template body directly from the markdown file
-      const systemPrompt = fillTemplate(templateBody, templateParams);
+      const systemPrompt = templateBody.trim();
 
       return new DynamicAgentSpecification({
         id: metadata.id,

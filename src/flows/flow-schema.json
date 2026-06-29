@@ -41,17 +41,21 @@
   "$defs": {
     "OrchestratorConfig": {
       "type": "object",
-      "required": ["prompt"],
+      "required": ["systemPrompt"],
       "properties": {
-        "prompt": {
+        "systemPrompt": {
           "type": "string",
           "minLength": 1
         },
-        "activeTools": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
+        "task": {
+          "type": "string"
+        },
+        "taskInput": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "string"
+            }
           }
         }
       }
@@ -97,7 +101,7 @@
     },
     "AgentInstruction": {
       "type": "object",
-      "required": ["id", "type", "spec", "task"],
+      "required": ["id", "type", "systemPrompt", "task"],
       "properties": {
         "id": {
           "type": "string",
@@ -107,7 +111,7 @@
           "type": "string",
           "const": "agent"
         },
-        "spec": {
+        "systemPrompt": {
           "type": "string",
           "minLength": 1
         },
@@ -141,7 +145,7 @@
         "parseJson": {
           "type": "boolean"
         },
-        "specInput": {
+        "taskInput": {
           "type": "object",
           "patternProperties": {
             "^.*$": {

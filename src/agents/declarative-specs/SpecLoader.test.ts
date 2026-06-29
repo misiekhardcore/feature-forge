@@ -31,11 +31,8 @@ role: "test"
 spec: "test"
 toolPreset: "fullAccess"
 ephemeral: true
-templateParams:
-  - "TASK"
 ---
 # Test Agent
-Task: {{TASK}}
 `;
     await fs.writeFile(path.join(tempDir, "test.md"), specContent);
 
@@ -50,9 +47,9 @@ Task: {{TASK}}
     expect(specs).toContain("test");
 
     // Verify we can create the spec
-    const spec = registry.create("test", { TASK: "test task" });
+    const spec = registry.create("test");
     expect(spec.role).toBe("test");
-    expect(spec.systemPrompt).toContain("Task: test task");
+    expect(spec.systemPrompt).toContain("# Test Agent");
     expect(spec.toolNames).toContain("read");
     expect(spec.toolNames).toContain("bash");
     expect(spec.toolNames).toContain("write");

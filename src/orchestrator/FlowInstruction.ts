@@ -45,7 +45,7 @@ export const WorkspaceInstructionSchema = defineInstruction("workspace", {
 });
 
 export const AgentInstructionSchema = defineInstruction("agent", {
-  spec: Type.String({ minLength: 1 }),
+  systemPrompt: Type.String({ minLength: 1 }),
   task: Type.String(),
   workingDir: Type.Optional(
     Type.Union([
@@ -54,7 +54,7 @@ export const AgentInstructionSchema = defineInstruction("agent", {
     ]),
   ),
   parseJson: Type.Optional(Type.Boolean()),
-  specInput: Type.Optional(Type.Record(Type.String(), Type.String())),
+  taskInput: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 export const CleanupInstructionSchema = defineInstruction("cleanup", {
@@ -123,8 +123,9 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 export const FlowInstructionSchema = FlowInstructionUnion;
 
 export const OrchestratorConfigSchema = Type.Object({
-  prompt: Type.String({ minLength: 1 }),
-  activeTools: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+  systemPrompt: Type.String({ minLength: 1 }),
+  task: Type.Optional(Type.String()),
+  taskInput: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 export const RoutineParamSchema = Type.Object({
@@ -151,10 +152,8 @@ export const FlowDefinitionSchema = Type.Object({
 // to avoid the circular clone), patch the cloned copy inside the TRecord with the
 // real FlowInstructionUnion-based validator so Value.Check can reject invalid
 // nested instructions.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _recordSchema = FlowDefinitionSchema.properties.routines as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _patterns: Record<string, any> = _recordSchema.patternProperties ?? {};
+const _recordSchema = FlowDefinitionSchema.properties.routines;
+const _patterns: Record<string, { properties: object }> = _recordSchema.patternProperties ?? {};
 for (const _patternKey of Object.keys(_patterns)) {
   const _clonedRoutine = _patterns[_patternKey];
   if (_clonedRoutine?.properties) {

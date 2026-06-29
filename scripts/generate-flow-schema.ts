@@ -12,7 +12,7 @@ import {
   RoutineParamSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
-} from "../src/orchestrator/FlowInstruction";
+} from "../src/orchestrator/FlowInstruction.js";
 
 /**
  * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.

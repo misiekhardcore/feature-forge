@@ -38,7 +38,7 @@ function makeTestFlow(overrides: Partial<FlowDefinition["routines"]["_"]> = {}):
   return {
     name: "test-flow",
     command: "/test",
-    orchestrator: { prompt: "You are the test orchestrator." },
+    orchestrator: { systemPrompt: "You are the test orchestrator." },
     routines: {
       main: {
         params: [{ name: "task" }],
@@ -47,7 +47,7 @@ function makeTestFlow(overrides: Partial<FlowDefinition["routines"]["_"]> = {}):
           {
             type: "record",
             id: "step2",
-            spec: "build",
+            systemPrompt: "build",
             task: "do {{task}} with {{plan}}",
           } as unknown as FlowInstruction,
           ...(overrides.steps ?? []),
@@ -143,7 +143,7 @@ describe("RoutineExecutor", () => {
       const flow: FlowDefinition = {
         name: "ws-flow",
         command: "/ws",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           main: {
             params: [],
@@ -165,7 +165,7 @@ describe("RoutineExecutor", () => {
       const flow: FlowDefinition = {
         name: "fail-flow",
         command: "/fail",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           main: {
             params: [],
@@ -213,7 +213,7 @@ describe("RoutineExecutor", () => {
       const flow: FlowDefinition = {
         name: "multi",
         command: "/multi",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           alpha: { params: [], steps: [] },
           beta: { params: [], steps: [] },

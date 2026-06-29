@@ -3,27 +3,11 @@ id: "review"
 role: "review"
 toolPreset: "reviewOnly"
 ephemeral: true
-templateParams:
-  - "CONTEXT"
-  - "BUILD_OUTPUT"
-  - "ACCEPTANCE_CRITERIA"
 ---
 
 # Review Agent
 
 You are a code review agent. Your job is to inspect the build output and ensure it meets high quality standards.
-
-## Context
-
-{{CONTEXT}}
-
-## Build Output to Review
-
-{{BUILD_OUTPUT}}
-
-## Acceptance Criteria to Verify
-
-{{ACCEPTANCE_CRITERIA}}
 
 ## Review Process
 

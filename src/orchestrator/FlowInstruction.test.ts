@@ -59,7 +59,7 @@ describe("WorkspaceInstructionSchema", () => {
 
 describe("AgentInstructionSchema", () => {
   it("validates a minimal agent instruction", () => {
-    const valid = { type: "agent", id: "a1", spec: "build", task: "do it" };
+    const valid = { type: "agent", id: "a1", systemPrompt: "build", task: "do it" };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
@@ -67,7 +67,7 @@ describe("AgentInstructionSchema", () => {
     const valid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
       parseJson: true,
     };
@@ -78,7 +78,7 @@ describe("AgentInstructionSchema", () => {
     const valid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
       workingDir: { workspace: "ws" },
     };
@@ -89,7 +89,7 @@ describe("AgentInstructionSchema", () => {
     const valid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
       workingDir: { path: "/tmp/custom-path" },
     };
@@ -100,7 +100,7 @@ describe("AgentInstructionSchema", () => {
     const invalid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
       workingDir: { workspace: "" },
     };
@@ -111,7 +111,7 @@ describe("AgentInstructionSchema", () => {
     const invalid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
       workingDir: { path: "" },
     };
@@ -122,36 +122,36 @@ describe("AgentInstructionSchema", () => {
     const invalid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
       workingDir: { foo: "bar" },
     };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 
-  it("accepts specInput record", () => {
+  it("accepts taskInput record", () => {
     const valid = {
       type: "agent",
       id: "a1",
-      spec: "build",
+      systemPrompt: "build",
       task: "do it",
-      specInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
+      taskInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
-  it("rejects missing spec", () => {
+  it("rejects missing systemPrompt", () => {
     const invalid = { type: "agent", id: "a1", task: "do it" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 
   it("rejects missing task", () => {
-    const invalid = { type: "agent", id: "a1", spec: "build" };
+    const invalid = { type: "agent", id: "a1", systemPrompt: "build" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 
-  it("rejects empty spec", () => {
-    const invalid = { type: "agent", id: "a1", spec: "", task: "do it" };
+  it("rejects empty systemPrompt", () => {
+    const invalid = { type: "agent", id: "a1", systemPrompt: "", task: "do it" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 });
@@ -162,8 +162,8 @@ describe("ParallelInstructionSchema", () => {
       type: "parallel",
       id: "p1",
       steps: [
-        { type: "agent", id: "a1", spec: "build", task: "do it" },
-        { type: "agent", id: "a2", spec: "review", task: "review", parseJson: true },
+        { type: "agent", id: "a1", systemPrompt: "build", task: "do it" },
+        { type: "agent", id: "a2", systemPrompt: "review", task: "review", parseJson: true },
       ],
     };
     expect(Value.Check(ParallelInstructionSchema, valid)).toBe(true);
@@ -183,7 +183,7 @@ describe("LoopInstructionSchema", () => {
       maxIterations: 5,
       continueWhile: "!results.review?.parsed?.passed",
       accumulateFrom: ["review", "verify"],
-      steps: [{ type: "agent", id: "a1", spec: "build", task: "do it" }],
+      steps: [{ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }],
     };
     expect(Value.Check(LoopInstructionSchema, valid)).toBe(true);
   });
@@ -305,7 +305,7 @@ describe("FlowInstructionSchema", () => {
       Value.Check(FlowInstructionSchema, {
         type: "agent",
         id: "a1",
-        spec: "build",
+        systemPrompt: "build",
         task: "do it",
       }),
     ).toBe(true);
@@ -359,36 +359,27 @@ describe("FlowInstructionSchema", () => {
 // ---------------------------------------------------------------------------
 
 describe("OrchestratorConfigSchema", () => {
-  it("validates minimal config with prompt", () => {
-    const valid = { prompt: "You are the orchestrator." };
+  it("validates minimal config with systemPrompt", () => {
+    const valid = { systemPrompt: "You are the orchestrator." };
     expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
   });
 
-  it("validates with activeTools", () => {
+  it("validates with task and taskInput", () => {
     const valid = {
-      prompt: "You are the orchestrator.",
-      activeTools: ["run_build_loop", "open_pr"],
+      systemPrompt: "You are the orchestrator.",
+      task: "{{task}}",
+      taskInput: { TASK: "{{task}}" },
     };
     expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
   });
 
-  it("accepts empty activeTools array", () => {
-    const valid = { prompt: "t", activeTools: [] };
-    expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
-  });
-
-  it("rejects empty prompt", () => {
-    const invalid = { prompt: "" };
+  it("rejects empty systemPrompt", () => {
+    const invalid = { systemPrompt: "" };
     expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
   });
 
-  it("rejects missing prompt", () => {
-    const invalid = { activeTools: ["x"] };
-    expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
-  });
-
-  it("rejects empty tool name in activeTools", () => {
-    const invalid = { prompt: "t", activeTools: [""] };
+  it("rejects missing systemPrompt", () => {
+    const invalid = { task: "x" };
     expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
   });
 });
@@ -434,8 +425,7 @@ describe("FlowDefinitionSchema", () => {
     name: "implement",
     command: "/implement",
     orchestrator: {
-      prompt: "You are the orchestrator.",
-      activeTools: ["run_build_loop", "open_pr"],
+      systemPrompt: "You are the orchestrator.",
     },
     routines: {
       run_build_loop: {
@@ -456,11 +446,11 @@ describe("FlowDefinitionSchema", () => {
               {
                 type: "agent" as const,
                 id: "builder",
-                spec: "build",
+                systemPrompt: "build",
                 task: "Build: {{task}}",
                 workingDir: { workspace: "ws" },
                 parseJson: true,
-                specInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
+                taskInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
               },
               {
                 type: "parallel" as const,
@@ -469,7 +459,7 @@ describe("FlowDefinitionSchema", () => {
                   {
                     type: "agent" as const,
                     id: "review",
-                    spec: "review",
+                    systemPrompt: "review",
                     task: "Review",
                     workingDir: { workspace: "ws" },
                     parseJson: true,
@@ -477,7 +467,7 @@ describe("FlowDefinitionSchema", () => {
                   {
                     type: "agent" as const,
                     id: "verify",
-                    spec: "verify",
+                    systemPrompt: "verify",
                     task: "Verify",
                     workingDir: { workspace: "ws" },
                     parseJson: true,
@@ -514,10 +504,10 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, validFlow)).toBe(true);
   });
 
-  it("validates with orchestrator without activeTools", () => {
+  it("validates with orchestrator having only systemPrompt", () => {
     const flow = {
       ...validFlow,
-      orchestrator: { prompt: "You are the orchestrator." },
+      orchestrator: { systemPrompt: "You are the orchestrator." },
     };
     expect(Value.Check(FlowDefinitionSchema, flow)).toBe(true);
   });
@@ -541,11 +531,11 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("rejects orchestrator with empty prompt", () => {
+  it("rejects orchestrator with empty systemPrompt", () => {
     expect(
       Value.Check(FlowDefinitionSchema, {
         ...validFlow,
-        orchestrator: { prompt: "" },
+        orchestrator: { systemPrompt: "" },
       }),
     ).toBe(false);
   });
@@ -600,7 +590,7 @@ describe("FlowDefinitionSchema", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      orchestrator: { prompt: "t" },
+      orchestrator: { systemPrompt: "t" },
       routines: {
         main: {
           params: [],
@@ -610,7 +600,7 @@ describe("FlowDefinitionSchema", () => {
               id: "l1",
               maxIterations: 3,
               steps: [
-                { type: "agent", id: "b" }, // missing spec and task
+                { type: "agent", id: "b" }, // missing systemPrompt and task
               ],
             },
           ],
@@ -624,7 +614,7 @@ describe("FlowDefinitionSchema", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      orchestrator: { prompt: "t" },
+      orchestrator: { systemPrompt: "t" },
       routines: {
         main: {
           params: [],
@@ -654,7 +644,7 @@ describe("FlowDefinitionSchema", () => {
     const invalid = {
       name: "test",
       command: "/test",
-      orchestrator: { prompt: "t" },
+      orchestrator: { systemPrompt: "t" },
       routines: {
         main: {
           params: [],
@@ -682,9 +672,9 @@ describe("isParallelInstruction", () => {
   });
 
   it("returns false for agent instructions", () => {
-    expect(isParallelInstruction({ type: "agent", id: "a1", spec: "build", task: "do it" })).toBe(
-      false,
-    );
+    expect(
+      isParallelInstruction({ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }),
+    ).toBe(false);
   });
 });
 
@@ -698,9 +688,9 @@ describe("isLoopInstruction", () => {
   });
 
   it("returns false for agent instructions", () => {
-    expect(isLoopInstruction({ type: "agent", id: "a1", spec: "build", task: "do it" })).toBe(
-      false,
-    );
+    expect(
+      isLoopInstruction({ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }),
+    ).toBe(false);
   });
 });
 
@@ -716,9 +706,9 @@ describe("isContainerInstruction", () => {
   });
 
   it("returns false for agent instructions", () => {
-    expect(isContainerInstruction({ type: "agent", id: "a1", spec: "build", task: "do it" })).toBe(
-      false,
-    );
+    expect(
+      isContainerInstruction({ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }),
+    ).toBe(false);
   });
 
   it("returns false for workspace instructions", () => {
@@ -755,7 +745,7 @@ describe("isContainerInstruction", () => {
 
 describe("makeParallelInstruction", () => {
   it("creates a parallel instruction with steps", () => {
-    const steps = [{ type: "agent" as const, id: "a1", spec: "build", task: "do it" }];
+    const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do it" }];
     const instr = makeParallelInstruction("p1", steps);
     expect(instr.type).toBe("parallel");
     expect(instr.id).toBe("p1");
@@ -771,7 +761,7 @@ describe("makeParallelInstruction", () => {
 
 describe("makeLoopInstruction", () => {
   it("creates a minimal loop instruction", () => {
-    const steps = [{ type: "agent" as const, id: "a1", spec: "build", task: "do it" }];
+    const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do it" }];
     const instr = makeLoopInstruction("l1", 3, steps);
     expect(instr.type).toBe("loop");
     expect(instr.id).toBe("l1");
@@ -795,7 +785,7 @@ describe("makeLoopInstruction", () => {
     const instr = makeLoopInstruction(
       "l1",
       5,
-      [{ type: "agent" as const, id: "a1", spec: "build", task: "do it" }],
+      [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do it" }],
       "!results.r?.parsed?.passed",
       ["review"],
     );

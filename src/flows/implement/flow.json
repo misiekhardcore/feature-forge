@@ -2,8 +2,9 @@
   "name": "implement",
   "command": "/implement",
   "orchestrator": {
-    "prompt": "orchestrator.md",
-    "activeTools": ["run_build_loop", "open_pr", "destroy_workspace", "bash"]
+    "systemPrompt": "orchestrator.md",
+    "task": "{{task}}",
+    "taskInput": { "TASK": "{{task}}" }
   },
   "routines": {
     "run_build_loop": {
@@ -27,10 +28,10 @@
             {
               "type": "agent",
               "id": "builder",
-              "spec": "build",
+              "systemPrompt": "build",
               "workingDir": { "workspace": "ws" },
               "parseJson": true,
-              "specInput": {
+              "taskInput": {
                 "TASK": "{{task}}",
                 "PLAN": "{{plan}}",
                 "FEEDBACK": "{{feedback}}",
@@ -45,7 +46,7 @@
                 {
                   "type": "agent",
                   "id": "review",
-                  "spec": "review",
+                  "systemPrompt": "review",
                   "workingDir": { "workspace": "ws" },
                   "parseJson": true,
                   "task": "Review the code changes against:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
@@ -53,7 +54,7 @@
                 {
                   "type": "agent",
                   "id": "verify",
-                  "spec": "verify",
+                  "systemPrompt": "verify",
                   "workingDir": { "workspace": "ws" },
                   "parseJson": true,
                   "task": "Verify acceptance criteria:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
