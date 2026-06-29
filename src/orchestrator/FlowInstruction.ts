@@ -64,6 +64,7 @@ export const CleanupInstructionSchema = defineInstruction("cleanup", {
 export const GitInstructionSchema = defineInstruction("git", {
   action: Type.Union([Type.Literal("add-and-commit"), Type.Literal("push-current")]),
   cwd: Type.String({ minLength: 1 }),
+  message: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const ShellInstructionSchema = defineInstruction("shell", {
