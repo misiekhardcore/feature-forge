@@ -29,7 +29,7 @@ export class RoutineExecutor {
    *
    * @param routineName — Must exist in {@link flow.routines}.
    * @param params — Key-value pairs exposed as `{{PARAM}}` tokens.
-   * @param task — Top-level task description, exposed as `{{task}}`.
+   * @param task — Top-level task description, exposed as `{{prompt}}`.
    * @returns Structured result with per-instruction outputs.
    */
   async run(

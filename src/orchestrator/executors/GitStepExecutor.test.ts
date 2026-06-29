@@ -117,7 +117,7 @@ describe("GitStepExecutor", () => {
         id: "git-template",
         action: "add-and-commit",
         cwd: "/tmp/ws",
-        message: "feat: {{task}}",
+        message: "feat: {{prompt}}",
       };
       const context = new FlowContext(new Map(), "implement login");
       await executor.execute(instruction, context, vi.fn());

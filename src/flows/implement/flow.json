@@ -3,8 +3,8 @@
   "command": "/implement",
   "orchestrator": {
     "systemPrompt": "orchestrator.md",
-    "task": "{{task}}",
-    "taskInput": { "TASK": "{{task}}" }
+    "prompt": "{{prompt}}",
+    "promptParams": { "TASK": "{{prompt}}" }
   },
   "routines": {
     "run_build_loop": {
@@ -31,13 +31,13 @@
               "systemPrompt": "build",
               "workingDir": { "workspace": "ws" },
               "parseJson": true,
-              "taskInput": {
-                "TASK": "{{task}}",
+              "promptParams": {
+                "TASK": "{{prompt}}",
                 "PLAN": "{{plan}}",
                 "FEEDBACK": "{{feedback}}",
                 "WORKSPACE": "{{workspace.ws}}"
               },
-              "task": "Build: {{task}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace.ws}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass."
+              "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace.ws}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass."
             },
             {
               "type": "parallel",
@@ -49,7 +49,7 @@
                   "systemPrompt": "review",
                   "workingDir": { "workspace": "ws" },
                   "parseJson": true,
-                  "task": "Review the code changes against:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
+                  "prompt": "Review the code changes against:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
                 },
                 {
                   "type": "agent",
@@ -57,7 +57,7 @@
                   "systemPrompt": "verify",
                   "workingDir": { "workspace": "ws" },
                   "parseJson": true,
-                  "task": "Verify acceptance criteria:\n{{task}}\n\nBuild output:\n{{results.builder.raw}}"
+                  "prompt": "Verify acceptance criteria:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
                 }
               ]
             }

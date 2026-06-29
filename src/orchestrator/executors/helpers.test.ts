@@ -6,7 +6,7 @@ import { collectAllIds, containerSteps } from "./helpers";
 describe("helpers (executors)", () => {
   describe("containerSteps", () => {
     it("returns steps from a parallel instruction", () => {
-      const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do" }];
+      const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", prompt: "do" }];
       const parallel = makeParallelInstruction("p1", steps);
 
       const result = containerSteps(parallel);
@@ -14,7 +14,7 @@ describe("helpers (executors)", () => {
     });
 
     it("returns steps from a loop instruction", () => {
-      const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do" }];
+      const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", prompt: "do" }];
       const loop = { type: "loop" as const, id: "l1", maxIterations: 3, steps };
 
       const result = containerSteps(loop);
@@ -25,8 +25,8 @@ describe("helpers (executors)", () => {
   describe("collectAllIds", () => {
     it("collects ids from flat instructions", () => {
       const instructions = [
-        { type: "agent" as const, id: "a1", systemPrompt: "b", task: "t" },
-        { type: "agent" as const, id: "a2", systemPrompt: "b", task: "t" },
+        { type: "agent" as const, id: "a1", systemPrompt: "b", prompt: "t" },
+        { type: "agent" as const, id: "a2", systemPrompt: "b", prompt: "t" },
       ];
 
       const ids = collectAllIds(instructions);
@@ -36,17 +36,17 @@ describe("helpers (executors)", () => {
 
     it("recursively collects ids from nested containers", () => {
       const instructions = [
-        { type: "agent" as const, id: "a1", systemPrompt: "b", task: "t" },
+        { type: "agent" as const, id: "a1", systemPrompt: "b", prompt: "t" },
         {
           type: "parallel" as const,
           id: "p1",
           steps: [
-            { type: "agent" as const, id: "a2", systemPrompt: "b", task: "t" },
+            { type: "agent" as const, id: "a2", systemPrompt: "b", prompt: "t" },
             {
               type: "loop" as const,
               id: "l1",
               maxIterations: 3,
-              steps: [{ type: "agent" as const, id: "a3", systemPrompt: "b", task: "t" }],
+              steps: [{ type: "agent" as const, id: "a3", systemPrompt: "b", prompt: "t" }],
             },
           ],
         },

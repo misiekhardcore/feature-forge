@@ -59,7 +59,7 @@ describe("WorkspaceInstructionSchema", () => {
 
 describe("AgentInstructionSchema", () => {
   it("validates a minimal agent instruction", () => {
-    const valid = { type: "agent", id: "a1", systemPrompt: "build", task: "do it" };
+    const valid = { type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
@@ -68,7 +68,7 @@ describe("AgentInstructionSchema", () => {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
+      prompt: "do it",
       parseJson: true,
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
@@ -79,7 +79,7 @@ describe("AgentInstructionSchema", () => {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
+      prompt: "do it",
       workingDir: { workspace: "ws" },
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
@@ -90,7 +90,7 @@ describe("AgentInstructionSchema", () => {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
+      prompt: "do it",
       workingDir: { path: "/tmp/custom-path" },
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
@@ -101,7 +101,7 @@ describe("AgentInstructionSchema", () => {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
+      prompt: "do it",
       workingDir: { workspace: "" },
     };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
@@ -112,7 +112,7 @@ describe("AgentInstructionSchema", () => {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
+      prompt: "do it",
       workingDir: { path: "" },
     };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
@@ -123,25 +123,25 @@ describe("AgentInstructionSchema", () => {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
+      prompt: "do it",
       workingDir: { foo: "bar" },
     };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 
-  it("accepts taskInput record", () => {
+  it("accepts promptParams record", () => {
     const valid = {
       type: "agent",
       id: "a1",
       systemPrompt: "build",
-      task: "do it",
-      taskInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
+      prompt: "do it",
+      promptParams: { prompt: "{{prompt}}", PLAN: "{{plan}}" },
     };
     expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
   });
 
   it("rejects missing systemPrompt", () => {
-    const invalid = { type: "agent", id: "a1", task: "do it" };
+    const invalid = { type: "agent", id: "a1", prompt: "do it" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 
@@ -151,7 +151,7 @@ describe("AgentInstructionSchema", () => {
   });
 
   it("rejects empty systemPrompt", () => {
-    const invalid = { type: "agent", id: "a1", systemPrompt: "", task: "do it" };
+    const invalid = { type: "agent", id: "a1", systemPrompt: "", prompt: "do it" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
 });
@@ -162,8 +162,8 @@ describe("ParallelInstructionSchema", () => {
       type: "parallel",
       id: "p1",
       steps: [
-        { type: "agent", id: "a1", systemPrompt: "build", task: "do it" },
-        { type: "agent", id: "a2", systemPrompt: "review", task: "review", parseJson: true },
+        { type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" },
+        { type: "agent", id: "a2", systemPrompt: "review", prompt: "review", parseJson: true },
       ],
     };
     expect(Value.Check(ParallelInstructionSchema, valid)).toBe(true);
@@ -183,7 +183,7 @@ describe("LoopInstructionSchema", () => {
       maxIterations: 5,
       continueWhile: "!results.review?.parsed?.passed",
       accumulateFrom: ["review", "verify"],
-      steps: [{ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }],
+      steps: [{ type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" }],
     };
     expect(Value.Check(LoopInstructionSchema, valid)).toBe(true);
   });
@@ -306,7 +306,7 @@ describe("FlowInstructionSchema", () => {
         type: "agent",
         id: "a1",
         systemPrompt: "build",
-        task: "do it",
+        prompt: "do it",
       }),
     ).toBe(true);
   });
@@ -364,11 +364,11 @@ describe("OrchestratorConfigSchema", () => {
     expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
   });
 
-  it("validates with task and taskInput", () => {
+  it("validates with task and promptParams", () => {
     const valid = {
       systemPrompt: "You are the orchestrator.",
-      task: "{{task}}",
-      taskInput: { TASK: "{{task}}" },
+      prompt: "{{prompt}}",
+      promptParams: { prompt: "{{prompt}}" },
     };
     expect(Value.Check(OrchestratorConfigSchema, valid)).toBe(true);
   });
@@ -379,7 +379,7 @@ describe("OrchestratorConfigSchema", () => {
   });
 
   it("rejects missing systemPrompt", () => {
-    const invalid = { task: "x" };
+    const invalid = { prompt: "x" };
     expect(Value.Check(OrchestratorConfigSchema, invalid)).toBe(false);
   });
 });
@@ -447,10 +447,10 @@ describe("FlowDefinitionSchema", () => {
                 type: "agent" as const,
                 id: "builder",
                 systemPrompt: "build",
-                task: "Build: {{task}}",
+                prompt: "Build: {{prompt}}",
                 workingDir: { workspace: "ws" },
                 parseJson: true,
-                taskInput: { TASK: "{{task}}", PLAN: "{{plan}}" },
+                promptParams: { prompt: "{{prompt}}", PLAN: "{{plan}}" },
               },
               {
                 type: "parallel" as const,
@@ -460,7 +460,7 @@ describe("FlowDefinitionSchema", () => {
                     type: "agent" as const,
                     id: "review",
                     systemPrompt: "review",
-                    task: "Review",
+                    prompt: "Review",
                     workingDir: { workspace: "ws" },
                     parseJson: true,
                   },
@@ -468,7 +468,7 @@ describe("FlowDefinitionSchema", () => {
                     type: "agent" as const,
                     id: "verify",
                     systemPrompt: "verify",
-                    task: "Verify",
+                    prompt: "Verify",
                     workingDir: { workspace: "ws" },
                     parseJson: true,
                   },
@@ -673,7 +673,7 @@ describe("isParallelInstruction", () => {
 
   it("returns false for agent instructions", () => {
     expect(
-      isParallelInstruction({ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }),
+      isParallelInstruction({ type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" }),
     ).toBe(false);
   });
 });
@@ -689,7 +689,7 @@ describe("isLoopInstruction", () => {
 
   it("returns false for agent instructions", () => {
     expect(
-      isLoopInstruction({ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }),
+      isLoopInstruction({ type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" }),
     ).toBe(false);
   });
 });
@@ -707,7 +707,7 @@ describe("isContainerInstruction", () => {
 
   it("returns false for agent instructions", () => {
     expect(
-      isContainerInstruction({ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }),
+      isContainerInstruction({ type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" }),
     ).toBe(false);
   });
 
@@ -745,7 +745,7 @@ describe("isContainerInstruction", () => {
 
 describe("makeParallelInstruction", () => {
   it("creates a parallel instruction with steps", () => {
-    const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do it" }];
+    const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", prompt: "do it" }];
     const instr = makeParallelInstruction("p1", steps);
     expect(instr.type).toBe("parallel");
     expect(instr.id).toBe("p1");
@@ -761,7 +761,7 @@ describe("makeParallelInstruction", () => {
 
 describe("makeLoopInstruction", () => {
   it("creates a minimal loop instruction", () => {
-    const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do it" }];
+    const steps = [{ type: "agent" as const, id: "a1", systemPrompt: "build", prompt: "do it" }];
     const instr = makeLoopInstruction("l1", 3, steps);
     expect(instr.type).toBe("loop");
     expect(instr.id).toBe("l1");
@@ -785,7 +785,7 @@ describe("makeLoopInstruction", () => {
     const instr = makeLoopInstruction(
       "l1",
       5,
-      [{ type: "agent" as const, id: "a1", systemPrompt: "build", task: "do it" }],
+      [{ type: "agent" as const, id: "a1", systemPrompt: "build", prompt: "do it" }],
       "!results.r?.parsed?.passed",
       ["review"],
     );

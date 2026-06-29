@@ -92,7 +92,7 @@ describe("ShellStepExecutor", () => {
       const instruction: ShellInstruction = {
         type: "shell",
         id: "sh2",
-        command: "echo {{task}}",
+        command: "echo {{prompt}}",
         cwd: "{{workspace.ws}}",
       };
       const context = new FlowContext(

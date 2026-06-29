@@ -47,10 +47,10 @@
           "type": "string",
           "minLength": 1
         },
-        "task": {
+        "prompt": {
           "type": "string"
         },
-        "taskInput": {
+        "promptParams": {
           "type": "object",
           "patternProperties": {
             "^.*$": {
@@ -101,7 +101,7 @@
     },
     "AgentInstruction": {
       "type": "object",
-      "required": ["id", "type", "systemPrompt", "task"],
+      "required": ["id", "type", "systemPrompt", "prompt"],
       "properties": {
         "id": {
           "type": "string",
@@ -115,7 +115,7 @@
           "type": "string",
           "minLength": 1
         },
-        "task": {
+        "prompt": {
           "type": "string"
         },
         "workingDir": {
@@ -145,7 +145,7 @@
         "parseJson": {
           "type": "boolean"
         },
-        "taskInput": {
+        "promptParams": {
           "type": "object",
           "patternProperties": {
             "^.*$": {

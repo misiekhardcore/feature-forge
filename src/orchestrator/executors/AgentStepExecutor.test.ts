@@ -61,7 +61,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "do the thing",
+        prompt: "do the thing",
       };
       const context = new FlowContext(new Map(), "task");
 
@@ -86,7 +86,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "do {{task}}",
+        prompt: "do {{prompt}}",
       };
       const context = new FlowContext(new Map(), "add auth");
 
@@ -105,7 +105,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -127,7 +127,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
       };
       const context = new FlowContext(new Map(), "task");
 
@@ -147,7 +147,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build it",
+        prompt: "build it",
       };
       const context = new FlowContext(new Map(), "task");
 
@@ -167,7 +167,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -190,7 +190,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "reviewer",
         systemPrompt: "review",
-        task: "review",
+        prompt: "review",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -216,7 +216,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
       };
       const context = new FlowContext(new Map(), "task");
 
@@ -236,7 +236,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -259,7 +259,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
       };
       const context = new FlowContext(new Map(), "task");
 
@@ -288,7 +288,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         workingDir: { workspace: "ws" },
       };
       const context = contextWithWorkspace("ws", "/repos/worktree-ws");
@@ -310,7 +310,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         workingDir: { workspace: "missing" },
       };
       const context = new FlowContext(new Map(), "task");
@@ -331,7 +331,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         workingDir: { path: "/abs/x" },
       };
       const context = new FlowContext(new Map(), "task");
@@ -352,7 +352,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
       };
       const context = new FlowContext(new Map(), "task");
 
@@ -374,7 +374,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -395,7 +395,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -416,7 +416,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "builder",
         systemPrompt: "build",
-        task: "build",
+        prompt: "build",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -436,7 +436,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "reviewer",
         systemPrompt: "review",
-        task: "review",
+        prompt: "review",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");
@@ -457,7 +457,7 @@ describe("AgentStepExecutor", () => {
         type: "agent",
         id: "reviewer",
         systemPrompt: "review",
-        task: "review",
+        prompt: "review",
         parseJson: true,
       };
       const context = new FlowContext(new Map(), "task");

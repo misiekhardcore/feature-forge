@@ -48,7 +48,7 @@ function makeTestFlow(overrides: Partial<FlowDefinition["routines"]["_"]> = {}):
             type: "record",
             id: "step2",
             systemPrompt: "build",
-            task: "do {{task}} with {{plan}}",
+            task: "do {{prompt}} with {{plan}}",
           } as unknown as FlowInstruction,
           ...(overrides.steps ?? []),
         ],

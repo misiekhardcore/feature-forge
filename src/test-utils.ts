@@ -54,7 +54,7 @@ export class MockAgent extends Agent {
   public readonly specification: AgentSpecification;
   public readonly createdAt: Date = new Date();
   public status: AgentStatus = AgentStatus.Spawned;
-  public lastTask: string = "";
+  public lastPrompt: string = "";
 
   private _result = "";
   private _error: Error | undefined;
@@ -69,10 +69,10 @@ export class MockAgent extends Agent {
     this.specification = makeSpec(id, { role: overrides.role ?? "mock" });
   }
 
-  async executeTask(task: string, _options?: ExecuteTaskOptions): Promise<string> {
-    this.lastTask = task;
+  async executeTask(prompt: string, _options?: ExecuteTaskOptions): Promise<string> {
+    this.lastPrompt = prompt;
     this.status = AgentStatus.Running;
-    this._result = `result for: ${task}`;
+    this._result = `result for: ${prompt}`;
     this.status = AgentStatus.Completed;
     return this._result;
   }
@@ -98,8 +98,8 @@ export class MockAgent extends Agent {
     this.status = AgentStatus.Failed;
   }
 
-  deliverResult(_task: string, _result: string, _pi: ExtensionAPI): void {}
-  deliverError(_task: string, _error: Error, _pi: ExtensionAPI): void {}
+  deliverResult(_prompt: string, _result: string, _pi: ExtensionAPI): void {}
+  deliverError(_prompt: string, _error: Error, _pi: ExtensionAPI): void {}
 }
 
 // ---------------------------------------------------------------------------

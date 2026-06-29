@@ -1,7 +1,7 @@
 # ADR 0001: Orchestrator prompt lives in flow JSON; single template resolver is FlowContext.resolve
 
 **Date:** 2026-06-26
-**Status:** Superseded 2026-06-26 by the routine-based flow architecture (see `PLAN.md` and `UPDATED_FLOW_ARCHITECTURE.md`). The orchestrator prompt no longer lives as an embedded `orchestrator.task` JSON string; a flow package references an `orchestrator.prompt` markdown file plus an `activeTools` set, and orchestration across phases is driven by the main pi session calling routine tools. The principle 'one orchestrator prompt, one template resolver' still holds and is carried forward.
+**Status:** Superseded 2026-06-26 by the routine-based flow architecture (see `PLAN.md` and `UPDATED_FLOW_ARCHITECTURE.md`). The orchestrator prompt no longer lives as an embedded `orchestrator.task` JSON string; a flow package references an `orchestrator.prompt` markdown file plus an `tools` set, and orchestration across phases is driven by the main pi session calling routine tools. The principle 'one orchestrator prompt, one template resolver' still holds and is carried forward.
 
 ## Context
 
@@ -13,9 +13,9 @@ Finally, the orchestrator prompt contained placeholder tokens (`{{CONTEXT}}`, `{
 
 ## Decision
 
-1. **Single source of truth.** The orchestrator prompt is the `orchestrator.task` field in the flow JSON (e.g., `implement.json`). There is no separate prompt file. The future `FlowCommand` loads this field and resolves `{{task}}` via `FlowContext.resolve()`.
+1. **Single source of truth.** The orchestrator prompt is the `orchestrator.task` field in the flow JSON (e.g., `implement.json`). There is no separate prompt file. The future `FlowCommand` loads this field and resolves `{{prompt}}` via `FlowContext.resolve()`.
 
-2. **Lowercase placeholder convention.** All placeholders in flow templates use lowercase (`{{task}}`, `{{plan}}`, `{{feedback}}`, `{{workspace}}`), matching `FlowContext.resolve()`.
+2. **Lowercase placeholder convention.** All placeholders in flow templates use lowercase (`{{prompt}}`, `{{plan}}`, `{{feedback}}`, `{{workspace}}`), matching `FlowContext.resolve()`.
 
 3. **Dead tokens removed.** `{{CONTEXT}}` and `{{WORKSPACE}}` removed from the orchestrator prompt. Workspace information flows to the LLM via the `run_implement_loop` tool result, not the initial prompt. Context is user-provided at command invocation.
 

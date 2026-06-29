@@ -77,7 +77,7 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
    */
   public override async runAgent(
     specification: AgentSpecification,
-    task: string,
+    prompt: string,
     pi: ExtensionAPI,
   ): Promise<void> {
     const id = specification.id;
@@ -88,28 +88,28 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
 
-      logger.error("Agent spawn failed", { agentId: id, task, error: err });
-      return this.printAgentError(id, task, err, pi);
+      logger.error("Agent spawn failed", { agentId: id, prompt, error: err });
+      return this.printAgentError(id, prompt, err, pi);
     }
 
     try {
-      const result = await agent.executeTask(task);
-      agent.deliverResult(task, result, pi);
+      const result = await agent.executeTask(prompt);
+      agent.deliverResult(prompt, result, pi);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error("Agent execution failed", { agentId: id, task, error });
-      agent.deliverError(task, err, pi);
+      logger.error("Agent execution failed", { agentId: id, prompt, error });
+      agent.deliverError(prompt, err, pi);
     } finally {
       await this.destroyAgent(id);
     }
   }
 
-  printAgentError(agentId: string, task: string, error: Error, pi: ExtensionAPI): void {
+  printAgentError(agentId: string, prompt: string, error: Error, pi: ExtensionAPI): void {
     // No agent to delegate to — supervisor sends the error directly.
     pi.sendMessage(
       {
         customType: "agent_spawn_error" as const,
-        content: `## ❌ Agent "${agentId}" spawn failed: ${task}\n\n${error.message}`,
+        content: `## ❌ Agent "${agentId}" spawn failed: ${prompt}\n\n${error.message}`,
         display: true,
       },
       { triggerTurn: false },
