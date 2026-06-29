@@ -28,9 +28,9 @@ describe("SpawnAgentTool", () => {
     it("returns not-available error", async () => {
       const tool = new SpawnAgentTool(null);
       const result = await tool.execute("call-1", {
-        role: "researcher",
+        label: "researcher",
         systemPrompt: "test",
-        toolNames: ["read"],
+        tools: ["read"],
       });
       expect(result).toEqual({
         content: [
@@ -51,43 +51,45 @@ describe("SpawnAgentTool", () => {
     });
 
     it("sends request and returns formatted result", async () => {
-      client.request.mockResolvedValue({ agentId: "agent-1", role: "researcher" });
+      client.request.mockResolvedValue({ agentId: "agent-1", label: "researcher" });
 
       const result = await tool.execute("call-1", {
-        role: "researcher",
+        label: "researcher",
         systemPrompt: "You are a researcher",
-        toolNames: ["read", "bash"],
+        tools: ["read", "bash"],
       });
 
       expect(client.request).toHaveBeenCalledWith("spawn_agent", {
-        role: "researcher",
+        label: "researcher",
         systemPrompt: "You are a researcher",
-        toolNames: ["read", "bash"],
+        tools: ["read", "bash"],
       });
       expect(result).toEqual({
         content: [
           {
             type: "text",
-            text: JSON.stringify({ agentId: "agent-1", role: "researcher" }, null, 2),
+            text: JSON.stringify({ agentId: "agent-1", label: "researcher" }, null, 2),
           },
         ],
-        details: { agentId: "agent-1", role: "researcher" },
+        details: { agentId: "agent-1", label: "researcher" },
       });
     });
 
-    it("forwards spec and specParams to the IPC client", async () => {
-      client.request.mockResolvedValue({ agentId: "build-1", spec: "build" });
+    it("forwards optional prompt to the IPC client", async () => {
+      client.request.mockResolvedValue({ agentId: "build-1", label: "build" });
 
       await tool.execute("call-2", {
-        toolNames: ["read"],
-        spec: "build",
-        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/w" },
+        label: "build",
+        systemPrompt: "You are a builder",
+        tools: ["read"],
+        prompt: "Add auth feature",
       });
 
       expect(client.request).toHaveBeenCalledWith("spawn_agent", {
-        toolNames: ["read"],
-        spec: "build",
-        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/w" },
+        label: "build",
+        systemPrompt: "You are a builder",
+        tools: ["read"],
+        prompt: "Add auth feature",
       });
     });
 
@@ -95,9 +97,9 @@ describe("SpawnAgentTool", () => {
       client.request.mockRejectedValue(new Error("Connection refused"));
 
       const result = await tool.execute("call-1", {
-        role: "researcher",
+        label: "researcher",
         systemPrompt: "test",
-        toolNames: [],
+        tools: [],
       });
 
       expect(result).toEqual({
@@ -110,9 +112,9 @@ describe("SpawnAgentTool", () => {
       client.request.mockRejectedValue("string error");
 
       const result = await tool.execute("call-1", {
-        role: "researcher",
+        label: "researcher",
         systemPrompt: "test",
-        toolNames: [],
+        tools: [],
       });
 
       expect(result).toEqual({

@@ -19,10 +19,10 @@ describe("ToolRenderer", () => {
   const theme = makeTheme();
 
   describe("spawnAgentCall", () => {
-    it("renders a Box with role and no model", () => {
+    it("renders a Box with label and no model", () => {
       const ctx = makeCtx();
       const box = ToolRenderer.spawnAgentCall(
-        { role: "reviewer", systemPrompt: "", toolNames: [] },
+        { label: "reviewer", systemPrompt: "", tools: [] },
         theme,
         ctx,
       ) as Box;
@@ -31,10 +31,10 @@ describe("ToolRenderer", () => {
       expect(ctx.state._box).toBe(box);
     });
 
-    it("renders a Box with role and model override", () => {
+    it("renders a Box with label and model override", () => {
       const ctx = makeCtx();
       const box = ToolRenderer.spawnAgentCall(
-        { role: "reviewer", systemPrompt: "", toolNames: [], model: "claude-sonnet-4-5" },
+        { label: "reviewer", systemPrompt: "", tools: [], model: "claude-sonnet-4-5" },
         theme,
         ctx,
       ) as Box;
@@ -44,10 +44,10 @@ describe("ToolRenderer", () => {
   });
 
   describe("sendTaskCall", () => {
-    it("renders a Box with agent id and task snippet", () => {
+    it("renders a Box with agent id and prompt snippet", () => {
       const ctx = makeCtx();
       const box = ToolRenderer.sendTaskCall(
-        { agentId: "agent-1", task: "review the code", await: true },
+        { agentId: "agent-1", prompt: "review the code", await: true },
         theme,
         ctx,
       ) as Box;
@@ -56,10 +56,14 @@ describe("ToolRenderer", () => {
       expect(ctx.state._box).toBe(box);
     });
 
-    it("truncates long task descriptions", () => {
+    it("truncates long prompt descriptions", () => {
       const ctx = makeCtx();
-      const longTask = "a".repeat(100);
-      ToolRenderer.sendTaskCall({ agentId: "agent-1", task: longTask, await: false }, theme, ctx);
+      const longPrompt = "a".repeat(100);
+      ToolRenderer.sendTaskCall(
+        { agentId: "agent-1", prompt: longPrompt, await: false },
+        theme,
+        ctx,
+      );
 
       // Should not throw — just verifies truncation path
     });
@@ -155,12 +159,12 @@ describe("ToolRenderer", () => {
       const ctx = makeCtx();
 
       const first = ToolRenderer.spawnAgentCall(
-        { role: "reviewer", systemPrompt: "", toolNames: [] },
+        { label: "reviewer", systemPrompt: "", tools: [] },
         theme,
         ctx,
       );
       const second = ToolRenderer.spawnAgentCall(
-        { role: "writer", systemPrompt: "", toolNames: ["read"] },
+        { label: "writer", systemPrompt: "", tools: ["read"] },
         theme,
         ctx,
       );

@@ -28,9 +28,9 @@ export const IPC_REQUEST_TIMEOUT_MS = Number(process.env.FORGE_TASK_TIMEOUT_MS) 
  * await client.connect();
  *
  * const result = await client.request("spawn_agent", {
- *   role: "researcher",
- *   systemPrompt: "...",
- *   toolNames: ["read", "grep"],
+ *   label: "researcher",
+ *   systemPrompt: "Resolved persona text",
+ *   tools: ["read", "grep"],
  * });
  *
  * client.onPush((event) => {

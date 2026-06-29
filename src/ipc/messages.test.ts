@@ -12,9 +12,9 @@ import type {
 describe("SocketMessage type", () => {
   it("shapes a spawn_agent message correctly", () => {
     const params: SpawnAgentParams = {
-      role: "researcher",
+      label: "researcher",
       systemPrompt: "You are a researcher",
-      toolNames: ["read", "grep"],
+      tools: ["read", "grep"],
     };
 
     const message: SocketMessage = {
@@ -24,13 +24,13 @@ describe("SocketMessage type", () => {
     };
 
     expect(message.type).toBe("spawn_agent");
-    expect(message.params.role).toBe("researcher");
+    expect(message.params.label).toBe("researcher");
   });
 
   it("shapes a send_task message with await=true", () => {
     const params: SendTaskParams = {
       agentId: "agent-1",
-      task: "Research X",
+      prompt: "Research X",
       await: true,
     };
 
@@ -47,7 +47,7 @@ describe("SocketMessage type", () => {
   it("shapes a send_task message with await=false", () => {
     const params: SendTaskParams = {
       agentId: "agent-1",
-      task: "Fire and forget",
+      prompt: "Fire and forget",
       await: false,
     };
 
@@ -67,7 +67,7 @@ describe("SocketResponse type", () => {
     const response: SocketResponse = {
       type: "result",
       correlationId: "c1",
-      result: { agentId: "agent-1", role: "researcher" },
+      result: { agentId: "agent-1", label: "researcher" },
     };
 
     expect(response.type).toBe("result");
