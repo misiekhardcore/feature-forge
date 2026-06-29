@@ -107,12 +107,13 @@ describe("RoutineTool", () => {
     it("passes resolved routine params to the executor", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(
-        new (class extends StepExecutor {
-          readonly type = "agent";
-          async execute() {
-            return new FlowContext(new Map(), "resolved-task");
-          }
-        })(),
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute() {
+              return new FlowContext(new Map(), "resolved-task");
+            }
+          })(),
       );
 
       const flow: FlowDefinition = {

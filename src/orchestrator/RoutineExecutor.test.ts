@@ -65,18 +65,22 @@ describe("RoutineExecutor", () => {
     it("executes all steps in order and returns a passed result", async () => {
       RecordExecutor.reset();
       const registry = new StepExecutorRegistry();
-      registry.register(new RecordExecutor());
+      registry.register(() => new RecordExecutor());
       registry.register(
-        new (class extends StepExecutor {
-          readonly type = "agent";
-          async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
-            RecordExecutor.executed.push({
-              id: instruction.id,
-              task: context.resolve((instruction as { task?: string }).task ?? ""),
-            });
-            return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
-          }
-        })(),
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+            ): Promise<FlowContext> {
+              RecordExecutor.executed.push({
+                id: instruction.id,
+                task: context.resolve((instruction as { task?: string }).task ?? ""),
+              });
+              return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
+            }
+          })(),
       );
 
       const flow = makeTestFlow();
@@ -101,18 +105,22 @@ describe("RoutineExecutor", () => {
     it("returns per-instruction results", async () => {
       RecordExecutor.reset();
       const registry = new StepExecutorRegistry();
-      registry.register(new RecordExecutor());
+      registry.register(() => new RecordExecutor());
       registry.register(
-        new (class extends StepExecutor {
-          readonly type = "agent";
-          async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
-            RecordExecutor.executed.push({
-              id: instruction.id,
-              task: context.resolve((instruction as { task?: string }).task ?? ""),
-            });
-            return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
-          }
-        })(),
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+            ): Promise<FlowContext> {
+              RecordExecutor.executed.push({
+                id: instruction.id,
+                task: context.resolve((instruction as { task?: string }).task ?? ""),
+              });
+              return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
+            }
+          })(),
       );
 
       const flow = makeTestFlow();
@@ -127,17 +135,21 @@ describe("RoutineExecutor", () => {
     it("returns the first workspace path in the summary", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(
-        new (class extends StepExecutor {
-          readonly type = "ws";
-          async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
-            return context
-              .withWorkspace(
-                instruction.id,
-                new WorkspaceHandle(instruction.id, "/tmp/forge-worktree", new Date()),
-              )
-              .withResult(instruction.id, { raw: "ws created" });
-          }
-        })(),
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "ws";
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+            ): Promise<FlowContext> {
+              return context
+                .withWorkspace(
+                  instruction.id,
+                  new WorkspaceHandle(instruction.id, "/tmp/forge-worktree", new Date()),
+                )
+                .withResult(instruction.id, { raw: "ws created" });
+            }
+          })(),
       );
 
       const flow: FlowDefinition = {
@@ -159,8 +171,8 @@ describe("RoutineExecutor", () => {
 
     it("returns a failure result when a step throws", async () => {
       const registry = new StepExecutorRegistry();
-      registry.register(new FailingExecutor());
-      registry.register(new RecordExecutor()); // won't run
+      registry.register(() => new FailingExecutor());
+      registry.register(() => new RecordExecutor()); // won't run
 
       const flow: FlowDefinition = {
         name: "fail-flow",
