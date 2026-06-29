@@ -14,10 +14,15 @@ import { extractJson } from "./extractJson";
  * Resolves `{{PLACEHOLDER}}` tokens in the instruction's `task` field
  * before passing to the agent.
  *
- * When {@link AgentInstruction.specInput} is present, it is resolved
+ * When {@link AgentInstruction.taskInput} is present, it is resolved
  * against the current context and passed as `specParams` to
  * {@link SpecManager.resolve} so the spec template receives per-routine
  * inputs (e.g. `TASK`, `PLAN`, `FEEDBACK`, `WORKSPACE`).
+ *
+ * **IPC note**: The `SpawnAgentParams` DTO used at the IPC level still
+ * uses `spec` and `specParams` field names. This executor translates
+ * the flow-level `systemPrompt`/`taskInput` names to the IPC-level
+ * `spec`/`specParams` names when calling {@link SpecManager.resolve}.
  */
 export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   readonly type = "agent";
@@ -36,10 +41,10 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   ): Promise<FlowContext> {
     const instructionId = instruction.id;
 
-    // 1. Resolve specInput placeholders, then build the specification.
-    const specParams: Record<string, string> | undefined = instruction.specInput
+    // 1. Resolve taskInput placeholders, then build the specification.
+    const specParams: Record<string, string> | undefined = instruction.taskInput
       ? Object.fromEntries(
-          Object.entries(instruction.specInput).map(([key, value]) => [
+          Object.entries(instruction.taskInput).map(([key, value]) => [
             key,
             context.resolve(value),
           ]),
@@ -47,7 +52,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       : undefined;
 
     const specification = this.specManager.resolve({
-      spec: instruction.spec,
+      spec: instruction.systemPrompt,
       specParams,
       toolNames: [],
     });
@@ -57,7 +62,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
 
     logger.info("Spawning agent", {
       instructionId,
-      spec: instruction.spec,
+      spec: instruction.systemPrompt,
       task: resolvedTask.slice(0, 200),
     });
 

@@ -12,7 +12,7 @@ function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition 
   return {
     name: "test",
     command: "/test",
-    orchestrator: { prompt: "You are the test orchestrator." },
+    orchestrator: { systemPrompt: "You are the test orchestrator." },
     routines: {
       main: {
         params: [{ name: "task" }],
@@ -22,7 +22,7 @@ function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition 
             type: "loop",
             id: "main_loop",
             maxIterations: 3,
-            steps: [{ type: "agent", id: "builder", spec: "build", task: "do {{task}}" }],
+            steps: [{ type: "agent", id: "builder", systemPrompt: "build", task: "do {{task}}" }],
           },
           { type: "cleanup", id: "cleanup" },
         ],
@@ -125,7 +125,7 @@ describe("validateStructure", () => {
       FlowLoader.validateStructure({
         name: "x",
         command: "/x",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           main: {
             params: [],
@@ -136,7 +136,7 @@ describe("validateStructure", () => {
     } catch (e: unknown) {
       const msg = (e as Error).message;
       expect(msg).toContain("Invalid flow definition");
-      expect(msg).toContain("spec");
+      expect(msg).toContain("systemPrompt");
     }
   });
 });
@@ -183,7 +183,7 @@ describe("validateSemantics", () => {
                   type: "loop",
                   id: "loop1",
                   maxIterations: 3,
-                  steps: [{ type: "agent", id: "ws", spec: "build", task: "x" }],
+                  steps: [{ type: "agent", id: "ws", systemPrompt: "build", task: "x" }],
                 },
               ],
             },
@@ -207,7 +207,7 @@ describe("validateSemantics", () => {
                   type: "loop",
                   id: "loop1",
                   maxIterations: 3,
-                  steps: [{ type: "agent", id: "dup", spec: "build", task: "x" }],
+                  steps: [{ type: "agent", id: "dup", systemPrompt: "build", task: "x" }],
                 },
               ],
             },
@@ -353,14 +353,14 @@ describe("validateSemantics", () => {
                     {
                       type: "agent",
                       id: "review",
-                      spec: "review",
+                      systemPrompt: "review",
                       task: "review",
                       parseJson: true,
                     },
                     {
                       type: "agent",
                       id: "verify",
-                      spec: "verify",
+                      systemPrompt: "verify",
                       task: "verify",
                       parseJson: true,
                     },
@@ -386,7 +386,7 @@ describe("validateSemantics", () => {
                   id: "l",
                   maxIterations: 3,
                   accumulateFrom: ["nonexistent"],
-                  steps: [{ type: "agent", id: "builder", spec: "build", task: "x" }],
+                  steps: [{ type: "agent", id: "builder", systemPrompt: "build", task: "x" }],
                 },
               ],
             },
@@ -418,7 +418,7 @@ describe("validateSemantics", () => {
                         {
                           type: "agent",
                           id: "nested_agent",
-                          spec: "review",
+                          systemPrompt: "review",
                           task: "r",
                           parseJson: true,
                         },
@@ -450,7 +450,7 @@ describe("validateSemantics", () => {
                     {
                       type: "agent",
                       id: "builder",
-                      spec: "build",
+                      systemPrompt: "build",
                       task: "do {{task}}",
                     },
                   ],
@@ -523,7 +523,7 @@ describe("validateSemantics", () => {
           routines: {
             main: {
               params: [],
-              steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+              steps: [{ type: "agent", id: "a1", systemPrompt: "unknown-spec", task: "do it" }],
             },
           },
         }),
@@ -540,7 +540,7 @@ describe("validateSemantics", () => {
           routines: {
             main: {
               params: [],
-              steps: [{ type: "agent", id: "a1", spec: "build", task: "do it" }],
+              steps: [{ type: "agent", id: "a1", systemPrompt: "build", task: "do it" }],
             },
           },
         }),
@@ -555,7 +555,7 @@ describe("validateSemantics", () => {
           routines: {
             main: {
               params: [],
-              steps: [{ type: "agent", id: "a1", spec: "unknown-spec", task: "do it" }],
+              steps: [{ type: "agent", id: "a1", systemPrompt: "unknown-spec", task: "do it" }],
             },
           },
         }),
@@ -635,7 +635,7 @@ describe("FlowLoader", () => {
     const flow: FlowDefinition = {
       name: "test",
       command: "/load-test",
-      orchestrator: { prompt: "t" },
+      orchestrator: { systemPrompt: "t" },
       routines: {
         main: {
           params: [{ name: "task" }],
@@ -673,7 +673,7 @@ describe("FlowLoader", () => {
     const flow: FlowDefinition = {
       name: "dup",
       command: "/dup",
-      orchestrator: { prompt: "t" },
+      orchestrator: { systemPrompt: "t" },
       routines: {
         main: {
           params: [],
@@ -781,7 +781,7 @@ describe("FlowLoader", () => {
       JSON.stringify({
         name: "bad",
         command: "/bad",
-        orchestrator: { prompt: "t" },
+        orchestrator: { systemPrompt: "t" },
         routines: {
           main: {
             params: [],

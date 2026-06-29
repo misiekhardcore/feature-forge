@@ -59,7 +59,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "do the thing",
       };
       const context = new FlowContext(new Map(), "task");
@@ -84,7 +84,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "do {{task}}",
       };
       const context = new FlowContext(new Map(), "add auth");
@@ -103,7 +103,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
         parseJson: true,
       };
@@ -125,7 +125,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
       };
       const context = new FlowContext(new Map(), "task");
@@ -136,7 +136,7 @@ describe("AgentStepExecutor", () => {
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
     });
 
-    it("consumes specInput and resolves placeholders in it", async () => {
+    it("consumes taskInput and resolves placeholders in it", async () => {
       const agent = makeMockAgent("done");
       const supervisor = makeMockSupervisor(agent);
       const specManager = makeMockSpecManager();
@@ -145,9 +145,9 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build it",
-        specInput: {
+        taskInput: {
           TASK: "{{task}}",
           WORKSPACE: "{{workspace.ws}}",
         },
@@ -175,7 +175,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
         parseJson: true,
       };
@@ -198,7 +198,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "reviewer",
-        spec: "review",
+        systemPrompt: "review",
         task: "review",
         parseJson: true,
       };
@@ -224,7 +224,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
       };
       const context = new FlowContext(new Map(), "task");
@@ -244,7 +244,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
         parseJson: true,
       };
@@ -267,7 +267,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
       };
       const context = new FlowContext(new Map(), "task");
@@ -288,7 +288,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
         parseJson: true,
       };
@@ -309,7 +309,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
         parseJson: true,
       };
@@ -330,7 +330,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "builder",
-        spec: "build",
+        systemPrompt: "build",
         task: "build",
         parseJson: true,
       };
@@ -350,7 +350,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "reviewer",
-        spec: "review",
+        systemPrompt: "review",
         task: "review",
         parseJson: true,
       };
@@ -371,7 +371,7 @@ describe("AgentStepExecutor", () => {
       const instruction: AgentInstruction = {
         type: "agent",
         id: "reviewer",
-        spec: "review",
+        systemPrompt: "review",
         task: "review",
         parseJson: true,
       };

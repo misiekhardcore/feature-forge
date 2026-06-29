@@ -159,12 +159,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   for (const flowName of flowDirectories) {
     const flowDir = path.join(flowsDir, flowName);
 
-    // a. Read the orchestrator prompt from the flow directory.
-    let promptContent: string;
+    // a. Ensure the orchestrator markdown file exists.
     try {
-      promptContent = await fs.readFile(path.join(flowDir, "orchestrator.md"), "utf-8");
+      await fs.access(path.join(flowDir, "orchestrator.md"));
     } catch {
-      // Skip flows without an orchestrator prompt.
+      // Skip flows without an orchestrator markdown file.
       continue;
     }
 
@@ -186,11 +185,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
       specManager,
       workspaceManager,
       flow,
-      promptContent,
+      flowDir,
     );
 
     // Register directly with pi (not via CommandRegistry) because
-    // OrchestratorCommand carries extra constructor params (flow + promptContent)
+    // OrchestratorCommand carries extra constructor params (flow + flowDir)
     // that CommandRegistry's generic constructor pattern can't provide.
     pi.registerCommand(orchestratorCommand.name, {
       description: orchestratorCommand.description,

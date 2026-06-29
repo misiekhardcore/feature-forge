@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
@@ -8,20 +8,45 @@ import { makeMockCtx, makeMockPi } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
+// ── Mock OrchestratorAgent ───────────────────────────────────
+
+const hoisted = vi.hoisted(() => {
+  const agentMock = {
+    mount: vi.fn(),
+  };
+  return {
+    agentMock,
+    resetAgentMock() {
+      agentMock.mount = vi.fn();
+    },
+  };
+});
+
+vi.mock("../agents/orchestrator/OrchestratorAgent", () => ({
+  OrchestratorAgent: {
+    create: vi.fn().mockResolvedValue(hoisted.agentMock),
+  },
+}));
+
+import { OrchestratorAgent } from "../agents/orchestrator/OrchestratorAgent";
+
 let pi: ExtensionAPI;
 
 beforeEach(() => {
   pi = makeMockPi();
+  vi.clearAllMocks();
+  hoisted.resetAgentMock();
+  (OrchestratorAgent.create as ReturnType<typeof vi.fn>).mockResolvedValue(hoisted.agentMock);
 });
 
-function makeCmd(flow: FlowDefinition, prompt = "prompt"): OrchestratorCommand {
+function makeCmd(flow: FlowDefinition, flowDir = "/fake/flow/dir"): OrchestratorCommand {
   return new OrchestratorCommand(
     {} as unknown as AgentSupervisor,
     pi,
     {} as unknown as SpecManager,
     undefined as unknown as WorkspaceManager | undefined,
     flow,
-    prompt,
+    flowDir,
   );
 }
 
@@ -29,7 +54,7 @@ describe("OrchestratorCommand", () => {
   const flow: FlowDefinition = {
     name: "test-flow",
     command: "/test",
-    orchestrator: { prompt: "You are the {{task}} orchestrator." },
+    orchestrator: { systemPrompt: "orchestrator.md" },
     routines: {},
   };
 
@@ -43,48 +68,58 @@ describe("OrchestratorCommand", () => {
     expect(cmd.description).toContain("test-flow");
   });
 
-  it("sends resolved prompt and notifies on success", async () => {
-    const cmd = makeCmd(flow, "Do the {{task}}");
+  it("creates OrchestratorAgent on first handler call and mounts it", async () => {
+    const flowWithTask: FlowDefinition = {
+      ...flow,
+      orchestrator: {
+        systemPrompt: "orchestrator.md",
+        task: "Do the {{task}}",
+      },
+    };
+    const cmd = makeCmd(flowWithTask);
+
     const ctx = makeMockCtx();
 
     await cmd.handler("fix bug", ctx as unknown as ExtensionCommandContext);
 
-    expect(pi.sendUserMessage).toHaveBeenCalledWith("Do the fix bug");
+    expect(OrchestratorAgent.create).toHaveBeenCalledWith(flowWithTask, "/fake/flow/dir");
+    expect(hoisted.agentMock.mount).toHaveBeenCalled();
     expect(ctx.ui.notify).toHaveBeenCalledWith("test-flow orchestrator loaded.", "info");
   });
 
   it("uses fallback text when args is empty", async () => {
-    const cmd = makeCmd(flow, "Do the {{task}}");
+    const cmd = makeCmd({
+      ...flow,
+      orchestrator: {
+        systemPrompt: "orchestrator.md",
+        task: "Do the {{task}}",
+      },
+    });
+
     const ctx = makeMockCtx();
 
     await cmd.handler("", ctx as unknown as ExtensionCommandContext);
 
-    expect(pi.sendUserMessage).toHaveBeenCalledWith("Do the (no task provided)");
+    expect(hoisted.agentMock.mount).toHaveBeenCalled();
+    expect(ctx.ui.notify).toHaveBeenCalledWith("test-flow orchestrator loaded.", "info");
   });
 
-  it("sets active tools when declared in flow config", async () => {
-    const flowWithTools: FlowDefinition = {
+  it("reuses cached agent on second handler call", async () => {
+    const cmd = makeCmd({
       ...flow,
       orchestrator: {
-        prompt: "t",
-        activeTools: ["run_build_loop", "bash"],
+        systemPrompt: "orchestrator.md",
+        task: "Do the {{task}}",
       },
-    };
+    });
 
-    const cmd = makeCmd(flowWithTools);
     const ctx = makeMockCtx();
 
-    await cmd.handler("task", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("first", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("second", ctx as unknown as ExtensionCommandContext);
 
-    expect(pi.setActiveTools).toHaveBeenCalledWith(["run_build_loop", "bash"]);
-  });
-
-  it("does not set active tools when not declared", async () => {
-    const cmd = makeCmd(flow);
-    const ctx = makeMockCtx();
-
-    await cmd.handler("task", ctx as unknown as ExtensionCommandContext);
-
-    expect(pi.setActiveTools).not.toHaveBeenCalled();
+    // create should only be called once, mount twice
+    expect(OrchestratorAgent.create).toHaveBeenCalledTimes(1);
+    expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
   });
 });

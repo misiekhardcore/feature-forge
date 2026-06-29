@@ -146,17 +146,6 @@ export class FlowLoader {
       FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders, new Set());
     }
 
-    // Verify every activeTools entry references an existing routine.
-    if (flow.orchestrator?.activeTools) {
-      const routineNames = new Set(Object.keys(flow.routines));
-      for (const toolRef of flow.orchestrator.activeTools) {
-        if (toolRef === "bash") continue; // built-in, not a routine
-        if (!routineNames.has(toolRef)) {
-          errors.push(`activeTools references unknown routine "${toolRef}"`);
-        }
-      }
-    }
-
     return errors;
   }
 
@@ -203,9 +192,9 @@ export class FlowLoader {
       const currentPath = [...path, instruction.id];
 
       if (instruction.type === "agent") {
-        if (knownSpecs && !knownSpecs.has(instruction.spec)) {
+        if (knownSpecs && !knownSpecs.has(instruction.systemPrompt)) {
           errors.push(
-            `Unknown spec "${instruction.spec}" referenced by agent "${currentPath.join(" → ")}"`,
+            `Unknown spec "${instruction.systemPrompt}" referenced by agent "${currentPath.join(" → ")}"`,
           );
         }
 

@@ -40,6 +40,11 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
     args.push("--no-context-files");
   }
 
+  // --- System prompt ---
+  if (specification.systemPrompt) {
+    args.push("--system-prompt", specification.systemPrompt);
+  }
+
   // --- Session ---
   if (specification.ephemeral) {
     args.push("--no-session");
