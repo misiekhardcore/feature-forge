@@ -26,25 +26,35 @@ class FakeExecutor extends StepExecutor {
 
 describe("StepExecutorRegistry", () => {
   describe("register", () => {
-    it("registers an executor and makes it retrievable", () => {
+    it("accepts a factory closure and makes the executor retrievable", () => {
       const registry = new StepExecutorRegistry();
       const executor = new FakeExecutor("workspace");
-      registry.register(executor);
+      registry.register(() => executor);
       expect(registry.get("workspace")).toBe(executor);
     });
 
     it("returns this for chaining", () => {
       const registry = new StepExecutorRegistry();
-      const result = registry.register(new FakeExecutor("a"));
+      const result = registry.register(() => new FakeExecutor("a"));
       expect(result).toBe(registry);
     });
 
     it("throws when registering a duplicate type", () => {
       const registry = new StepExecutorRegistry();
-      registry.register(new FakeExecutor("dup"));
-      expect(() => registry.register(new FakeExecutor("dup"))).toThrow(
+      registry.register(() => new FakeExecutor("dup"));
+      expect(() => registry.register(() => new FakeExecutor("dup"))).toThrow(
         "Step executor already registered",
       );
+    });
+
+    it("calls the factory immediately at registration time", () => {
+      const registry = new StepExecutorRegistry();
+      let called = false;
+      registry.register(() => {
+        called = true;
+        return new FakeExecutor("test");
+      });
+      expect(called).toBe(true);
     });
   });
 
@@ -57,7 +67,7 @@ describe("StepExecutorRegistry", () => {
     it("returns the executor for a registered type", () => {
       const registry = new StepExecutorRegistry();
       const executor = new FakeExecutor("loop");
-      registry.register(executor);
+      registry.register(() => executor);
       expect(registry.get("loop")).toBe(executor);
     });
   });
@@ -65,7 +75,7 @@ describe("StepExecutorRegistry", () => {
   describe("has", () => {
     it("returns true for a registered type", () => {
       const registry = new StepExecutorRegistry();
-      registry.register(new FakeExecutor("agent"));
+      registry.register(() => new FakeExecutor("agent"));
       expect(registry.has("agent")).toBe(true);
     });
 
@@ -83,16 +93,16 @@ describe("StepExecutorRegistry", () => {
 
     it("returns all registered type names", () => {
       const registry = new StepExecutorRegistry();
-      registry.register(new FakeExecutor("workspace"));
-      registry.register(new FakeExecutor("agent"));
+      registry.register(() => new FakeExecutor("workspace"));
+      registry.register(() => new FakeExecutor("agent"));
       expect(registry.types()).toEqual(new Set(["workspace", "agent"]));
     });
 
     it("returns a snapshot (adding later does not mutate the returned set)", () => {
       const registry = new StepExecutorRegistry();
-      registry.register(new FakeExecutor("a"));
+      registry.register(() => new FakeExecutor("a"));
       const types = registry.types();
-      registry.register(new FakeExecutor("b"));
+      registry.register(() => new FakeExecutor("b"));
       expect(types.size).toBe(1);
     });
   });

@@ -1,0 +1,152 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+import { InMemoryAgentSupervisor, SpecManager } from "../agents";
+import { OrchestratorCommand } from "../commands";
+import { CommandRegistry, ToolRegistry } from "../registry";
+import { WorkspaceManager } from "../workspace";
+import { FlowLoader } from "./FlowLoader";
+import { RoutineExecutor } from "./RoutineExecutor";
+import { RoutineTool } from "./RoutineTool";
+import { StepExecutorRegistry } from "./StepExecutorRegistry";
+
+/**
+ * Discovers flow definitions in a directory and registers their
+ * orchestrator commands and routine tools with the pi extension.
+ */
+export class FlowRegistrar {
+  constructor(
+    private readonly params: {
+      pi: ExtensionAPI;
+      cmdRegistry: CommandRegistry;
+      toolRegistry: ToolRegistry;
+      supervisor: InMemoryAgentSupervisor;
+      specManager: SpecManager;
+      workspaceManager: WorkspaceManager;
+      flowsDir: string;
+      knownSpecs: ReadonlySet<string>;
+      knownProviders: ReadonlySet<string>;
+      stepExecutorRegistry: StepExecutorRegistry;
+    },
+  ) {}
+
+  /**
+   * Discover flow directories, load each flow definition, and register
+   * orchestrator commands and routine tools.
+   */
+  async registerAll(): Promise<void> {
+    const {
+      pi,
+      cmdRegistry,
+      toolRegistry,
+      supervisor,
+      specManager,
+      workspaceManager,
+      flowsDir,
+      knownSpecs,
+      knownProviders,
+      stepExecutorRegistry,
+    } = this.params;
+
+    const flowDirectories = await this.discoverFlowDirectories(flowsDir);
+
+    for (const flowName of flowDirectories) {
+      const flowDir = path.join(flowsDir, flowName);
+      await this.registerFlow(flowName, flowDir, {
+        pi,
+        cmdRegistry,
+        toolRegistry,
+        supervisor,
+        specManager,
+        workspaceManager,
+        knownSpecs,
+        knownProviders,
+        stepExecutorRegistry,
+      });
+    }
+  }
+
+  private async discoverFlowDirectories(flowsDir: string): Promise<string[]> {
+    try {
+      const entries = await fs.readdir(flowsDir, { withFileTypes: true });
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  }
+
+  private async registerFlow(
+    flowName: string,
+    flowDir: string,
+    ctx: {
+      pi: ExtensionAPI;
+      cmdRegistry: CommandRegistry;
+      toolRegistry: ToolRegistry;
+      supervisor: InMemoryAgentSupervisor;
+      specManager: SpecManager;
+      workspaceManager: WorkspaceManager;
+      knownSpecs: ReadonlySet<string>;
+      knownProviders: ReadonlySet<string>;
+      stepExecutorRegistry: StepExecutorRegistry;
+    },
+  ): Promise<void> {
+    const {
+      pi,
+      cmdRegistry,
+      toolRegistry,
+      supervisor,
+      specManager,
+      workspaceManager,
+      knownSpecs,
+      knownProviders,
+      stepExecutorRegistry,
+    } = ctx;
+
+    // Skip flows without an orchestrator markdown file.
+    try {
+      await fs.access(path.join(flowDir, "orchestrator.md"));
+    } catch {
+      return;
+    }
+
+    // Load and validate the flow definition.
+    const flowLoader = new FlowLoader(flowDir, knownSpecs, knownProviders);
+    let flow;
+    try {
+      flow = await flowLoader.load("flow");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[feature-forge] Failed to load flow "${flowName}": ${message}`);
+      return;
+    }
+
+    // Construct the orchestrator command with pi (needed for the base Command
+    // class and agent mounting), then register it through the CommandRegistry
+    // so it follows the same registration path as all other commands.
+    const orchestratorCommand = new OrchestratorCommand(
+      supervisor,
+      pi,
+      specManager,
+      workspaceManager,
+      flow,
+      flowDir,
+    );
+    cmdRegistry.registerInstance(orchestratorCommand);
+
+    // Register routine tools for this flow.
+    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry);
+    for (const [routineName, routineDef] of Object.entries(flow.routines)) {
+      const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
+      try {
+        toolRegistry.registerInstance(routineTool);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[feature-forge] Failed to register RoutineTool "${routineTool.name}": ${message}`,
+        );
+      }
+    }
+  }
+}

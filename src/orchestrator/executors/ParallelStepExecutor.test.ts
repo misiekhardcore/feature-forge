@@ -76,8 +76,8 @@ class WorkspaceCreatingExecutor extends StepExecutor {
 describe("ParallelStepExecutor", () => {
   it("executes all children and aggregates their results", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new ConfigurableExecutor("op-a", "child-a-out"));
-    registry.register(new ConfigurableExecutor("op-b", "child-b-out"));
+    registry.register(() => new ConfigurableExecutor("op-a", "child-a-out"));
+    registry.register(() => new ConfigurableExecutor("op-b", "child-b-out"));
 
     const executor = new ParallelStepExecutor();
 
@@ -101,7 +101,7 @@ describe("ParallelStepExecutor", () => {
 
   it("merges workspaces from child results", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new WorkspaceCreatingExecutor());
+    registry.register(() => new WorkspaceCreatingExecutor());
 
     const executor = new ParallelStepExecutor();
 
@@ -124,8 +124,8 @@ describe("ParallelStepExecutor", () => {
 
   it("propagates the first error after all children settle", async () => {
     const registry = new StepExecutorRegistry();
-    registry.register(new DelayedExecutor(10));
-    registry.register(new FailingExecutor());
+    registry.register(() => new DelayedExecutor(10));
+    registry.register(() => new FailingExecutor());
 
     const executor = new ParallelStepExecutor();
 

@@ -1,4 +1,3 @@
-import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -14,7 +13,6 @@ import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
   AgentListCommand,
-  OrchestratorCommand,
   ResearchCommand,
   WorktreeDestroyCommand,
   WorktreeListCommand,
@@ -22,19 +20,8 @@ import {
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { FileLogger } from "./logging";
-import {
-  AgentStepExecutor,
-  CleanupStepExecutor,
-  GitStepExecutor,
-  LoopStepExecutor,
-  ParallelStepExecutor,
-  ShellStepExecutor,
-  WorkspaceStepExecutor,
-} from "./orchestrator/executors";
-import { FlowLoader } from "./orchestrator/FlowLoader";
-import { RoutineExecutor } from "./orchestrator/RoutineExecutor";
-import { RoutineTool } from "./orchestrator/RoutineTool";
-import { StepExecutorRegistry } from "./orchestrator/StepExecutorRegistry";
+import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
+import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -124,92 +111,32 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     DestroyAgentTool,
   );
 
-  // ── Workspace provider registry ──────────────────────────────────
   const workspaceProviderRegistry = new WorkspaceProviderRegistry()
     .register("git-worktree", provider)
     .register("current-dir", new CurrentDirProvider());
 
   // ── Step executor registry ───────────────────────────────────────
-  const stepExecutorRegistry = new StepExecutorRegistry();
-  // Register leaf executors first so container executors can use the
-  // populated registry for child dispatch at execution time.
-  stepExecutorRegistry.register(new WorkspaceStepExecutor(workspaceProviderRegistry));
-  stepExecutorRegistry.register(new AgentStepExecutor(supervisor, specManager));
-  stepExecutorRegistry.register(new CleanupStepExecutor(workspaceProviderRegistry));
-  stepExecutorRegistry.register(new GitStepExecutor());
-  stepExecutorRegistry.register(new ShellStepExecutor());
-  // Container executors receive the registry for child step lookups.
-  stepExecutorRegistry.register(new ParallelStepExecutor());
-  stepExecutorRegistry.register(new LoopStepExecutor());
+  const stepExecutorRegistry = createStepExecutorRegistry(
+    workspaceProviderRegistry,
+    supervisor,
+    specManager,
+  );
 
   // ── Flow-based orchestration commands ────────────────────────────
   const flowsDir = path.join(__dirname, "flows");
-  const knownSpecs = specRegistry.specNames();
-  const knownProviders = workspaceProviderRegistry.names();
-
-  let flowDirectories: string[];
-  try {
-    const entries = await fs.readdir(flowsDir, { withFileTypes: true });
-    flowDirectories = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  } catch {
-    // flowsDir doesn't exist yet or is empty — skip flow registration silently.
-    flowDirectories = [];
-  }
-
-  for (const flowName of flowDirectories) {
-    const flowDir = path.join(flowsDir, flowName);
-
-    // a. Ensure the orchestrator markdown file exists.
-    try {
-      await fs.access(path.join(flowDir, "orchestrator.md"));
-    } catch {
-      // Skip flows without an orchestrator markdown file.
-      continue;
-    }
-
-    // b. Load and validate the flow definition.
-    const flowLoader = new FlowLoader(flowDir, knownSpecs, knownProviders);
-    let flow;
-    try {
-      flow = await flowLoader.load("flow");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[feature-forge] Failed to load flow "${flowName}": ${message}`);
-      continue;
-    }
-
-    // c. Register an OrchestratorCommand for this flow.
-    const orchestratorCommand = new OrchestratorCommand(
-      supervisor,
-      pi,
-      specManager,
-      workspaceManager,
-      flow,
-      flowDir,
-    );
-
-    // Register directly with pi (not via CommandRegistry) because
-    // OrchestratorCommand carries extra constructor params (flow + flowDir)
-    // that CommandRegistry's generic constructor pattern can't provide.
-    pi.registerCommand(orchestratorCommand.name, {
-      description: orchestratorCommand.description,
-      handler: (args: string, ctx) => orchestratorCommand.handler(args, ctx),
-    });
-
-    // d. Register RoutineTool instances for each routine in this flow.
-    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry);
-    for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-      const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
-      try {
-        toolRegistry.registerInstance(routineTool);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[feature-forge] Failed to register RoutineTool "${routineTool.name}": ${message}`,
-        );
-      }
-    }
-  }
+  const flowRegistrar = new FlowRegistrar({
+    pi,
+    cmdRegistry,
+    toolRegistry,
+    supervisor,
+    specManager,
+    workspaceManager,
+    flowsDir,
+    knownSpecs: specRegistry.specNames(),
+    knownProviders: workspaceProviderRegistry.names(),
+    stepExecutorRegistry,
+  });
+  await flowRegistrar.registerAll();
 };
 
 /**
