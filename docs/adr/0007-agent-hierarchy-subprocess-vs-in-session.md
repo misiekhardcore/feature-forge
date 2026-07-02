@@ -186,21 +186,28 @@ Follow-up to the original §9 scope guardrails (which deferred touching
 `flow.orchestrator` / `orchestrator.md` / `OrchestratorCommand`). There is now
 **one** spec-loading path:
 
-- `SpecLoader` (in `src/loaders/`) reads markdown-with-frontmatter and produces
-  a `SpecFactory`. It serves two consumption shapes off one parser: a directory
-  scan (`loadAll` → `Map<name, SpecFactory>`) for the declarative sub-agent
-  specs, and a single-file load (`loadSpecFile(absolutePath)`) for a flow's
-  bundled orchestrator persona.
-- Both register into the **same** `SpecRegistry`, keyed on the frontmatter
-  `id` (not the filename stem). So `declarative-specs/build.md`
+- `SpecLoader` (in `src/loaders/`) is a stateless single-file parser: it reads
+  markdown-with-frontmatter and produces a `ParsedSpec` via
+  `SpecLoader.load(absolutePath)`. It knows nothing about directories or
+  orchestration; its only concern is `file → SpecFactory`.
+- `SpecManager` owns both the `SpecRegistry` and the orchestration of how specs
+  get into it. It exposes two loaders:
+  - `loadFromDirectory(specsDir)` scans the directory for `*.md` files and calls
+    `SpecLoader.load(file)` for each one, registering the result under its
+    frontmatter `id`. Used for the declarative sub-agent specs at startup.
+  - `loadFile(absolutePath)` calls `SpecLoader.load(path)` once and registers the
+    result. Available for single-file registration when directory scanning is not
+    appropriate.
+- Both registration paths end up in the **same** `SpecRegistry`, keyed on the
+  frontmatter `id` (not the filename stem). So `declarative-specs/build.md`
   (`id: "build"`) and a flow's `orchestrator.md` (`id: "implement"`) are filed
   identically.
 - `flow.orchestrator.systemPrompt` is now a **spec name** (`"implement"`),
   symmetric with how `flow.json` agent steps already reference sub-agent specs
   (`"build"`, `"review"`, `"verify"`). The orchestrator markdown stays
   co-located with its flow (so editing a flow keeps its persona beside
-  `flow.json`); it is loaded once at startup by `FlowRegistrar` via
-  `SpecManager.loadSpecFile`, before the `OrchestratorCommand` is registered.
+  `flow.json`); `FlowRegistrar` loads all `*.md` specs in the flow directory via
+  `SpecManager.loadFromDirectory` before the `OrchestratorCommand` is registered.
 - `FlowSpecLoader` is deleted; the persona-file → `AgentSpecification` parsing
   it duplicated is now `SpecLoader`'s job.
 

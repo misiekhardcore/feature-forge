@@ -3,6 +3,7 @@ import * as path from "node:path";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
+import { AgentSpecificationParams } from "../agents";
 import { TOOL_PRESETS, ToolPresetName } from "../agents/specifications/constants";
 import { DynamicAgentSpecification } from "../agents/specifications/DynamicAgentSpecification";
 import type { SpecFactory } from "../agents/specifications/SpecRegistry";
@@ -17,7 +18,7 @@ import type { SpecFactory } from "../agents/specifications/SpecRegistry";
  *   that name non-built-in extension/routine tools (e.g. an orchestrator
  *   persona). Exactly one of the two must be present.
  */
-interface DeclarativeSpecMetadata extends Record<string, unknown> {
+interface DeclarativeSpecMetadata extends AgentSpecificationParams, Record<string, unknown> {
   /** Unique identifier for the spec (e.g., "build", "implement"). */
   id: string;
   /** Role name used when spawning the agent (e.g., "build", "orchestrator"). */
@@ -31,7 +32,7 @@ interface DeclarativeSpecMetadata extends Record<string, unknown> {
 }
 
 /** A parsed factory paired with the registry name it should be filed under. */
-interface ParsedSpec {
+export interface ParsedSpec {
   name: string;
   factory: SpecFactory;
 }
@@ -51,73 +52,36 @@ interface ParsedSpec {
  * by name (`"build"`, `"review"`). See ADR 0007.
  */
 export class SpecLoader {
-  /** Directory containing the declarative spec files (for {@link loadAll}). */
-  private readonly specsDir: string;
-
-  constructor(specsDir: string) {
-    this.specsDir = specsDir;
-  }
-
-  /**
-   * Load all declarative spec files from the directory.
-   *
-   * @returns A map keyed on each spec's frontmatter `id`.
-   */
-  async loadAll(): Promise<Map<string, SpecFactory>> {
-    const factories = new Map<string, SpecFactory>();
-    const files = await fs.readdir(this.specsDir);
-    const mdFiles = files.filter((file) => file.endsWith(".md"));
-
-    for (const file of mdFiles) {
-      const filepath = path.join(this.specsDir, file);
-      const parsed = await this.parseSpec(filepath, file);
-      factories.set(parsed.name, parsed.factory);
-    }
-
-    return factories;
-  }
-
   /**
    * Load a single spec file by absolute path.
    *
-   * Used by {@link SpecManager.loadSpecFile} to register a spec that lives
-   * outside the declarative-specs directory — currently the orchestrator
-   * persona bundled inside a flow's directory (`<flowDir>/orchestrator.md`).
-   *
+   * @param absolutePath — Absolute path to the markdown file.
    * @returns The parsed {@link ParsedSpec} so the caller can register it
    *   under its frontmatter `id`.
    */
-  async loadSpecFile(absolutePath: string): Promise<ParsedSpec> {
-    return this.parseSpec(absolutePath, path.basename(absolutePath));
-  }
-
-  /**
-   * Read, parse, and validate a single spec file into a {@link ParsedSpec}.
-   *
-   * @param filepath — Absolute path to the markdown file.
-   * @param label — Display label for error messages.
-   */
-  private async parseSpec(filepath: string, label: string): Promise<ParsedSpec> {
-    const content = await fs.readFile(filepath, "utf-8");
+  async load(absolutePath: string): Promise<ParsedSpec> {
+    const content = await fs.readFile(absolutePath, "utf-8");
     const { frontmatter, body } = parseFrontmatter<DeclarativeSpecMetadata>(content);
 
     if (!frontmatter.id || !frontmatter.role) {
-      throw new Error(`Invalid spec metadata in ${label}: id and role are required`);
+      throw new Error(
+        `Invalid spec metadata in ${path.basename(absolutePath)}: id and role are required`,
+      );
     }
 
-    const tools = this.resolveTools(frontmatter, label);
+    const tools = this.resolveTools(frontmatter, absolutePath);
+    const id = frontmatter.id ?? DynamicAgentSpecification.generateId(frontmatter);
 
     const factory: SpecFactory = () => {
       return new DynamicAgentSpecification({
-        id: frontmatter.id,
-        role: frontmatter.role,
+        ...frontmatter,
+        id,
         systemPrompt: body.trim(),
         tools,
-        ephemeral: frontmatter.ephemeral,
       });
     };
 
-    return { name: frontmatter.id, factory };
+    return { name: id, factory };
   }
 
   /**
@@ -126,7 +90,8 @@ export class SpecLoader {
    * Exactly one of `toolPreset` / `tools` must be present; an error is thrown
    * if both or neither are declared.
    */
-  private resolveTools(metadata: DeclarativeSpecMetadata, label: string): string[] {
+  private resolveTools(metadata: DeclarativeSpecMetadata, absolutePath: string): string[] {
+    const label = path.basename(absolutePath);
     if (metadata.toolPreset && metadata.tools) {
       throw new Error(`Invalid spec metadata in ${label}: declare only one of toolPreset or tools`);
     }

@@ -45,6 +45,6 @@ describe("orchestrator system prompt", () => {
 
     // systemPrompt is a spec name resolved through SpecManager — symmetric
     // with how flow agent steps reference sub-agent specs like "build".
-    expect(flow.orchestrator.systemPrompt).toBe("implement");
+    expect(flow.orchestrator.systemPrompt).toBe("implement-orchestrator");
   });
 });

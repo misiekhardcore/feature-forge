@@ -1,3 +1,6 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+
 import type { SpecLoader } from "../loaders/SpecLoader";
 import type { AgentSpecification } from "./specifications/AgentSpecification";
 import type { SpecRegistry } from "./specifications/SpecRegistry";
@@ -8,7 +11,7 @@ import type { SpecRegistry } from "./specifications/SpecRegistry";
  * Used internally by {@link AgentStepExecutor} and commands (e.g. ResearchCommand)
  * that look up named specs from the registry. The IPC layer no longer uses
  * this type — {@link ParentSocketServer} creates {@link DynamicAgentSpecification}
- * directly from IPC {@link SpawnAgentParams}.
+ * directly from resolved IPC {@link SpawnAgentParams}.
  */
 export interface SpecResolutionParams {
   [key: string]: unknown;
@@ -37,26 +40,16 @@ export class SpecManager {
   ) {}
 
   /**
-   * Load declarative specs from markdown files and register them.
+   * Load every `*.md` declarative spec from a directory and register them.
    */
-  async load(): Promise<void> {
-    const factories = await this.loader.loadAll();
-    for (const [name, factory] of factories) {
-      this.registry.register(name, factory);
-    }
-  }
+  async loadFromDirectory(specsDir: string): Promise<void> {
+    const files = await fs.readdir(specsDir);
+    const mdFiles = files.filter((file) => file.endsWith(".md"));
 
-  /**
-   * Load and register a single spec file from an arbitrary path.
-   *
-   * Used to register a spec that lives outside the declarative-specs
-   * directory — currently a flow's bundled orchestrator persona
-   * (`<flowDir>/orchestrator.md`), which is loaded by the same
-   * {@link SpecLoader} and filed under its frontmatter `id`. See ADR 0007.
-   */
-  async loadSpecFile(absolutePath: string): Promise<void> {
-    const parsed = await this.loader.loadSpecFile(absolutePath);
-    this.registry.register(parsed.name, parsed.factory);
+    for (const file of mdFiles) {
+      const parsed = await this.loader.load(path.join(specsDir, file));
+      this.registry.register(parsed.name, parsed.factory);
+    }
   }
 
   /**
@@ -71,6 +64,16 @@ export class SpecManager {
       throw new Error(`Spec '${params.spec}' not found`);
     }
     return this.registry.create(params.spec);
+  }
+
+  /**
+   * Return a read-only set of registered spec names.
+   *
+   * Exposed so callers (e.g. {@link FlowRegistrar}) can snapshot the current
+   * registry contents before validating flow references.
+   */
+  specNames(): ReadonlySet<string> {
+    return this.registry.specNames();
   }
 
   /**
