@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SpecLoader } from "./declarative-specs/SpecLoader";
+import type { SpecLoader } from "../loaders/SpecLoader";
 import { TOOL_PRESETS } from "./specifications/constants";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import { SpecRegistry } from "./specifications/SpecRegistry";

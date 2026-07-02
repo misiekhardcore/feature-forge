@@ -21,7 +21,7 @@ import * as path from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { SpecLoader } from "../agents/declarative-specs/SpecLoader";
+import { SpecLoader } from "../loaders/SpecLoader";
 import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
 import { FlowContext } from "../orchestrator/FlowContext";
 import type {

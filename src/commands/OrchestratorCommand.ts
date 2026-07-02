@@ -2,7 +2,6 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 import type { AgentSupervisor } from "../agents";
 import type { InSessionAgent } from "../agents/agents/InSessionAgent";
-import { FlowSpecLoader } from "../agents/factories/FlowSpecLoader";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
@@ -15,8 +14,10 @@ import { Command } from "./Command";
  *
  * Each loaded flow gets one `OrchestratorCommand` registered under the flow's
  * slash-command name (e.g. `/implement`). The command:
- * 1. loads the orchestrator markdown + frontmatter into an
- *    {@link AgentSpecification} via {@link FlowSpecLoader};
+ * 1. resolves the orchestrator spec by name (`flow.orchestrator.systemPrompt`)
+ *    via {@link SpecManager} — the same path sub-agent specs use. The persona
+ *    markdown is bundled with its flow but loaded once at startup by the same
+ *    `SpecLoader` and filed in the shared registry; see ADR 0007.
  * 2. resolves `flow.orchestrator.prompt` against the user's slash-command args
  *    (trivial `{{prompt}}` substitution, plus `promptParams`) into a final
  *    `task` string;
@@ -31,7 +32,6 @@ export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;
   private readonly flow: FlowDefinition;
-  private readonly flowDir: string;
   private spec: AgentSpecification | undefined;
   private agent: InSessionAgent | undefined;
 
@@ -41,12 +41,10 @@ export class OrchestratorCommand extends Command {
     specManager: SpecManager,
     workspaceManager: WorkspaceManager | undefined,
     flow: FlowDefinition,
-    flowDir: string,
   ) {
     super(supervisor, pi, specManager, workspaceManager);
     this.name = flow.command.replace(/^\//, "");
     this.flow = flow;
-    this.flowDir = flowDir;
     this.description = `Run the ${flow.name} orchestrator workflow`;
   }
 
@@ -54,7 +52,9 @@ export class OrchestratorCommand extends Command {
     const userTask = args.trim() || "(no task provided)";
 
     if (!this.spec) {
-      this.spec = await FlowSpecLoader.load(this.flow, this.flowDir);
+      this.spec = this.specManager.resolve({
+        spec: this.flow.orchestrator.systemPrompt,
+      });
     }
 
     if (!this.agent) {
