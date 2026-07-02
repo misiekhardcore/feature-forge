@@ -7,7 +7,7 @@ import type { Agent } from "../agents/agents";
 import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -98,7 +98,7 @@ describe("ParentSocketServer edge cases", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     await server.start();
   });
 
@@ -120,7 +120,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "g1",
-        params: { label: "worker", systemPrompt: "x", tools: ["read"] },
+        params: { role: "worker", systemPrompt: "x", tools: ["read"] },
       }) + "\n",
     );
     const spawnResponse = (await read(client)) as { result: { agentId: string } };
@@ -153,7 +153,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "s1",
-        params: { label: "pusher", systemPrompt: "x", tools: ["read"] },
+        params: { role: "pusher", systemPrompt: "x", tools: ["read"] },
       }) + "\n",
     );
     const spawnResponse = (await read(client)) as { result: { agentId: string } };
@@ -214,7 +214,11 @@ describe("ParentSocketServer edge cases", () => {
       destroyAll: vi.fn().mockResolvedValue(undefined),
     } as AgentSupervisor;
 
-    const customServer = new ParentSocketServer(customSupervisor, makeMockPi());
+    const customServer = new ParentSocketServer(
+      customSupervisor,
+      makeMockPi(),
+      makeMockSpecManager(),
+    );
     const customPath = await customServer.start();
 
     const client = connect(customPath);
@@ -224,7 +228,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "f1",
-        params: { label: "failer", systemPrompt: "x", tools: ["read"] },
+        params: { role: "failer", systemPrompt: "x", tools: ["read"] },
       }) + "\n",
     );
     const spawnResponse = (await read(client)) as { result: { agentId: string } };
@@ -273,7 +277,7 @@ describe("ChildSocketClient edge cases", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     socketPath = await server.start();
   });
 

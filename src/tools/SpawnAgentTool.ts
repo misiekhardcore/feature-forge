@@ -17,8 +17,8 @@ const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
  * initial task. No template variables or spec name lookups.
  */
 export const SpawnAgentParameters = Type.Object({
-  label: Type.String({
-    description: "Display label / role name for the spawned agent.",
+  role: Type.String({
+    description: "Display role name for the spawned agent.",
   }),
   systemPrompt: Type.String({
     description: "Resolved persona text sent as the system prompt (no placeholders).",
