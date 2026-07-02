@@ -97,11 +97,15 @@ split:
 
 - A **`FlowSpecLoader`** reads `flow.orchestrator.systemPrompt` markdown +
   frontmatter and produces a `DynamicAgentSpecification` (no `pi` dependency).
+  (This role is now served by the unified `SpecLoader` — see the “Spec loading
+  unification” addendum below.)
 - **`new SessionAgent(spec)`** is pure construction from a spec, identical in
   shape to `new PiSubprocessAgent(id, spec, rpcClient)`.
 
-`flow` / `flowDir` are _spec sources_, not the agent's input type. The runtime
-task template (`flow.orchestrator.prompt`) is resolved to a plain `task` string
+The persona source is bundled with the flow (`orchestrator.md` co-located with
+`flow.json`), but loaded by the shared `SpecLoader` and resolved **by spec name**
+through `SpecManager` — symmetric with sub-agent specs. The runtime task
+template (`flow.orchestrator.prompt`) is resolved to a plain `task` string
 by the command **before** `mount(pi, task)`, symmetric to
 `executeTask(prompt)`. This removes the routine engine's `FlowContext` from the
 Agent surface entirely (it stays a routine-engine internal).
@@ -170,7 +174,42 @@ base-typed `Agent` (e.g. the IPC send-task path) still narrow with
 - `src/agents/orchestrator/` is removed; its file moves to `agents/` for
   symmetry with `PiSubprocessAgent`.
 - `FlowContext` no longer appears anywhere under `src/agents/` (grep guard).
-- `OrchestratorCommand` builds the spec via `FlowSpecLoader`, resolves the
-  prompt inline, and drives the live session via `mountInSession` + `mount`.
+- `OrchestratorCommand` resolves the orchestrator spec **by name** through
+  `SpecManager` (same path as sub-agent specs), resolves the prompt inline,
+  and drives the live session via `mountInSession` + `mount`.
 - One in-session concrete exists today (`SessionAgent`); a second is deferred per
   Open/Closed (the extension point is `InSessionAgent`).
+
+### Spec loading unification
+
+Follow-up to the original §9 scope guardrails (which deferred touching
+`flow.orchestrator` / `orchestrator.md` / `OrchestratorCommand`). There is now
+**one** spec-loading path:
+
+- `SpecLoader` (in `src/loaders/`) reads markdown-with-frontmatter and produces
+  a `SpecFactory`. It serves two consumption shapes off one parser: a directory
+  scan (`loadAll` → `Map<name, SpecFactory>`) for the declarative sub-agent
+  specs, and a single-file load (`loadSpecFile(absolutePath)`) for a flow's
+  bundled orchestrator persona.
+- Both register into the **same** `SpecRegistry`, keyed on the frontmatter
+  `id` (not the filename stem). So `declarative-specs/build.md`
+  (`id: "build"`) and a flow's `orchestrator.md` (`id: "implement"`) are filed
+  identically.
+- `flow.orchestrator.systemPrompt` is now a **spec name** (`"implement"`),
+  symmetric with how `flow.json` agent steps already reference sub-agent specs
+  (`"build"`, `"review"`, `"verify"`). The orchestrator markdown stays
+  co-located with its flow (so editing a flow keeps its persona beside
+  `flow.json`); it is loaded once at startup by `FlowRegistrar` via
+  `SpecManager.loadSpecFile`, before the `OrchestratorCommand` is registered.
+- `FlowSpecLoader` is deleted; the persona-file → `AgentSpecification` parsing
+  it duplicated is now `SpecLoader`'s job.
+
+**Tool declaration divergence is intentional.** Spec frontmatter declares
+tooling one of two ways, and exactly one must be present:
+
+- `toolPreset: "fullAccess"` — a named `TOOL_PRESETS` subset of **built-in**
+  tools (used by sub-agent specs like `build.md`).
+- `tools: [run_build_loop, open_pr, bash]` — an explicit list, used by specs
+  that name **extension/routine tools** that are not built-in-tool preset
+  members (e.g. an orchestrator persona). Forcing these through a preset would
+  be a category error; presets model built-in tool subsets, not routines.

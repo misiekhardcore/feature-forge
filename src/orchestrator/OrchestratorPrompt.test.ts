@@ -36,14 +36,15 @@ describe("orchestrator system prompt", () => {
     expect(systemPrompt).not.toMatch(/\{\{TASK\}\}/);
   });
 
-  it("systemPrompt is a non-empty file path", async () => {
+  it("systemPrompt is a non-empty spec name (not a prompt string)", async () => {
     const loader = new FlowLoader(path.join(__dirname, "..", "flows", "implement"));
     const flow = await loader.load("flow");
 
     expect(flow.orchestrator.systemPrompt).toBeTruthy();
     expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
 
-    // systemPrompt is a file path, not a prompt string
-    expect(flow.orchestrator.systemPrompt).toBe("orchestrator.md");
+    // systemPrompt is a spec name resolved through SpecManager — symmetric
+    // with how flow agent steps reference sub-agent specs like "build".
+    expect(flow.orchestrator.systemPrompt).toBe("implement");
   });
 });

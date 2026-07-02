@@ -1,4 +1,4 @@
-import type { SpecLoader } from "./declarative-specs/SpecLoader";
+import type { SpecLoader } from "../loaders/SpecLoader";
 import type { AgentSpecification } from "./specifications/AgentSpecification";
 import type { SpecRegistry } from "./specifications/SpecRegistry";
 
@@ -44,6 +44,19 @@ export class SpecManager {
     for (const [name, factory] of factories) {
       this.registry.register(name, factory);
     }
+  }
+
+  /**
+   * Load and register a single spec file from an arbitrary path.
+   *
+   * Used to register a spec that lives outside the declarative-specs
+   * directory — currently a flow's bundled orchestrator persona
+   * (`<flowDir>/orchestrator.md`), which is loaded by the same
+   * {@link SpecLoader} and filed under its frontmatter `id`. See ADR 0007.
+   */
+  async loadSpecFile(absolutePath: string): Promise<void> {
+    const parsed = await this.loader.loadSpecFile(absolutePath);
+    this.registry.register(parsed.name, parsed.factory);
   }
 
   /**

@@ -1,11 +1,11 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SpecLoader } from "../agents/declarative-specs/SpecLoader";
 import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
 import { TOOL_PRESETS } from "../agents/specifications/constants";
 import { SpecManager } from "../agents/SpecManager";
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
+import { SpecLoader } from "../loaders/SpecLoader";
 import {
   makeMockCtx,
   makeMockFactory,
