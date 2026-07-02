@@ -7,9 +7,7 @@ import { AgentStatus } from "../base";
 describe("agent guards", () => {
   describe("getRole", () => {
     it("returns the specification role for a tracked agent", () => {
-      const agent = new MockAgent("a1", { role: "builder" }) as unknown as InstanceType<
-        typeof Agent
-      >;
+      const agent = new MockAgent("a1", { role: "builder" }) as InstanceType<typeof Agent>;
       expect(getRole(agent)).toBe("builder");
     });
 
@@ -19,16 +17,14 @@ describe("agent guards", () => {
         createdAt: new Date(),
         status: AgentStatus.Spawned,
         destroy: async () => {},
-      } as unknown as Agent;
+      } as Agent;
       expect(getRole(bare)).toBe("unknown");
     });
   });
 
   describe("isSubprocessAgent", () => {
     it("identifies a subprocess-shaped agent structurally", () => {
-      const agent = new MockAgent("sub", { role: "tester" }) as unknown as InstanceType<
-        typeof Agent
-      >;
+      const agent = new MockAgent("sub", { role: "tester" }) as InstanceType<typeof Agent>;
       expect(isSubprocessAgent(agent)).toBe(true);
       expect(getRole(agent)).toBe("tester");
     });
@@ -39,7 +35,7 @@ describe("agent guards", () => {
         createdAt: new Date(),
         status: AgentStatus.Spawned,
         destroy: async () => {},
-      } as unknown as Agent;
+      } as Agent;
       expect(isSubprocessAgent(bare)).toBe(false);
     });
   });
