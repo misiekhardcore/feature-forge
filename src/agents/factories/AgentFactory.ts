@@ -1,20 +1,24 @@
-import { Agent } from "../agents";
+import { SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
 
 /**
  * Creates Agent instances from AgentSpecifications.
  * Each implementation handles the concrete "how" of spawning
  * (local process, tmux, Docker, remote SSH, etc.).
+ *
+ * Returns a {@link SubprocessAgent} — the abstraction that owns `start()` —
+ * so callers depend on the subprocess contract rather than the slim
+ * {@link Agent} base (see ADR 0007).
  */
 export abstract class AgentFactory {
   /**
-   * Create a new Agent from its specification.
+   * Create a new {@link SubprocessAgent} from its specification.
    * This includes allocating workspace, starting the process,
    * and establishing communication channels.
    *
    * @throws AgentCreationError if the agent cannot be created
    */
-  public abstract create(specification: AgentSpecification): Promise<Agent>;
+  public abstract create(specification: AgentSpecification): Promise<SubprocessAgent>;
 }
 
 /**

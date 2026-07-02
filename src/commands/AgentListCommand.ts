@@ -1,11 +1,12 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import type { Agent } from "../agents";
+import { getRole } from "../agents";
 import { Command } from "./Command";
 
 export class AgentListCommand extends Command {
   readonly name = "agent:list";
-  readonly description = "List all tracked subagents and their current status.";
+  readonly description = "List all tracked agents and their current status.";
 
   private formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();
@@ -19,7 +20,7 @@ export class AgentListCommand extends Command {
 
   private formatAgentLine(agent: Agent): string {
     const elapsed = this.formatElapsed(agent.createdAt);
-    return `  • ${agent.id} — ${agent.status} (role: ${agent.specification.role}) [${elapsed}]`;
+    return `  • ${agent.id} — ${agent.status} (role: ${getRole(agent)}) [${elapsed}]`;
   }
 
   handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {

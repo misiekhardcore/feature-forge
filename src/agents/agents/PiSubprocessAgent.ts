@@ -5,7 +5,7 @@ import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { logger } from "../../logging";
 import { AgentStatus } from "../base";
 import { AgentSpecification } from "../specifications";
-import { Agent, type ExecuteTaskOptions } from "./Agent";
+import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
 
 /**
  * Default timeout for agent task execution (ms).
@@ -32,11 +32,11 @@ function extractAssistantText(events: AgentEvent[]): string {
 }
 
 /**
- * Concrete Agent that wraps a pi subprocess spawned in RPC mode.
+ * Concrete {@link SubprocessAgent} that wraps a pi subprocess spawned in RPC mode.
  *
  * Delegates all lifecycle (start, stop, communicate) to the underlying RpcClient.
  */
-export class PiSubprocessAgent extends Agent {
+export class PiSubprocessAgent extends SubprocessAgent {
   public readonly id: string;
   public readonly specification: AgentSpecification;
 
@@ -60,7 +60,7 @@ export class PiSubprocessAgent extends Agent {
    * Start the underlying RPC process and transition to Running.
    * Must be called before sending tasks.
    */
-  public async start(): Promise<void> {
+  public override async start(): Promise<void> {
     try {
       await this.rpcClient.start();
       this._status = AgentStatus.Running;
@@ -76,7 +76,7 @@ export class PiSubprocessAgent extends Agent {
    * Send a prompt (task) to the subagent and wait for completion.
    * Returns the extracted assistant text response.
    */
-  public async executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
+  public override async executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
     if (this._status !== AgentStatus.Running) {
       throw new Error(`Cannot execute task on agent "${this.id}" in state "${this._status}"`);
     }

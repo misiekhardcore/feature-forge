@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
+import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi } from "../test-utils";
@@ -14,7 +15,7 @@ import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
 
-function createMockAgent(): Agent {
+function createMockAgent(): SubprocessAgent {
   const id = "test-agent";
   return {
     id,
@@ -32,13 +33,13 @@ function createMockAgent(): Agent {
     getError: vi.fn().mockReturnValue(undefined),
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
-  };
+  } as unknown as SubprocessAgent;
 }
 
 function createMockSupervisor(): AgentSupervisor {
   const agents = new Map<string, Agent>();
   return {
-    spawn: vi.fn().mockImplementation((specification: AgentSpecification) => {
+    spawnGuest: vi.fn().mockImplementation((specification: AgentSpecification) => {
       const agent = createMockAgent();
       const id = specification.id;
       Object.defineProperty(agent, "id", { value: id });
@@ -46,6 +47,7 @@ function createMockSupervisor(): AgentSupervisor {
       agents.set(id, agent);
       return agent;
     }),
+    mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
     getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),

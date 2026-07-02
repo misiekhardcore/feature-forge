@@ -1,9 +1,18 @@
-export { Agent, PiSubprocessAgent } from "./agents";
+export {
+  Agent,
+  getRole,
+  InSessionAgent,
+  isSubprocessAgent,
+  PiSubprocessAgent,
+  SessionAgent,
+  SubprocessAgent,
+} from "./agents";
 export { AgentStatus } from "./base";
 export {
   AgentCreationError,
   AgentFactory,
   buildPiCliArguments,
+  FlowSpecLoader,
   PiSubprocessAgentFactory,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
