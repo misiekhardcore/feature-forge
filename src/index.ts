@@ -8,7 +8,6 @@ import {
   SpecManager,
   SpecRegistry,
 } from "./agents";
-import { SpecLoader } from "./agents/declarative-specs/SpecLoader";
 import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
@@ -19,6 +18,7 @@ import {
 } from "./commands";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
+import { SpecLoader } from "./loaders";
 import { FileLogger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
