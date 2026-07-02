@@ -18,7 +18,7 @@ describe("InMemoryAgentSupervisor", () => {
   describe("spawn", () => {
     it("creates an agent via the factory and tracks it", async () => {
       const spec = makeSpec("agent-1");
-      const agent = await supervisor.spawn(spec);
+      const agent = await supervisor.spawnGuest(spec);
       expect(agent.id).toBe("agent-1");
       expect(factory.create).toHaveBeenCalledWith(spec);
     });
@@ -27,7 +27,7 @@ describe("InMemoryAgentSupervisor", () => {
       (factory.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new AgentCreationError("bad", "nope"),
       );
-      await expect(supervisor.spawn(makeSpec("bad"))).rejects.toThrow(AgentCreationError);
+      await expect(supervisor.spawnGuest(makeSpec("bad"))).rejects.toThrow(AgentCreationError);
     });
   });
 
@@ -38,7 +38,7 @@ describe("InMemoryAgentSupervisor", () => {
 
     it("returns agent by string id", async () => {
       const spec = makeSpec("my-agent");
-      const agent = await supervisor.spawn(spec);
+      const agent = await supervisor.spawnGuest(spec);
       expect(supervisor.getAgent("my-agent")).toBe(agent);
     });
   });
@@ -49,8 +49,8 @@ describe("InMemoryAgentSupervisor", () => {
     });
 
     it("returns all spawned agents", async () => {
-      const a1 = await supervisor.spawn(makeSpec("a1"));
-      const a2 = await supervisor.spawn(makeSpec("a2"));
+      const a1 = await supervisor.spawnGuest(makeSpec("a1"));
+      const a2 = await supervisor.spawnGuest(makeSpec("a2"));
       const all = supervisor.getAllAgents();
       expect(all).toHaveLength(2);
       expect(all).toContain(a1);
@@ -60,7 +60,7 @@ describe("InMemoryAgentSupervisor", () => {
 
   describe("destroyAgent", () => {
     it("destroys a tracked agent and removes from map", async () => {
-      await supervisor.spawn(makeSpec("to-destroy"));
+      await supervisor.spawnGuest(makeSpec("to-destroy"));
       expect(supervisor.getAgent("to-destroy")).toBeDefined();
       await supervisor.destroyAgent("to-destroy");
       expect(supervisor.getAgent("to-destroy")).toBeUndefined();
@@ -74,8 +74,8 @@ describe("InMemoryAgentSupervisor", () => {
 
   describe("destroyAll", () => {
     it("destroys all agents and clears the map", async () => {
-      await supervisor.spawn(makeSpec("a"));
-      await supervisor.spawn(makeSpec("b"));
+      await supervisor.spawnGuest(makeSpec("a"));
+      await supervisor.spawnGuest(makeSpec("b"));
       expect(supervisor.getAllAgents()).toHaveLength(2);
       await supervisor.destroyAll();
       expect(supervisor.getAllAgents()).toEqual([]);

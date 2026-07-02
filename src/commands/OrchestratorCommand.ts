@@ -1,28 +1,39 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import type { AgentSupervisor } from "../agents";
-import { OrchestratorAgent } from "../agents/orchestrator/OrchestratorAgent";
+import type { InSessionAgent } from "../agents/agents/InSessionAgent";
+import { FlowSpecLoader } from "../agents/factories/FlowSpecLoader";
+import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
-import { FlowContext } from "../orchestrator/FlowContext";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import type { WorkspaceManager } from "../workspace";
 import { Command } from "./Command";
 
 /**
- * Generic command that loads a flow's orchestrator persona into the main pi session.
+ * Generic command that loads a flow's orchestrator persona into the main pi
+ * session.
  *
- * Each loaded flow gets one OrchestratorCommand registered under the flow's
- * slash-command name (e.g. `/implement`). The command delegates to an
- * {@link OrchestratorAgent} which reads the orchestrator markdown file,
- * resolves the task template through a fresh {@link FlowContext}, sends the
- * persona + task as a user message, and sets active tools from frontmatter.
+ * Each loaded flow gets one `OrchestratorCommand` registered under the flow's
+ * slash-command name (e.g. `/implement`). The command:
+ * 1. loads the orchestrator markdown + frontmatter into an
+ *    {@link AgentSpecification} via {@link FlowSpecLoader};
+ * 2. resolves `flow.orchestrator.prompt` against the user's slash-command args
+ *    (trivial `{{prompt}}` substitution, plus `promptParams`) into a final
+ *    `task` string;
+ * 3. registers an in-session {@link InSessionAgent} via
+ *    `supervisor.mountInSession(spec)`; then
+ * 4. `agent.mount(pi, task)` drives the live session.
+ *
+ * The routine engine's `FlowContext` does not appear here — the prompt template
+ * is resolved inline so only a plain `task` string reaches the agent (ADR 0007).
  */
 export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;
   private readonly flow: FlowDefinition;
   private readonly flowDir: string;
-  private agent: OrchestratorAgent | undefined;
+  private spec: AgentSpecification | undefined;
+  private agent: InSessionAgent | undefined;
 
   constructor(
     supervisor: AgentSupervisor,
@@ -40,15 +51,36 @@ export class OrchestratorCommand extends Command {
   }
 
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
-    const task = args.trim() || "(no task provided)";
-    const flowCtx = new FlowContext(new Map(), task);
+    const userTask = args.trim() || "(no task provided)";
 
-    if (!this.agent) {
-      this.agent = await OrchestratorAgent.create(this.flow, this.flowDir);
+    if (!this.spec) {
+      this.spec = await FlowSpecLoader.load(this.flow, this.flowDir);
     }
 
-    this.agent.mount(this.pi, flowCtx);
+    if (!this.agent) {
+      this.agent = await this.supervisor.mountInSession(this.spec);
+    }
+
+    this.agent.mount(this.pi, this.resolveTask(userTask));
 
     ctx.ui.notify(`${this.flow.name} orchestrator loaded.`, "info");
+  }
+
+  /**
+   * Resolve the orchestrator prompt template against the user's slash-command
+   * args. `{{prompt}}` maps to the (fallback-guarded) user task; any other
+   * `{{key}}` is resolved from `flow.orchestrator.promptParams`.
+   */
+  private resolveTask(userTask: string): string {
+    const template = this.flow.orchestrator.prompt ?? "";
+    const params: Record<string, string> = {
+      ...(this.flow.orchestrator.promptParams ?? {}),
+      prompt: userTask,
+    };
+
+    return template.replaceAll(/\{\{([^}]+)\}\}/g, (_match, key: string) => {
+      const value = params[key.trim()];
+      return value !== undefined ? value : "";
+    });
   }
 }

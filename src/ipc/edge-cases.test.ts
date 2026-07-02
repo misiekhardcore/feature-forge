@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
+import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi } from "../test-utils";
@@ -11,7 +12,7 @@ import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
 
-function createMockAgent(overrides: Partial<Agent> = {}): Agent {
+function createMockAgent(overrides: Partial<SubprocessAgent> = {}): SubprocessAgent {
   const id = "test-agent";
   return {
     id,
@@ -30,13 +31,13 @@ function createMockAgent(overrides: Partial<Agent> = {}): Agent {
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     ...overrides,
-  };
+  } as unknown as SubprocessAgent;
 }
 
 function createMockSupervisor(customAgents?: Map<string, Agent>): AgentSupervisor {
   const agents = customAgents ?? new Map<string, Agent>();
   return {
-    spawn: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
+    spawnGuest: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
       const id = specification.id;
       const existing = agents.get(id);
       if (existing) {
@@ -47,6 +48,7 @@ function createMockSupervisor(customAgents?: Map<string, Agent>): AgentSuperviso
       agents.set(id, agent);
       return Promise.resolve(agent);
     }),
+    mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
     getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
@@ -200,10 +202,11 @@ describe("ParentSocketServer edge cases", () => {
 
     // Custom supervisor that always returns the failing agent for "failer" role
     const customSupervisor = {
-      spawn: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
+      spawnGuest: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
         Object.defineProperty(failingAgent, "id", { value: specification.id });
         return failingAgent;
       }),
+      mountInSession: vi.fn().mockResolvedValue(undefined),
       runAgent: vi.fn().mockResolvedValue(undefined),
       getAgent: vi.fn().mockReturnValue(failingAgent),
       getAllAgents: vi.fn().mockReturnValue([]),

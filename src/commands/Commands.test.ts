@@ -94,7 +94,7 @@ describe("AgentListCommand", () => {
   });
 
   it("lists tracked agents with their status", async () => {
-    await supervisor.spawn(makeSpec("a1", { role: "worker" }));
+    await supervisor.spawnGuest(makeSpec("a1", { role: "worker" }));
     await cmd.handler("", ctx as unknown as ExtensionCommandContext);
     expect(ctx.ui.notify).toHaveBeenCalledWith(
       expect.stringContaining("Tracked agents (1)"),
@@ -148,8 +148,8 @@ describe("AgentDestroyAllCommand", () => {
   });
 
   it("calls supervisor.destroyAll and notifies with count", async () => {
-    await supervisor.spawn(makeSpec("a1"));
-    await supervisor.spawn(makeSpec("a2"));
+    await supervisor.spawnGuest(makeSpec("a1"));
+    await supervisor.spawnGuest(makeSpec("a2"));
     await cmd.handler("", ctx as unknown as ExtensionCommandContext);
     expect(ctx.ui.notify).toHaveBeenCalledWith("All 2 agent(s) destroyed.", "info");
   });
