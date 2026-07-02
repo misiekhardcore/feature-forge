@@ -6,7 +6,7 @@ import type { Agent } from "../agents/agents";
 import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 
 function createMockAgent(): SubprocessAgent {
@@ -29,6 +29,33 @@ function createMockAgent(): SubprocessAgent {
     deliverError: vi.fn(),
     start: vi.fn(),
   } as SubprocessAgent;
+}
+
+let specManagerCall: { role: string; systemPrompt: string; tools: string[] } | null = null;
+
+function createMockSpecManager() {
+  specManagerCall = null;
+  const manager = makeMockSpecManager();
+  manager.createDynamic = vi.fn().mockImplementation((params) => {
+    specManagerCall = params;
+    return {
+      id: params.role,
+      role: params.role,
+      systemPrompt: params.systemPrompt,
+      tools: params.tools ?? [],
+      model: params.model,
+      cwd: params.cwd,
+      disableBuiltinTools: false,
+      disableExtensions: false,
+      disableSkills: false,
+      disablePromptTemplates: false,
+      disableContextFiles: false,
+      ephemeral: false,
+      excludedTools: [],
+      thinkingLevel: undefined,
+    };
+  });
+  return manager;
 }
 
 function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupervisor {
@@ -77,7 +104,7 @@ describe("ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), createMockSpecManager());
     socketPath = await server.start();
   });
 
@@ -98,7 +125,7 @@ describe("ParentSocketServer", () => {
       type: "spawn_agent",
       correlationId: "test-1",
       params: {
-        label: "researcher",
+        role: "researcher",
         systemPrompt: "You are a researcher",
         tools: ["read", "grep"],
       },
@@ -110,7 +137,7 @@ describe("ParentSocketServer", () => {
       correlationId: "test-1",
       result: {
         agentId: "researcher",
-        label: "researcher",
+        role: "researcher",
       },
     });
 
@@ -167,7 +194,7 @@ describe("ParentSocketServer", () => {
       type: "spawn_agent",
       correlationId: "s1",
       params: {
-        label: "worker",
+        role: "worker",
         systemPrompt: "You are a worker",
         tools: ["read"],
       },
@@ -177,7 +204,7 @@ describe("ParentSocketServer", () => {
     expect(spawnResponse).toEqual({
       type: "result",
       correlationId: "s1",
-      result: { agentId: "worker", label: "worker" },
+      result: { agentId: "worker", role: "worker" },
     });
 
     // Send task
@@ -209,7 +236,7 @@ describe("ParentSocketServer", () => {
       type: "spawn_agent",
       correlationId: "f1",
       params: {
-        label: "fireworker",
+        role: "fireworker",
         systemPrompt: "You are a fire-and-forget worker",
         tools: ["read"],
       },
@@ -246,7 +273,7 @@ describe("ParentSocketServer", () => {
       type: "spawn_agent",
       correlationId: "d1",
       params: {
-        label: "temp",
+        role: "temp",
         systemPrompt: "temp",
         tools: ["read"],
       },
@@ -273,18 +300,19 @@ describe("ParentSocketServer", () => {
     client.end();
   });
 
-  it("creates DynamicAgentSpecification directly from IPC params", async () => {
+  it("delegates spec construction to SpecManager.createDynamic", async () => {
+    const localSpecManager = createMockSpecManager();
     const localSupervisor = createMockSupervisor();
-    const regServer = new ParentSocketServer(localSupervisor, makeMockPi());
+    const regServer = new ParentSocketServer(localSupervisor, makeMockPi(), localSpecManager);
     const regSocketPath = await regServer.start();
 
     const client = connect(regSocketPath);
 
     await sendJson(client, {
       type: "spawn_agent",
-      correlationId: "direct-spec",
+      correlationId: "delegated-spec",
       params: {
-        label: "build",
+        role: "build",
         systemPrompt: "You are a builder agent",
         tools: ["read", "bash"],
         model: "claude-sonnet-4-5",
@@ -295,14 +323,22 @@ describe("ParentSocketServer", () => {
     const response = await readResponse(client);
     expect(response).toEqual({
       type: "result",
-      correlationId: "direct-spec",
+      correlationId: "delegated-spec",
       result: {
         agentId: "build",
-        label: "build",
+        role: "build",
       },
     });
 
-    // Verify the supervisor received a DynamicAgentSpecification
+    expect(localSpecManager.createDynamic).toHaveBeenCalledOnce();
+    expect(specManagerCall).toEqual({
+      role: "build",
+      systemPrompt: "You are a builder agent",
+      tools: ["read", "bash"],
+      model: "claude-sonnet-4-5",
+      cwd: "/tmp/ws",
+    });
+
     expect(localSupervisor.spawnGuest).toHaveBeenCalledOnce();
     const calledSpec = vi.mocked(localSupervisor.spawnGuest).mock.calls[0][0];
     expect(calledSpec.role).toBe("build");

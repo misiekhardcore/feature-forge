@@ -12,7 +12,7 @@ import type {
 describe("SocketMessage type", () => {
   it("shapes a spawn_agent message correctly", () => {
     const params: SpawnAgentParams = {
-      label: "researcher",
+      role: "researcher",
       systemPrompt: "You are a researcher",
       tools: ["read", "grep"],
     };
@@ -24,7 +24,7 @@ describe("SocketMessage type", () => {
     };
 
     expect(message.type).toBe("spawn_agent");
-    expect(message.params.label).toBe("researcher");
+    expect(message.params.role).toBe("researcher");
   });
 
   it("shapes a send_task message with await=true", () => {
@@ -67,7 +67,7 @@ describe("SocketResponse type", () => {
     const response: SocketResponse = {
       type: "result",
       correlationId: "c1",
-      result: { agentId: "agent-1", label: "researcher" },
+      result: { agentId: "agent-1", role: "researcher" },
     };
 
     expect(response.type).toBe("result");
