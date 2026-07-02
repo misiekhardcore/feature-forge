@@ -5,7 +5,13 @@ import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentStatus, AgentSupervisor, DynamicAgentSpecification } from "../agents";
+import {
+  AgentStatus,
+  AgentSupervisor,
+  DynamicAgentSpecification,
+  getRole,
+  isSubprocessAgent,
+} from "../agents";
 import { logger } from "../logging";
 import {
   type SendTaskParams,
@@ -178,7 +184,7 @@ export class ParentSocketServer {
       model: params.model,
       cwd: params.cwd,
     });
-    const agent = await this.supervisor.spawn(specification);
+    const agent = await this.supervisor.spawnGuest(specification);
 
     this.sendResponse(socket, correlationId, {
       agentId: agent.id,
@@ -194,6 +200,11 @@ export class ParentSocketServer {
     const agent = this.supervisor.getAgent(params.agentId);
     if (!agent) {
       this.sendError(socket, correlationId, `Agent not found: ${params.agentId}`);
+      return;
+    }
+
+    if (!isSubprocessAgent(agent)) {
+      this.sendError(socket, correlationId, `Agent not a subprocess agent: ${params.agentId}`);
       return;
     }
 
@@ -236,14 +247,17 @@ export class ParentSocketServer {
 
     this.sendResponse(socket, correlationId, {
       status: agent.status,
-      result: agent.status === AgentStatus.Completed ? agent.getResult() : null,
+      result:
+        agent.status === AgentStatus.Completed && isSubprocessAgent(agent)
+          ? agent.getResult()
+          : null,
     });
   }
 
   private async handleListAgents(socket: Socket, correlationId: string): Promise<void> {
     const agents = this.supervisor.getAllAgents().map((agent) => ({
       agentId: agent.id,
-      role: agent.specification.role,
+      role: getRole(agent),
       status: agent.status,
     }));
 

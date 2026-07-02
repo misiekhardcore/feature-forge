@@ -10,7 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
 import { SpecManager } from "./agents";
-import { Agent, type ExecuteTaskOptions } from "./agents/agents/Agent";
+import { type ExecuteTaskOptions, SubprocessAgent } from "./agents/agents/SubprocessAgent";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
 import { AgentSpecification } from "./agents/specifications/AgentSpecification";
@@ -50,9 +50,8 @@ export function makeSpec(
 // Mock Agent (does not rely on RpcClient)
 // ---------------------------------------------------------------------------
 
-export class MockAgent extends Agent {
+export class MockAgent extends SubprocessAgent {
   public readonly specification: AgentSpecification;
-  public readonly createdAt: Date = new Date();
   public status: AgentStatus = AgentStatus.Spawned;
   public lastPrompt: string = "";
 
@@ -69,7 +68,11 @@ export class MockAgent extends Agent {
     this.specification = makeSpec(id, { role: overrides.role ?? "mock" });
   }
 
-  async executeTask(prompt: string, _options?: ExecuteTaskOptions): Promise<string> {
+  override async start(): Promise<void> {
+    this.status = AgentStatus.Running;
+  }
+
+  override async executeTask(prompt: string, _options?: ExecuteTaskOptions): Promise<string> {
     this.lastPrompt = prompt;
     this.status = AgentStatus.Running;
     this._result = `result for: ${prompt}`;
@@ -129,6 +132,9 @@ export function makeMockPi(): ExtensionAPI {
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
     on: vi.fn(),
+    // `off` is not part of the published ExtensionAPI interface, but
+    // SessionAgent probes for it defensively on destroy.
+    off: vi.fn(),
   } as unknown as ExtensionAPI;
 }
 

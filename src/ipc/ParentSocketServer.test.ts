@@ -3,12 +3,13 @@ import { connect, type Socket } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../agents/agents";
+import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 
-function createMockAgent(): Agent {
+function createMockAgent(): SubprocessAgent {
   const id = "test-agent";
   return {
     id,
@@ -26,12 +27,12 @@ function createMockAgent(): Agent {
     getError: vi.fn().mockReturnValue(undefined),
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
-  };
+  } as unknown as SubprocessAgent;
 }
 
 function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupervisor {
   return {
-    spawn: vi.fn().mockImplementation(async (specification) => {
+    spawnGuest: vi.fn().mockImplementation(async (specification) => {
       const agent = createMockAgent();
       const id = specification.role;
       Object.defineProperty(agent, "id", { value: id });
@@ -39,6 +40,7 @@ function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupe
       agents.set(id, agent);
       return agent;
     }),
+    mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
     getAgent: vi.fn().mockImplementation((id) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
@@ -300,8 +302,8 @@ describe("ParentSocketServer", () => {
     });
 
     // Verify the supervisor received a DynamicAgentSpecification
-    expect(localSupervisor.spawn).toHaveBeenCalledOnce();
-    const calledSpec = vi.mocked(localSupervisor.spawn).mock.calls[0][0];
+    expect(localSupervisor.spawnGuest).toHaveBeenCalledOnce();
+    const calledSpec = vi.mocked(localSupervisor.spawnGuest).mock.calls[0][0];
     expect(calledSpec.role).toBe("build");
     expect(calledSpec.systemPrompt).toBe("You are a builder agent");
     expect(calledSpec.tools).toEqual(["read", "bash"]);

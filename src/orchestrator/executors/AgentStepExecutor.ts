@@ -1,3 +1,4 @@
+import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";
 import { DynamicAgentSpecification } from "../../agents/specifications";
 import type { SpecManager } from "../../agents/SpecManager";
@@ -63,7 +64,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     });
 
     // 3. Spawn agent, execute task, collect result, and destroy.
-    const agent = await this.supervisor.spawn(effectiveSpecification);
+    const agent: SubprocessAgent = await this.supervisor.spawnGuest(effectiveSpecification);
     try {
       await agent.executeTask(resolvedTask);
 
