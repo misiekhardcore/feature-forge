@@ -220,7 +220,7 @@ describe("GitStepExecutor", () => {
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/resolved/ws");
     });
 
-    it("returns a failure result when git command fails", async () => {
+    it("re-throws (hard failure) when add-and-commit fails, instead of returning passed:false", async () => {
       mockExecFailure("fatal: not a git repository");
       const executor = new GitStepExecutor();
 
@@ -231,10 +231,14 @@ describe("GitStepExecutor", () => {
         cwd: "/bad/path",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn());
 
-      expect(result.results.get("git4")!.parsed!.passed).toBe(false);
-      expect(result.results.get("git4")!.raw).toContain("fatal:");
+      // add-and-commit must throw so RoutineExecutor aborts `open_pr` before
+      // push-current / gh ever run (see ADR 0008). It must NOT be captured
+      // as a soft `passed:false` result, which would let the routine push
+      // an empty branch and open a misleading PR.
+      await expect(executor.execute(instruction, context, vi.fn())).rejects.toThrow(
+        "fatal: not a git repository",
+      );
     });
   });
 });
