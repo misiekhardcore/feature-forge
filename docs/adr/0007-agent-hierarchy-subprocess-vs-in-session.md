@@ -64,13 +64,15 @@ reuses the same class.
 
 ### What is truly common vs per-family
 
-**Base `Agent`** keeps only the truly common denominator: `id`, `createdAt`,
-`status`, and `destroy()`. Everything subprocess-specific (`executeTask`,
-`getResult`, `getError`, `deliverResult`, `deliverError`, `start`) moves down to
-`SubprocessAgent`; the in-session contract (`mount(pi, task)`) lives on
-`InSessionAgent`. `AgentSpecification` stays **off** the base interface — it is
-a per-intermediate concern — but both concretes _take_ an `AgentSpecification`
-at construction, unifying the persona-input type.
+**Base `Agent`** keeps the truly common denominator: `id`, `specification`,
+`createdAt`, `status`, and `destroy()`. Everything subprocess-specific
+(`executeTask`, `getResult`, `getError`, `deliverResult`, `deliverError`,
+`start`) moves down to `SubprocessAgent`; the in-session contract
+(`mount(pi, task)`) lives on `InSessionAgent`. `AgentSpecification` is on the
+base — it is the persona _input_, common to both families (every concrete is
+constructed from one, §G), so fleet consumers read `agent.specification.role`
+directly without a guard. Only the _interaction_ contracts are
+per-family — those live on the respective `SubprocessAgent` / `InSessionAgent`.
 
 `deliverResult` / `deliverError` live **only on `SubprocessAgent`**: they exist
 solely because a _separate_ subprocess must report back to the parent session.
@@ -79,14 +81,10 @@ semantically nonsense for it.
 
 ### `AgentStatus` per-family states
 
-`AgentStatus` stays on the base for uniform visualisation and gains a `Mounted`
-member:
-
 | State       | Subprocess          | In-session               |
 | ----------- | ------------------- | ------------------------ |
 | `Spawned`   | after construction  | after `new SessionAgent` |
-| `Running`   | after `start()`     | —                        |
-| `Mounted`   | —                   | after `mount(pi, task)`  |
+| `Running`   | after `start()`     | after `mount(pi, task)`  |
 | `Completed` | after `executeTask` | —                        |
 | `Failed`    | on error            | —                        |
 | `Cancelled` | after `destroy`     | after `destroy`          |
@@ -131,13 +129,24 @@ produce a discrete awaited string and report back; in-session agents drive the
 live conversation across multiple turns with no single string to return. We
 unify _identity + lifecycle_; we keep _interaction_ family-specific.
 
-### Why `Agent` deliberately does not expose `specification`
+### What `Agent` exposes vs what lives on the intermediates
 
-Consumers that need `specification` (or `executeTask`) on a base-typed `Agent`
-narrow with small structural guards (`isSubprocessAgent`, `getRole`) rather than
-forcing the members back onto the base. This keeps Interface Segregation honest:
-the slim base never forces a no-op `executeTask`/`deliverResult` onto an
-in-session agent.
+The base exposes identity and origin — `id`, `specification`, `createdAt`,
+`status`, and `destroy()` — shared verbatim by every concrete agent. The
+**interaction** contracts are what stay family-specific: `executeTask`,
+`getResult`, `getError`, `deliverResult`, `deliverError`, and `start` live on
+`SubprocessAgent`; `mount(pi, task)` lives on `InSessionAgent`. This keeps
+Interface Segregation honest: the slim base never forces a no-op
+`executeTask`/`deliverResult` onto an in-session agent, nor a no-op `mount`
+onto a subprocess agent.
+
+`specification` is _not_ interaction — it is the persona input, common to
+both families (every concrete agent is constructed from an
+`AgentSpecification`, §G). Promoting it to the base lets fleet consumers
+(`AgentListCommand`, the IPC list-agents path) read `agent.specification.role`
+directly with no guard. Consumers that _do_ need the interaction methods on a
+base-typed `Agent` (e.g. the IPC send-task path) still narrow with
+`isSubprocessAgent`; the now-redundant `getRole` accessor was removed.
 
 ## Resolved decisions (A–H)
 
@@ -146,7 +155,10 @@ in-session agent.
   subprocess-specific.
 - **C** — `deliverResult`/`deliverError` live on `SubprocessAgent` only.
 - **D** — In-session agents are tracked in the supervisor. **Yes, unify.**
-- **E** — `AgentStatus` on the base; add a `Mounted` member (table above).
+- ~~**E** — `AgentStatus` on the base; add a `Mounted` member (table above)~~.
+  Revised: no new `Mounted` state — the in-session family reuses `Running`
+  ("persona+task mounted into the live session") to avoid a second
+  in-session-only status that fleet consumers would have to special-case.
 - **F** — Conceptual split: Orchestrator ≠ Agent/LLM. **Confirmed.**
 - **G** — In-session agent input type: `AgentSpecification` (same as
   subprocess); `flow`/`flowDir` are spec sources; prompt template resolved to a

@@ -2,11 +2,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentSpecification } from "../agents/specifications";
-import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
-import { makeMockCtx, makeMockPi } from "../test-utils";
-import type { WorkspaceManager } from "../workspace";
+import { makeMockCtx, makeMockPi, makeMockSpecManager } from "../test-utils";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -56,15 +54,15 @@ beforeEach(() => {
 });
 
 function makeCmd(
-  supervisor: { mountInSession: ReturnType<typeof vi.fn> },
+  supervisor: AgentSupervisor,
   flow: FlowDefinition,
   flowDir = "/fake/flow/dir",
 ): OrchestratorCommand {
   return new OrchestratorCommand(
-    supervisor as unknown as AgentSupervisor,
+    supervisor as AgentSupervisor,
     pi,
-    {} as unknown as SpecManager,
-    undefined as unknown as WorkspaceManager | undefined,
+    makeMockSpecManager(),
+    undefined,
     flow,
     flowDir,
   );
@@ -79,7 +77,9 @@ describe("OrchestratorCommand", () => {
   };
 
   function makeSupervisor() {
-    return { mountInSession: vi.fn().mockResolvedValue(hoisted.agentMock) };
+    return {
+      mountInSession: vi.fn().mockResolvedValue(hoisted.agentMock),
+    } as unknown as AgentSupervisor;
   }
 
   it("has name derived from flow.command without leading slash", () => {

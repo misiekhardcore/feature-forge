@@ -1,30 +1,19 @@
-import { AgentSpecification } from "../specifications";
 import type { Agent } from "./Agent";
 import type { SubprocessAgent } from "./SubprocessAgent";
 
 /**
- * Structural type guards and small accessors over the slim {@link Agent}.
+ * Structural type guard narrowing the slim {@link Agent} to its subprocess
+ * family.
  *
- * The base `Agent` deliberately does not expose `specification` or any
- * family-specific method (see ADR 0007). Consumers that need those on a
- * base-typed `Agent` (e.g. fleet listing, the IPC subprocess path) narrow
- * with these guards rather than forcing the members back onto the base.
- */
-
-/**
- * True when `agent` is a {@link SubprocessAgent} (carries `executeTask`).
+ * The base `Agent` exposes the common {@link Agent.specification} but
+ * deliberately does not surface the *interaction* contract (`executeTask` /
+ * `mount`) — see ADR 0007. Consumers that need the subprocess interaction
+ * methods on a base-typed `Agent` (e.g. the IPC subprocess path) narrow with
+ * this guard rather than forcing those methods back onto the base.
  *
  * Structural rather than `instanceof` so test doubles and IPC mock agents —
  * which present the same shape without extending the class — also narrow.
  */
 export function isSubprocessAgent(agent: Agent): agent is SubprocessAgent {
-  return typeof (agent as { executeTask?: unknown }).executeTask === "function";
-}
-
-/**
- * Resolve an agent's role from its specification, falling back to `"unknown"`
- * for an agent that carries no specification on the base contract.
- */
-export function getRole(agent: Agent): string {
-  return (agent as { specification?: AgentSpecification }).specification?.role ?? "unknown";
+  return "executeTask" in agent && typeof agent.executeTask === "function";
 }

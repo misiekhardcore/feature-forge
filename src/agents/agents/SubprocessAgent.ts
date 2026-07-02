@@ -1,7 +1,6 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentSpecification } from "../specifications";
 import { Agent } from "./Agent";
 
 /**
@@ -25,9 +24,6 @@ export interface ExecuteTaskOptions {
  * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
 export abstract class SubprocessAgent extends Agent {
-  /** The persona specification this agent was constructed from. */
-  public abstract readonly specification: AgentSpecification;
-
   /** Start the underlying transport and transition to {@link AgentStatus.Running}. */
   public abstract start(): Promise<void>;
 
