@@ -19,7 +19,8 @@ const {
   flowLoaderLoadMock,
   flowLoaderCtorMock,
   orchestratorCtorMock,
-  specManagerLoadSpecFileMock,
+  specManagerLoadFromDirectoryMock,
+  specManagerSpecNamesMock,
 } = vi.hoisted(() => {
   const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
   const access = vi.fn<(p: string) => Promise<void>>();
@@ -39,7 +40,8 @@ const {
     };
   }
   const orchestratorCtor = vi.fn(OrchestratorCommandMock);
-  const specManagerLoadSpecFile = vi.fn<() => Promise<void>>();
+  const specManagerLoadFromDirectory = vi.fn<() => Promise<void>>();
+  const specManagerSpecNames = vi.fn<() => ReadonlySet<string>>();
 
   return {
     readdirMock: readdir,
@@ -47,7 +49,8 @@ const {
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
     orchestratorCtorMock: orchestratorCtor,
-    specManagerLoadSpecFileMock: specManagerLoadSpecFile,
+    specManagerLoadFromDirectoryMock: specManagerLoadFromDirectory,
+    specManagerSpecNamesMock: specManagerSpecNames,
   };
 });
 
@@ -74,7 +77,6 @@ interface FlowRegistrarParams {
   specManager: SpecManager;
   workspaceManager: WorkspaceManager;
   flowsDir: string;
-  knownSpecs: ReadonlySet<string>;
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
 }
@@ -95,11 +97,11 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     specManager:
       overrides.specManager ??
       ({
-        loadSpecFile: specManagerLoadSpecFileMock.mockResolvedValue(undefined),
+        loadFromDirectory: specManagerLoadFromDirectoryMock,
+        specNames: specManagerSpecNamesMock,
       } as unknown as SpecManager),
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
     flowsDir: overrides.flowsDir ?? "/flows",
-    knownSpecs: overrides.knownSpecs ?? new Set(),
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
   };
@@ -128,6 +130,8 @@ function setupSingleFlow() {
 describe("FlowRegistrar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
+    specManagerSpecNamesMock.mockReturnValue(new Set());
   });
 
   describe("registerAll", () => {
@@ -193,6 +197,7 @@ describe("FlowRegistrar", () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
+      specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue("raw string error");
 
       const cmdRegistry = {
@@ -215,6 +220,7 @@ describe("FlowRegistrar", () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
+      specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue(new Error("Invalid JSON"));
 
       const cmdRegistry = {
@@ -252,14 +258,26 @@ describe("FlowRegistrar", () => {
       expect(registeredCmd).toHaveProperty("handler");
     });
 
+    it("loads the orchestrator persona before constructing FlowLoader", async () => {
+      setupSingleFlow();
+
+      const params = makeParams();
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      expect(specManagerLoadFromDirectoryMock).toHaveBeenCalledWith("/flows/my-flow");
+      expect(flowLoaderCtorMock).toHaveBeenCalled();
+    });
+
     it("passes knownSpecs and knownProviders to FlowLoader", async () => {
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const knownSpecs = new Set(["spec-a", "spec-b"]);
+      specManagerSpecNamesMock.mockReturnValue(knownSpecs);
       const knownProviders = new Set(["provider-x"]);
-      const params = makeParams({ knownSpecs, knownProviders });
+      const params = makeParams({ knownProviders });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
