@@ -13,35 +13,43 @@ import type { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Hoisted mock state ───────────────────────────────────────
 
-const { readdirMock, accessMock, flowLoaderLoadMock, flowLoaderCtorMock, orchestratorCtorMock } =
-  vi.hoisted(() => {
-    const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
-    const access = vi.fn<(p: string) => Promise<void>>();
-    const load = vi.fn<() => Promise<FlowDefinition>>();
+const {
+  readdirMock,
+  accessMock,
+  flowLoaderLoadMock,
+  flowLoaderCtorMock,
+  orchestratorCtorMock,
+  specManagerLoadSpecFileMock,
+} = vi.hoisted(() => {
+  const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
+  const access = vi.fn<(p: string) => Promise<void>>();
+  const load = vi.fn<() => Promise<FlowDefinition>>();
 
-    // Must use named functions — arrow functions are not constructable
-    function FlowLoaderMock() {
-      return { load };
-    }
-    const flowLoaderCtor = vi.fn(FlowLoaderMock);
+  // Must use named functions — arrow functions are not constructable
+  function FlowLoaderMock() {
+    return { load };
+  }
+  const flowLoaderCtor = vi.fn(FlowLoaderMock);
 
-    function OrchestratorCommandMock() {
-      return {
-        name: "/cmd",
-        description: "desc",
-        handler: vi.fn(),
-      };
-    }
-    const orchestratorCtor = vi.fn(OrchestratorCommandMock);
-
+  function OrchestratorCommandMock() {
     return {
-      readdirMock: readdir,
-      accessMock: access,
-      flowLoaderLoadMock: load,
-      flowLoaderCtorMock: flowLoaderCtor,
-      orchestratorCtorMock: orchestratorCtor,
+      name: "/cmd",
+      description: "desc",
+      handler: vi.fn(),
     };
-  });
+  }
+  const orchestratorCtor = vi.fn(OrchestratorCommandMock);
+  const specManagerLoadSpecFile = vi.fn<() => Promise<void>>();
+
+  return {
+    readdirMock: readdir,
+    accessMock: access,
+    flowLoaderLoadMock: load,
+    flowLoaderCtorMock: flowLoaderCtor,
+    orchestratorCtorMock: orchestratorCtor,
+    specManagerLoadSpecFileMock: specManagerLoadSpecFile,
+  };
+});
 
 vi.mock("node:fs/promises", () => ({
   readdir: readdirMock,
@@ -84,7 +92,11 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     cmdRegistry,
     toolRegistry,
     supervisor: overrides.supervisor ?? ({} as InMemoryAgentSupervisor),
-    specManager: overrides.specManager ?? ({} as SpecManager),
+    specManager:
+      overrides.specManager ??
+      ({
+        loadSpecFile: specManagerLoadSpecFileMock.mockResolvedValue(undefined),
+      } as unknown as SpecManager),
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
     flowsDir: overrides.flowsDir ?? "/flows",
     knownSpecs: overrides.knownSpecs ?? new Set(),

@@ -2,9 +2,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentSpecification } from "../agents/specifications";
+import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
-import { makeMockCtx, makeMockPi, makeMockSpecManager } from "../test-utils";
+import { makeMockCtx, makeMockPi } from "../test-utils";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -12,7 +13,7 @@ import { OrchestratorCommand } from "./OrchestratorCommand";
 const hoisted = vi.hoisted(() => {
   // Plain object spec (no module imports are safe inside vi.hoisted).
   const spec = {
-    id: "orchestrator",
+    id: "implement",
     role: "orchestrator",
     systemPrompt: "# persona",
     tools: [],
@@ -36,43 +37,27 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock("../agents/factories/FlowSpecLoader", () => ({
-  FlowSpecLoader: {
-    load: vi.fn().mockResolvedValue(hoisted.spec),
-  },
-}));
-
-import { FlowSpecLoader } from "../agents/factories/FlowSpecLoader";
-
 let pi: ExtensionAPI;
+let specManager: SpecManager;
 
 beforeEach(() => {
   pi = makeMockPi();
   vi.clearAllMocks();
   hoisted.reset();
-  (FlowSpecLoader.load as ReturnType<typeof vi.fn>).mockResolvedValue(hoisted.spec);
+  specManager = {
+    resolve: vi.fn().mockReturnValue(hoisted.spec),
+  } as unknown as SpecManager;
 });
 
-function makeCmd(
-  supervisor: AgentSupervisor,
-  flow: FlowDefinition,
-  flowDir = "/fake/flow/dir",
-): OrchestratorCommand {
-  return new OrchestratorCommand(
-    supervisor as AgentSupervisor,
-    pi,
-    makeMockSpecManager(),
-    undefined,
-    flow,
-    flowDir,
-  );
+function makeCmd(supervisor: AgentSupervisor, flow: FlowDefinition): OrchestratorCommand {
+  return new OrchestratorCommand(supervisor as AgentSupervisor, pi, specManager, undefined, flow);
 }
 
 describe("OrchestratorCommand", () => {
   const baseFlow: FlowDefinition = {
     name: "test-flow",
     command: "/test",
-    orchestrator: { systemPrompt: "orchestrator.md" },
+    orchestrator: { systemPrompt: "implement" },
     routines: {},
   };
 
@@ -92,10 +77,10 @@ describe("OrchestratorCommand", () => {
     expect(cmd.description).toContain("test-flow");
   });
 
-  it("loads the spec, mounts an in-session agent, and drives the live session", async () => {
+  it("resolves the spec by name, mounts an in-session agent, and drives the live session", async () => {
     const flow: FlowDefinition = {
       ...baseFlow,
-      orchestrator: { systemPrompt: "orchestrator.md", prompt: "Do the {{prompt}}" },
+      orchestrator: { systemPrompt: "implement", prompt: "Do the {{prompt}}" },
     };
     const supervisor = makeSupervisor();
     const cmd = makeCmd(supervisor, flow);
@@ -103,7 +88,7 @@ describe("OrchestratorCommand", () => {
     const ctx = makeMockCtx();
     await cmd.handler("fix bug", ctx);
 
-    expect(FlowSpecLoader.load).toHaveBeenCalledWith(flow, "/fake/flow/dir");
+    expect(specManager.resolve).toHaveBeenCalledWith({ spec: "implement" });
     expect(supervisor.mountInSession).toHaveBeenCalledWith(hoisted.spec);
     // prompt template resolved against args
     expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "Do the fix bug");
@@ -113,7 +98,7 @@ describe("OrchestratorCommand", () => {
   it("uses fallback text when args is empty", async () => {
     const flow: FlowDefinition = {
       ...baseFlow,
-      orchestrator: { systemPrompt: "orchestrator.md", prompt: "Do the {{prompt}}" },
+      orchestrator: { systemPrompt: "implement", prompt: "Do the {{prompt}}" },
     };
     const supervisor = makeSupervisor();
     const cmd = makeCmd(supervisor, flow);
@@ -129,7 +114,7 @@ describe("OrchestratorCommand", () => {
     const flow: FlowDefinition = {
       ...baseFlow,
       orchestrator: {
-        systemPrompt: "orchestrator.md",
+        systemPrompt: "implement",
         prompt: "{{prompt}} [{{CONTEXT}}]",
         promptParams: { CONTEXT: "extra" },
       },
@@ -146,7 +131,7 @@ describe("OrchestratorCommand", () => {
   it("caches the spec and in-session agent across handler calls", async () => {
     const flow: FlowDefinition = {
       ...baseFlow,
-      orchestrator: { systemPrompt: "orchestrator.md", prompt: "{{prompt}}" },
+      orchestrator: { systemPrompt: "implement", prompt: "{{prompt}}" },
     };
     const supervisor = makeSupervisor();
     const cmd = makeCmd(supervisor, flow);
@@ -155,7 +140,7 @@ describe("OrchestratorCommand", () => {
     await cmd.handler("first", ctx);
     await cmd.handler("second", ctx);
 
-    expect(FlowSpecLoader.load).toHaveBeenCalledTimes(1);
+    expect(specManager.resolve).toHaveBeenCalledTimes(1);
     expect(supervisor.mountInSession).toHaveBeenCalledTimes(1);
     expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(1, pi, "first");

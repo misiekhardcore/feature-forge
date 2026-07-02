@@ -11,7 +11,6 @@ export {
   AgentCreationError,
   AgentFactory,
   buildPiCliArguments,
-  FlowSpecLoader,
   PiSubprocessAgentFactory,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";

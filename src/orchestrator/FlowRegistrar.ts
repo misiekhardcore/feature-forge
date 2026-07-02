@@ -106,8 +106,9 @@ export class FlowRegistrar {
     } = ctx;
 
     // Skip flows without an orchestrator markdown file.
+    const orchestratorFile = path.join(flowDir, "orchestrator.md");
     try {
-      await fs.access(path.join(flowDir, "orchestrator.md"));
+      await fs.access(orchestratorFile);
     } catch {
       return;
     }
@@ -122,6 +123,19 @@ export class FlowRegistrar {
       return;
     }
 
+    // Register the orchestrator persona as a spec in the shared registry, so
+    // `OrchestratorCommand` resolves it by name (symmetric with how flow agent
+    // steps reference sub-agent specs like "build"/"review"). The persona stays
+    // co-located with its flow but is loaded by the same `SpecLoader`. See ADR 0007.
+    try {
+      await specManager.loadSpecFile(orchestratorFile);
+    } catch (error) {
+      logger.warn(`[feature-forge] Failed to load orchestrator persona for "${flowName}"`, {
+        error,
+      });
+      return;
+    }
+
     // Construct the orchestrator command with pi (needed for the base Command
     // class and agent mounting), then register it through the CommandRegistry
     // so it follows the same registration path as all other commands.
@@ -131,7 +145,6 @@ export class FlowRegistrar {
       specManager,
       workspaceManager,
       flow,
-      flowDir,
     );
     try {
       cmdRegistry.registerInstance(orchestratorCommand);
