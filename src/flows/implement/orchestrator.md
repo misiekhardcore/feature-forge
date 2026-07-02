@@ -1,5 +1,5 @@
 ---
-id: "implement"
+id: "implement-orchestrator"
 role: "orchestrator"
 tools:
   - run_build_loop

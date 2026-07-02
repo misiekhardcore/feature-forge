@@ -69,10 +69,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     cwd: process.cwd(),
   });
   const specRegistry = new SpecRegistry();
-  const specsDir = path.join(__dirname, "agents", "declarative-specs");
-  const specLoader = new SpecLoader(specsDir);
+  const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
-  await specManager.load();
+  await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
   const supervisor = new InMemoryAgentSupervisor(factory);
   const ipcServer = new ParentSocketServer(supervisor, pi);
   const socketPath = await ipcServer.start();
@@ -132,7 +131,6 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     specManager,
     workspaceManager,
     flowsDir,
-    knownSpecs: specRegistry.specNames(),
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
   });
