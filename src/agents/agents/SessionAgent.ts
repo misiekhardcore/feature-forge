@@ -54,11 +54,11 @@ export class SessionAgent extends InSessionAgent {
    * 3. Apply the declared active tools (when any are specified).
    *
    * Transitions {@link status} from {@link AgentStatus.Spawned} to
-   * {@link AgentStatus.Mounted}.
+   * {@link AgentStatus.Running}.
    */
   public override mount(pi: ExtensionAPI, task: string): void {
     this.pi = pi;
-    this._status = AgentStatus.Mounted;
+    this._status = AgentStatus.Running;
 
     this.handler = (event) => ({
       systemPrompt:
@@ -79,7 +79,7 @@ export class SessionAgent extends InSessionAgent {
    * Deregister the `before_agent_start` hook (when the SDK supports it) and
    * end this agent's participation in the live session.
    *
-   * Transitions {@link status} from {@link AgentStatus.Mounted} to
+   * Transitions {@link status} from {@link AgentStatus.Running} to
    * {@link AgentStatus.Cancelled}.
    */
   public override async destroy(): Promise<void> {

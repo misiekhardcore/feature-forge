@@ -9,7 +9,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,7 +17,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
 import {
-  DirtyWorkingTreeError,
   WorktreeBranchExistsError,
   WorktreePathExistsError,
 } from "../src/workspace/WorkspaceError";
@@ -125,11 +124,21 @@ describe("GitWorktreeProvider (e2e)", () => {
 
   // ── Error cases ─────────────────────────────────────────────────────
 
-  it("throws DirtyWorkingTreeError when repo has uncommitted changes", async () => {
+  it("allows creation when the main repo has uncommitted changes", async () => {
     // Dirty the working tree
     writeFileSync(join(repoRoot, "README.md"), "# modified\n");
 
-    await expect(provider.createWorkspace("task-4")).rejects.toThrow(DirtyWorkingTreeError);
+    // git worktree creates from the commit, not the working tree, so a dirty
+    // main repo must NOT block creation (deliberate change in PR #44).
+    const workspacePath = await provider.createWorkspace("task-4");
+    expect(existsSync(workspacePath)).toBe(true);
+
+    // The dirty change stays in the main repo and does not leak into the worktree
+    expect(existsSync(join(workspacePath, "README.md"))).toBe(true);
+    const worktreeReadme = readFileSync(join(workspacePath, "README.md"), "utf-8");
+    expect(worktreeReadme).toBe("# test repo\n");
+
+    await provider.destroyWorkspace(workspacePath);
   });
 
   it("throws WorktreeBranchExistsError when branch already exists", async () => {
