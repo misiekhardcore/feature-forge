@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSupervisor } from "../agents";
 import { Command } from "../commands/Command";
-import { makeMockSpecManager } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { CommandRegistry } from "./CommandRegistry";
 
 class TestCommand extends Command {
@@ -27,10 +27,7 @@ describe("CommandRegistry", () => {
   let registry: CommandRegistry;
 
   beforeEach(() => {
-    mockPi = {
-      registerCommand: vi.fn(),
-      sendMessage: vi.fn(),
-    } as unknown as ExtensionAPI;
+    mockPi = makeMockPi();
 
     registry = new CommandRegistry({} as AgentSupervisor, mockPi, makeMockSpecManager());
   });

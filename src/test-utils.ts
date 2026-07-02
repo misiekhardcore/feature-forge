@@ -6,7 +6,7 @@
  * created via vi.hoisted() in each test file to avoid TDZ issues with
  * vi.mock hoisting.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
 import { SpecManager } from "./agents";
@@ -132,9 +132,6 @@ export function makeMockPi(): ExtensionAPI {
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
     on: vi.fn(),
-    // `off` is not part of the published ExtensionAPI interface, but
-    // SessionAgent probes for it defensively on destroy.
-    off: vi.fn(),
   } as unknown as ExtensionAPI;
 }
 
@@ -142,10 +139,10 @@ export function makeMockPi(): ExtensionAPI {
 // Mock ExtensionCommandContext
 // ---------------------------------------------------------------------------
 
-export function makeMockCtx(): { ui: { notify: ReturnType<typeof vi.fn> } } {
+export function makeMockCtx(): ExtensionCommandContext {
   return {
     ui: { notify: vi.fn() },
-  };
+  } as unknown as ExtensionCommandContext;
 }
 
 // ---------------------------------------------------------------------------

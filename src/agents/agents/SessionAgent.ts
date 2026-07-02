@@ -13,15 +13,6 @@ import { InSessionAgent } from "./InSessionAgent";
 type BeforeAgentStartHandler = (event: BeforeAgentStartEvent) => BeforeAgentStartEventResult;
 
 /**
- * pi may expose an `off` deregistration method at runtime even though it is
- * not part of the published {@link ExtensionAPI} interface. We probe for it
- * defensively so `destroy()` is a no-op when the SDK lacks deregistration.
- */
-type DeregisterablePi = ExtensionAPI & {
-  off?(event: "before_agent_start", handler: BeforeAgentStartHandler): void;
-};
-
-/**
  * Concrete in-session agent: an LLM persona loaded into the *current* pi
  * conversation.
  *
@@ -92,17 +83,8 @@ export class SessionAgent extends InSessionAgent {
    * {@link AgentStatus.Cancelled}.
    */
   public override async destroy(): Promise<void> {
-    if (this.pi && this.handler) {
-      const deregisterable = this.pi as DeregisterablePi;
-      if (typeof deregisterable.off === "function") {
-        try {
-          deregisterable.off("before_agent_start", this.handler);
-        } catch (error) {
-          logger.warn("Failed to deregister before_agent_start hook", { agentId: this.id, error });
-        }
-      }
-    }
     this.handler = undefined;
     this._status = AgentStatus.Cancelled;
+    logger.info(`Agent ${this.specification.id} destroyed`);
   }
 }

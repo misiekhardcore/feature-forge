@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentSpecification } from "../agents/specifications";
@@ -18,7 +18,14 @@ const hoisted = vi.hoisted(() => {
     role: "orchestrator",
     systemPrompt: "# persona",
     tools: [],
-  } as unknown as AgentSpecification;
+    excludedTools: [],
+    disableBuiltinTools: false,
+    disableContextFiles: false,
+    disableExtensions: false,
+    disablePromptTemplates: false,
+    disableSkills: false,
+    ephemeral: false,
+  } as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),
   };
@@ -94,7 +101,7 @@ describe("OrchestratorCommand", () => {
     const cmd = makeCmd(supervisor, flow);
 
     const ctx = makeMockCtx();
-    await cmd.handler("fix bug", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("fix bug", ctx);
 
     expect(FlowSpecLoader.load).toHaveBeenCalledWith(flow, "/fake/flow/dir");
     expect(supervisor.mountInSession).toHaveBeenCalledWith(hoisted.spec);
@@ -112,7 +119,7 @@ describe("OrchestratorCommand", () => {
     const cmd = makeCmd(supervisor, flow);
 
     const ctx = makeMockCtx();
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
 
     expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "Do the (no task provided)");
     expect(ctx.ui.notify).toHaveBeenCalledWith("test-flow orchestrator loaded.", "info");
@@ -131,7 +138,7 @@ describe("OrchestratorCommand", () => {
     const cmd = makeCmd(supervisor, flow);
 
     const ctx = makeMockCtx();
-    await cmd.handler("task", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("task", ctx);
 
     expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "task [extra]");
   });
@@ -145,8 +152,8 @@ describe("OrchestratorCommand", () => {
     const cmd = makeCmd(supervisor, flow);
 
     const ctx = makeMockCtx();
-    await cmd.handler("first", ctx as unknown as ExtensionCommandContext);
-    await cmd.handler("second", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("first", ctx);
+    await cmd.handler("second", ctx);
 
     expect(FlowSpecLoader.load).toHaveBeenCalledTimes(1);
     expect(supervisor.mountInSession).toHaveBeenCalledTimes(1);
