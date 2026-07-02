@@ -20,9 +20,9 @@ describe("SpecManager", () => {
       expect(result).toBe(true);
     });
 
-    it("returns false when params have a label and systemPrompt instead of spec", () => {
+    it("returns false when params have a role and systemPrompt instead of spec", () => {
       const result = SpecManager.isSpecParams({
-        label: "custom",
+        role: "custom",
         systemPrompt: "You are helpful",
         tools: ["read"],
       });

@@ -7,7 +7,7 @@
  * - Server may also push unsolicited `SocketPush` events (e.g., agent status updates).
  */
 
-import type { AgentStatus } from "../agents";
+import type { AgentSpecificationParams, AgentStatus } from "../agents";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
@@ -18,19 +18,10 @@ import type { AgentStatus } from "../agents";
  * variables, no spec name lookups. The parent creates the agent specification
  * directly from these fields.
  */
-export interface SpawnAgentParams {
-  /** Display label / role name for the spawned agent. */
-  label: string;
-  /** Resolved persona text sent as the system prompt. */
-  systemPrompt: string;
+export interface SpawnAgentParams
+  extends Omit<AgentSpecificationParams, "id">, Partial<Pick<AgentSpecificationParams, "id">> {
   /** Optional initial task the agent should execute immediately. */
   prompt?: string;
-  /** Tool names to grant the agent. */
-  tools: readonly string[];
-  /** Optional model preference (e.g. "claude-sonnet-4-5"). */
-  model?: string;
-  /** Optional working directory. */
-  cwd?: string;
 }
 
 export interface SendTaskParams {
@@ -102,7 +93,7 @@ export type SocketMessage =
 
 export type SpawnAgentResult = {
   agentId: string;
-  label: string;
+  role: string;
 };
 export type SendTaskResult = { result: string | null } | { status: "dispatched" };
 export type GetAgentResultResult = {

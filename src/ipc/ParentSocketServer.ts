@@ -5,12 +5,8 @@ import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import {
-  AgentStatus,
-  AgentSupervisor,
-  DynamicAgentSpecification,
-  isSubprocessAgent,
-} from "../agents";
+import type { SpecManager } from "../agents";
+import { AgentStatus, AgentSupervisor, isSubprocessAgent } from "../agents";
 import { logger } from "../logging";
 import {
   type SendTaskParams,
@@ -46,6 +42,7 @@ export class ParentSocketServer {
   constructor(
     private readonly supervisor: AgentSupervisor,
     private readonly pi: ExtensionAPI,
+    private readonly specManager: SpecManager,
   ) {}
 
   /**
@@ -176,18 +173,12 @@ export class ParentSocketServer {
     correlationId: string,
     params: SpawnAgentParams,
   ): Promise<void> {
-    const specification = new DynamicAgentSpecification({
-      role: params.label,
-      systemPrompt: params.systemPrompt,
-      tools: params.tools,
-      model: params.model,
-      cwd: params.cwd,
-    });
+    const specification = this.specManager.createDynamic(params);
     const agent = await this.supervisor.spawnGuest(specification);
 
     this.sendResponse(socket, correlationId, {
       agentId: agent.id,
-      label: agent.specification.role,
+      role: agent.specification.role,
     });
   }
 

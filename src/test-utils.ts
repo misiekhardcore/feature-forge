@@ -328,5 +328,23 @@ export function makeMockSpecManager() {
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),
+    createDynamic: vi.fn().mockImplementation((params) => {
+      return {
+        id: params.role,
+        role: params.role,
+        systemPrompt: params.systemPrompt,
+        tools: params.tools ?? [],
+        model: params.model,
+        cwd: params.cwd,
+        disableBuiltinTools: false,
+        disableExtensions: false,
+        disableSkills: false,
+        disablePromptTemplates: false,
+        disableContextFiles: false,
+        ephemeral: false,
+        excludedTools: [],
+        thinkingLevel: undefined,
+      } satisfies AgentSpecification;
+    }),
   } as unknown as SpecManager;
 }

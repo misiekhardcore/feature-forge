@@ -1,17 +1,17 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+import type { SpawnAgentParams } from "../ipc/messages";
 import type { SpecLoader } from "../loaders/SpecLoader";
 import type { AgentSpecification } from "./specifications/AgentSpecification";
+import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import type { SpecRegistry } from "./specifications/SpecRegistry";
 
 /**
  * Parameters for resolving a specification by named spec.
  *
  * Used internally by {@link AgentStepExecutor} and commands (e.g. ResearchCommand)
- * that look up named specs from the registry. The IPC layer no longer uses
- * this type — {@link ParentSocketServer} creates {@link DynamicAgentSpecification}
- * directly from resolved IPC {@link SpawnAgentParams}.
+ * that look up named specs from the registry.
  */
 export interface SpecResolutionParams {
   [key: string]: unknown;
@@ -27,11 +27,12 @@ export interface SpecResolutionParams {
 
 /**
  * Owns specification construction — loading declarative specs and resolving
- * named spec references into {@link AgentSpecification} instances.
+ * both named spec references and ad-hoc IPC spawn params into
+ * {@link AgentSpecification} instances.
  *
- * The IPC layer no longer depends on this class for spawning —
- * {@link ParentSocketServer} creates {@link DynamicAgentSpecification}
- * directly from resolved IPC params.
+ * This keeps all spec creation in one place so the IPC layer
+ * ({@link ParentSocketServer}) does not need to instantiate concrete
+ * specification subclasses.
  */
 export class SpecManager {
   constructor(
@@ -56,14 +57,34 @@ export class SpecManager {
    * Resolve a named spec into a fully configured specification.
    *
    * Looks up the spec name in the registry and delegates to the registered
-   * factory. For ad-hoc agents from IPC, use {@link DynamicAgentSpecification}
-   * directly.
+   * factory.
    */
   resolve(params: SpecResolutionParams): AgentSpecification {
     if (!this.registry.has(params.spec)) {
       throw new Error(`Spec '${params.spec}' not found`);
     }
     return this.registry.create(params.spec);
+  }
+
+  /**
+   * Create an ad-hoc {@link AgentSpecification} from resolved IPC params.
+   *
+   * All values are fully resolved before they reach this layer — no
+   * template variables, no spec name lookups. The returned spec is a
+   * {@link DynamicAgentSpecification}, which is tracked by the supervisor
+   * after spawning, not registered for reuse.
+   */
+  createDynamic(params: SpawnAgentParams): AgentSpecification {
+    const specParams = {
+      id: DynamicAgentSpecification.generateId({ role: params.role }),
+      role: params.role,
+      systemPrompt: params.systemPrompt,
+      tools: params.tools,
+      model: params.model,
+      cwd: params.cwd,
+    };
+
+    return new DynamicAgentSpecification(specParams);
   }
 
   /**

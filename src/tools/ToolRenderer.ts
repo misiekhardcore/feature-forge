@@ -65,7 +65,7 @@ export class ToolRenderer {
     context: { state: Record<string, unknown> },
   ) => {
     const box = shellBox(context, theme, "spawn_agent");
-    let content = header(theme, "success", `spawn_agent ${args.label}`);
+    let content = header(theme, "success", `spawn_agent ${args.role}`);
     if (args.model) {
       content += " " + theme.fg("muted", `(${args.model})`);
     }

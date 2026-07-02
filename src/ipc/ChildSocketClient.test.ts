@@ -10,7 +10,7 @@ import type { Agent } from "../agents/agents";
 import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
-import { makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
@@ -64,7 +64,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi());
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
     socketPath = await server.start();
   });
 
@@ -77,14 +77,14 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     await client.connect();
 
     const result = await client.request("spawn_agent", {
-      label: "researcher",
+      role: "researcher",
       systemPrompt: "You are a researcher",
       tools: ["read", "grep"],
     });
 
     expect(result).toMatchObject({
       agentId: expect.stringContaining("researcher"),
-      label: "researcher",
+      role: "researcher",
     });
 
     await client.disconnect();
@@ -107,7 +107,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     // First spawn an agent
     await client.connect();
     const spawnResult = await client.request("spawn_agent", {
-      label: "worker",
+      role: "worker",
       systemPrompt: "You are a worker",
       tools: ["read"],
     });
@@ -145,7 +145,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
     // Spawn first
     const spawnResult = await client.request("spawn_agent", {
-      label: "temp",
+      role: "temp",
       systemPrompt: "temp",
       tools: ["read"],
     });
@@ -172,7 +172,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
     // Spawn an agent
     const spawnResult = await client.request("spawn_agent", {
-      label: "pusher",
+      role: "pusher",
       systemPrompt: "pusher",
       tools: ["read"],
     });
@@ -220,7 +220,7 @@ describe("ChildSocketClient error handling", () => {
 
     // Request with very short timeout
     await expect(
-      client.request("spawn_agent", { label: "x", systemPrompt: "x", tools: [] }, 100),
+      client.request("spawn_agent", { role: "x", systemPrompt: "x", tools: [] }, 100),
     ).rejects.toThrow(IpcTimeoutError);
 
     silentServer.close();
