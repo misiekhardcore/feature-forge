@@ -9,7 +9,6 @@ import {
   AgentStatus,
   AgentSupervisor,
   DynamicAgentSpecification,
-  getRole,
   isSubprocessAgent,
 } from "../agents";
 import { logger } from "../logging";
@@ -257,7 +256,7 @@ export class ParentSocketServer {
   private async handleListAgents(socket: Socket, correlationId: string): Promise<void> {
     const agents = this.supervisor.getAllAgents().map((agent) => ({
       agentId: agent.id,
-      role: getRole(agent),
+      role: agent.specification.role,
       status: agent.status,
     }));
 

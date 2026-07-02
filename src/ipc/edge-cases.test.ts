@@ -31,7 +31,7 @@ function createMockAgent(overrides: Partial<SubprocessAgent> = {}): SubprocessAg
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     ...overrides,
-  } as unknown as SubprocessAgent;
+  } as SubprocessAgent;
 }
 
 function createMockSupervisor(customAgents?: Map<string, Agent>): AgentSupervisor {
@@ -212,12 +212,9 @@ describe("ParentSocketServer edge cases", () => {
       getAllAgents: vi.fn().mockReturnValue([]),
       destroyAgent: vi.fn().mockResolvedValue(undefined),
       destroyAll: vi.fn().mockResolvedValue(undefined),
-    };
+    } as AgentSupervisor;
 
-    const customServer = new ParentSocketServer(
-      customSupervisor as unknown as AgentSupervisor,
-      makeMockPi(),
-    );
+    const customServer = new ParentSocketServer(customSupervisor, makeMockPi());
     const customPath = await customServer.start();
 
     const client = connect(customPath);

@@ -31,11 +31,11 @@ describe("SessionAgent", () => {
   });
 
   describe("mount", () => {
-    it("transitions to Mounted", () => {
+    it("transitions to Running", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
       agent.mount(pi, "build the feature");
-      expect(agent.status).toBe(AgentStatus.Mounted);
+      expect(agent.status).toBe(AgentStatus.Running);
     });
 
     it("registers a before_agent_start hook appending the persona system prompt", () => {

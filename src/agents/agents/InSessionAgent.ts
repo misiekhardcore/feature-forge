@@ -1,6 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentSpecification } from "../specifications";
 import { Agent } from "./Agent";
 
 /**
@@ -14,9 +13,6 @@ import { Agent } from "./Agent";
  * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
 export abstract class InSessionAgent extends Agent {
-  /** The persona specification this agent was constructed from. */
-  public abstract readonly specification: AgentSpecification;
-
   /**
    * Inject the persona and resolved task into the live pi session.
    *
@@ -27,7 +23,7 @@ export abstract class InSessionAgent extends Agent {
    * engine's execution-context type never reaches the agent surface.
    *
    * Transitions {@link status} from {@link AgentStatus.Spawned} to
-   * {@link AgentStatus.Mounted}.
+   * {@link AgentStatus.Running}.
    */
   public abstract mount(pi: ExtensionAPI, task: string): void;
 }

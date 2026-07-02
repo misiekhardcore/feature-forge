@@ -27,7 +27,8 @@ function createMockAgent(): SubprocessAgent {
     getError: vi.fn().mockReturnValue(undefined),
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
-  } as unknown as SubprocessAgent;
+    start: vi.fn(),
+  } as SubprocessAgent;
 }
 
 function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupervisor {
