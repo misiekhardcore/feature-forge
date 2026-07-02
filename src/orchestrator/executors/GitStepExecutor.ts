@@ -37,13 +37,28 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       cwd: resolvedCwd,
     });
 
+    let raw: string;
     try {
-      let raw: string;
       if (instruction.action === "add-and-commit") {
         const message =
           instruction.message !== undefined
             ? context.resolve(instruction.message)
             : "feature-forge: automated changes";
+        // NOTE: add-and-commit failures are deliberately **re-thrown** rather
+        // than captured as a soft `passed:false` result. This asymmetry is
+        // intentional and documented in ADR 0008:
+        //   - `add-and-commit` is the precondition for every subsequent step
+        //     in `open_pr` (`push-current`, the `gh` step). If the commit
+        //     never landed, pushing the branch would publish an empty/stale
+        //     tree and `gh pr create` would open a misleading PR. A hard
+        //     throw here lets {@link RoutineExecutor} abort the whole
+        //     routine *before* those follow-up steps run.
+        //   - `push-current`, by contrast, stays soft: a failed push may be
+        //     retryable / network-related, and reporting it as
+        //     `passed:false` keeps the `gh` step from crashing the routine
+        //     on transient remote errors (the catch-block below still
+        //     records the failure in the result for the orchestrator to
+        //     surface).
         await GitStepExecutor.addAndCommit(resolvedCwd, this.timeout, message);
         raw = JSON.stringify({ action: instruction.action, cwd: resolvedCwd, message });
       } else {
@@ -72,6 +87,12 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         cwd: resolvedCwd,
         error: err,
       });
+
+      // add-and-commit is a hard failure — never soft-capture it. See the
+      // JSDoc above and ADR 0008.
+      if (instruction.action === "add-and-commit") {
+        throw err;
+      }
 
       const result: InstructionResult = {
         raw: err.message,
