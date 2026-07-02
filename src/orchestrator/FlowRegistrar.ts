@@ -27,7 +27,6 @@ export class FlowRegistrar {
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
       flowsDir: string;
-      knownSpecs: ReadonlySet<string>;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
     },
@@ -46,7 +45,6 @@ export class FlowRegistrar {
       specManager,
       workspaceManager,
       flowsDir,
-      knownSpecs,
       knownProviders,
       stepExecutorRegistry,
     } = this.params;
@@ -62,7 +60,6 @@ export class FlowRegistrar {
         supervisor,
         specManager,
         workspaceManager,
-        knownSpecs,
         knownProviders,
         stepExecutorRegistry,
       });
@@ -88,7 +85,6 @@ export class FlowRegistrar {
       supervisor: InMemoryAgentSupervisor;
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
-      knownSpecs: ReadonlySet<string>;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
     },
@@ -100,7 +96,6 @@ export class FlowRegistrar {
       supervisor,
       specManager,
       workspaceManager,
-      knownSpecs,
       knownProviders,
       stepExecutorRegistry,
     } = ctx;
@@ -109,30 +104,34 @@ export class FlowRegistrar {
     const orchestratorFile = path.join(flowDir, "orchestrator.md");
     try {
       await fs.access(orchestratorFile);
-    } catch {
+    } catch (error) {
+      logger.warn(`[feature-forge] Failed to load orchestrator persona for "${flowName}"`, {
+        error,
+      });
       return;
     }
 
-    // Load and validate the flow definition.
+    // Register the orchestrator persona as a spec in the shared registry before
+    // loading the flow definition, so the spec name participates in FlowLoader's
+    // semantic validation. The persona stays co-located with its flow but is
+    // loaded by the same `SpecLoader`. See ADR 0007.
+    try {
+      await specManager.loadFromDirectory(flowDir);
+    } catch (error) {
+      logger.warn(`[feature-forge] Failed to load orchestrator persona for "${flowName}"`, {
+        error,
+      });
+      return;
+    }
+
+    // Load and validate the flow definition with an up-to-date spec snapshot.
+    const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader(flowDir, knownSpecs, knownProviders);
     let flow;
     try {
       flow = await flowLoader.load("flow");
     } catch (error) {
       logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, { error });
-      return;
-    }
-
-    // Register the orchestrator persona as a spec in the shared registry, so
-    // `OrchestratorCommand` resolves it by name (symmetric with how flow agent
-    // steps reference sub-agent specs like "build"/"review"). The persona stays
-    // co-located with its flow but is loaded by the same `SpecLoader`. See ADR 0007.
-    try {
-      await specManager.loadSpecFile(orchestratorFile);
-    } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator persona for "${flowName}"`, {
-        error,
-      });
       return;
     }
 

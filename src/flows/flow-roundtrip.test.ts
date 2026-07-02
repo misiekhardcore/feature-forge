@@ -21,6 +21,8 @@ import * as path from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { SpecRegistry } from "../agents/specifications/SpecRegistry";
+import { SpecManager } from "../agents/SpecManager";
 import { SpecLoader } from "../loaders/SpecLoader";
 import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
 import { FlowContext } from "../orchestrator/FlowContext";
@@ -139,21 +141,19 @@ describe("flow round-trip", () => {
 
   // Load known spec names once for the whole suite.
   let knownSpecs!: ReadonlySet<string>;
+  let loader!: FlowLoader;
+  let flow!: FlowDefinition;
 
   beforeAll(async () => {
-    const specLoader = new SpecLoader(specsDir);
-    const factories = await specLoader.loadAll();
-    knownSpecs = new Set(factories.keys());
-  });
+    const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
+    await specManager.loadFromDirectory(specsDir);
+    knownSpecs = specManager.specNames();
 
-  // Load the single shipped flow. When more flows are added,
-  // this iterates all .json files excluding flow-schema.json.
-  // Using a single describe block per flow gives clean failure
-  // output with the flow name in the describe header.
-  const loader = new FlowLoader(flowsDir, knownSpecs);
-
-  let flow: FlowDefinition;
-  beforeAll(async () => {
+    // Load the single shipped flow. When more flows are added,
+    // this iterates all .json files excluding flow-schema.json.
+    // Using a single describe block per flow gives clean failure
+    // output with the flow name in the describe header.
+    loader = new FlowLoader(flowsDir, knownSpecs);
     flow = await loader.load("flow");
   });
 

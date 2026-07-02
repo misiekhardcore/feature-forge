@@ -7,13 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SpecRegistry } from "../agents/specifications/SpecRegistry";
 import { SpecLoader } from "./SpecLoader";
 
-async function registerAll(loader: SpecLoader, registry: SpecRegistry): Promise<void> {
-  const factoryMap = await loader.loadAll();
-  for (const [name, factory] of factoryMap) {
-    registry.register(name, factory);
-  }
-}
-
 describe("SpecLoader", () => {
   let tempDir: string;
   let loader: SpecLoader;
@@ -21,7 +14,7 @@ describe("SpecLoader", () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(join(tmpdir(), "spec-loader-test-"));
-    loader = new SpecLoader(tempDir);
+    loader = new SpecLoader();
     registry = new SpecRegistry();
   });
 
@@ -29,8 +22,9 @@ describe("SpecLoader", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  describe("loadAll", () => {
+  describe("load", () => {
     it("loads a spec file and registers it under its frontmatter id", async () => {
+      const filepath = join(tempDir, "test.md");
       const specContent = `---
 id: "test"
 role: "test"
@@ -39,9 +33,10 @@ ephemeral: true
 ---
 # Test Agent
 `;
-      await fs.writeFile(join(tempDir, "test.md"), specContent);
+      await fs.writeFile(filepath, specContent);
 
-      await registerAll(loader, registry);
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
 
       expect(registry.specNames()).toContain("test");
 
@@ -55,6 +50,7 @@ ephemeral: true
     });
 
     it("registers under the frontmatter id, not the filename stem", async () => {
+      const filepath = join(tempDir, "persona.md");
       const specContent = `---
 id: "implement"
 role: "orchestrator"
@@ -65,9 +61,10 @@ tools:
 # Implement Orchestrator
 `;
       // Filename stem ("persona") deliberately differs from id ("implement").
-      await fs.writeFile(join(tempDir, "persona.md"), specContent);
+      await fs.writeFile(filepath, specContent);
 
-      await registerAll(loader, registry);
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
 
       expect(registry.specNames()).toContain("implement");
       expect(registry.specNames()).not.toContain("persona");
@@ -77,8 +74,9 @@ tools:
     });
 
     it("loads multiple spec files", async () => {
+      const buildPath = join(tempDir, "build.md");
       await fs.writeFile(
-        join(tempDir, "build.md"),
+        buildPath,
         `---
 id: "build"
 role: "build"
@@ -88,8 +86,9 @@ ephemeral: true
 # Build Agent
 `,
       );
+      const reviewPath = join(tempDir, "review.md");
       await fs.writeFile(
-        join(tempDir, "review.md"),
+        reviewPath,
         `---
 id: "review"
 role: "review"
@@ -100,7 +99,10 @@ ephemeral: true
 `,
       );
 
-      await registerAll(loader, registry);
+      const buildParsed = await loader.load(buildPath);
+      const reviewParsed = await loader.load(reviewPath);
+      registry.register(buildParsed.name, buildParsed.factory);
+      registry.register(reviewParsed.name, reviewParsed.factory);
 
       expect(registry.specNames()).toContain("build");
       expect(registry.specNames()).toContain("review");
@@ -110,8 +112,9 @@ ephemeral: true
     });
 
     it("throws when required metadata (id/role) is missing", async () => {
+      const filepath = join(tempDir, "invalid.md");
       await fs.writeFile(
-        join(tempDir, "invalid.md"),
+        filepath,
         `---
 spec: "test"
 ---
@@ -119,12 +122,13 @@ spec: "test"
 `,
       );
 
-      await expect(loader.loadAll()).rejects.toThrow("id and role are required");
+      await expect(loader.load(filepath)).rejects.toThrow("id and role are required");
     });
 
     it("throws for an unknown tool preset", async () => {
+      const filepath = join(tempDir, "bad.md");
       await fs.writeFile(
-        join(tempDir, "bad.md"),
+        filepath,
         `---
 id: "bad"
 role: "bad"
@@ -134,12 +138,13 @@ toolPreset: "nonexistent"
 `,
       );
 
-      await expect(loader.loadAll()).rejects.toThrow("Unknown tool preset");
+      await expect(loader.load(filepath)).rejects.toThrow("Unknown tool preset");
     });
 
     it("throws when both toolPreset and tools are declared", async () => {
+      const filepath = join(tempDir, "both.md");
       await fs.writeFile(
-        join(tempDir, "both.md"),
+        filepath,
         `---
 id: "both"
 role: "both"
@@ -151,12 +156,15 @@ tools:
 `,
       );
 
-      await expect(loader.loadAll()).rejects.toThrow("declare only one of toolPreset or tools");
+      await expect(loader.load(filepath)).rejects.toThrow(
+        "declare only one of toolPreset or tools",
+      );
     });
 
     it("throws when neither toolPreset nor tools are declared", async () => {
+      const filepath = join(tempDir, "neither.md");
       await fs.writeFile(
-        join(tempDir, "neither.md"),
+        filepath,
         `---
 id: "neither"
 role: "neither"
@@ -165,7 +173,7 @@ role: "neither"
 `,
       );
 
-      await expect(loader.loadAll()).rejects.toThrow("toolPreset or tools is required");
+      await expect(loader.load(filepath)).rejects.toThrow("toolPreset or tools is required");
     });
 
     it("resolves every named tool preset", async () => {
@@ -193,15 +201,16 @@ toolPreset: "${preset}"
         );
       }
 
-      await registerAll(loader, registry);
+      for (const { name } of presets) {
+        const parsed = await loader.load(join(tempDir, `${name}.md`));
+        registry.register(parsed.name, parsed.factory);
+      }
 
       for (const { name, expected } of presets) {
         expect(registry.create(name).tools).toEqual(expected);
       }
     });
-  });
 
-  describe("loadSpecFile", () => {
     it("loads a single spec file by absolute path", async () => {
       const filepath = join(tempDir, "orchestrator.md");
       await fs.writeFile(
@@ -218,7 +227,7 @@ tools:
 `,
       );
 
-      const parsed = await loader.loadSpecFile(filepath);
+      const parsed = await loader.load(filepath);
 
       expect(parsed.name).toBe("implement");
       registry.register(parsed.name, parsed.factory);
@@ -241,7 +250,7 @@ toolPreset: "fullAccess"
 `,
       );
 
-      await expect(loader.loadSpecFile(filepath)).rejects.toThrow(/broken\.md/);
+      await expect(loader.load(filepath)).rejects.toThrow(/broken\.md/);
     });
   });
 });

@@ -39,7 +39,7 @@ describe("ResearchCommand", () => {
           ephemeral: true,
         }),
     );
-    const specManager = new SpecManager(registry, new SpecLoader("/nonexistent"));
+    const specManager = new SpecManager(registry, new SpecLoader());
     cmd = new ResearchCommand(supervisor, pi, specManager);
     ctx = makeMockCtx();
   });
