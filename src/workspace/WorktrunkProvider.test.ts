@@ -87,7 +87,7 @@ vi.mock("node:fs", async () => {
   };
 });
 
-import { WorktreeBranchExistsError } from "./WorkspaceError";
+import { WorkspaceError, WorktreeBranchExistsError } from "./WorkspaceError";
 import { WorkspaceProvider } from "./WorkspaceProvider";
 import { WorktrunkProvider } from "./WorktrunkProvider";
 
@@ -120,6 +120,16 @@ describe("WorktrunkProvider", () => {
 
     it("accepts a custom repoRoot", () => {
       expect(provider.repoRoot).toBe(repoRoot);
+    });
+
+    it("defaults baseRef to '@' (the current branch / HEAD)", () => {
+      const p = new WorktrunkProvider();
+      expect(p.baseRef).toBe("@");
+    });
+
+    it("accepts a custom baseRef", () => {
+      const p = new WorktrunkProvider(repoRoot, "develop");
+      expect(p.baseRef).toBe("develop");
     });
 
     it("extends WorkspaceProvider", () => {
@@ -155,25 +165,35 @@ describe("WorktrunkProvider", () => {
   // ── createWorkspace ──────────────────────────────────────────────────
 
   describe("createWorkspace", () => {
-    it("runs wt switch -c and parses path after @ from stdout", async () => {
+    const fullWtArgs = ["switch", "-c", branchName, "--base", "@"];
+
+    it("runs wt switch -c with --base @ by default and parses path after @", async () => {
       branchCheckPasses();
       const wtResultPath = "/tmp/wt-worktrees/task-1";
+      mocks.addExistingPath(wtResultPath);
       mocks.willSucceed(
         "wt",
-        ["switch", "-c", branchName],
+        fullWtArgs,
         `✓ Created branch ${branchName} from main and worktree @ ${wtResultPath}`,
       );
 
       const path = await provider.createWorkspace("task-1");
       expect(path).toBe(wtResultPath);
+      expect(mocks.execFile).toHaveBeenCalledWith(
+        "wt",
+        fullWtArgs,
+        expect.any(Object),
+        expect.any(Function),
+      );
     });
 
     it("derives branch name from workspace id", async () => {
       mocks.willSucceed("git", ["branch", "--list", "forge/task-2"], "");
       const wtResultPath = "/tmp/wt-worktrees/task-2";
+      mocks.addExistingPath(wtResultPath);
       mocks.willSucceed(
         "wt",
-        ["switch", "-c", "forge/task-2"],
+        ["switch", "-c", "forge/task-2", "--base", "@"],
         `✓ Created branch forge/task-2 from main and worktree @ ${wtResultPath}`,
       );
 
@@ -181,30 +201,53 @@ describe("WorktrunkProvider", () => {
       expect(path).toBe(wtResultPath);
     });
 
+    it("passes a custom baseRef to wt switch -c via --base", async () => {
+      const customProvider = new WorktrunkProvider(repoRoot, "develop");
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      const wtResultPath = "/tmp/wt-worktrees/task-1";
+      mocks.addExistingPath(wtResultPath);
+      mocks.willSucceed(
+        "wt",
+        ["switch", "-c", branchName, "--base", "develop"],
+        `✓ Created branch ${branchName} from develop and worktree @ ${wtResultPath}`,
+      );
+
+      const path = await customProvider.createWorkspace("task-1");
+      expect(path).toBe(wtResultPath);
+      expect(mocks.execFile).toHaveBeenCalledWith(
+        "wt",
+        ["switch", "-c", branchName, "--base", "develop"],
+        expect.any(Object),
+        expect.any(Function),
+      );
+    });
+
     it("throws when wt returns empty output", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willSucceed("wt", ["switch", "-c", branchName], "");
+      mocks.willSucceed("wt", fullWtArgs, "");
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(
         "Command produced no output",
       );
     });
 
-    it("handles @ at end of line as fallback to whole line", async () => {
+    it("throws WorkspaceError when output has no 'worktree @' line", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willSucceed("wt", ["switch", "-c", branchName], "Some message ending with @");
+      mocks.willSucceed("wt", fullWtArgs, "Some message ending with @ but no worktree marker");
 
-      // No " @ " delimiter (no space after @), so falls back to whole line.
-      const path = await provider.createWorkspace("task-1");
-      expect(path).toBe("Some message ending with @");
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorkspaceError);
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(
+        "did not contain a 'worktree @ <path>' line",
+      );
     });
 
     it("parses path after @ from multiline wt output", async () => {
       branchCheckPasses();
       const wtResultPath = "/home/user/projects/.forge/wt-12345";
+      mocks.addExistingPath(wtResultPath);
       mocks.willSucceed(
         "wt",
-        ["switch", "-c", branchName],
+        fullWtArgs,
         `Setting up branch ${branchName}\n✓ Created branch ${branchName} from main and worktree @ ${wtResultPath}`,
       );
 
@@ -214,24 +257,42 @@ describe("WorktrunkProvider", () => {
 
     it("expands tilde in wt path to home directory", async () => {
       branchCheckPasses();
+      const { homedir } = await import("node:os");
+      const expandedPath = `${homedir()}/Projects/feature-forge.task-1`;
+      mocks.addExistingPath(expandedPath);
       mocks.willSucceed(
         "wt",
-        ["switch", "-c", branchName],
+        fullWtArgs,
         `✓ Created branch ${branchName} from main and worktree @ ~/Projects/feature-forge.task-1`,
       );
 
       const path = await provider.createWorkspace("task-1");
-      const { homedir } = await import("node:os");
-      expect(path).toBe(`${homedir()}/Projects/feature-forge.task-1`);
+      expect(path).toBe(expandedPath);
     });
 
-    it("falls back to whole last line when no @ delimiter found", async () => {
+    it("throws WorkspaceError when the whole last line lacks the worktree marker", async () => {
       branchCheckPasses();
       const fallbackPath = "/some/provider/output/path";
-      mocks.willSucceed("wt", ["switch", "-c", branchName], fallbackPath);
+      mocks.willSucceed("wt", fullWtArgs, fallbackPath);
 
-      const path = await provider.createWorkspace("task-1");
-      expect(path).toBe(fallbackPath);
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorkspaceError);
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(
+        "did not contain a 'worktree @ <path>' line",
+      );
+    });
+
+    it("throws WorkspaceError when the parsed worktree path does not exist on disk", async () => {
+      branchCheckPasses();
+      const missingPath = "/nonexistent/wt-worktree/task-1";
+      // NOTE: deliberately NOT calling mocks.addExistingPath(missingPath).
+      mocks.willSucceed(
+        "wt",
+        fullWtArgs,
+        `✓ Created branch ${branchName} from main and worktree @ ${missingPath}`,
+      );
+
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow(WorkspaceError);
+      await expect(provider.createWorkspace("task-1")).rejects.toThrow("does not exist on disk");
     });
 
     it("throws WorktreeBranchExistsError when branch already exists", async () => {
@@ -242,7 +303,7 @@ describe("WorktrunkProvider", () => {
 
     it("wraps execCommand failures in WorkspaceError", async () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
-      mocks.willFail("wt", ["switch", "-c", branchName], "fatal: wt switch failed");
+      mocks.willFail("wt", fullWtArgs, "fatal: wt switch failed");
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow("Command failed: wt");
     });
