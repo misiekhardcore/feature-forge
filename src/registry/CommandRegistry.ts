@@ -52,6 +52,29 @@ export class CommandRegistry extends Registry<Command> {
     return command;
   }
 
+  /**
+   * Register a pre-constructed {@link Command} instance directly.
+   *
+   * Use this for commands that need constructor-injected dependencies
+   * beyond the standard {@link CommandConstructor} signature, such as
+   * {@link OrchestratorCommand} which requires flow data.
+   *
+   * @throws If a command with the same name is already registered.
+   */
+  registerInstance(command: Command): Command {
+    if (this.items.has(command.name)) {
+      throw new Error(`Command already registered: ${command.name}`);
+    }
+    this.set(command.name, command);
+
+    this.pi.registerCommand(command.name, {
+      ...command,
+      handler: (args: string, ctx: ExtensionCommandContext) => command.handler(args, ctx),
+    });
+
+    return command;
+  }
+
   registerAll(...constructors: CommandConstructor[]): Command[] {
     return constructors.map((constructor) => this.register(constructor));
   }

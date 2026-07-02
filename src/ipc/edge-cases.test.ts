@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
+import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi, makeMockSpecManager } from "../test-utils";
@@ -11,14 +12,14 @@ import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";
 
-function createMockAgent(overrides: Partial<Agent> = {}): Agent {
+function createMockAgent(overrides: Partial<SubprocessAgent> = {}): SubprocessAgent {
   const id = "test-agent";
   return {
     id,
     specification: {
       role: "test",
       systemPrompt: "",
-      toolNames: ["read"],
+      tools: ["read"],
       id,
     } as never,
     status: AgentStatus.Running,
@@ -30,13 +31,13 @@ function createMockAgent(overrides: Partial<Agent> = {}): Agent {
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     ...overrides,
-  };
+  } as SubprocessAgent;
 }
 
 function createMockSupervisor(customAgents?: Map<string, Agent>): AgentSupervisor {
   const agents = customAgents ?? new Map<string, Agent>();
   return {
-    spawn: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
+    spawnGuest: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
       const id = specification.id;
       const existing = agents.get(id);
       if (existing) {
@@ -47,6 +48,7 @@ function createMockSupervisor(customAgents?: Map<string, Agent>): AgentSuperviso
       agents.set(id, agent);
       return Promise.resolve(agent);
     }),
+    mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
     getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
@@ -118,17 +120,17 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "g1",
-        params: { role: "worker", systemPrompt: "x", toolNames: ["read"] },
+        params: { role: "worker", systemPrompt: "x", tools: ["read"] },
       }) + "\n",
     );
-    await read(client);
+    const spawnResponse = (await read(client)) as { result: { agentId: string } };
 
-    // Get result
+    // Get result using the actual agentId from the spawn response
     client.write(
       JSON.stringify({
         type: "get_agent_result",
         correlationId: "g2",
-        params: { agentId: "worker" },
+        params: { agentId: spawnResponse.result.agentId },
       }) + "\n",
     );
 
@@ -151,10 +153,10 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "s1",
-        params: { role: "pusher", systemPrompt: "x", toolNames: ["read"] },
+        params: { role: "pusher", systemPrompt: "x", tools: ["read"] },
       }) + "\n",
     );
-    await read(client);
+    const spawnResponse = (await read(client)) as { result: { agentId: string } };
 
     // Fire-and-forget task
     client.write(
@@ -162,8 +164,8 @@ describe("ParentSocketServer edge cases", () => {
         type: "send_task",
         correlationId: "s2",
         params: {
-          agentId: "pusher",
-          task: "background work",
+          agentId: spawnResponse.result.agentId,
+          prompt: "background work",
           await: false,
         },
       }) + "\n",
@@ -194,13 +196,24 @@ describe("ParentSocketServer edge cases", () => {
   });
 
   it("covers fire-and-forget push on task failure", async () => {
-    const agents = new Map<string, Agent>();
     const failingAgent = createMockAgent({
       executeTask: vi.fn().mockRejectedValue(new Error("task failed")),
     });
-    agents.set("failer", failingAgent);
 
-    const customSupervisor = createMockSupervisor(agents);
+    // Custom supervisor that always returns the failing agent for "failer" role
+    const customSupervisor = {
+      spawnGuest: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
+        Object.defineProperty(failingAgent, "id", { value: specification.id });
+        return failingAgent;
+      }),
+      mountInSession: vi.fn().mockResolvedValue(undefined),
+      runAgent: vi.fn().mockResolvedValue(undefined),
+      getAgent: vi.fn().mockReturnValue(failingAgent),
+      getAllAgents: vi.fn().mockReturnValue([]),
+      destroyAgent: vi.fn().mockResolvedValue(undefined),
+      destroyAll: vi.fn().mockResolvedValue(undefined),
+    } as AgentSupervisor;
+
     const customServer = new ParentSocketServer(
       customSupervisor,
       makeMockPi(),
@@ -215,18 +228,18 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "f1",
-        params: { role: "failer", systemPrompt: "x", toolNames: ["read"] },
+        params: { role: "failer", systemPrompt: "x", tools: ["read"] },
       }) + "\n",
     );
-    await read(client);
+    const spawnResponse = (await read(client)) as { result: { agentId: string } };
 
     client.write(
       JSON.stringify({
         type: "send_task",
         correlationId: "f2",
         params: {
-          agentId: "failer",
-          task: "will fail",
+          agentId: spawnResponse.result.agentId,
+          prompt: "will fail",
           await: false,
         },
       }) + "\n",

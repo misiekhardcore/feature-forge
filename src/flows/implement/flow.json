@@ -1,0 +1,89 @@
+{
+  "name": "implement",
+  "command": "/implement",
+  "orchestrator": {
+    "systemPrompt": "implement-orchestrator",
+    "prompt": "{{prompt}}",
+    "promptParams": { "TASK": "{{prompt}}" }
+  },
+  "routines": {
+    "run_build_loop": {
+      "params": [
+        { "name": "task", "description": "The task description" },
+        { "name": "plan", "description": "The implementation plan" }
+      ],
+      "steps": [
+        {
+          "type": "workspace",
+          "id": "ws",
+          "provider": "git-worktree"
+        },
+        {
+          "type": "loop",
+          "id": "build_loop",
+          "maxIterations": 5,
+          "continueWhile": "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
+          "accumulateFrom": ["review", "verify"],
+          "steps": [
+            {
+              "type": "agent",
+              "id": "builder",
+              "systemPrompt": "build",
+              "workingDir": { "workspace": "ws" },
+              "parseJson": true,
+              "promptParams": {
+                "TASK": "{{prompt}}",
+                "PLAN": "{{plan}}",
+                "FEEDBACK": "{{feedback}}",
+                "WORKSPACE": "{{workspace.ws}}"
+              },
+              "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace.ws}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass."
+            },
+            {
+              "type": "parallel",
+              "id": "inspect",
+              "steps": [
+                {
+                  "type": "agent",
+                  "id": "review",
+                  "systemPrompt": "review",
+                  "workingDir": { "workspace": "ws" },
+                  "parseJson": true,
+                  "prompt": "Review the code changes against:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
+                },
+                {
+                  "type": "agent",
+                  "id": "verify",
+                  "systemPrompt": "verify",
+                  "workingDir": { "workspace": "ws" },
+                  "parseJson": true,
+                  "prompt": "Verify acceptance criteria:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "open_pr": {
+      "params": [
+        { "name": "workspace", "description": "Worktree path from run_build_loop result" },
+        { "name": "title", "description": "PR title" }
+      ],
+      "steps": [
+        { "type": "git", "id": "commit", "action": "add-and-commit", "cwd": "{{workspace}}" },
+        { "type": "git", "id": "branch", "action": "push-current", "cwd": "{{workspace}}" },
+        {
+          "type": "shell",
+          "id": "pr",
+          "command": "gh pr create --title \"{{title}}\" --body \"See session summary\"",
+          "cwd": "{{workspace}}"
+        }
+      ]
+    },
+    "destroy_workspace": {
+      "params": [{ "name": "workspace", "description": "Worktree path to release" }],
+      "steps": [{ "type": "cleanup", "id": "cleanup", "of": "{{workspace}}" }]
+    }
+  }
+}

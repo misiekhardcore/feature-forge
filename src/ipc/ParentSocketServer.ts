@@ -5,8 +5,8 @@ import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { AgentStatus, AgentSupervisor } from "../agents";
-import type { SpecManager } from "../agents/SpecManager";
+import type { SpecManager } from "../agents";
+import { AgentStatus, AgentSupervisor, isSubprocessAgent } from "../agents";
 import { logger } from "../logging";
 import {
   type SendTaskParams,
@@ -173,8 +173,8 @@ export class ParentSocketServer {
     correlationId: string,
     params: SpawnAgentParams,
   ): Promise<void> {
-    const specification = this.specManager.resolve(params);
-    const agent = await this.supervisor.spawn(specification);
+    const specification = this.specManager.createDynamic(params);
+    const agent = await this.supervisor.spawnGuest(specification);
 
     this.sendResponse(socket, correlationId, {
       agentId: agent.id,
@@ -193,10 +193,15 @@ export class ParentSocketServer {
       return;
     }
 
+    if (!isSubprocessAgent(agent)) {
+      this.sendError(socket, correlationId, `Agent not a subprocess agent: ${params.agentId}`);
+      return;
+    }
+
     if (params.await) {
       try {
         // Block until the agent completes
-        const result = await agent.executeTask(params.task, { timeout: params.timeout });
+        const result = await agent.executeTask(params.prompt, { timeout: params.timeout });
         this.sendResponse(socket, correlationId, { result });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -207,7 +212,7 @@ export class ParentSocketServer {
       this.sendResponse(socket, correlationId, { status: "dispatched" });
 
       // Execute in background and push result when done
-      agent.executeTask(params.task, { timeout: params.timeout }).then(
+      agent.executeTask(params.prompt, { timeout: params.timeout }).then(
         (result) => {
           this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
         },
@@ -232,7 +237,10 @@ export class ParentSocketServer {
 
     this.sendResponse(socket, correlationId, {
       status: agent.status,
-      result: agent.status === AgentStatus.Completed ? agent.getResult() : null,
+      result:
+        agent.status === AgentStatus.Completed && isSubprocessAgent(agent)
+          ? agent.getResult()
+          : null,
     });
   }
 

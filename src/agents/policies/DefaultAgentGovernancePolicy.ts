@@ -16,7 +16,7 @@ export class DefaultAgentGovernancePolicy extends AgentGovernancePolicy {
   public override async resolvePermissions(
     specification: AgentSpecification,
   ): Promise<AgentPermissions> {
-    const allowedTools = specification.toolNames.length > 0 ? specification.toolNames : null;
+    const allowedTools = specification.tools.length > 0 ? specification.tools : null;
 
     return new AgentPermissions({
       allowedTools,

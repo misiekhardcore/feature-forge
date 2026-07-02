@@ -9,7 +9,7 @@ describe("SpawnAgentTool", () => {
     expect(tool.name).toBe("spawn_agent");
   });
 
-  it("has a label", () => {
+  it("has a role", () => {
     const tool = new SpawnAgentTool(null);
     expect(tool.label).toBe("Spawn Agent");
   });
@@ -30,7 +30,7 @@ describe("SpawnAgentTool", () => {
       const result = await tool.execute("call-1", {
         role: "researcher",
         systemPrompt: "test",
-        toolNames: ["read"],
+        tools: ["read"],
       });
       expect(result).toEqual({
         content: [
@@ -56,13 +56,13 @@ describe("SpawnAgentTool", () => {
       const result = await tool.execute("call-1", {
         role: "researcher",
         systemPrompt: "You are a researcher",
-        toolNames: ["read", "bash"],
+        tools: ["read", "bash"],
       });
 
       expect(client.request).toHaveBeenCalledWith("spawn_agent", {
         role: "researcher",
         systemPrompt: "You are a researcher",
-        toolNames: ["read", "bash"],
+        tools: ["read", "bash"],
       });
       expect(result).toEqual({
         content: [
@@ -75,19 +75,21 @@ describe("SpawnAgentTool", () => {
       });
     });
 
-    it("forwards spec and specParams to the IPC client", async () => {
-      client.request.mockResolvedValue({ agentId: "build-1", spec: "build" });
+    it("forwards optional prompt to the IPC client", async () => {
+      client.request.mockResolvedValue({ agentId: "build-1", role: "build" });
 
       await tool.execute("call-2", {
-        toolNames: ["read"],
-        spec: "build",
-        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/w" },
+        role: "build",
+        systemPrompt: "You are a builder",
+        tools: ["read"],
+        prompt: "Add auth feature",
       });
 
       expect(client.request).toHaveBeenCalledWith("spawn_agent", {
-        toolNames: ["read"],
-        spec: "build",
-        specParams: { TASK: "Add auth", WORKSPACE: "/tmp/w" },
+        role: "build",
+        systemPrompt: "You are a builder",
+        tools: ["read"],
+        prompt: "Add auth feature",
       });
     });
 
@@ -97,7 +99,7 @@ describe("SpawnAgentTool", () => {
       const result = await tool.execute("call-1", {
         role: "researcher",
         systemPrompt: "test",
-        toolNames: [],
+        tools: [],
       });
 
       expect(result).toEqual({
@@ -112,7 +114,7 @@ describe("SpawnAgentTool", () => {
       const result = await tool.execute("call-1", {
         role: "researcher",
         systemPrompt: "test",
-        toolNames: [],
+        tools: [],
       });
 
       expect(result).toEqual({

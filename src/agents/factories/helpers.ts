@@ -11,11 +11,11 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
   const args: string[] = [];
 
   // --- Tools ---
-  if (specification.toolNames.length > 0) {
-    args.push("--tools", specification.toolNames.join(","));
+  if (specification.tools.length > 0) {
+    args.push("--tools", specification.tools.join(","));
   }
-  if (specification.excludeToolNames.length > 0) {
-    args.push("--exclude-tools", specification.excludeToolNames.join(","));
+  if (specification.excludedTools.length > 0) {
+    args.push("--exclude-tools", specification.excludedTools.join(","));
   }
   if (specification.disableBuiltinTools) {
     args.push("--no-builtin-tools");
@@ -38,6 +38,11 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
   }
   if (specification.disableContextFiles) {
     args.push("--no-context-files");
+  }
+
+  // --- System prompt ---
+  if (specification.systemPrompt) {
+    args.push("--system-prompt", specification.systemPrompt);
   }
 
   // --- Session ---

@@ -1,7 +1,6 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeMockFactory, makeSpec, MockAgent } from "../../test-utils";
+import { makeMockFactory, makeMockPi, makeSpec, MockAgent } from "../../test-utils";
 import { AgentCreationError, AgentFactory } from "../factories/AgentFactory";
 import { AgentSpecification } from "../specifications/AgentSpecification";
 import { InMemoryAgentSupervisor } from "./InMemoryAgentSupervisor";
@@ -18,7 +17,7 @@ describe("InMemoryAgentSupervisor", () => {
   describe("spawn", () => {
     it("creates an agent via the factory and tracks it", async () => {
       const spec = makeSpec("agent-1");
-      const agent = await supervisor.spawn(spec);
+      const agent = await supervisor.spawnGuest(spec);
       expect(agent.id).toBe("agent-1");
       expect(factory.create).toHaveBeenCalledWith(spec);
     });
@@ -27,7 +26,7 @@ describe("InMemoryAgentSupervisor", () => {
       (factory.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new AgentCreationError("bad", "nope"),
       );
-      await expect(supervisor.spawn(makeSpec("bad"))).rejects.toThrow(AgentCreationError);
+      await expect(supervisor.spawnGuest(makeSpec("bad"))).rejects.toThrow(AgentCreationError);
     });
   });
 
@@ -38,7 +37,7 @@ describe("InMemoryAgentSupervisor", () => {
 
     it("returns agent by string id", async () => {
       const spec = makeSpec("my-agent");
-      const agent = await supervisor.spawn(spec);
+      const agent = await supervisor.spawnGuest(spec);
       expect(supervisor.getAgent("my-agent")).toBe(agent);
     });
   });
@@ -49,8 +48,8 @@ describe("InMemoryAgentSupervisor", () => {
     });
 
     it("returns all spawned agents", async () => {
-      const a1 = await supervisor.spawn(makeSpec("a1"));
-      const a2 = await supervisor.spawn(makeSpec("a2"));
+      const a1 = await supervisor.spawnGuest(makeSpec("a1"));
+      const a2 = await supervisor.spawnGuest(makeSpec("a2"));
       const all = supervisor.getAllAgents();
       expect(all).toHaveLength(2);
       expect(all).toContain(a1);
@@ -60,7 +59,7 @@ describe("InMemoryAgentSupervisor", () => {
 
   describe("destroyAgent", () => {
     it("destroys a tracked agent and removes from map", async () => {
-      await supervisor.spawn(makeSpec("to-destroy"));
+      await supervisor.spawnGuest(makeSpec("to-destroy"));
       expect(supervisor.getAgent("to-destroy")).toBeDefined();
       await supervisor.destroyAgent("to-destroy");
       expect(supervisor.getAgent("to-destroy")).toBeUndefined();
@@ -74,8 +73,8 @@ describe("InMemoryAgentSupervisor", () => {
 
   describe("destroyAll", () => {
     it("destroys all agents and clears the map", async () => {
-      await supervisor.spawn(makeSpec("a"));
-      await supervisor.spawn(makeSpec("b"));
+      await supervisor.spawnGuest(makeSpec("a"));
+      await supervisor.spawnGuest(makeSpec("b"));
       expect(supervisor.getAllAgents()).toHaveLength(2);
       await supervisor.destroyAll();
       expect(supervisor.getAllAgents()).toEqual([]);
@@ -89,14 +88,14 @@ describe("InMemoryAgentSupervisor", () => {
 
   describe("runAgent", () => {
     it("full lifecycle removes agent after completion", async () => {
-      const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
+      const pi = makeMockPi();
       await supervisor.runAgent(makeSpec("runner"), "do it", pi);
       expect(supervisor.getAgent("runner")).toBeUndefined();
     });
 
     it("sends error notification when spawn fails", async () => {
       (factory.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Spawn failed"));
-      const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
+      const pi = makeMockPi();
       await supervisor.runAgent(makeSpec("fail-spawn"), "task", pi);
       expect(pi.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({ content: expect.stringContaining("Spawn failed") }),
@@ -106,7 +105,7 @@ describe("InMemoryAgentSupervisor", () => {
 
     it("sends error notification when spawn fails with non-Error", async () => {
       (factory.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce("just a string error");
-      const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
+      const pi = makeMockPi();
       await supervisor.runAgent(makeSpec("fail-str"), "task", pi);
       expect(pi.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({ content: expect.stringContaining("just a string error") }),
@@ -125,7 +124,7 @@ describe("InMemoryAgentSupervisor", () => {
         });
       factory.create = mockCreate;
 
-      const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
+      const pi = makeMockPi();
       await supervisor.runAgent(makeSpec("fail-exec"), "bad-task", pi);
       expect(supervisor.getAgent("fail-exec")).toBeUndefined();
     });
@@ -141,7 +140,7 @@ describe("InMemoryAgentSupervisor", () => {
         });
       factory.create = mockCreate;
 
-      const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
+      const pi = makeMockPi();
       await supervisor.runAgent(makeSpec("fail-str"), "bad-task", pi);
       expect(supervisor.getAgent("fail-str")).toBeUndefined();
     });
@@ -149,7 +148,7 @@ describe("InMemoryAgentSupervisor", () => {
 
   describe("printAgentError", () => {
     it("sends formatted spawn error via pi", () => {
-      const pi = { sendMessage: vi.fn() } as unknown as ExtensionAPI;
+      const pi = makeMockPi();
       supervisor.printAgentError("my-agent", "do stuff", new Error("Boom!"), pi);
       expect(pi.sendMessage).toHaveBeenCalledWith(
         {

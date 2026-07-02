@@ -5,28 +5,25 @@
  * It validates every shipped flow in `src/flows/` against the live code:
  *
  * 1. Loads via FlowLoader (structural + semantic validation).
- * 2. Resolves every task and orchestrator.task through FlowContext
+ * 2. Resolves every agent task through FlowContext
  *    and asserts no {{...}} survivors (catch dead/misspelled placeholders).
- * 3. Asserts every agent.spec is in the set loaded from the real
+ * 3. Asserts every agent.systemPrompt is in the set loaded from the real
  *    declarative-specs directory (catch missing/renamed specs).
- * 4. Asserts orchestrator.task placeholders are all FlowContext builtins
- *    or declared toolParams (catch placeholder drift).
+ * 4. Asserts orchestrator.systemPrompt resolves cleanly (catch placeholder drift).
  * 5. Asserts every continueWhile parses and evaluates with stubbed results
  *    matching the loop body's parseJson ids (catch expression errors at load time).
  *
  * **When to add a new flow:** after adding a new .json file to `src/flows/`,
  * add a `describe("new-flow-name", ...)` block here. The boilerplate is minimal —
  * the five assertions are the same for every flow.
- *
- * **Note on F.2 (docs tracker sync):** deferred as brittle. The round-trip
- * test (this file) covers the critical invariant — docs drift is a
- * maintainability issue, not a correctness bug.
  */
 import * as path from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { SpecLoader } from "../agents/declarative-specs/SpecLoader";
+import { SpecRegistry } from "../agents/specifications/SpecRegistry";
+import { SpecManager } from "../agents/SpecManager";
+import { SpecLoader } from "../loaders/SpecLoader";
 import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
 import { FlowContext } from "../orchestrator/FlowContext";
 import type {
@@ -35,27 +32,18 @@ import type {
   FlowInstruction,
   LoopInstruction,
 } from "../orchestrator/FlowInstruction";
+import {
+  isContainerInstruction,
+  isLoopInstruction,
+  isParallelInstruction,
+} from "../orchestrator/FlowInstruction";
 import { FlowLoader } from "../orchestrator/FlowLoader";
+import { RoutineExecutor } from "../orchestrator/RoutineExecutor";
+import { RoutineTool } from "../orchestrator/RoutineTool";
+import { StepExecutorRegistry } from "../orchestrator/StepExecutorRegistry";
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 
 // ── Helpers ──────────────────────────────────────────────────
-
-/**
- * TypeBox 1.3.0's Type.Static can't see the runtime-patched `steps`
- * property on parallel/loop schemas. Cast through unknown when
- * accessing container instruction `.steps`.
- */
-function containerSteps(instr: FlowInstruction): FlowInstruction[] {
-  return (instr as unknown as { steps: FlowInstruction[] }).steps;
-}
-
-/** Built-in FlowContext placeholders that don't need toolParam coverage. */
-const FLOW_CONTEXT_BUILTINS = new Set(["task", "plan", "feedback", "workspace"]);
-
-/** Extract all {{placeholder}} keys from a template string. */
-function extractPlaceholders(template: string): string[] {
-  const matches = template.matchAll(/\{\{([^}]+)\}\}/g);
-  return [...matches].map((m) => m[1]!.trim());
-}
 
 /** Collect all parseJson: true agent IDs within a list of instructions (recursive). */
 function collectParseJsonIds(
@@ -66,8 +54,8 @@ function collectParseJsonIds(
     if (instr.type === "agent" && (instr as AgentInstruction).parseJson) {
       ids.add(instr.id);
     }
-    if (instr.type === "parallel" || instr.type === "loop") {
-      collectParseJsonIds(containerSteps(instr), ids);
+    if (isContainerInstruction(instr)) {
+      collectParseJsonIds(instr.steps, ids);
     }
   }
   return ids;
@@ -87,30 +75,86 @@ function makeStubContext(
   return { results };
 }
 
+// ── Recursive collectors (walk routines) ─────────────────────
+
+function collectAgentInstructions(instructions: FlowInstruction[], tasks: string[]): void {
+  for (const instr of instructions) {
+    if (instr.type === "agent") {
+      tasks.push(instr.prompt);
+    }
+    if (isContainerInstruction(instr)) {
+      collectAgentInstructions(instr.steps, tasks);
+    }
+  }
+}
+
+function collectAgentSpecs(instructions: FlowInstruction[], specs: string[]): void {
+  for (const instr of instructions) {
+    if (instr.type === "agent") {
+      specs.push(instr.systemPrompt);
+    }
+    if (isContainerInstruction(instr)) {
+      collectAgentSpecs(instr.steps, specs);
+    }
+  }
+}
+
+function collectLoops(
+  instructions: FlowInstruction[],
+  loops: LoopInstruction[] = [],
+): LoopInstruction[] {
+  for (const instr of instructions) {
+    if (isLoopInstruction(instr)) {
+      loops.push(instr);
+      collectLoops(instr.steps, loops);
+    } else if (isParallelInstruction(instr)) {
+      collectLoops(instr.steps, loops);
+    }
+  }
+  return loops;
+}
+
+/** Collect all agent tasks and all loops across all routines. */
+function collectFromRoutines(routines: FlowDefinition["routines"]): {
+  agentTasks: string[];
+  loops: LoopInstruction[];
+  specRefs: string[];
+} {
+  const agentTasks: string[] = [];
+  const loops: LoopInstruction[] = [];
+  const specRefs: string[] = [];
+
+  for (const [, routine] of Object.entries(routines)) {
+    collectAgentInstructions(routine.steps, agentTasks);
+    collectAgentSpecs(routine.steps, specRefs);
+    collectLoops(routine.steps, loops);
+  }
+
+  return { agentTasks, loops, specRefs };
+}
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("flow round-trip", () => {
-  const flowsDir = __dirname;
+  const flowsDir = path.join(__dirname, "implement");
   const specsDir = path.join(__dirname, "..", "agents", "declarative-specs");
 
   // Load known spec names once for the whole suite.
   let knownSpecs!: ReadonlySet<string>;
+  let loader!: FlowLoader;
+  let flow!: FlowDefinition;
 
   beforeAll(async () => {
-    const specLoader = new SpecLoader(specsDir);
-    const factories = await specLoader.loadAll();
-    knownSpecs = new Set(factories.keys());
-  });
+    const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
+    await specManager.loadFromDirectory(specsDir);
+    knownSpecs = specManager.specNames();
 
-  // Load the single shipped flow. When more flows are added,
-  // this iterates all .json files excluding flow-schema.json.
-  // Using a single describe block per flow gives clean failure
-  // output with the flow name in the describe header.
-  const loader = new FlowLoader(flowsDir, knownSpecs);
-
-  let flow: FlowDefinition;
-  beforeAll(async () => {
-    flow = await loader.load("implement");
+    // Load the single shipped flow. When more flows are added,
+    // this iterates all .json files excluding flow-schema.json.
+    // Using a single describe block per flow gives clean failure
+    // output with the flow name in the describe header.
+    loader = new FlowLoader(flowsDir, knownSpecs);
+    flow = await loader.load("flow");
   });
 
   describe("implement", () => {
@@ -118,34 +162,24 @@ describe("flow round-trip", () => {
 
     it("loads without validation errors", () => {
       expect(flow.name).toBe("implement");
-      expect(flow.steps.length).toBeGreaterThan(0);
+      expect(Object.keys(flow.routines).length).toBeGreaterThan(0);
     });
 
     // ── 2. No unresolved placeholders in any task ──────────────────
 
-    it("resolves orchestrator.task with no {{...}} survivors", () => {
-      const ctx = new FlowContext(
-        new Map(),
-        "test-task",
-        "test-plan",
-        "/tmp/test-workspace",
-        "test-feedback",
-      );
-      const resolved = ctx.resolve(flow.orchestrator.task);
+    it("resolves orchestrator.systemPrompt with no {{...}} survivors", () => {
+      const ctx = new FlowContext(new Map(), "test-task");
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
       expect(resolved).not.toMatch(/\{\{/);
     });
 
     it("resolves all agent instruction tasks with no {{...}} survivors", () => {
-      const ctx = new FlowContext(
-        new Map(),
-        "test-task",
-        "test-plan",
-        "/tmp/test-workspace",
-        "test-feedback",
-      );
+      const ctx = new FlowContext(new Map(), "test-task")
+        .withWorkspace("ws", new WorkspaceHandle("ws", "/tmp/test-workspace", new Date()))
+        .withParams({ plan: "test-plan" })
+        .withFeedback("test-feedback");
 
-      const agentTasks: string[] = [];
-      collectAgentInstructions(flow.steps, agentTasks);
+      const { agentTasks } = collectFromRoutines(flow.routines);
 
       for (const task of agentTasks) {
         const resolved = ctx.resolve(task);
@@ -155,11 +189,10 @@ describe("flow round-trip", () => {
       }
     });
 
-    // ── 3. Every agent.spec references a known spec ───────────────
+    // ── 3. Every agent.systemPrompt references a known spec ───────────────
 
     it("references only known agent specs", () => {
-      const specRefs: string[] = [];
-      collectAgentSpecs(flow.steps, specRefs);
+      const { specRefs } = collectFromRoutines(flow.routines);
 
       for (const spec of specRefs) {
         expect(knownSpecs.has(spec), `unknown spec "${spec}" — not in declarative-specs`).toBe(
@@ -168,27 +201,22 @@ describe("flow round-trip", () => {
       }
     });
 
-    // ── 4. Orchestrator.task placeholders match toolParams ────────
+    // ── 4. Orchestrator.systemPrompt resolves cleanly ──────────────────
 
-    it("orchestrator.task placeholders are all FlowContext builtins or toolParams", () => {
-      const toolParamNames = new Set(flow.toolParams.map((p) => p.name));
-      const placeholders = extractPlaceholders(flow.orchestrator.task);
+    it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
+      expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
 
-      for (const ph of placeholders) {
-        const isBuiltin = FLOW_CONTEXT_BUILTINS.has(ph) || ph.startsWith("results.");
-        const isToolParam = toolParamNames.has(ph);
+      const ctx = new FlowContext(new Map(), "test-task");
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
 
-        expect(
-          isBuiltin || isToolParam,
-          `placeholder "{{${ph}}}" in orchestrator.task is neither a FlowContext builtin nor a toolParam (toolParams: ${[...toolParamNames].join(", ")})`,
-        ).toBe(true);
-      }
+      expect(resolved).not.toMatch(/\{\{/);
+      expect(resolved).not.toMatch(/\}\}/);
     });
 
     // ── 5. continueWhile parses and evaluates ────────────────────
 
     it("continueWhile expressions parse and evaluate for all states", () => {
-      const loops = collectLoops(flow.steps);
+      const { loops } = collectFromRoutines(flow.routines);
 
       for (const loop of loops) {
         if (!loop.continueWhile) continue;
@@ -197,9 +225,7 @@ describe("flow round-trip", () => {
         const expr = loop.continueWhile;
         expect(() => ExpressionEvaluator.parseExpression(expr)).not.toThrow();
 
-        const parseJsonIds = [
-          ...collectParseJsonIds(containerSteps(loop as unknown as FlowInstruction)),
-        ];
+        const parseJsonIds = [...collectParseJsonIds(loop.steps)];
 
         // 5b. With all results passing, the loop should exit (expression → false).
         if (parseJsonIds.length > 0) {
@@ -229,45 +255,25 @@ describe("flow round-trip", () => {
         );
       }
     });
+
+    // ── 6. RoutineTool name alignment with tools ──────────
+
+    it("routine-based tools match registered RoutineTool names", () => {
+      // tools now come from orchestrator.md frontmatter, not flow.json.
+      // Verify that routine-based tool names match the routine names in the flow.
+      const registry = new StepExecutorRegistry();
+      const executor = new RoutineExecutor(flow, registry);
+      const routineToolNames = new Set<string>();
+
+      for (const [routineName, routineDef] of Object.entries(flow.routines)) {
+        const tool = new RoutineTool(flow.name, routineName, executor, routineDef);
+        routineToolNames.add(tool.name);
+      }
+
+      // Each routine is registered as a tool — verify the names match
+      for (const routineName of Object.keys(flow.routines)) {
+        expect(routineToolNames.has(routineName)).toBe(true);
+      }
+    });
   });
 });
-
-// ── Recursive collectors ──────────────────────────────────────
-
-function collectAgentInstructions(instructions: FlowInstruction[], tasks: string[]): void {
-  for (const instr of instructions) {
-    if (instr.type === "agent") {
-      tasks.push(instr.task);
-    }
-    if (instr.type === "parallel" || instr.type === "loop") {
-      collectAgentInstructions(containerSteps(instr), tasks);
-    }
-  }
-}
-
-function collectAgentSpecs(instructions: FlowInstruction[], specs: string[]): void {
-  for (const instr of instructions) {
-    if (instr.type === "agent") {
-      specs.push(instr.spec);
-    }
-    if (instr.type === "parallel" || instr.type === "loop") {
-      collectAgentSpecs(containerSteps(instr), specs);
-    }
-  }
-}
-
-function collectLoops(
-  instructions: FlowInstruction[],
-  loops: LoopInstruction[] = [],
-): LoopInstruction[] {
-  for (const instr of instructions) {
-    if (instr.type === "loop") {
-      loops.push(instr as LoopInstruction);
-      collectLoops(containerSteps(instr), loops);
-    }
-    if (instr.type === "parallel") {
-      collectLoops(containerSteps(instr), loops);
-    }
-  }
-  return loops;
-}

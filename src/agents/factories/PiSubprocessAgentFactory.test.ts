@@ -81,12 +81,12 @@ describe("PiSubprocessAgentFactory", () => {
   });
 
   it("creates agents with CLI args for the spec", async () => {
-    await factory.create(makeSpec("cli-args", { toolNames: ["read"], ephemeral: true }));
+    await factory.create(makeSpec("cli-args", { tools: ["read"], ephemeral: true }));
     expect(rpcMock.instance.start).toHaveBeenCalled();
   });
 
   it("passes model preference to RpcClient", async () => {
-    await factory.create(makeSpec("model-test", { modelPreference: "claude-sonnet-4-5" }));
+    await factory.create(makeSpec("model-test", { model: "claude-sonnet-4-5" }));
     expect(rpcMock.instance.start).toHaveBeenCalled();
   });
 });

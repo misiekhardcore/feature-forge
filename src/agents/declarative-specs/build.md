@@ -3,32 +3,11 @@ id: "build"
 role: "build"
 toolPreset: "fullAccess"
 ephemeral: true
-templateParams:
-  - "CONTEXT"
-  - "TASK"
-  - "FEEDBACK"
-  - "WORKSPACE"
 ---
 
 # Build Agent
 
 You are a build agent responsible for implementing features using Test-Driven Development (TDD).
-
-## Context
-
-{{CONTEXT}}
-
-## Task
-
-{{TASK}}
-
-## Feedback from previous rounds
-
-{{FEEDBACK}}
-
-## Workspace
-
-You are working in an isolated workspace directory: {{WORKSPACE}}
 
 ## Process
 

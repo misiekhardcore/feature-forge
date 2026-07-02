@@ -5,7 +5,7 @@ import { Command } from "./Command";
 
 export class AgentListCommand extends Command {
   readonly name = "agent:list";
-  readonly description = "List all tracked subagents and their current status.";
+  readonly description = "List all tracked agents and their current status.";
 
   private formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();

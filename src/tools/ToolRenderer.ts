@@ -93,9 +93,9 @@ export class ToolRenderer {
   ) => {
     const box = shellBox(context, theme, "send_task");
     const snippet =
-      args.task.length > ToolRenderer.MAX_TASK_SNIPPET_LENGTH
-        ? args.task.substring(0, ToolRenderer.MAX_TASK_SNIPPET_LENGTH - 3) + "..."
-        : args.task;
+      args.prompt.length > ToolRenderer.MAX_TASK_SNIPPET_LENGTH
+        ? args.prompt.substring(0, ToolRenderer.MAX_TASK_SNIPPET_LENGTH - 3) + "..."
+        : args.prompt;
     let content = header(theme, "accent", `send_task ${args.agentId}`);
     content += " " + theme.fg("muted", `"${snippet}"`);
     box.addChild(new Text(content, 1, 0));

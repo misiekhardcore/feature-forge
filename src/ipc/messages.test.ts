@@ -14,7 +14,7 @@ describe("SocketMessage type", () => {
     const params: SpawnAgentParams = {
       role: "researcher",
       systemPrompt: "You are a researcher",
-      toolNames: ["read", "grep"],
+      tools: ["read", "grep"],
     };
 
     const message: SocketMessage = {
@@ -30,7 +30,7 @@ describe("SocketMessage type", () => {
   it("shapes a send_task message with await=true", () => {
     const params: SendTaskParams = {
       agentId: "agent-1",
-      task: "Research X",
+      prompt: "Research X",
       await: true,
     };
 
@@ -47,7 +47,7 @@ describe("SocketMessage type", () => {
   it("shapes a send_task message with await=false", () => {
     const params: SendTaskParams = {
       agentId: "agent-1",
-      task: "Fire and forget",
+      prompt: "Fire and forget",
       await: false,
     };
 

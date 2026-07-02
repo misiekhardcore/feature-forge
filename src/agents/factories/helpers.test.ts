@@ -6,7 +6,7 @@ import { DynamicAgentSpecification } from "../specifications/DynamicAgentSpecifi
 import { buildPiCliArguments } from "./helpers";
 
 describe("buildPiCliArguments", () => {
-  it("returns empty array for minimal specification", () => {
+  it("produces --system-prompt for minimal specification", () => {
     const spec = new (class extends AgentSpecification {
       constructor() {
         super({
@@ -16,18 +16,18 @@ describe("buildPiCliArguments", () => {
         });
       }
     })();
-    expect(buildPiCliArguments(spec)).toEqual([]);
+    expect(buildPiCliArguments(spec)).toEqual(["--system-prompt", "test"]);
   });
 
   describe("tools flags", () => {
-    it("adds --tools when toolNames is non-empty", () => {
+    it("adds --tools when tools is non-empty", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
             id: "t",
             role: "t",
             systemPrompt: "p",
-            toolNames: ["read", "grep"],
+            tools: ["read", "grep"],
           });
         }
       })();
@@ -36,28 +36,28 @@ describe("buildPiCliArguments", () => {
       expect(buildPiCliArguments(spec)[idx + 1]).toBe("read,grep");
     });
 
-    it("does not add --tools when toolNames is empty", () => {
+    it("does not add --tools when tools is empty", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
             id: "t",
             role: "t",
             systemPrompt: "p",
-            toolNames: [],
+            tools: [],
           });
         }
       })();
       expect(buildPiCliArguments(spec)).not.toContain("--tools");
     });
 
-    it("adds --exclude-tools when excludeToolNames is non-empty", () => {
+    it("adds --exclude-tools when excludedTools is non-empty", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
             id: "t",
             role: "t",
             systemPrompt: "p",
-            excludeToolNames: ["bash", "write"],
+            excludedTools: ["bash", "write"],
           });
         }
       })();
@@ -191,7 +191,7 @@ describe("buildPiCliArguments", () => {
       const spec = new DynamicAgentSpecification({
         role: "research",
         systemPrompt: "Research topic",
-        toolNames: [...TOOL_PRESETS.readOnly],
+        tools: [...TOOL_PRESETS.readOnly],
         ephemeral: true,
       });
       const args = buildPiCliArguments(spec);

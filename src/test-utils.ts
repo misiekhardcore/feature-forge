@@ -6,11 +6,11 @@
  * created via vi.hoisted() in each test file to avoid TDZ issues with
  * vi.mock hoisting.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
 import { SpecManager } from "./agents";
-import { Agent, type ExecuteTaskOptions } from "./agents/agents/Agent";
+import { type ExecuteTaskOptions, SubprocessAgent } from "./agents/agents/SubprocessAgent";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
 import { AgentSpecification } from "./agents/specifications/AgentSpecification";
@@ -27,8 +27,8 @@ export function makeSpec(
   overrides: Partial<{
     role: string;
     systemPrompt: string;
-    toolNames: readonly string[];
-    modelPreference: string;
+    tools: readonly string[];
+    model: string;
     ephemeral: boolean;
   }> = {},
 ): AgentSpecification {
@@ -38,8 +38,8 @@ export function makeSpec(
         id,
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
-        toolNames: overrides.toolNames,
-        modelPreference: overrides.modelPreference,
+        tools: overrides.tools,
+        model: overrides.model,
         ephemeral: overrides.ephemeral,
       });
     }
@@ -50,11 +50,10 @@ export function makeSpec(
 // Mock Agent (does not rely on RpcClient)
 // ---------------------------------------------------------------------------
 
-export class MockAgent extends Agent {
+export class MockAgent extends SubprocessAgent {
   public readonly specification: AgentSpecification;
-  public readonly createdAt: Date = new Date();
   public status: AgentStatus = AgentStatus.Spawned;
-  public lastTask: string = "";
+  public lastPrompt: string = "";
 
   private _result = "";
   private _error: Error | undefined;
@@ -69,10 +68,14 @@ export class MockAgent extends Agent {
     this.specification = makeSpec(id, { role: overrides.role ?? "mock" });
   }
 
-  async executeTask(task: string, _options?: ExecuteTaskOptions): Promise<string> {
-    this.lastTask = task;
+  override async start(): Promise<void> {
     this.status = AgentStatus.Running;
-    this._result = `result for: ${task}`;
+  }
+
+  override async executeTask(prompt: string, _options?: ExecuteTaskOptions): Promise<string> {
+    this.lastPrompt = prompt;
+    this.status = AgentStatus.Running;
+    this._result = `result for: ${prompt}`;
     this.status = AgentStatus.Completed;
     return this._result;
   }
@@ -98,8 +101,8 @@ export class MockAgent extends Agent {
     this.status = AgentStatus.Failed;
   }
 
-  deliverResult(_task: string, _result: string, _pi: ExtensionAPI): void {}
-  deliverError(_task: string, _error: Error, _pi: ExtensionAPI): void {}
+  deliverResult(_prompt: string, _result: string, _pi: ExtensionAPI): void {}
+  deliverError(_prompt: string, _error: Error, _pi: ExtensionAPI): void {}
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +127,8 @@ export function makeMockFactory(): AgentFactory {
 export function makeMockPi(): ExtensionAPI {
   return {
     sendMessage: vi.fn(),
+    sendUserMessage: vi.fn(),
+    setActiveTools: vi.fn(),
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
     on: vi.fn(),
@@ -134,10 +139,10 @@ export function makeMockPi(): ExtensionAPI {
 // Mock ExtensionCommandContext
 // ---------------------------------------------------------------------------
 
-export function makeMockCtx(): { ui: { notify: ReturnType<typeof vi.fn> } } {
+export function makeMockCtx(): ExtensionCommandContext {
   return {
     ui: { notify: vi.fn() },
-  };
+  } as unknown as ExtensionCommandContext;
 }
 
 // ---------------------------------------------------------------------------
@@ -310,7 +315,7 @@ export function makeMockSpecManager() {
         id: params.spec ?? params.role ?? "mock",
         role: params.role ?? "mock",
         systemPrompt: params.systemPrompt ?? "Mock system prompt",
-        toolNames: params.toolNames ?? [],
+        tools: params.tools ?? [],
         cwd: params.cwd,
         disableBuiltinTools: false,
         disableExtensions: false,
@@ -318,8 +323,26 @@ export function makeMockSpecManager() {
         disablePromptTemplates: false,
         disableContextFiles: false,
         ephemeral: false,
-        excludeToolNames: [],
-        modelPreference: undefined,
+        excludedTools: [],
+        model: undefined,
+        thinkingLevel: undefined,
+      } satisfies AgentSpecification;
+    }),
+    createDynamic: vi.fn().mockImplementation((params) => {
+      return {
+        id: params.role,
+        role: params.role,
+        systemPrompt: params.systemPrompt,
+        tools: params.tools ?? [],
+        model: params.model,
+        cwd: params.cwd,
+        disableBuiltinTools: false,
+        disableExtensions: false,
+        disableSkills: false,
+        disablePromptTemplates: false,
+        disableContextFiles: false,
+        ephemeral: false,
+        excludedTools: [],
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),

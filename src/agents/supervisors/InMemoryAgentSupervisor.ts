@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { logger } from "../../logging";
-import { Agent } from "../agents";
+import { Agent, InSessionAgent, SessionAgent, SubprocessAgent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../specifications";
 import { AgentSupervisor } from "./AgentSupervisor";
@@ -21,10 +21,19 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
   }
 
   /**
-   * Spawn a new agent via the injected factory and start tracking it.
+   * Spawn a new subprocess agent via the injected factory and start tracking it.
    */
-  public override async spawn(specification: AgentSpecification): Promise<Agent> {
+  public override async spawnGuest(specification: AgentSpecification): Promise<SubprocessAgent> {
     const agent = await this.agentFactory.create(specification);
+    this.agents.set(agent.id, agent);
+    return agent;
+  }
+
+  /**
+   * Construct and register an in-session {@link SessionAgent}.
+   */
+  public override async mountInSession(specification: AgentSpecification): Promise<InSessionAgent> {
+    const agent = new SessionAgent(specification);
     this.agents.set(agent.id, agent);
     return agent;
   }
@@ -77,39 +86,39 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
    */
   public override async runAgent(
     specification: AgentSpecification,
-    task: string,
+    prompt: string,
     pi: ExtensionAPI,
   ): Promise<void> {
     const id = specification.id;
 
-    let agent: Agent;
+    let agent: SubprocessAgent;
     try {
-      agent = await this.spawn(specification);
+      agent = await this.spawnGuest(specification);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
 
-      logger.error("Agent spawn failed", { agentId: id, task, error: err });
-      return this.printAgentError(id, task, err, pi);
+      logger.error("Agent spawn failed", { agentId: id, prompt, error: err });
+      return this.printAgentError(id, prompt, err, pi);
     }
 
     try {
-      const result = await agent.executeTask(task);
-      agent.deliverResult(task, result, pi);
+      const result = await agent.executeTask(prompt);
+      agent.deliverResult(prompt, result, pi);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error("Agent execution failed", { agentId: id, task, error });
-      agent.deliverError(task, err, pi);
+      logger.error("Agent execution failed", { agentId: id, prompt, error });
+      agent.deliverError(prompt, err, pi);
     } finally {
       await this.destroyAgent(id);
     }
   }
 
-  printAgentError(agentId: string, task: string, error: Error, pi: ExtensionAPI): void {
+  printAgentError(agentId: string, prompt: string, error: Error, pi: ExtensionAPI): void {
     // No agent to delegate to — supervisor sends the error directly.
     pi.sendMessage(
       {
         customType: "agent_spawn_error" as const,
-        content: `## ❌ Agent "${agentId}" spawn failed: ${task}\n\n${error.message}`,
+        content: `## ❌ Agent "${agentId}" spawn failed: ${prompt}\n\n${error.message}`,
         display: true,
       },
       { triggerTurn: false },

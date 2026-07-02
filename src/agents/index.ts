@@ -1,4 +1,11 @@
-export { Agent, PiSubprocessAgent } from "./agents";
+export {
+  Agent,
+  InSessionAgent,
+  isSubprocessAgent,
+  PiSubprocessAgent,
+  SessionAgent,
+  SubprocessAgent,
+} from "./agents";
 export { AgentStatus } from "./base";
 export {
   AgentCreationError,
@@ -14,8 +21,8 @@ export {
   DynamicAgentSpecification,
   fillTemplate,
   SpecRegistry,
-  ThinkingLevel,
   TOOL_PRESETS,
 } from "./specifications";
+export type { SpecResolutionParams } from "./SpecManager";
 export { SpecManager } from "./SpecManager";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";

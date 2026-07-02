@@ -22,9 +22,8 @@ export class ResearchCommand extends Command {
     }
 
     const specification = this.specManager.resolve({
-      toolNames: TOOL_PRESETS.readOnly,
+      tools: TOOL_PRESETS.readOnly,
       spec: "research",
-      specParams: { CONTEXT: topic },
     });
 
     ctx.ui.notify(`Research agent investigating "${topic}" in the background...`, "info");

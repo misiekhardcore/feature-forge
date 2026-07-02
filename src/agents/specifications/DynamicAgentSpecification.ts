@@ -16,7 +16,7 @@ export class DynamicAgentSpecification extends AgentSpecification {
     });
   }
 
-  private static generateId(params: DynamicAgentSpecificationParams): string {
+  static generateId(params: Pick<AgentSpecificationParams, "role">): string {
     return params.role + "-" + Math.random().toString(36).substring(2, 8);
   }
 }

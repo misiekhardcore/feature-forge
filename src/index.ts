@@ -8,7 +8,6 @@ import {
   SpecManager,
   SpecRegistry,
 } from "./agents";
-import { SpecLoader } from "./agents/declarative-specs/SpecLoader";
 import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
@@ -19,7 +18,10 @@ import {
 } from "./commands";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
+import { SpecLoader } from "./loaders";
 import { FileLogger } from "./logging";
+import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
+import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -28,7 +30,14 @@ import {
   SendTaskTool,
   SpawnAgentTool,
 } from "./tools";
-import { GitWorktreeProvider, WorkspaceManager, WorktreeRegistry } from "./workspace";
+import {
+  CurrentDirProvider,
+  GitWorktreeProvider,
+  WorkspaceManager,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+  WorktrunkProvider,
+} from "./workspace";
 
 /**
  * Feature Forge — autonomous software engineering platform.
@@ -60,10 +69,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     cwd: process.cwd(),
   });
   const specRegistry = new SpecRegistry();
-  const specsDir = path.join(__dirname, "agents", "declarative-specs");
-  const specLoader = new SpecLoader(specsDir);
+  const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
-  await specManager.load();
+  await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
   const supervisor = new InMemoryAgentSupervisor(factory);
   const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
   const socketPath = await ipcServer.start();
@@ -101,6 +109,32 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ListAgentsTool,
     DestroyAgentTool,
   );
+
+  const workspaceProviderRegistry = new WorkspaceProviderRegistry()
+    .register("git-worktree", provider)
+    .register("current-dir", new CurrentDirProvider());
+
+  // ── Step executor registry ───────────────────────────────────────
+  const stepExecutorRegistry = createStepExecutorRegistry(
+    workspaceProviderRegistry,
+    supervisor,
+    specManager,
+  );
+
+  // ── Flow-based orchestration commands ────────────────────────────
+  const flowsDir = path.join(__dirname, "flows");
+  const flowRegistrar = new FlowRegistrar({
+    pi,
+    cmdRegistry,
+    toolRegistry,
+    supervisor,
+    specManager,
+    workspaceManager,
+    flowsDir,
+    knownProviders: workspaceProviderRegistry.names(),
+    stepExecutorRegistry,
+  });
+  await flowRegistrar.registerAll();
 };
 
 /**

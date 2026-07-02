@@ -11,7 +11,7 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
  * faster, AI-workflow-optimised worktree management.
  *
  * Worktrunk chooses its own directory — the provider does not pre-compute
- * the worktree path. Instead it parses it from `wt switch -c` stdout.
+ * the worktree path. Instead it parses it from `wt switch -c` output.
  *
  * Falls back to {@link GitWorktreeProvider} when Worktrunk is not available.
  */
@@ -19,9 +19,33 @@ export class WorktrunkProvider extends WorkspaceProvider {
   /** Absolute path to the root of the git repository. */
   public readonly repoRoot: string;
 
-  constructor(repoRoot?: string) {
+  /**
+   * The ref to branch the worktree from.
+   *
+   * Worktrunk's `@` literal means "the current branch / HEAD of the source
+   * repository" — i.e. whatever branch is checked out in `repoRoot` at the
+   * moment `wt switch -c` runs. This is the safe default for feature-forge:
+   * the builder's worktree must stem from the branch the orchestrator is
+   * itself running on (typically a long-lived refactor branch), **not** from
+   * whatever the repository's configured default branch happens to be.
+   *
+   * Callers may pass an explicit ref (e.g. `main`, `develop`, a SHA, or any
+   * other string Worktrunk accepts) when they need to override this.
+   *
+   * See ADR 0008 for the full rationale.
+   */
+  public readonly baseRef: string;
+
+  /**
+   * @param repoRoot Absolute path to the source git repository. Defaults to
+   *   `process.cwd()`.
+   * @param baseRef Ref to create the worktree from. Defaults to `"@"` (the
+   *   current branch / HEAD of `repoRoot`). See {@link baseRef} and ADR 0008.
+   */
+  constructor(repoRoot?: string, baseRef: string = "@") {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
+    this.baseRef = baseRef;
   }
 
   /**
@@ -46,14 +70,20 @@ export class WorktrunkProvider extends WorkspaceProvider {
    * Create a worktree via Worktrunk.
    *
    * `wt switch -c <branch>` creates a new branch and worktree in one command.
-   * Worktrunk chooses its own directory and prints the path on stdout.
+   * Worktrunk chooses its own directory and prints the path on stdout or stderr.
    */
   public override async createWorkspace(workspaceId: string): Promise<string> {
     const branchName = this.getBranchName(workspaceId);
 
     await this.assertNoConflictingBranch(branchName);
 
-    const stdout = await this.execCommand("wt", ["switch", "-c", branchName]);
+    const stdout = await this.execCommand("wt", [
+      "switch",
+      "-c",
+      branchName,
+      "--base",
+      this.baseRef,
+    ]);
 
     return this.parseWtPath(stdout);
   }
@@ -101,29 +131,56 @@ export class WorktrunkProvider extends WorkspaceProvider {
   }
 
   /**
-   * Parse the worktree path from Worktrunk's stdout.
+   * Parse the worktree path from Worktrunk's output.
    *
    * Worktrunk output looks like:
-   * `✓ Created branch forge/myid from main and worktree @ ~/Projects/feature-forge.myid`
+   * `✓ Created branch forge/myid from <ref> and worktree @ ~/Projects/feature-forge.myid`
    *
-   * The path follows the last ` @ ` on the last line. Tilde (`~`) is expanded
-   * to the user's home directory.
+   * The authoritative path is the one on the line containing the literal
+   * `worktree @ <path>` marker. We scan **every** line of the output (not just
+   * the last one) for that marker — earlier implementations relied on the last
+   * line coincidentally matching, which silently returned garbage when
+   * Worktrunk appended extra output after the worktree line.
+   *
+   * Tilde (`~`) is expanded to the user's home directory, then the resulting
+   * absolute path is **validated** against the filesystem with `existsSync`:
+   * a path that Worktrunk reports but does not actually exist on disk is a
+   * hard error (see ADR 0008), never a silent fallback to the whole line.
    */
   private parseWtPath(stdout: string): string {
-    const lines = stdout.trim().split("\n");
-    const lastLine = lines[lines.length - 1]?.trim();
-    if (!lastLine) {
-      throw new WorkspaceError("Worktrunk returned no path in output");
+    const lines = stdout.split("\n");
+
+    // Scan every line for the authoritative `worktree @ <path>` marker.
+    const marker = "worktree @ ";
+    let worktreeLine: string | undefined;
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (trimmed.includes(marker)) {
+        worktreeLine = trimmed;
+      }
     }
 
-    const atIndex = lastLine.lastIndexOf(" @ ");
-    const rawPath = atIndex !== -1 ? lastLine.slice(atIndex + 3).trim() : lastLine;
+    if (!worktreeLine) {
+      throw new WorkspaceError("Worktrunk output did not contain a 'worktree @ <path>' line");
+    }
+
+    const markerIndex = worktreeLine.lastIndexOf(marker);
+    const rawPath = worktreeLine.slice(markerIndex + marker.length).trim();
 
     if (!rawPath) {
-      throw new WorkspaceError("Worktrunk returned no path in output");
+      throw new WorkspaceError("Worktrunk returned no path after 'worktree @'");
     }
 
-    return rawPath.startsWith("~/") || rawPath === "~" ? rawPath.replace(/^~/, homedir()) : rawPath;
+    const expandedPath =
+      rawPath.startsWith("~/") || rawPath === "~" ? rawPath.replace(/^~/, homedir()) : rawPath;
+
+    if (!existsSync(expandedPath)) {
+      throw new WorkspaceError(
+        `Worktrunk reported a worktree path that does not exist on disk: ${expandedPath}`,
+      );
+    }
+
+    return expandedPath;
   }
 
   private async assertNoConflictingBranch(branchName: string): Promise<void> {
@@ -157,7 +214,12 @@ export class WorktrunkProvider extends WorkspaceProvider {
             new WorkspaceError(`Command failed: ${command} ${args.join(" ")}\n${message}`, error),
           );
         } else {
-          resolvePromise(stdout);
+          const output = stdout?.trim() || stderr?.trim() || "";
+          if (!output) {
+            reject(new WorkspaceError("Command produced no output"));
+          } else {
+            resolvePromise(output);
+          }
         }
       });
     });

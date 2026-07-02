@@ -7,45 +7,28 @@
  * - Server may also push unsolicited `SocketPush` events (e.g., agent status updates).
  */
 
-import type { AgentStatus } from "../agents";
+import type { AgentSpecificationParams, AgentStatus } from "../agents";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 
-// Params
-interface CommonSpawnParams {
-  /** Tool names to grant the agent. */
-  toolNames: readonly string[];
-  /** Optional model preference (e.g. "claude-sonnet-4-5"). */
-  model?: string;
-  /** Optional working directory. */
-  cwd?: string;
+/**
+ * Parameters for spawning an agent via IPC.
+ *
+ * All values are fully resolved before they reach the IPC layer — no template
+ * variables, no spec name lookups. The parent creates the agent specification
+ * directly from these fields.
+ */
+export interface SpawnAgentParams
+  extends Omit<AgentSpecificationParams, "id">, Partial<Pick<AgentSpecificationParams, "id">> {
+  /** Optional initial task the agent should execute immediately. */
+  prompt?: string;
 }
-
-export interface SpawnAgentParamsWithSpec extends CommonSpawnParams {
-  /** Named spec identifier (e.g. "build", "review", "verify", "research"). */
-  spec: string;
-  /** Template variable values for the named spec's system prompt. */
-  specParams?: Record<string, string>;
-  role?: never;
-  systemPrompt?: never;
-}
-
-export interface SpawnAgentParamsWithRole extends CommonSpawnParams {
-  /** Agent role (e.g. "researcher", "reviewer"). */
-  role: string;
-  /** Full system prompt for the spawned agent. */
-  systemPrompt: string;
-  spec?: never;
-  specParams?: never;
-}
-
-export type SpawnAgentParams = SpawnAgentParamsWithSpec | SpawnAgentParamsWithRole;
 
 export interface SendTaskParams {
   /** Target agent's id string. */
   agentId: string;
   /** The task message to send. */
-  task: string;
+  prompt: string;
   /**
    * If true, block the socket response until the agent completes.
    * If false, respond immediately and push an `agent_update` event later.

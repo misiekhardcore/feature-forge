@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { BUILT_IN_TOOLS, TOOL_PRESETS } from "./constants";
 import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 import { SpecRegistry } from "./SpecRegistry";
-import { fillTemplate } from "./templates";
 
 describe("SpecRegistry", () => {
   it("is empty on construction", () => {
@@ -11,107 +10,79 @@ describe("SpecRegistry", () => {
     expect(Array.from(registry.specNames())).toEqual([]);
   });
 
-  it("creates a build spec with filled template params", () => {
+  it("creates a build spec with configured properties", () => {
     const registry = new SpecRegistry();
-    registry.register("build", (params) => {
+    registry.register("build", () => {
       return new DynamicAgentSpecification({
         id: "build",
         role: "build",
-        systemPrompt: fillTemplate(
-          "# Build Agent\n\nTask: {{TASK}}\nWorkspace: {{WORKSPACE}}",
-          params,
-        ),
-        toolNames: [...TOOL_PRESETS.fullAccess],
+        systemPrompt: "# Build Agent\n\nReady to build.",
+        tools: [...TOOL_PRESETS.fullAccess],
         ephemeral: true,
       });
     });
-    const spec = registry.create("build", {
-      TASK: "Add login",
-      WORKSPACE: "/tmp/workspace",
-    });
+    const spec = registry.create("build");
     expect(spec.role).toBe("build");
-    expect(spec.systemPrompt).toContain("Add login");
-    expect(spec.systemPrompt).not.toContain("{{TASK}}");
-    expect(spec.systemPrompt).toContain("/tmp/workspace");
-    expect(spec.systemPrompt).not.toContain("{{WORKSPACE}}");
-    expect(spec.toolNames).toContain("read");
-    expect(spec.toolNames).toContain("bash");
-    expect(spec.toolNames).toContain("write");
+    expect(spec.systemPrompt).toBe("# Build Agent\n\nReady to build.");
+    expect(spec.tools).toContain("read");
+    expect(spec.tools).toContain("bash");
+    expect(spec.tools).toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
-  it("creates a review spec with filled template params", () => {
+  it("creates a review spec with configured properties", () => {
     const registry = new SpecRegistry();
-    registry.register("review", (params) => {
+    registry.register("review", () => {
       return new DynamicAgentSpecification({
         id: "review",
         role: "review",
-        systemPrompt: fillTemplate(
-          "# Review Agent\n\nOutput: {{BUILD_OUTPUT}}\nCriteria: {{ACCEPTANCE_CRITERIA}}",
-          params,
-        ),
-        toolNames: [...TOOL_PRESETS.reviewOnly],
+        systemPrompt: "# Review Agent\n\nReview the output.",
+        tools: [...TOOL_PRESETS.reviewOnly],
         ephemeral: true,
       });
     });
-    const spec = registry.create("review", {
-      BUILD_OUTPUT: "Created src/auth.ts",
-      ACCEPTANCE_CRITERIA: "User can log in",
-    });
+    const spec = registry.create("review");
     expect(spec.role).toBe("review");
-    expect(spec.systemPrompt).toContain("Created src/auth.ts");
-    expect(spec.systemPrompt).not.toContain("{{BUILD_OUTPUT}}");
-    expect(spec.systemPrompt).toContain("User can log in");
-    expect(spec.systemPrompt).not.toContain("{{ACCEPTANCE_CRITERIA}}");
-    expect(spec.toolNames).toEqual(["read", "grep"]);
+    expect(spec.systemPrompt).toBe("# Review Agent\n\nReview the output.");
+    expect(spec.tools).toEqual(["read", "grep"]);
     expect(spec.ephemeral).toBe(true);
   });
 
-  it("creates a verify spec with filled template params", () => {
+  it("creates a verify spec with configured properties", () => {
     const registry = new SpecRegistry();
-    registry.register("verify", (params) => {
+    registry.register("verify", () => {
       return new DynamicAgentSpecification({
         id: "verify",
         role: "verify",
-        systemPrompt: fillTemplate(
-          "# Verify Agent\n\nOutput: {{BUILD_OUTPUT}}\nCriteria: {{ACCEPTANCE_CRITERIA}}",
-          params,
-        ),
-        toolNames: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.BASH, BUILT_IN_TOOLS.GREP],
+        systemPrompt: "# Verify Agent\n\nVerify the output.",
+        tools: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.BASH, BUILT_IN_TOOLS.GREP],
         ephemeral: true,
       });
     });
-    const spec = registry.create("verify", {
-      BUILD_OUTPUT: "Created src/auth.ts",
-      ACCEPTANCE_CRITERIA: "User can log in",
-    });
+    const spec = registry.create("verify");
     expect(spec.role).toBe("verify");
-    expect(spec.systemPrompt).toContain("Created src/auth.ts");
-    expect(spec.systemPrompt).not.toContain("{{BUILD_OUTPUT}}");
-    expect(spec.toolNames).toContain("read");
-    expect(spec.toolNames).toContain("bash");
-    expect(spec.toolNames).not.toContain("write");
+    expect(spec.systemPrompt).toBe("# Verify Agent\n\nVerify the output.");
+    expect(spec.tools).toContain("read");
+    expect(spec.tools).toContain("bash");
+    expect(spec.tools).not.toContain("write");
     expect(spec.ephemeral).toBe(true);
   });
 
-  it("creates a research spec with filled template params", () => {
+  it("creates a research spec with configured properties", () => {
     const registry = new SpecRegistry();
-    registry.register("research", (params) => {
+    registry.register("research", () => {
       return new DynamicAgentSpecification({
         id: "research",
         role: "research",
-        systemPrompt: fillTemplate("# Research Agent\n\n{{CONTEXT}}", params),
-        toolNames: [...TOOL_PRESETS.readOnly],
+        systemPrompt: "# Research Agent\n\n",
+        tools: [...TOOL_PRESETS.readOnly],
         ephemeral: true,
       });
     });
-    const spec = registry.create("research", {
-      CONTEXT: "Focus: authentication",
-    });
+    const spec = registry.create("research");
     expect(spec.role).toBe("research");
-    expect(spec.systemPrompt).toContain("Focus: authentication");
-    expect(spec.systemPrompt).not.toContain("{{CONTEXT}}");
-    expect(spec.toolNames).toEqual(["read", "grep", "ls"]);
+    expect(spec.systemPrompt).toBe("# Research Agent\n\n");
+    expect(spec.tools).toEqual(["read", "grep", "ls"]);
     expect(spec.ephemeral).toBe(true);
   });
 
@@ -129,7 +100,7 @@ describe("SpecRegistry", () => {
           id: "alpha",
           role: "alpha",
           systemPrompt: "",
-          toolNames: ["read"],
+          tools: ["read"],
           ephemeral: true,
         }),
     );
@@ -147,7 +118,7 @@ describe("SpecRegistry", () => {
           id: "build",
           role: "build",
           systemPrompt: "# Build Agent",
-          toolNames: ["read"],
+          tools: ["read"],
           ephemeral: true,
         }),
     );
@@ -159,17 +130,17 @@ describe("SpecRegistry", () => {
 
   it("allows registering custom specs", () => {
     const registry = new SpecRegistry();
-    registry.register("custom", (params) => {
+    registry.register("custom", () => {
       return new DynamicAgentSpecification({
         id: "custom",
-        role: params.ROLE ?? "custom",
-        systemPrompt: `Custom prompt: ${params.TOPIC ?? ""}`,
-        toolNames: ["read"],
+        role: "helper",
+        systemPrompt: "Custom prompt: testing",
+        tools: ["read"],
         ephemeral: true,
       });
     });
     expect(registry.specNames()).toContain("custom");
-    const spec = registry.create("custom", { ROLE: "helper", TOPIC: "testing" });
+    const spec = registry.create("custom");
     expect(spec.role).toBe("helper");
     expect(spec.systemPrompt).toBe("Custom prompt: testing");
   });
@@ -183,7 +154,7 @@ describe("SpecRegistry", () => {
           id: "dup",
           role: "dup",
           systemPrompt: "dup",
-          toolNames: ["read"],
+          tools: ["read"],
           ephemeral: true,
         }),
     );
@@ -192,7 +163,7 @@ describe("SpecRegistry", () => {
         id: "dup",
         role: "dup",
         systemPrompt: "dup",
-        toolNames: ["read"],
+        tools: ["read"],
         ephemeral: true,
       });
     expect(() => registry.register("dup", factory)).toThrow("Spec already registered: dup");

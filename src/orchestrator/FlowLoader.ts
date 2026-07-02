@@ -1,46 +1,35 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+import { Type } from "typebox";
 import { Value } from "typebox/value";
 
 import { logger } from "../logging";
 import { ExpressionEvaluator } from "./ExpressionEvaluator";
-import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
-import { FlowDefinitionSchema } from "./FlowInstruction";
+import type { AgentInstruction, FlowDefinition, FlowInstruction } from "./FlowInstruction";
+import {
+  FlowDefinitionSchema,
+  FlowInstructionSchema,
+  isContainerInstruction,
+  isLoopInstruction,
+} from "./FlowInstruction";
 
 /**
- * TypeBox 1.3.0's Type.Static can't see the runtime-patched `steps`
- * property on parallel/loop schemas. Access container steps through
- * this helper to avoid TS2339/TS2353 errors.
- */
-function containerSteps(instr: FlowInstruction): FlowInstruction[] {
-  return (instr as unknown as { steps: FlowInstruction[] }).steps;
-}
-
-/**
- * Loads and validates declarative flow JSON files.
+ * Loads and validates declarative routine-based flow JSON files.
  *
- * Validation happens in two layers:
- * 1. **Structural** — TypeBox schema (Value.Check). Catches wrong types,
- *    missing required fields, invalid literals.
- * 2. **Semantic** — rules TypeBox can't express. Duplicate ids, invalid
- *    expressions, accumulateFrom references to unknown or non-direct-child
- *    ids, empty loop bodies.
+ * Validation layers:
+ * 1. **Structural** — TypeBox schema (Value.Check).
+ * 2. **Semantic** — rules TypeBox can't express: duplicate ids, invalid
+ *    expressions, accumulateFrom references, unresolved workspace refs,
+ *    unknown specs/providers.
  */
 export class FlowLoader {
   constructor(
     private readonly flowsDir: string,
     private readonly knownSpecs?: ReadonlySet<string>,
+    private readonly knownProviders?: ReadonlySet<string>,
   ) {}
 
-  // ── Instance methods ──────────────────────────────────────
-
-  /**
-   * Load a single flow by name (filename without .json extension).
-   *
-   * @throws if the file doesn't exist, isn't valid JSON, or fails
-   *         structural or semantic validation.
-   */
   async load(name: string): Promise<FlowDefinition> {
     const filepath = path.join(this.flowsDir, `${name}.json`);
     logger.info("Loading flow", { name, filepath });
@@ -70,7 +59,11 @@ export class FlowLoader {
       throw error;
     }
 
-    const semanticErrors = FlowLoader.validateSemantics(parsed, this.knownSpecs);
+    const semanticErrors = FlowLoader.validateSemantics(
+      parsed,
+      this.knownSpecs,
+      this.knownProviders,
+    );
     if (semanticErrors.length > 0) {
       logger.error("Flow semantic validation failed", { name, errors: semanticErrors });
       throw new Error(
@@ -82,20 +75,7 @@ export class FlowLoader {
     return parsed;
   }
 
-  /**
-   * Load all .json files from the flows directory, skipping the
-   * internal schema file.
-   *
-   * Failures from individual files are collected rather than aborting
-   * the whole load — one bad flow won't prevent the rest from loading.
-   *
-   * @returns loaded flows and a map of flow name → error for any that
-   *   failed to load or validate.
-   */
-  async loadAll(): Promise<{
-    flows: Map<string, FlowDefinition>;
-    failures: Map<string, Error>;
-  }> {
+  async loadAll(): Promise<{ flows: Map<string, FlowDefinition>; failures: Map<string, Error> }> {
     const flows = new Map<string, FlowDefinition>();
     const failures = new Map<string, Error>();
     const files = await fs.readdir(this.flowsDir);
@@ -116,20 +96,10 @@ export class FlowLoader {
       }
     }
 
-    logger.info("All flows loaded", {
-      loaded: flows.size,
-      failed: failures.size,
-    });
+    logger.info("All flows loaded", { loaded: flows.size, failed: failures.size });
     return { flows, failures };
   }
 
-  // ── Static: Structural validation ─────────────────────────
-
-  /**
-   * Validate a raw JSON value against the FlowDefinition TypeBox schema.
-   *
-   * @throws with human-readable error messages if validation fails.
-   */
   static validateStructure(value: unknown): asserts value is FlowDefinition {
     if (!Value.Check(FlowDefinitionSchema, value)) {
       const errors = [...Value.Errors(FlowDefinitionSchema, value)].map(
@@ -137,35 +107,52 @@ export class FlowLoader {
       );
       throw new Error(`Invalid flow definition:\n${errors.join("\n")}`);
     }
+
+    // Validate each routine's steps against FlowInstructionSchema separately.
+    // Type.Record in FlowDefinitionSchema uses Type.Any() for steps to avoid
+    // a clone-induced stack overflow on the circular FlowInstructionUnion.
+    FlowLoader.validateRoutineSteps(value);
   }
 
-  // ── Static: Semantic validation ───────────────────────────
-
   /**
-   * Run semantic checks on a structurally-valid flow definition.
-   *
-   * Returns an array of error strings (empty = valid). The caller
-   * decides whether to throw or accumulate.
+   * Validate each routine's steps array against the full FlowInstruction schema.
+   * Called from validateStructure after the top-level schema check passes.
    */
-  static validateSemantics(flow: FlowDefinition, knownSpecs?: ReadonlySet<string>): string[] {
+  private static validateRoutineSteps(flow: FlowDefinition): void {
+    const stepsSchema = Type.Array(FlowInstructionSchema);
+    const allErrors: string[] = [];
+    for (const [routineName, routine] of Object.entries(flow.routines)) {
+      if (!Value.Check(stepsSchema, routine.steps)) {
+        for (const e of Value.Errors(stepsSchema, routine.steps)) {
+          allErrors.push(`  - /routines/${routineName}/steps${e.instancePath}: ${e.message}`);
+        }
+      }
+    }
+    if (allErrors.length > 0) {
+      throw new Error(`Invalid flow definition:\n${allErrors.join("\n")}`);
+    }
+  }
+
+  static validateSemantics(
+    flow: FlowDefinition,
+    knownSpecs?: ReadonlySet<string>,
+    knownProviders?: ReadonlySet<string>,
+  ): string[] {
     const errors: string[] = [];
 
-    // 1. No duplicate instruction ids
-    errors.push(...FlowLoader.checkDuplicateIds(flow.steps));
-
-    // 2. Walk the tree and check expressions + accumulateFrom + known specs
-    FlowLoader.walkInstructions(flow.steps, [], errors, knownSpecs);
+    for (const [routineName, routine] of Object.entries(flow.routines)) {
+      const scope = `routine "${routineName}"`;
+      errors.push(...FlowLoader.checkDuplicateIds(routine.steps, scope));
+      FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders, new Set());
+    }
 
     return errors;
   }
 
-  // ── Static private: Duplicate id detection ────────────────
-
-  private static checkDuplicateIds(instructions: FlowInstruction[]): string[] {
-    const seen = new Map<string, string>(); // id → first path
+  private static checkDuplicateIds(instructions: FlowInstruction[], scope: string): string[] {
+    const seen = new Map<string, string>();
     const errors: string[] = [];
-
-    FlowLoader.collectIds(instructions, "", seen, errors);
+    FlowLoader.collectIds(instructions, "", seen, errors, scope);
     return errors;
   }
 
@@ -174,63 +161,113 @@ export class FlowLoader {
     parentPath: string,
     seen: Map<string, string>,
     errors: string[],
+    scope: string,
   ): void {
     for (const instruction of instructions) {
       const instrPath = parentPath ? `${parentPath} → ${instruction.id}` : instruction.id;
-
       const firstPath = seen.get(instruction.id);
       if (firstPath !== undefined) {
         errors.push(
-          `Duplicate instruction id "${instruction.id}" at "${instrPath}" ` +
-            `(first seen at "${firstPath}")`,
+          `Duplicate instruction id "${instruction.id}" at "${scope} → ${instrPath}" ` +
+            `(first seen at "${scope} → ${firstPath}")`,
         );
       } else {
         seen.set(instruction.id, instrPath);
       }
-
-      // Recurse into children
-      if (instruction.type === "parallel" || instruction.type === "loop") {
-        FlowLoader.collectIds(containerSteps(instruction), instrPath, seen, errors);
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.collectIds(instruction.steps, instrPath, seen, errors, scope);
       }
     }
   }
-
-  // ── Static private: Tree walk for expression + accumulateFrom ─
 
   private static walkInstructions(
     instructions: FlowInstruction[],
     path: string[],
     errors: string[],
     knownSpecs?: ReadonlySet<string>,
+    knownProviders?: ReadonlySet<string>,
+    declaredWorkspaces: Set<string> = new Set(),
   ): void {
     for (const instruction of instructions) {
       const currentPath = [...path, instruction.id];
 
-      if (instruction.type === "agent" && knownSpecs && !knownSpecs.has(instruction.spec)) {
-        errors.push(
-          `Unknown spec "${instruction.spec}" referenced by agent "${currentPath.join(" → ")}"`,
+      if (instruction.type === "agent") {
+        if (knownSpecs && !knownSpecs.has(instruction.systemPrompt)) {
+          errors.push(
+            `Unknown spec "${instruction.systemPrompt}" referenced by agent "${currentPath.join(" → ")}"`,
+          );
+        }
+
+        // Validate workspace reference ordering.
+        FlowLoader.checkAgentWorkspaceRef(instruction, currentPath, errors, declaredWorkspaces);
+      }
+
+      if (instruction.type === "workspace") {
+        declaredWorkspaces.add(instruction.id);
+
+        if (knownProviders) {
+          if (!knownProviders.has(instruction.provider)) {
+            errors.push(
+              `Unknown provider "${instruction.provider}" on workspace "${currentPath.join(" → ")}"`,
+            );
+          }
+        }
+      }
+
+      if (isLoopInstruction(instruction)) {
+        FlowLoader.checkLoopExpression(instruction, currentPath, errors);
+        FlowLoader.checkAccumulateFrom(instruction, currentPath, errors);
+        FlowLoader.walkInstructions(
+          instruction.steps,
+          currentPath,
+          errors,
+          knownSpecs,
+          knownProviders,
+          new Set(declaredWorkspaces),
         );
       }
 
-      if (instruction.type === "loop") {
-        FlowLoader.checkLoopExpression(instruction, currentPath, errors);
-        FlowLoader.checkAccumulateFrom(instruction, currentPath, errors);
-        FlowLoader.walkInstructions(containerSteps(instruction), currentPath, errors, knownSpecs);
-      }
-
-      if (instruction.type === "parallel") {
-        FlowLoader.walkInstructions(containerSteps(instruction), currentPath, errors, knownSpecs);
+      if (isContainerInstruction(instruction) && !isLoopInstruction(instruction)) {
+        FlowLoader.walkInstructions(
+          instruction.steps,
+          currentPath,
+          errors,
+          knownSpecs,
+          knownProviders,
+          new Set(declaredWorkspaces),
+        );
       }
     }
   }
 
+  /**
+   * Validate that a `{workspace: "id"}` workingDir reference in an agent
+   * instruction points to a workspace declared earlier in the same routine.
+   */
+  private static checkAgentWorkspaceRef(
+    instruction: AgentInstruction,
+    currentPath: string[],
+    errors: string[],
+    declaredWorkspaces: ReadonlySet<string>,
+  ): void {
+    if (!instruction.workingDir) return;
+    if (!("workspace" in instruction.workingDir)) return;
+
+    const workspaceId = instruction.workingDir.workspace;
+    if (!declaredWorkspaces.has(workspaceId)) {
+      errors.push(
+        `Agent "${currentPath.join(" → ")}" references workspace "${workspaceId}" ` +
+          `in workingDir, but no workspace with that id exists earlier in the same routine`,
+      );
+    }
+  }
+
   private static checkLoopExpression(
-    loop: Extract<FlowInstruction, { type: "loop" }>,
+    loop: FlowInstruction & { type: "loop" },
     path: string[],
     errors: string[],
   ): void {
     if (!loop.continueWhile) return;
-
     try {
       ExpressionEvaluator.parseExpression(loop.continueWhile);
     } catch (cause) {
@@ -240,32 +277,23 @@ export class FlowLoader {
   }
 
   private static checkAccumulateFrom(
-    loop: Extract<FlowInstruction, { type: "loop" }>,
+    loop: FlowInstruction & { type: "loop" },
     path: string[],
     errors: string[],
   ): void {
     if (!loop.accumulateFrom || loop.accumulateFrom.length === 0) return;
 
-    // Collect all ids reachable within the loop body (recursive).
-    // This allows accumulateFrom to reference ids inside nested
-    // parallel/loop instructions (e.g. review inside parallel → review).
     const reachableIds = new Set<string>();
-    FlowLoader.collectAllIds(containerSteps(loop as unknown as FlowInstruction), reachableIds);
+    FlowLoader.collectAllIds(loop.steps, reachableIds);
 
-    // Also collect all parseJson: true ids.
     const parseJsonIds = new Set<string>();
-    FlowLoader.collectIdsByFlag(
-      containerSteps(loop as unknown as FlowInstruction),
-      "parseJson",
-      parseJsonIds,
-    );
+    FlowLoader.collectIdsByFlag(loop.steps, "parseJson", parseJsonIds);
 
     for (const targetId of loop.accumulateFrom) {
       if (!reachableIds.has(targetId)) {
         errors.push(
-          `accumulateFrom references unknown id ` +
-            `"${targetId}" in loop "${path.join(" → ")}" ` +
-            `(not found in loop body)`,
+          `accumulateFrom references unknown id "${targetId}" in loop ` +
+            `"${path.join(" → ")}" (not found in loop body)`,
         );
       } else if (!parseJsonIds.has(targetId)) {
         errors.push(
@@ -279,17 +307,12 @@ export class FlowLoader {
   private static collectAllIds(instructions: FlowInstruction[], ids: Set<string>): void {
     for (const instruction of instructions) {
       ids.add(instruction.id);
-      if (instruction.type === "parallel" || instruction.type === "loop") {
-        FlowLoader.collectAllIds(containerSteps(instruction), ids);
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.collectAllIds(instruction.steps, ids);
       }
     }
   }
 
-  /**
-   * Collect ids of instructions where the given flag is true.
-   * Walks recursively through parallel/loop containers.
-   * Absent flag is treated as false.
-   */
   private static collectIdsByFlag(
     instructions: FlowInstruction[],
     flag: "parseJson",
@@ -299,8 +322,8 @@ export class FlowLoader {
       if (flag in instruction && instruction[flag] === true) {
         ids.add(instruction.id);
       }
-      if (instruction.type === "parallel" || instruction.type === "loop") {
-        FlowLoader.collectIdsByFlag(containerSteps(instruction), flag, ids);
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.collectIdsByFlag(instruction.steps, flag, ids);
       }
     }
   }

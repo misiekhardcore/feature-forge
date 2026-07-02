@@ -1,0 +1,111 @@
+import { logger } from "../../logging";
+import { ExpressionEvaluator } from "../ExpressionEvaluator";
+import type { FlowContext, InstructionResult } from "../FlowContext";
+import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import { StepExecutor } from "../StepExecutor";
+import { collectAllIds } from "./helpers";
+
+/**
+ * Executes a "loop" instruction by repeatedly running its body steps,
+ * evaluating {@link LoopInstruction.continueWhile} after each iteration,
+ * and respecting {@link LoopInstruction.maxIterations}.
+ *
+ * After each iteration, results from steps listed in
+ * {@link LoopInstruction.accumulateFrom} are concatenated into
+ * {@link FlowContext.feedback} for the next round.
+ */
+export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
+  readonly type = "loop";
+
+  async execute(
+    instruction: LoopInstruction,
+    context: FlowContext,
+    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+  ): Promise<FlowContext> {
+    const maxIterations = instruction.maxIterations;
+    const continueWhileExpr = instruction.continueWhile;
+    const accumulateFrom = instruction.accumulateFrom ?? [];
+
+    logger.info("Starting loop", {
+      id: instruction.id,
+      maxIterations,
+      hasContinueWhile: !!continueWhileExpr,
+      accumulateFrom,
+    });
+
+    let current = context;
+
+    // Track all result ids produced across iterations so we can clear
+    // stale results between rounds.
+    const bodyIds = collectAllIds(instruction.steps);
+
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      // Clear body results from the previous iteration before starting
+      // the next one. The first iteration has nothing to clear so results
+      // from the final iteration are preserved.
+      if (iteration > 0) {
+        current = current.withResultsCleared(bodyIds);
+      }
+
+      current = current.withIteration(iteration);
+
+      logger.debug("Loop iteration", { id: instruction.id, iteration, maxIterations });
+
+      // Execute each body step in sequence.
+      for (const step of instruction.steps) {
+        current = await executeStep(step, current);
+      }
+
+      // Build feedback from accumulated results.
+      if (accumulateFrom.length > 0) {
+        const lines: string[] = [];
+        if (current.feedback) {
+          lines.push(current.feedback);
+        }
+        lines.push(`--- iteration ${iteration + 1} ---`);
+        for (const id of accumulateFrom) {
+          const result = current.results.get(id);
+          if (result) {
+            lines.push(`${id}: ${result.raw}`);
+          }
+        }
+        current = current.withFeedback(lines.join("\n"));
+      }
+
+      // Evaluate continueWhile expression after every iteration.
+      // When the loop should NOT continue, break to preserve the final
+      // iteration's results.
+      if (continueWhileExpr) {
+        const shouldContinue = ExpressionEvaluator.evaluateExpression(
+          current.resolve(continueWhileExpr),
+          current,
+        );
+        logger.debug("Loop continueWhile evaluated", {
+          id: instruction.id,
+          iteration,
+          expression: continueWhileExpr,
+          shouldContinue,
+        });
+        if (!shouldContinue) {
+          logger.info("Loop finished early via continueWhile", {
+            id: instruction.id,
+            iterations: iteration + 1,
+          });
+          break;
+        }
+      }
+    }
+
+    // Record a summary result for the loop itself.
+    const loopResult: InstructionResult = {
+      raw: JSON.stringify({ iterations: current.iteration + 1, maxIterations }),
+      parsed: {
+        kind: "build",
+        passed: true,
+        summary: `Loop completed ${current.iteration + 1} iteration(s)`,
+      },
+    };
+
+    return current.withResult(instruction.id, loopResult);
+  }
+}
