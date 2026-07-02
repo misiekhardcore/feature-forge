@@ -23,7 +23,7 @@ const pi = makeMockPi();
 describe("ResearchCommand", () => {
   let supervisor: InMemoryAgentSupervisor;
   let cmd: ResearchCommand;
-  let ctx: ReturnType<typeof makeMockCtx>;
+  let ctx: ExtensionCommandContext;
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
@@ -49,18 +49,18 @@ describe("ResearchCommand", () => {
   });
 
   it("notifies error when args is empty", async () => {
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /research <topic>", "error");
   });
 
   it("notifies error when args is whitespace", async () => {
-    await cmd.handler("   ", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("   ", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /research <topic>", "error");
   });
 
   it("triggers supervisor.runAgent with trimmed topic", async () => {
     vi.spyOn(supervisor, "runAgent").mockResolvedValue(undefined);
-    await cmd.handler("  quantum computing  ", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("  quantum computing  ", ctx);
     expect(supervisor.runAgent).toHaveBeenCalledWith(
       expect.any(Object),
       "quantum computing",
@@ -89,13 +89,13 @@ describe("AgentListCommand", () => {
   });
 
   it("notifies when no agents tracked", async () => {
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("No agents currently tracked.", "info");
   });
 
   it("lists tracked agents with their status", async () => {
     await supervisor.spawnGuest(makeSpec("a1", { role: "worker" }));
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith(
       expect.stringContaining("Tracked agents (1)"),
       "info",
@@ -120,13 +120,13 @@ describe("AgentDestroyCommand", () => {
   });
 
   it("notifies error when args is empty", async () => {
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /agent:destroy <name>", "error");
   });
 
   it("calls supervisor.destroyAgent and notifies", async () => {
     vi.spyOn(supervisor, "destroyAgent").mockResolvedValue(undefined);
-    await cmd.handler("agent-1", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("agent-1", ctx);
     expect(supervisor.destroyAgent).toHaveBeenCalledWith("agent-1");
     expect(ctx.ui.notify).toHaveBeenCalledWith('Agent "agent-1" destroyed.', "info");
   });
@@ -150,12 +150,12 @@ describe("AgentDestroyAllCommand", () => {
   it("calls supervisor.destroyAll and notifies with count", async () => {
     await supervisor.spawnGuest(makeSpec("a1"));
     await supervisor.spawnGuest(makeSpec("a2"));
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("All 2 agent(s) destroyed.", "info");
   });
 
   it("notifies 0 when no agents", async () => {
-    await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+    await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("All 0 agent(s) destroyed.", "info");
   });
 });

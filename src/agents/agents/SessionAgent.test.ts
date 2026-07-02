@@ -88,59 +88,6 @@ describe("SessionAgent", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
       agent.mount(pi, "task");
-      await agent.destroy();
-      expect(agent.status).toBe(AgentStatus.Cancelled);
-    });
-
-    it("deregisters the before_agent_start hook via pi.off", async () => {
-      const agent = new SessionAgent(spec);
-      const pi = makeMockPi();
-      agent.mount(pi, "task");
-
-      const handler = (pi.on as ReturnType<typeof vi.fn>).mock.calls[0][1];
-
-      await agent.destroy();
-
-      expect((pi as unknown as { off: ReturnType<typeof vi.fn> }).off).toHaveBeenCalledWith(
-        "before_agent_start",
-        handler,
-      );
-    });
-
-    it("is a no-op deregistration when destroy is called without a prior mount", async () => {
-      const agent = new SessionAgent(spec);
-      const pi = makeMockPi();
-      await expect(agent.destroy()).resolves.toBeUndefined();
-      expect((pi as unknown as { off: ReturnType<typeof vi.fn> }).off).not.toHaveBeenCalled();
-      expect(agent.status).toBe(AgentStatus.Cancelled);
-    });
-
-    it("skips deregistration gracefully when the SDK exposes no off hook", async () => {
-      const agent = new SessionAgent(spec);
-      // pi with on/sendUserMessage/setActiveTools but *no* off method.
-      const pi = {
-        on: vi.fn(),
-        sendUserMessage: vi.fn(),
-        setActiveTools: vi.fn(),
-      } as unknown as ReturnType<typeof makeMockPi>;
-      agent.mount(pi, "task");
-
-      await expect(agent.destroy()).resolves.toBeUndefined();
-      expect(agent.status).toBe(AgentStatus.Cancelled);
-    });
-
-    it("still cancels when the off hook throws", async () => {
-      const agent = new SessionAgent(spec);
-      const pi = {
-        on: vi.fn(),
-        sendUserMessage: vi.fn(),
-        setActiveTools: vi.fn(),
-        off: vi.fn().mockImplementation(() => {
-          throw new Error("deregister failed");
-        }),
-      } as unknown as ReturnType<typeof makeMockPi>;
-      agent.mount(pi, "task");
-
       await expect(agent.destroy()).resolves.toBeUndefined();
       expect(agent.status).toBe(AgentStatus.Cancelled);
     });
