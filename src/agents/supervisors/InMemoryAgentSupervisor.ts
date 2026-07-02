@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { logger } from "../../logging";
-import { Agent } from "../agents";
+import { Agent, InSessionAgent, SessionAgent, SubprocessAgent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../specifications";
 import { AgentSupervisor } from "./AgentSupervisor";
@@ -21,10 +21,19 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
   }
 
   /**
-   * Spawn a new agent via the injected factory and start tracking it.
+   * Spawn a new subprocess agent via the injected factory and start tracking it.
    */
-  public override async spawn(specification: AgentSpecification): Promise<Agent> {
+  public override async spawnGuest(specification: AgentSpecification): Promise<SubprocessAgent> {
     const agent = await this.agentFactory.create(specification);
+    this.agents.set(agent.id, agent);
+    return agent;
+  }
+
+  /**
+   * Construct and register an in-session {@link SessionAgent}.
+   */
+  public override async mountInSession(specification: AgentSpecification): Promise<InSessionAgent> {
+    const agent = new SessionAgent(specification);
     this.agents.set(agent.id, agent);
     return agent;
   }
@@ -82,9 +91,9 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
   ): Promise<void> {
     const id = specification.id;
 
-    let agent: Agent;
+    let agent: SubprocessAgent;
     try {
-      agent = await this.spawn(specification);
+      agent = await this.spawnGuest(specification);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
 

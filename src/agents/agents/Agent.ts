@@ -1,66 +1,35 @@
-import type { ImageContent } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
 import { AgentStatus } from "../base";
-import { AgentSpecification } from "../specifications";
 
 /**
- * Options for {@link Agent.executeTask}.
- */
-export interface ExecuteTaskOptions {
-  /** Optional image content to include in the prompt. */
-  images?: ImageContent[];
-  /** Timeout in milliseconds for this prompt execution. */
-  timeout?: number;
-}
-
-/**
- * A running agent instance.
- * This is the "handle" the orchestrator uses to interact with a live agent.
+ * The slim, truly common contract shared by every agent, regardless of
+ * interaction model.
  *
- * The agent owns its own result delivery — it formats success and error
- * messages in an agent-specific way and sends them to the parent session
- * via `pi.sendMessage()`.
+ * Both families — {@link SubprocessAgent} (discrete RPC result) and
+ * {@link InSessionAgent} (drives the live session) — share only identity,
+ * creation time, lifecycle status, and environment-scoped teardown. The
+ * family-specific contracts (e.g. `executeTask` / `mount`) live on the
+ * respective abstract intermediates so the base never forces a no-op onto
+ * either family.
+ *
+ * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
 export abstract class Agent {
+  /** Stable fleet identifier (unique within a supervisor's map). */
   public abstract readonly id: string;
-  public abstract readonly specification: AgentSpecification;
-  public abstract readonly status: AgentStatus;
+
+  /** When the agent instance was constructed. */
   public readonly createdAt: Date = new Date();
 
-  /**
-   * Send a prompt to the agent for execution.
-   * The agent processes the prompt and returns once complete.
-   */
-  public abstract executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string>;
+  /** Lifecycle status, kept on the base for uniform visualisation. */
+  public abstract readonly status: AgentStatus;
 
   /**
-   * Signal the agent to stop what it's doing and shut down.
-   * Returns once the agent has been terminated (gracefully or forcefully).
+   * Environment-scoped teardown.
+   *
+   * Subprocess: stop the RPC process. In-session: deregister the
+   * `before_agent_start` hook, clear active tools, and end participation in
+   * the live conversation. Always transitions {@link status} to
+   * {@link AgentStatus.Cancelled}.
    */
   public abstract destroy(): Promise<void>;
-
-  /**
-   * The agent's final result, if it Completed successfully.
-   * Throws if the agent is not in Completed state.
-   */
-  public abstract getResult(): string;
-
-  /**
-   * The error that caused the agent to fail, if applicable.
-   * Throws if the agent is not in Failed or Cancelled state.
-   */
-  public abstract getError(): Error | undefined;
-
-  /**
-   * Deliver a successful result to the parent session via pi.sendMessage().
-   * Each agent type formats its own output (markdown, json, etc.).
-   */
-  public abstract deliverResult(prompt: string, result: string, pi: ExtensionAPI): void;
-
-  /**
-   * Deliver a failure notification to the parent session via pi.sendMessage().
-   * Each agent type formats its own error presentation.
-   */
-  public abstract deliverError(prompt: string, error: Error, pi: ExtensionAPI): void;
 }

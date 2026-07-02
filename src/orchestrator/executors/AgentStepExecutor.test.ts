@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Agent } from "../../agents/agents/Agent";
+import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications/AgentSpecification";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
@@ -23,26 +23,26 @@ function makeMockSpecManager(): SpecManager {
   } as unknown as SpecManager;
 }
 
-function makeMockAgent(result: string): Agent {
+function makeMockAgent(result: string): SubprocessAgent {
   return {
     id: "test-agent",
     executeTask: vi.fn().mockResolvedValue(result),
     getResult: vi.fn().mockReturnValue(result),
     destroy: vi.fn().mockResolvedValue(undefined),
-  } as unknown as Agent;
+  } as unknown as SubprocessAgent;
 }
 
-function makeMockAgentThatThrows(error: Error): Agent {
+function makeMockAgentThatThrows(error: Error): SubprocessAgent {
   return {
     id: "test-agent",
     executeTask: vi.fn().mockRejectedValue(error),
     destroy: vi.fn().mockResolvedValue(undefined),
-  } as unknown as Agent;
+  } as unknown as SubprocessAgent;
 }
 
-function makeMockSupervisor(agent: Agent): AgentSupervisor {
+function makeMockSupervisor(agent: SubprocessAgent): AgentSupervisor {
   return {
-    spawn: vi.fn().mockResolvedValue(agent),
+    spawnGuest: vi.fn().mockResolvedValue(agent),
     destroyAgent: vi.fn().mockResolvedValue(undefined),
   } as unknown as AgentSupervisor;
 }
@@ -68,7 +68,7 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn());
 
       expect(specManager.resolve).toHaveBeenCalled();
-      expect(supervisor.spawn).toHaveBeenCalled();
+      expect(supervisor.spawnGuest).toHaveBeenCalled();
       expect(agent.executeTask).toHaveBeenCalledWith("do the thing");
       expect(agent.getResult).toHaveBeenCalled();
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -207,7 +207,7 @@ describe("AgentStepExecutor", () => {
         id: "test-agent",
         executeTask: vi.fn().mockRejectedValue("just a string"),
         destroy: vi.fn().mockResolvedValue(undefined),
-      } as unknown as Agent;
+      } as unknown as SubprocessAgent;
       const supervisor = makeMockSupervisor(agent);
       const specManager = makeMockSpecManager();
       const executor = new AgentStepExecutor(supervisor, specManager);
@@ -295,7 +295,7 @@ describe("AgentStepExecutor", () => {
 
       await executor.execute(instruction, context, vi.fn());
 
-      const spawnedSpec = (supervisor.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/repos/worktree-ws");
       expect(spawnedSpec.id).toBe("test-agent");
     });
@@ -318,7 +318,7 @@ describe("AgentStepExecutor", () => {
       await expect(executor.execute(instruction, context, vi.fn())).rejects.toBeInstanceOf(
         AgentInstructionWorkingDirMissing,
       );
-      expect(supervisor.spawn).not.toHaveBeenCalled();
+      expect(supervisor.spawnGuest).not.toHaveBeenCalled();
     });
 
     it("uses a {path} workingDir verbatim (after template resolution) as cwd", async () => {
@@ -338,7 +338,7 @@ describe("AgentStepExecutor", () => {
 
       await executor.execute(instruction, context, vi.fn());
 
-      const spawnedSpec = (supervisor.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/abs/x");
     });
 
@@ -358,7 +358,7 @@ describe("AgentStepExecutor", () => {
 
       await executor.execute(instruction, context, vi.fn());
 
-      const spawnedSpec = (supervisor.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBeUndefined();
     });
   });

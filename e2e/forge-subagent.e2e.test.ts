@@ -15,12 +15,13 @@ import { connect } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../src/agents/agents";
+import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
 import { AgentStatus } from "../src/agents/base";
 import type { AgentSupervisor } from "../src/agents/supervisors";
 import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 import { makeMockPi } from "../src/test-utils";
 
-function createMockAgent(): Agent {
+function createMockAgent(): SubprocessAgent {
   const id = "e2e-agent";
   return {
     id,
@@ -38,19 +39,20 @@ function createMockAgent(): Agent {
     getError: vi.fn().mockReturnValue(undefined),
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
-  };
+  } as unknown as SubprocessAgent;
 }
 
 function createMockSupervisor(): AgentSupervisor {
   const agents = new Map<string, Agent>();
   return {
-    spawn: vi.fn().mockImplementation(async (specification) => {
+    spawnGuest: vi.fn().mockImplementation(async (specification) => {
       const agent = createMockAgent();
       const identifier = specification.role;
       Object.defineProperty(agent, "id", { value: identifier });
       agents.set(identifier, agent);
       return agent;
     }),
+    mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
     getAgent: vi.fn().mockImplementation((id) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
 
 import { logger } from "../../logging";
-import { Agent, PiSubprocessAgent } from "../agents";
+import { PiSubprocessAgent, SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
 import { AgentCreationError, AgentFactory } from "./AgentFactory";
 import { buildPiCliArguments } from "./helpers";
@@ -19,7 +19,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
     super();
   }
 
-  public override async create(specification: AgentSpecification): Promise<Agent> {
+  public override async create(specification: AgentSpecification): Promise<SubprocessAgent> {
     const id = specification.id;
     const rpcClient = this.buildRpcClient(specification);
 
