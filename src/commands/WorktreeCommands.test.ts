@@ -1,4 +1,3 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
@@ -36,7 +35,7 @@ describe("WorktreeListCommand", () => {
     });
 
     it("notifies error when workspace infrastructure is not configured", async () => {
-      await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         "Workspace infrastructure is not configured.",
         "error",
@@ -50,7 +49,7 @@ describe("WorktreeListCommand", () => {
     });
 
     it("notifies when no active worktrees exist", async () => {
-      await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith("No active worktrees.", "info");
     });
 
@@ -60,7 +59,7 @@ describe("WorktreeListCommand", () => {
       await manager.create("task-2");
       cmd = new WorktreeListCommand(supervisor, pi, makeMockSpecManager(), manager);
 
-      await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("", ctx);
 
       expect(pi.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -89,7 +88,7 @@ describe("WorktreeDestroyCommand", () => {
     });
 
     it("notifies error when workspace infrastructure is not configured", async () => {
-      await cmd.handler("some-id", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("some-id", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         "Workspace infrastructure is not configured.",
         "error",
@@ -108,17 +107,17 @@ describe("WorktreeDestroyCommand", () => {
     });
 
     it("notifies error when args is empty", async () => {
-      await cmd.handler("", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <id>", "error");
     });
 
     it("notifies error when args is whitespace", async () => {
-      await cmd.handler("   ", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("   ", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <id>", "error");
     });
 
     it("notifies error for unknown worktree id", async () => {
-      await cmd.handler("unknown-id", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("unknown-id", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         'No worktree found with id "unknown-id". Use /worktree:list to see active ones.',
         "error",
@@ -130,7 +129,7 @@ describe("WorktreeDestroyCommand", () => {
       await manager.create("task-1");
       cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager(), manager);
 
-      await cmd.handler("task-1", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("task-1", ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalledWith('Worktree "task-1" destroyed.', "info");
       expect(pi.sendMessage).toHaveBeenCalledWith(
@@ -154,7 +153,7 @@ describe("WorktreeDestroyCommand", () => {
       };
       cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager(), manager);
 
-      await cmd.handler("task-1", ctx as unknown as ExtensionCommandContext);
+      await cmd.handler("task-1", ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         'Failed to destroy worktree "task-1": cleanup failure',

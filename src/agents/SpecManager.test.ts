@@ -35,7 +35,7 @@ function makeLoader(
       }
       return map;
     },
-  } as unknown as SpecLoader;
+  } as SpecLoader;
 }
 
 describe("SpecManager", () => {
