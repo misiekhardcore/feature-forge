@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { EventBus, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
@@ -29,6 +29,7 @@ export class FlowRegistrar {
       flowsDir: string;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
+      eventBus?: EventBus;
     },
   ) {}
 
@@ -47,6 +48,7 @@ export class FlowRegistrar {
       flowsDir,
       knownProviders,
       stepExecutorRegistry,
+      eventBus,
     } = this.params;
 
     const flowDirectories = await this.discoverFlowDirectories(flowsDir);
@@ -62,6 +64,7 @@ export class FlowRegistrar {
         workspaceManager,
         knownProviders,
         stepExecutorRegistry,
+        eventBus,
       });
     }
   }
@@ -87,6 +90,7 @@ export class FlowRegistrar {
       workspaceManager: WorkspaceManager;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
+      eventBus?: EventBus;
     },
   ): Promise<void> {
     const {
@@ -98,6 +102,7 @@ export class FlowRegistrar {
       workspaceManager,
       knownProviders,
       stepExecutorRegistry,
+      eventBus,
     } = ctx;
 
     // Skip flows without an orchestrator markdown file.
@@ -157,7 +162,7 @@ export class FlowRegistrar {
     }
 
     // Register routine tools for this flow.
-    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry);
+    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus);
     for (const [routineName, routineDef] of Object.entries(flow.routines)) {
       const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
       try {
