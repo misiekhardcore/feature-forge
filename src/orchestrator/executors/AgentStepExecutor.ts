@@ -1,6 +1,5 @@
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";
-import { DynamicAgentSpecification } from "../../agents/specifications";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
@@ -50,11 +49,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     // instruction. The flow loader has already validated that any
     // `{ workspace }` reference names a workspace declared earlier in
     // the same routine; here we resolve it at runtime to a concrete path.
-    const effectiveSpecification = AgentStepExecutor.applyWorkingDir(
-      specification,
-      instruction,
-      context,
-    );
+    const effectiveSpecification = this.applyWorkingDir(specification, instruction, context);
 
     logger.info("Spawning agent", {
       instructionId,
@@ -71,7 +66,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const raw = agent.getResult();
       logger.info("Agent completed", { instructionId, resultLength: raw.length });
 
-      const result = AgentStepExecutor.buildResult(raw, instruction.parseJson);
+      const result = this.buildResult(raw, instruction.parseJson);
       return context.withResult(instructionId, result);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -109,7 +104,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
    * spawning the subprocess — so no supervisor or factory changes are
    * required.
    */
-  private static applyWorkingDir(
+  private applyWorkingDir(
     specification: AgentSpecification,
     instruction: AgentInstruction,
     context: FlowContext,
@@ -119,29 +114,14 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       return specification;
     }
 
-    const cwd = AgentStepExecutor.resolveWorkingDirPath(workingDir, context, instruction.id);
-    return new DynamicAgentSpecification({
-      id: specification.id,
-      role: specification.role,
-      systemPrompt: specification.systemPrompt,
-      tools: specification.tools,
-      excludedTools: specification.excludedTools,
-      model: specification.model,
-      thinkingLevel: specification.thinkingLevel,
-      disableBuiltinTools: specification.disableBuiltinTools,
-      disableExtensions: specification.disableExtensions,
-      disableSkills: specification.disableSkills,
-      disablePromptTemplates: specification.disablePromptTemplates,
-      disableContextFiles: specification.disableContextFiles,
-      ephemeral: specification.ephemeral,
-      cwd,
-    });
+    const cwd = this.resolveWorkingDirPath(workingDir, context, instruction.id);
+    return this.specManager.createDynamic({ ...specification, cwd });
   }
 
   /**
    * Resolve a `workingDir` instruction value to a concrete filesystem path.
    */
-  private static resolveWorkingDirPath(
+  private resolveWorkingDirPath(
     workingDir: NonNullable<AgentInstruction["workingDir"]>,
     context: FlowContext,
     instructionId: string,
@@ -157,7 +137,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     return context.resolve(workingDir.path);
   }
 
-  private static buildResult(raw: string, parseJson?: boolean): InstructionResult {
+  private buildResult(raw: string, parseJson?: boolean): InstructionResult {
     if (!parseJson) {
       return { raw };
     }

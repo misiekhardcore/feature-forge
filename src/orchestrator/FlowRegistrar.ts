@@ -105,7 +105,7 @@ export class FlowRegistrar {
     try {
       await fs.access(orchestratorFile);
     } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator persona for "${flowName}"`, {
+      logger.warn(`[feature-forge] Orchestrator persona file not found for flow "${flowName}"`, {
         error,
       });
       return;
@@ -118,7 +118,7 @@ export class FlowRegistrar {
     try {
       await specManager.loadFromDirectory(flowDir);
     } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator persona for "${flowName}"`, {
+      logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
         error,
       });
       return;
@@ -126,7 +126,7 @@ export class FlowRegistrar {
 
     // Load and validate the flow definition with an up-to-date spec snapshot.
     const knownSpecs = specManager.specNames();
-    const flowLoader = new FlowLoader(flowDir, knownSpecs, knownProviders);
+    const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
     try {
       flow = await flowLoader.load("flow");

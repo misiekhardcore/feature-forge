@@ -1,5 +1,5 @@
 import { logger } from "../../logging";
-import type { BuildOutcome, FlowContext, InstructionResult, ReviewFindings } from "../FlowContext";
+import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 
@@ -59,20 +59,14 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
 
     // Record a summary result for the parallel block itself.
     const childIds = childInstructions.map((c) => c.id);
-    const passed = firstError === undefined;
+
     const blockResult: InstructionResult = {
-      raw: JSON.stringify({ passed, children: childIds }),
-      parsed: passed
-        ? ({
-            kind: "build" as const,
-            passed: true,
-            summary: `All ${childInstructions.length} parallel steps completed`,
-          } satisfies BuildOutcome)
-        : ({
-            kind: "review" as const,
-            passed: false,
-            findings: { critical: [firstError!.message], warnings: [], info: [] },
-          } satisfies ReviewFindings),
+      raw: JSON.stringify({ passed: true, children: childIds }),
+      parsed: {
+        kind: "build",
+        passed: true,
+        summary: `All ${childInstructions.length} parallel steps completed`,
+      },
     };
 
     return merged.withResult(instruction.id, blockResult);

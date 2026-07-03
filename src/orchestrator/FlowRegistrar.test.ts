@@ -281,11 +281,11 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(flowLoaderCtorMock).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(flowLoaderCtorMock).toHaveBeenCalledWith({
+        flowsDir: expect.any(String),
         knownSpecs,
         knownProviders,
-      );
+      });
     });
 
     it("registers RoutineTool for each routine in the flow", async () => {

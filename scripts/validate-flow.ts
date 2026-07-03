@@ -22,7 +22,7 @@ async function main(): Promise<void> {
 
   if (args[0] === "--all") {
     const flowsDir = path.join(scriptDir, "..", "src", "flows");
-    const loader = new FlowLoader(flowsDir);
+    const loader = new FlowLoader({ flowsDir });
     const { flows, failures } = await loader.loadAll();
 
     if (failures.size > 0) {

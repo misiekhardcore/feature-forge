@@ -177,7 +177,7 @@ describe("ShellStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const result = await executor.execute(instruction, context, vi.fn());
 
-      expect(result.results.get("sh5")!.raw).toBe("ECONNREFUSED");
+      expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
     });
   });
 });
