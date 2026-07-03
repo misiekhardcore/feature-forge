@@ -5,6 +5,7 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
+import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";
@@ -34,6 +35,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     instruction: AgentInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    onProgress?: RoutineProgress,
   ): Promise<FlowContext> {
     const instructionId = instruction.id;
 
@@ -60,6 +62,15 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
 
     // 3. Spawn agent, execute task, collect result, and destroy.
     const agent: SubprocessAgent = await this.supervisor.spawnGuest(effectiveSpecification);
+
+    if (onProgress) {
+      onProgress({
+        phase: "agent-started",
+        message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
+        details: {},
+      });
+    }
+
     try {
       await agent.executeTask(resolvedTask);
 
@@ -67,7 +78,17 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       logger.info("Agent completed", { instructionId, resultLength: raw.length });
 
       const result = this.buildResult(raw, instruction.parseJson);
-      return context.withResult(instructionId, result);
+      const updatedContext = context.withResult(instructionId, result);
+
+      if (onProgress) {
+        onProgress({
+          phase: "agent-done",
+          message: `Agent "${instructionId}" completed`,
+          details: {},
+        });
+      }
+
+      return updatedContext;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error("Agent execution failed", { instructionId, error: err });
