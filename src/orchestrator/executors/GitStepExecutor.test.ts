@@ -21,10 +21,10 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
+import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { GitInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { GitStepExecutor } from "./GitStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -74,9 +74,8 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      // Should have called git add -A and git commit.
       expect(execFileRaw).toHaveBeenCalledTimes(2);
       const addCall = execFileRaw.mock.calls[0];
       expect(addCall[0]).toBe("git");
@@ -103,7 +102,7 @@ describe("GitStepExecutor", () => {
         message: "chore: bump version",
       };
       const context = new FlowContext(new Map(), "task");
-      await executor.execute(instruction, context, vi.fn(), () => {});
+      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       const commitCall = execFileRaw.mock.calls[1];
       expect(commitCall[1]).toEqual(["commit", "-m", "chore: bump version"]);
@@ -121,7 +120,7 @@ describe("GitStepExecutor", () => {
         message: "feat: {{prompt}}",
       };
       const context = new FlowContext(new Map(), "implement login");
-      await executor.execute(instruction, context, vi.fn(), () => {});
+      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       const commitCall = execFileRaw.mock.calls[1];
       expect(commitCall[1]).toEqual(["commit", "-m", "feat: implement login"]);
@@ -138,7 +137,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("git");
@@ -158,7 +157,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("git-push")!.parsed!.passed).toBe(true);
       const raw = result.results.get("git-push")!.raw;
@@ -177,7 +176,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("git-push-empty")!.parsed!.passed).toBe(true);
       expect(result.results.get("git-push-empty")!.raw).toContain("push-current");
@@ -195,7 +194,7 @@ describe("GitStepExecutor", () => {
         cwd: "/bad/path",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("git-push-fail")!.parsed!.passed).toBe(false);
       expect(result.results.get("git-push-fail")!.raw).toContain("fatal:");
@@ -216,7 +215,7 @@ describe("GitStepExecutor", () => {
         "task",
         new Map([["ws", new WorkspaceHandle("/resolved/ws", new Date())]]),
       );
-      await executor.execute(instruction, context, vi.fn(), () => {});
+      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/resolved/ws");
     });
@@ -233,16 +232,12 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      // add-and-commit must throw so RoutineExecutor aborts `open_pr` before
-      // push-current / gh ever run (see ADR 0008). It must NOT be captured
-      // as a soft `passed:false` result, which would let the routine push
-      // an empty branch and open a misleading PR.
-      await expect(executor.execute(instruction, context, vi.fn(), () => {})).rejects.toThrow(
-        "fatal: not a git repository",
-      );
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+      ).rejects.toThrow("fatal: not a git repository");
     });
 
-    it("fires git-start/git-done with correct phase and message for push-current", async () => {
+    it("emits git-start/git-done with correct phase and message for push-current", async () => {
       mockExecSuccess("pushed ok\n", "");
       const executor = new GitStepExecutor();
 
@@ -254,17 +249,23 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (event: RoutineProgressEvent) => events.push(event);
+      const eventBus = makeMockEventBus();
+      await executor.execute(instruction, context, vi.fn(), eventBus);
 
-      await executor.execute(instruction, context, vi.fn(), onProgress);
-
-      expect(events).toHaveLength(2);
-      expect(events[0].phase).toBe("git-start");
-      expect(events[0].message).toContain("push-current");
-      expect(events[0].message).toContain("/tmp/ws");
-      expect(events[1].phase).toBe("git-done");
-      expect(events[1].message).toContain("push-current");
+      expect(eventBus.emit).toHaveBeenCalledTimes(2);
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        1,
+        "feature-forge:git-start",
+        expect.objectContaining({
+          phase: "git-start",
+          message: expect.stringContaining("push-current") as string,
+        }),
+      );
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        2,
+        "feature-forge:git-done",
+        expect.objectContaining({ phase: "git-done" }),
+      );
     });
 
     it("skips git-done when add-and-commit fails (exception propagates)", async () => {
@@ -279,17 +280,15 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (event: RoutineProgressEvent) => events.push(event);
+      const eventBus = makeMockEventBus();
 
-      // add-and-commit throws on failure, so git-done is never emitted.
-      await expect(executor.execute(instruction, context, vi.fn(), onProgress)).rejects.toThrow(
+      await expect(executor.execute(instruction, context, vi.fn(), eventBus)).rejects.toThrow(
         "fatal: not a git repository",
       );
 
       // Only git-start was emitted.
-      expect(events).toHaveLength(1);
-      expect(events[0].phase).toBe("git-start");
+      expect(eventBus.emit).toHaveBeenCalledTimes(1);
+      expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:git-start", expect.anything());
     });
 
     it("emits git-done when push-current fails (soft failure still resolves)", async () => {
@@ -304,19 +303,25 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (event: RoutineProgressEvent) => events.push(event);
+      const eventBus = makeMockEventBus();
 
-      // push-current should not throw on failure — it returns passed:false.
-      const result = await executor.execute(instruction, context, vi.fn(), onProgress);
+      const result = await executor.execute(instruction, context, vi.fn(), eventBus);
 
       expect(result.results.get("git-push-soft-fail")!.parsed!.passed).toBe(false);
 
-      // Both git-start and git-done should be emitted.
-      expect(events).toHaveLength(2);
-      expect(events[0].phase).toBe("git-start");
-      expect(events[1].phase).toBe("git-done");
-      expect(events[1].message).toContain("failed");
+      expect(eventBus.emit).toHaveBeenCalledTimes(2);
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        1,
+        "feature-forge:git-start",
+        expect.anything(),
+      );
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        2,
+        "feature-forge:git-done",
+        expect.objectContaining({
+          message: expect.stringContaining("failed") as string,
+        }),
+      );
     });
   });
 });

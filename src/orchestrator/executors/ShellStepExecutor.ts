@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -27,7 +28,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     instruction: ShellInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
@@ -38,7 +39,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       cwd: resolvedCwd,
     });
 
-    onProgress({
+    eventBus.emit("feature-forge:shell-start", {
       phase: "shell-start",
       message: `Shell "${instruction.id}": ${resolvedCommand}`,
       details: {},
@@ -64,7 +65,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
 
       const updatedContext = context.withResult(instruction.id, result);
 
-      onProgress({
+      eventBus.emit("feature-forge:shell-done", {
         phase: "shell-done",
         message: `Shell "${instruction.id}" completed`,
         details: {},

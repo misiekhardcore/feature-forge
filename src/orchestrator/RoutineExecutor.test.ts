@@ -1,3 +1,4 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockEventBus } from "../test-utils";
@@ -5,7 +6,6 @@ import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
-import type { RoutineProgress, RoutineProgressEvent } from "./RoutineProgress";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -24,7 +24,7 @@ class RecordExecutor extends StepExecutor {
     instruction: FlowInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    _onProgress: RoutineProgress,
+    _eventBus: EventBus,
   ): Promise<FlowContext> {
     const instr = instruction as Record<string, unknown>;
     const task = typeof instr.task === "string" ? context.resolve(instr.task) : "";
@@ -40,7 +40,7 @@ class FailingExecutor extends StepExecutor {
     instruction: FlowInstruction,
     _context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    _onProgress: RoutineProgress,
+    _eventBus: EventBus,
   ): Promise<FlowContext> {
     throw new Error(`step ${instruction.id} failed intentionally`);
   }
@@ -99,7 +99,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", { plan: "use JWT" }, "add auth", vi.fn());
+      const result = await executor.run("main", { plan: "use JWT" }, "add auth");
 
       expect(result.passed).toBe(true);
       expect(result.routine).toBe("main");
@@ -140,7 +140,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", {}, "task", vi.fn());
+      const result = await executor.run("main", {}, "task");
 
       expect(result.results["step1"].raw).toBe("done:step1");
       expect(result.results["step2"].raw).toBe("done:step2");
@@ -180,7 +180,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task", vi.fn());
+      const result = await executor.run("main", {}, "task");
       expect(result.workspace).toBe("/tmp/forge-worktree");
     });
 
@@ -206,12 +206,11 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task", vi.fn());
+      const result = await executor.run("main", {}, "task");
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain("failed");
       expect(result.summary).toContain("step f1 failed intentionally");
-      // The result for f1 is not recorded because it threw.
     });
 
     it("throws for an unknown routine name", async () => {
@@ -220,7 +219,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      await expect(executor.run("nonexistent", {}, "task", vi.fn())).rejects.toThrow(
+      await expect(executor.run("nonexistent", {}, "task")).rejects.toThrow(
         'Routine "nonexistent" not found',
       );
     });
@@ -232,84 +231,14 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", {}, "task", vi.fn());
+      const result = await executor.run("main", {}, "task");
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain('No step executor registered for type "record"');
     });
 
-    it("threads onProgress to step executors", async () => {
+    it("passes eventBus to step executors", async () => {
       RecordExecutor.reset();
-      const registry = new StepExecutorRegistry();
-
-      // Create a custom executor that forwards onProgress to prove threading.
-      class ProgressAwareExecutor extends StepExecutor {
-        readonly type = "progress-aware";
-        async execute(
-          instruction: FlowInstruction,
-          context: FlowContext,
-          _executeStep: (
-            instruction: FlowInstruction,
-            context: FlowContext,
-          ) => Promise<FlowContext>,
-          onProgress: RoutineProgress,
-        ): Promise<FlowContext> {
-          onProgress({
-            phase: "custom-event",
-            message: `step ${instruction.id}`,
-            details: {},
-          });
-          return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
-        }
-      }
-
-      registry.register(() => new ProgressAwareExecutor());
-
-      const flow: FlowDefinition = {
-        name: "progress-flow",
-        command: "/progress",
-        orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
-            params: [],
-            steps: [
-              { type: "progress-aware", id: "step1" } as unknown as FlowInstruction,
-              { type: "progress-aware", id: "step2" } as unknown as FlowInstruction,
-            ],
-          },
-        },
-      };
-
-      const eventBus = makeMockEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
-      const events: RoutineProgressEvent[] = [];
-
-      const result = await executor.run("main", {}, "task", (e) => events.push(e));
-
-      expect(result.passed).toBe(true);
-      expect(events).toHaveLength(2);
-      expect(events[0].phase).toBe("custom-event");
-      expect(events[0].message).toContain("step1");
-      expect(events[1].phase).toBe("custom-event");
-      expect(events[1].message).toContain("step2");
-    });
-
-    it("works without onProgress (optional parameter)", async () => {
-      RecordExecutor.reset();
-      const registry = new StepExecutorRegistry();
-      registry.register(() => new RecordExecutor());
-
-      const flow = makeTestFlow();
-      const eventBus = makeMockEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
-
-      // Should work when onProgress is omitted.
-      const result = await executor.run("main", {}, "task", vi.fn());
-
-      expect(result.passed).toBe(true);
-    });
-
-    it("emits progress events to eventBus when provided", async () => {
       const registry = new StepExecutorRegistry();
 
       class EventBusAwareExecutor extends StepExecutor {
@@ -321,9 +250,89 @@ describe("RoutineExecutor", () => {
             instruction: FlowInstruction,
             context: FlowContext,
           ) => Promise<FlowContext>,
-          onProgress: RoutineProgress,
+          eventBus: EventBus,
         ): Promise<FlowContext> {
-          onProgress({
+          eventBus.emit("feature-forge:custom-event", {
+            phase: "custom-event",
+            message: `step ${instruction.id}`,
+            details: {},
+          });
+          return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
+        }
+      }
+
+      registry.register(() => new EventBusAwareExecutor());
+
+      const flow: FlowDefinition = {
+        name: "event-bus-flow",
+        command: "/event-bus",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [
+              { type: "event-bus-aware", id: "step1" } as unknown as FlowInstruction,
+              { type: "event-bus-aware", id: "step2" } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const emitSpy = vi.fn();
+      const eventBus = { emit: emitSpy, on: vi.fn() };
+
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(true);
+      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenNthCalledWith(
+        1,
+        "feature-forge:custom-event",
+        expect.objectContaining({
+          phase: "custom-event",
+          message: expect.stringContaining("step1") as string,
+        }),
+      );
+      expect(emitSpy).toHaveBeenNthCalledWith(
+        2,
+        "feature-forge:custom-event",
+        expect.objectContaining({
+          phase: "custom-event",
+          message: expect.stringContaining("step2") as string,
+        }),
+      );
+    });
+
+    it("works with a mocked eventBus", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const flow = makeTestFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(true);
+    });
+
+    it("passes eventBus to executors when an EventBus is provided", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class EventBusAwareExecutor extends StepExecutor {
+        readonly type = "event-bus-aware";
+        async execute(
+          instruction: FlowInstruction,
+          context: FlowContext,
+          _executeStep: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+          ) => Promise<FlowContext>,
+          eventBus: EventBus,
+        ): Promise<FlowContext> {
+          eventBus.emit("feature-forge:agent-started", {
             phase: "agent-started",
             message: `launching ${instruction.id}`,
             details: { routine: "main" },
@@ -350,7 +359,7 @@ describe("RoutineExecutor", () => {
       const eventBus = { emit: emitSpy, on: vi.fn() };
 
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      await executor.run("main", {}, "task", vi.fn());
+      await executor.run("main", {}, "task");
 
       expect(emitSpy).toHaveBeenCalledWith("feature-forge:agent-started", {
         phase: "agent-started",
@@ -373,7 +382,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      await expect(executor.run("gamma", {}, "task", vi.fn())).rejects.toThrow("alpha, beta");
+      await expect(executor.run("gamma", {}, "task")).rejects.toThrow("alpha, beta");
     });
   });
 });

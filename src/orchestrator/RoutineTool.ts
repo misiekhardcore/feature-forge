@@ -10,7 +10,7 @@ import { Type } from "typebox";
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
-import type { RoutineProgress, RoutineProgressEvent } from "./RoutineProgress";
+import type { RoutineProgressEvent } from "./RoutineProgress";
 
 /**
  * Tool adapter that wraps a single routine as a pi tool so the
@@ -77,51 +77,38 @@ export class RoutineTool implements ToolDefinition<
       }
     }
 
-    const onProgress = this.buildProgressBridge(onUpdate);
+    const unsubscribe = onUpdate
+      ? this.executor.eventBus.on("feature-forge:*", (data: unknown) => {
+          const event = data as RoutineProgressEvent;
+          logger.debug("RoutineTool progress", { ...event });
+          onUpdate({
+            content: [
+              {
+                type: "text",
+                text: `[${event.phase}] ${event.message}`,
+              },
+            ],
+            details: {
+              routine: event.details.routine ?? this.routineName,
+              passed: event.details.passed ?? false,
+              summary: event.message,
+            },
+          });
+        })
+      : undefined;
 
-    const result = await this.executor.run(this.routineName, routineParams, prompt, onProgress);
+    try {
+      const result = await this.executor.run(this.routineName, routineParams, prompt);
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      details: { routine: result.routine, passed: result.passed, summary: result.summary },
-    };
-  }
-
-  // ── Progress bridge ───────────────────────────────────────
-
-  /**
-   * Build a {@link RoutineProgress} callback that forwards progress events
-   * to pi's `onUpdate` stream.
-   *
-   * When no `onUpdate` callback is provided, returns a no-op callback so
-   * callers can unconditionally invoke progress without guarding for
-   * `undefined`.
-   */
-  private buildProgressBridge(
-    onUpdate:
-      | AgentToolUpdateCallback<{ routine: string; passed: boolean; summary: string }>
-      | undefined,
-  ): RoutineProgress {
-    if (!onUpdate) {
-      return () => {};
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        details: { routine: result.routine, passed: result.passed, summary: result.summary },
+      };
+    } finally {
+      if (unsubscribe) {
+        unsubscribe();
+      }
     }
-
-    return (event: RoutineProgressEvent) => {
-      logger.debug("RoutineTool progress", { ...event });
-      onUpdate({
-        content: [
-          {
-            type: "text",
-            text: `[${event.phase}] ${event.message}`,
-          },
-        ],
-        details: {
-          routine: event.details.routine ?? this.routineName,
-          passed: event.details.passed ?? false,
-          summary: event.message,
-        },
-      });
-    };
   }
 
   // ── Static helpers ────────────────────────────────────────

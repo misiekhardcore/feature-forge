@@ -1,3 +1,4 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
 import type { FlowContext } from "./FlowContext";
@@ -17,7 +18,12 @@ class FakeExecutor extends StepExecutor {
     this.resultId = resultId;
   }
 
-  async execute(instruction: WorkspaceInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: WorkspaceInstruction,
+    context: FlowContext,
+    _executeStep?: unknown,
+    _eventBus?: EventBus,
+  ): Promise<FlowContext> {
     return context.withResult(this.resultId, { raw: `executed ${this.type}` });
   }
 }

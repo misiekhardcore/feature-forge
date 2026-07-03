@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, GitInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -30,7 +31,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
     instruction: GitInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
     const resolvedCwd = context.resolve(instruction.cwd);
 
@@ -45,7 +46,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,
     });
 
-    onProgress({
+    eventBus.emit("feature-forge:git-start", {
       phase: "git-start",
       message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,
       details: {},
@@ -96,7 +97,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         message: `Git "${instruction.id}": ${instruction.action} complete`,
       });
 
-      onProgress({
+      eventBus.emit("feature-forge:git-done", {
         phase: "git-done",
         message: `Git "${instruction.id}": ${instruction.action} complete`,
         details: {},
@@ -124,7 +125,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         message: `Git "${instruction.id}": ${instruction.action} failed`,
       });
 
-      onProgress({
+      eventBus.emit("feature-forge:git-done", {
         phase: "git-done",
         message: `Git "${instruction.id}": ${instruction.action} failed`,
         details: {},
