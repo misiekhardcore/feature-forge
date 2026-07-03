@@ -153,7 +153,7 @@ describe("flow round-trip", () => {
     // this iterates all .json files excluding flow-schema.json.
     // Using a single describe block per flow gives clean failure
     // output with the flow name in the describe header.
-    loader = new FlowLoader(flowsDir, knownSpecs);
+    loader = new FlowLoader({ flowsDir: flowsDir, knownSpecs });
     flow = await loader.load("flow");
   });
 

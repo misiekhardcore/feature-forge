@@ -32,6 +32,7 @@ export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;
   private readonly flow: FlowDefinition;
+  // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
   private agent: InSessionAgent | undefined;
 

@@ -105,6 +105,9 @@ export class RoutineExecutor {
       results[key] = value;
     }
 
+    // Backwards-compat: single-workspace flows expect `workspace` on the
+    // top-level result. Multi-workspace flows should read workspace paths
+    // from `results` directly.
     const workspaceEntry = [...context.workspaces.entries()][0];
     const workspace = workspaceEntry ? workspaceEntry[1].path : undefined;
 

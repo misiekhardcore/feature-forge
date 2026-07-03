@@ -83,7 +83,13 @@ export class SessionAgent extends InSessionAgent {
    * {@link AgentStatus.Cancelled}.
    */
   public override async destroy(): Promise<void> {
-    this.handler = undefined;
+    if (this.pi && this.handler) {
+      // TODO: call pi.off("before_agent_start", handler) when SDK supports it
+      this.handler = undefined;
+    }
+    if (this.pi) {
+      this.pi.setActiveTools([]);
+    }
     this._status = AgentStatus.Cancelled;
     logger.info(`Agent ${this.specification.id} destroyed`);
   }

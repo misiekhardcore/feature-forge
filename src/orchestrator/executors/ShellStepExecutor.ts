@@ -58,7 +58,10 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     } catch (error) {
       // execFile rejects on non-zero exit codes — capture stdout/stderr from the error.
       const err = error instanceof Error ? error : new Error(String(error));
+      const stdoutOutput = (error as { stdout?: string }).stdout ?? "";
       const stderrOutput = (error as { stderr?: string }).stderr ?? "";
+      const raw =
+        (stdoutOutput + (stderrOutput ? `\nstderr:\n${stderrOutput}` : "")).trim() || err.message;
 
       logger.error("Shell step failed", {
         instructionId: instruction.id,
@@ -68,7 +71,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       });
 
       const result: InstructionResult = {
-        raw: stderrOutput || err.message,
+        raw: raw,
         parsed: {
           kind: "build",
           passed: false,

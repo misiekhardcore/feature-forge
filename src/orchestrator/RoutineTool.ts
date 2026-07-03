@@ -65,6 +65,9 @@ export class RoutineTool implements ToolDefinition<
       params: Object.keys(params),
     });
 
+    // `_prompt` is a collision-avoidance fallback: when a routine declares a
+    // param also named "prompt", the LLM may pass the task under the underscore
+    // alias. Both are accepted; the named param wins when present.
     const prompt = params["prompt"] ?? params["_prompt"] ?? "";
     const routineParams: Record<string, string> = {};
     for (const param of this.routineDef.params) {
