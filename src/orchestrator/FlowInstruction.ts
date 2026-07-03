@@ -57,9 +57,21 @@ export const ShellInstructionSchema = defineInstruction("shell", {
   cwd: Type.Optional(Type.String()),
 });
 
+// ── Parallel failure mode ──────────────────────────────────
+
+export const ParallelFailureModeSchema = Type.Union([
+  Type.Literal("fail_fast"),
+  Type.Literal("continue_on_error"),
+  Type.Literal("all_or_nothing"),
+]);
+
+export type ParallelFailureMode = Type.Static<typeof ParallelFailureModeSchema>;
+
 // ── Container schemas (steps added via patch below) ─────────
 
-export const ParallelInstructionSchema = defineInstruction("parallel");
+export const ParallelInstructionSchema = defineInstruction("parallel", {
+  failureMode: Type.Optional(ParallelFailureModeSchema),
+});
 
 export const LoopInstructionSchema = defineInstruction("loop", {
   maxIterations: Type.Integer({ minimum: 1 }),
@@ -163,6 +175,7 @@ export type AgentInstruction = Type.Static<typeof AgentInstructionSchema>;
 
 export type ParallelInstruction = Type.Static<typeof ParallelInstructionSchema> & {
   steps: FlowInstruction[];
+  failureMode?: ParallelFailureMode;
 };
 
 export type LoopInstruction = Type.Static<typeof LoopInstructionSchema> & {
