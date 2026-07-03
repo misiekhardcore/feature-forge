@@ -13,9 +13,9 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
  *
- * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
- * Branch name: `forge/<workspaceId>-<branchSuffix>` (suffix defaults to
- * `Date.now()` for collision-free branches across invocations).
+ * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>-<pathSuffix>`
+ * Branch name: `forge/<workspaceId>-<branchSuffix>`
+ * Both suffixes default to `Date.now()` for collision-free invocations.
  */
 export class GitWorktreeProvider extends WorkspaceProvider {
   /** Absolute path to the root of the git repository. */
@@ -24,17 +24,22 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   public readonly baseRef: string;
   /** Suffix appended to the branch name for uniqueness. */
   private readonly branchSuffix: string;
+  /** Suffix appended to the worktree directory name for uniqueness. */
+  private readonly pathSuffix: string;
 
   /**
    * @param repoRoot — Absolute path to the repository root. Defaults to `process.cwd()`.
    * @param baseRef — Git ref to create the worktree from. Defaults to `"HEAD"`.
    * @param branchSuffix — Suffix appended to the branch name. Defaults to `Date.now()`.
+   * @param pathSuffix — Suffix appended to the worktree directory name. Defaults to `Date.now()` (same as branchSuffix).
    */
-  constructor(repoRoot?: string, baseRef = "HEAD", branchSuffix?: string) {
+  constructor(repoRoot?: string, baseRef = "HEAD", branchSuffix?: string, pathSuffix?: string) {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
     this.baseRef = baseRef;
-    this.branchSuffix = branchSuffix ?? Date.now().toString();
+    const suffix = branchSuffix ?? Date.now().toString();
+    this.branchSuffix = suffix;
+    this.pathSuffix = pathSuffix ?? suffix;
   }
 
   /**
@@ -111,7 +116,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   // ─── Private helpers ─────────────────────────────────────────────────
 
   private getWorktreePath(workspaceId: string): string {
-    return resolve(join(this.repoRoot, ".forge", "worktrees", workspaceId));
+    return resolve(join(this.repoRoot, ".forge", "worktrees", `${workspaceId}-${this.pathSuffix}`));
   }
 
   private getBranchName(workspaceId: string): string {
