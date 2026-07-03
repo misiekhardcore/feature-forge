@@ -70,7 +70,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
       // Execute each body step in sequence.
       for (const step of instruction.steps) {
-        current = await executeStep(step, current);
+        current = await executeStep(step, current, signal);
       }
 
       // Build feedback from accumulated results.

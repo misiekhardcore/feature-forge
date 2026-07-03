@@ -79,7 +79,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     });
 
     try {
-      await agent.executeTask(resolvedTask);
+      await agent.executeTask(resolvedTask, { signal });
 
       const raw = agent.getResult();
       logger.info("Agent completed", { instructionId, resultLength: raw.length });

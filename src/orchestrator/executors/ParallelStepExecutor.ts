@@ -42,7 +42,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
     signal?.throwIfAborted();
 
     const settled = await Promise.allSettled(
-      childInstructions.map(async (child) => executeStep(child, context)),
+      childInstructions.map(async (child) => executeStep(child, context, signal)),
     );
 
     // Collect errors; throw the first one after all settle.
