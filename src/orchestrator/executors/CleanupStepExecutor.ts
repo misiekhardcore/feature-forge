@@ -1,9 +1,10 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { logger } from "../../logging";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -32,9 +33,9 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     instruction: CleanupInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
-    onProgress({
+    eventBus.emit("feature-forge:cleanup-start", {
       phase: "cleanup-start",
       message: `Cleanup "${instruction.id}" starting`,
       details: {},
@@ -89,7 +90,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
 
     const updatedContext = context.withResult(instruction.id, result);
 
-    onProgress({
+    eventBus.emit("feature-forge:cleanup-done", {
       phase: "cleanup-done",
       message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
       details: {},

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { makeMockEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { LoopStepExecutor } from "./LoopStepExecutor";
@@ -16,7 +16,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch, () => {});
+    return executor.execute(instruction, ctx, dispatch, makeMockEventBus());
   };
   return dispatch;
 }
@@ -78,9 +78,8 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
-    // After 3 iterations the counter should be 3.
     expect(result.results.get("counter")!.raw).toBe("val-round-3");
     expect(result.results.get("counter_count")!.raw).toBe("3");
     expect(result.results.get("l")!.parsed!.passed).toBe(true);
@@ -102,11 +101,8 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
-    // Iteration 1 fails (passed=false → continueWhile true → continues)
-    // Iteration 2 passes (passed=true → continueWhile false → stops)
-    // So 2 iterations total.
     expect(result.results.get("l")!.raw).toContain('"iterations":2');
     expect(result.results.get("check")!.parsed!.passed).toBe(true);
   });
@@ -116,8 +112,6 @@ describe("LoopStepExecutor", () => {
     registry.register(() => new ParseJsonExecutor());
     const executor = new LoopStepExecutor();
 
-    // continueWhile immediately evaluates false because results.check doesn't
-    // exist yet, but the body always runs at least once.
     const instruction: LoopInstruction = {
       type: "loop",
       id: "l",
@@ -129,15 +123,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
-    // Body ran at least once even though condition was initially false-like.
     expect(result.results.get("l")!.raw).toContain('"iterations":1');
   });
 
   it("stops when maxIterations is reached even if continueWhile is true", async () => {
-    // Use an executor that always fails so continueWhile is always true.
-    // The loop should run all maxIterations iterations.
     const registry = new StepExecutorRegistry();
     registry.register(
       () =>
@@ -168,7 +159,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
   });
@@ -188,15 +179,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
-    // After 2 iterations, the accumulated feedback should contain both rounds.
     expect(result.results.get("step")!.raw).toBe("build-round-2");
   });
 
   it("clears stale body results between iterations", async () => {
-    // Use two counter steps. Between iterations, both should be cleared
-    // so fresh results are recorded.
     const registry = new StepExecutorRegistry();
     registry.register(() => new IncrementingExecutor("a"));
     const executor = new LoopStepExecutor();
@@ -213,16 +201,13 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
-    // Each counter should show the final iteration's value (2), not 4.
     expect(result.results.get("first")!.raw).toBe("a-round-2");
     expect(result.results.get("second")!.raw).toBe("a-round-2");
   });
 
   it("does not clear non-body results between iterations", async () => {
-    // If the context already has a result from outside the loop body,
-    // that result should persist across iterations.
     const registry = new StepExecutorRegistry();
     registry.register(() => new IncrementingExecutor("val"));
     const executor = new LoopStepExecutor();
@@ -237,7 +222,12 @@ describe("LoopStepExecutor", () => {
     const initial = new FlowContext(new Map(), "task").withResult("external", {
       raw: "keep me",
     });
-    const result = await executor.execute(instruction, initial, makeDispatch(registry), () => {});
+    const result = await executor.execute(
+      instruction,
+      initial,
+      makeDispatch(registry),
+      makeMockEventBus(),
+    );
 
     expect(result.results.get("external")!.raw).toBe("keep me");
   });
@@ -256,7 +246,7 @@ describe("LoopStepExecutor", () => {
     const context = new FlowContext(new Map(), "task");
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), () => {}),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
     ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
@@ -273,14 +263,14 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
     expect(result.results.get("l")!.parsed!.passed).toBe(true);
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
   });
 
-  describe("onProgress", () => {
-    it("fires loop-round-start and loop-round-complete for each iteration", async () => {
+  describe("eventBus", () => {
+    it("emits loop-round-start and loop-round-complete for each iteration", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new IncrementingExecutor("val"));
       const executor = new LoopStepExecutor();
@@ -295,24 +285,34 @@ describe("LoopStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const executeStep = makeDispatch(registry);
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (e: RoutineProgressEvent) => events.push(e);
-
-      await executor.execute(instruction, context, executeStep, onProgress);
+      const eventBus = makeMockEventBus();
+      await executor.execute(instruction, context, executeStep, eventBus);
 
       // 2 iterations × 2 events (start + complete) = 4 events.
-      expect(events).toHaveLength(4);
-      expect(events[0].phase).toBe("loop-round-start");
-      expect(events[0].details.rounds).toBe(1);
-      expect(events[1].phase).toBe("loop-round-complete");
-      expect(events[1].details.rounds).toBe(1);
-      expect(events[2].phase).toBe("loop-round-start");
-      expect(events[2].details.rounds).toBe(2);
-      expect(events[3].phase).toBe("loop-round-complete");
-      expect(events[3].details.rounds).toBe(2);
+      expect(eventBus.emit).toHaveBeenCalledTimes(4);
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        1,
+        "feature-forge:loop-round-start",
+        expect.objectContaining({ phase: "loop-round-start", details: { rounds: 1 } }),
+      );
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        2,
+        "feature-forge:loop-round-complete",
+        expect.objectContaining({ phase: "loop-round-complete", details: { rounds: 1 } }),
+      );
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        3,
+        "feature-forge:loop-round-start",
+        expect.objectContaining({ details: { rounds: 2 } }),
+      );
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        4,
+        "feature-forge:loop-round-complete",
+        expect.objectContaining({ details: { rounds: 2 } }),
+      );
     });
 
-    it("works with a no-op onProgress callback", async () => {
+    it("works with a mocked eventBus", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new IncrementingExecutor("val"));
       const executor = new LoopStepExecutor();
@@ -327,8 +327,7 @@ describe("LoopStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const executeStep = makeDispatch(registry);
 
-      // Should not throw when called without onProgress.
-      const result = await executor.execute(instruction, context, executeStep, () => {});
+      const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
       expect(result.results.get("l")!.parsed!.passed).toBe(true);
     });

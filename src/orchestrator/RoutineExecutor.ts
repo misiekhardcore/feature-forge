@@ -4,7 +4,6 @@ import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
-import type { RoutineProgress } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -25,7 +24,7 @@ export class RoutineExecutor {
   constructor(
     private readonly flow: FlowDefinition,
     private readonly stepRegistry: StepExecutorRegistry,
-    private readonly eventBus: EventBus,
+    public readonly eventBus: EventBus,
   ) {}
 
   /**
@@ -34,14 +33,12 @@ export class RoutineExecutor {
    * @param routineName — Must exist in {@link flow.routines}.
    * @param params — Key-value pairs exposed as `{{PARAM}}` tokens.
    * @param task — Top-level task description, exposed as `{{prompt}}`.
-   * @param onProgress — Optional callback for streaming progress events.
    * @returns Structured result with per-instruction outputs.
    */
   async run(
     routineName: string,
     params: Record<string, string>,
     task: string,
-    onProgress: RoutineProgress,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined = this.flow.routines[routineName];
     if (!routine) {
@@ -56,14 +53,6 @@ export class RoutineExecutor {
       routine: routineName,
       stepCount: routine.steps.length,
     });
-
-    const eventBus = this.eventBus;
-    const progress: RoutineProgress = eventBus
-      ? (event) => {
-          onProgress(event);
-          eventBus.emit(`feature-forge:${event.phase}`, event);
-        }
-      : onProgress;
 
     let context = new FlowContext(new Map(), task, new Map(), new Map(Object.entries(params)));
 
@@ -81,7 +70,7 @@ export class RoutineExecutor {
             `(routine "${routineName}", step "${instruction.id}")`,
         );
       }
-      return executor.execute(instruction, ctx, executeStep, progress);
+      return executor.execute(instruction, ctx, executeStep, this.eventBus);
     };
 
     for (const step of routine.steps) {

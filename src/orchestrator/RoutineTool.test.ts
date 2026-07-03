@@ -3,6 +3,7 @@ import type {
   AgentToolUpdateCallback,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
 import { makeMockEventBus } from "../test-utils";
@@ -13,7 +14,6 @@ import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
-import type { RoutineProgress } from "./RoutineProgress";
 import { RoutineTool } from "./RoutineTool";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -133,7 +133,7 @@ describe("RoutineTool", () => {
                 instruction: FlowInstruction,
                 context: FlowContext,
               ) => Promise<FlowContext>,
-              _onProgress: RoutineProgress,
+              _eventBus: EventBus,
             ) {
               return new FlowContext(new Map(), "resolved-task");
             }

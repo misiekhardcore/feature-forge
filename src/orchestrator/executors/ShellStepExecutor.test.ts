@@ -21,10 +21,10 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
+import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { ShellInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { ShellStepExecutor } from "./ShellStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -75,7 +75,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("/bin/sh");
@@ -101,7 +101,7 @@ describe("ShellStepExecutor", () => {
         "hello world",
         new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
       );
-      await executor.execute(instruction, context, vi.fn(), () => {});
+      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
@@ -118,7 +118,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh3")!.raw).toContain("warning: something");
     });
@@ -134,7 +134,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
       expect(result.results.get("sh4")!.raw).toContain("error output");
@@ -160,7 +160,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh6")!.parsed!.passed).toBe(false);
     });
@@ -176,13 +176,13 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
     });
 
-    describe("onProgress", () => {
-      it("fires shell-start and shell-done events on success", async () => {
+    describe("eventBus", () => {
+      it("emits shell-start and shell-done events on success", async () => {
         mockExecSuccess("ok");
         const executor = new ShellStepExecutor();
 
@@ -194,18 +194,26 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext(new Map(), "task");
 
-        const events: RoutineProgressEvent[] = [];
-        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        await executor.execute(instruction, context, vi.fn(), onProgress);
-
-        expect(events).toHaveLength(2);
-        expect(events[0].phase).toBe("shell-start");
-        expect(events[0].message).toContain("echo hello");
-        expect(events[1].phase).toBe("shell-done");
+        expect(eventBus.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          1,
+          "feature-forge:shell-start",
+          expect.objectContaining({
+            phase: "shell-start",
+            message: expect.stringContaining("echo hello") as string,
+          }),
+        );
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          2,
+          "feature-forge:shell-done",
+          expect.objectContaining({ phase: "shell-done" }),
+        );
       });
 
-      it("fires only shell-start when the command fails", async () => {
+      it("emits only shell-start when the command fails", async () => {
         mockExecFailure("Command failed", "error output");
         const executor = new ShellStepExecutor();
 
@@ -217,17 +225,15 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext(new Map(), "task");
 
-        const events: RoutineProgressEvent[] = [];
-        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+        const eventBus = makeMockEventBus();
+        const result = await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        const result = await executor.execute(instruction, context, vi.fn(), onProgress);
-
-        expect(events).toHaveLength(1);
-        expect(events[0].phase).toBe("shell-start");
+        expect(eventBus.emit).toHaveBeenCalledTimes(1);
+        expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:shell-start", expect.anything());
         expect(result.results.get("sh2")!.parsed!.passed).toBe(false);
       });
 
-      it("works with a no-op onProgress callback", async () => {
+      it("works with a mocked eventBus", async () => {
         mockExecSuccess("ok");
         const executor = new ShellStepExecutor();
 
@@ -239,8 +245,7 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext(new Map(), "task");
 
-        // Should not throw when called without onProgress.
-        const result = await executor.execute(instruction, context, vi.fn(), () => {});
+        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
         expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
       });

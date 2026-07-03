@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -52,7 +52,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context, vi.fn(), () => {});
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
     const expectedId = `ws-${MOCK_TIMESTAMP}`;
     expect(provider.created).toContain(`/test/${expectedId}`);
@@ -67,7 +67,6 @@ describe("WorkspaceStepExecutor", () => {
     const wtRegistry = stubWorktreeRegistry();
     const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
 
-    // Use a valid union value but don't register it.
     const instruction: WorkspaceInstruction = {
       type: "workspace",
       id: "ws1",
@@ -75,9 +74,9 @@ describe("WorkspaceStepExecutor", () => {
     };
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context, vi.fn(), () => {})).rejects.toThrow(
-      'Unknown workspace provider "current-dir"',
-    );
+    await expect(
+      executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+    ).rejects.toThrow('Unknown workspace provider "current-dir"');
   });
 
   it("does not mutate the original context", async () => {
@@ -93,14 +92,14 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext(new Map(), "task");
-    await executor.execute(instruction, context, vi.fn(), () => {});
+    await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
     expect(context.workspaces.size).toBe(0);
     expect(context.results.size).toBe(0);
   });
 
-  describe("onProgress", () => {
-    it("fires a workspace-ready event after workspace creation", async () => {
+  describe("eventBus", () => {
+    it("emits a workspace-ready event after workspace creation", async () => {
       mockDateNow();
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
@@ -114,18 +113,23 @@ describe("WorkspaceStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+      const eventBus = makeMockEventBus();
+      await executor.execute(instruction, context, vi.fn(), eventBus);
 
-      await executor.execute(instruction, context, vi.fn(), onProgress);
-
-      expect(events).toHaveLength(1);
-      expect(events[0].phase).toBe("workspace-ready");
-      expect(events[0].message).toContain("ws-");
-      expect(events[0].details.workspace).toContain("/test/ws-");
+      expect(eventBus.emit).toHaveBeenCalledTimes(1);
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        "feature-forge:workspace-ready",
+        expect.objectContaining({
+          phase: "workspace-ready",
+          message: expect.stringContaining("ws-") as string,
+          details: expect.objectContaining({
+            workspace: expect.stringContaining("/test/ws-") as string,
+          }),
+        }),
+      );
     });
 
-    it("works with a no-op onProgress callback", async () => {
+    it("works with a mocked eventBus", async () => {
       mockDateNow();
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
@@ -139,8 +143,7 @@ describe("WorkspaceStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      // Should not throw when called without onProgress.
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.workspaces.has("ws")).toBe(true);
     });
