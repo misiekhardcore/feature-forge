@@ -36,19 +36,19 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
    * Register a new workspace handle and persist to disk.
    */
   async register(handle: WorkspaceHandle): Promise<void> {
-    this.set(handle.id, handle);
+    this.set(handle.path, handle);
     await this.persist();
   }
 
   /**
-   * Remove a workspace handle by id and persist the change.
-   * Safe to call for non-existent ids — becomes a no-op.
+   * Remove a workspace handle by path and persist the change.
+   * Safe to call for non-existent paths — becomes a no-op.
    */
-  async remove(id: string): Promise<void> {
-    if (!this.has(id)) {
+  async remove(path: string): Promise<void> {
+    if (!this.has(path)) {
       return;
     }
-    this.unregister(id);
+    this.unregister(path);
     await this.persist();
   }
 
@@ -70,11 +70,11 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
 
     try {
       const raw = await readFile(this.storagePath, "utf-8");
-      const data: { id: string; path: string; createdAt: string }[] = JSON.parse(raw);
+      const data: { path: string; createdAt: string }[] = JSON.parse(raw);
 
       for (const entry of data) {
         const handle = WorkspaceHandle.fromJSON(entry);
-        this.set(handle.id, handle);
+        this.set(handle.path, handle);
       }
     } catch (cause) {
       logger.error("Registry load failed", { path: this.storagePath, cause });

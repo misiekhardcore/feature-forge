@@ -40,9 +40,15 @@ function createTempRepo(): string {
   return dir;
 }
 
+const E2E_SUFFIX = "e2e-test";
+
 /** Full path to the worktree the provider would create. */
 function expectedWorktreePath(repoRoot: string, workspaceId: string): string {
-  return join(repoRoot, ".forge", "worktrees", workspaceId);
+  return join(repoRoot, ".forge", "worktrees", `${workspaceId}-${E2E_SUFFIX}`);
+}
+
+function expectedBranchName(workspaceId: string): string {
+  return `forge/${workspaceId}-${E2E_SUFFIX}`;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -53,7 +59,7 @@ describe("GitWorktreeProvider (e2e)", () => {
 
   beforeEach(() => {
     repoRoot = createTempRepo();
-    provider = new GitWorktreeProvider(repoRoot);
+    provider = new GitWorktreeProvider(repoRoot, "HEAD", "e2e-test");
   });
 
   afterEach(() => {
@@ -80,8 +86,8 @@ describe("GitWorktreeProvider (e2e)", () => {
     expect(listOutput).toContain(workspacePath);
 
     // Verify the branch was created
-    const branches = git(repoRoot, "branch --list forge/task-1");
-    expect(branches).toContain("forge/task-1");
+    const branches = git(repoRoot, `branch --list ${expectedBranchName("task-1")}`);
+    expect(branches).toContain(expectedBranchName("task-1"));
 
     // Destroy and verify cleanup
     await provider.destroyWorkspace(workspacePath);
@@ -109,12 +115,12 @@ describe("GitWorktreeProvider (e2e)", () => {
     git(repoRoot, "checkout -b develop");
     git(repoRoot, "checkout main");
 
-    const p = new GitWorktreeProvider(repoRoot, "develop");
+    const p = new GitWorktreeProvider(repoRoot, "develop", E2E_SUFFIX);
     const workspacePath = await p.createWorkspace("task-3");
 
     // The worktree should be on the develop branch
     const branch = git(workspacePath, "branch --show-current");
-    expect(branch).toBe("forge/task-3");
+    expect(branch).toBe(expectedBranchName("task-3"));
 
     // revert checkout in main repo
     git(repoRoot, "branch -D develop");
@@ -143,14 +149,14 @@ describe("GitWorktreeProvider (e2e)", () => {
 
   it("throws WorktreeBranchExistsError when branch already exists", async () => {
     // Create the same branch beforehand
-    git(repoRoot, "branch forge/task-5");
+    git(repoRoot, `branch ${expectedBranchName("task-5")}`);
 
     await expect(provider.createWorkspace("task-5")).rejects.toThrow(WorktreeBranchExistsError);
   });
 
   it("throws WorktreePathExistsError when path already exists", async () => {
     const stalePath = expectedWorktreePath(repoRoot, "task-6");
-    // Manually create a git worktree to get a stale path
+    // Manually create a git worktree to get the stale path
     git(repoRoot, `worktree add ${stalePath} HEAD`);
     // Manually remove the worktree metadata (but NOT the directory)
     git(repoRoot, `worktree remove ${stalePath} --force`);

@@ -20,10 +20,9 @@ describe("WorkspaceManager", () => {
       const handle = await manager.create("task-1");
 
       expect(handle).toBeInstanceOf(WorkspaceHandle);
-      expect(handle.id).toBe("task-1");
       expect(handle.path).toBe("/tmp/mock-workspaces/task-1");
       expect(handle.createdAt).toBeInstanceOf(Date);
-      expect(registry.get("task-1")).toBeDefined();
+      expect(registry.get("/tmp/mock-workspaces/task-1")).toBeDefined();
     });
 
     it("creates different paths for different workspace ids", async () => {
@@ -40,49 +39,49 @@ describe("WorkspaceManager", () => {
       provider.failureMessage = "disk is full";
 
       await expect(manager.create("task-1")).rejects.toThrow("disk is full");
-      expect(registry.get("task-1")).toBeUndefined();
+      expect(registry.get("/tmp/mock-workspaces/task-1")).toBeUndefined();
     });
   });
 
   describe("destroy", () => {
     it("removes a previously created workspace from the registry", async () => {
-      await manager.create("task-1");
-      expect(registry.get("task-1")).toBeDefined();
+      const handle = await manager.create("task-1");
+      expect(registry.get(handle.path)).toBeDefined();
 
-      await manager.destroy("task-1");
+      await manager.destroy(handle.path);
 
-      expect(registry.get("task-1")).toBeUndefined();
+      expect(registry.get(handle.path)).toBeUndefined();
     });
 
-    it("throws for an unknown workspace id", async () => {
-      await expect(manager.destroy("nonexistent")).rejects.toThrow(
-        'No workspace found with id "nonexistent"',
+    it("throws for an unknown workspace path", async () => {
+      await expect(manager.destroy("/nonexistent")).rejects.toThrow(
+        'No workspace found with id "/nonexistent"',
       );
     });
   });
 
   describe("get", () => {
-    it("returns a handle for a registered workspace", async () => {
-      await manager.create("task-1");
-      const found = manager.get("task-1");
+    it("returns a handle for a registered workspace by path", async () => {
+      const handle = await manager.create("task-1");
+      const found = manager.get(handle.path);
 
       expect(found).toBeInstanceOf(WorkspaceHandle);
-      expect(found!.id).toBe("task-1");
+      expect(found!.path).toBe("/tmp/mock-workspaces/task-1");
     });
 
-    it("returns undefined for an unknown workspace", () => {
-      expect(manager.get("unknown")).toBeUndefined();
+    it("returns undefined for an unknown path", () => {
+      expect(manager.get("/unknown")).toBeUndefined();
     });
   });
 
   describe("list", () => {
     it("returns all registered handles", async () => {
-      await manager.create("task-1");
-      await manager.create("task-2");
+      const h1 = await manager.create("task-1");
+      const h2 = await manager.create("task-2");
 
       const handles = manager.list();
       expect(handles).toHaveLength(2);
-      expect(handles.map((h) => h.id).sort()).toEqual(["task-1", "task-2"]);
+      expect(handles.map((h) => h.path).sort()).toEqual([h1.path, h2.path].sort());
     });
 
     it("returns an empty array when no workspaces exist", () => {

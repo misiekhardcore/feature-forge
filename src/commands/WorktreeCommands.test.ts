@@ -108,30 +108,30 @@ describe("WorktreeDestroyCommand", () => {
 
     it("notifies error when args is empty", async () => {
       await cmd.handler("", ctx);
-      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <id>", "error");
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <path>", "error");
     });
 
     it("notifies error when args is whitespace", async () => {
       await cmd.handler("   ", ctx);
-      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <id>", "error");
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <path>", "error");
     });
 
-    it("notifies error for unknown worktree id", async () => {
-      await cmd.handler("unknown-id", ctx);
+    it("notifies error for unknown worktree path", async () => {
+      await cmd.handler("/unknown/path", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith(
-        'No worktree found with id "unknown-id". Use /worktree:list to see active ones.',
+        'No worktree found with path "/unknown/path". Use /worktree:list to see active ones.',
         "error",
       );
     });
 
     it("destroys an existing worktree and sends a message", async () => {
       const manager = makeWorkspaceManager();
-      await manager.create("task-1");
+      const handle = await manager.create("task-1");
       cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager(), manager);
 
-      await cmd.handler("task-1", ctx);
+      await cmd.handler(handle.path, ctx);
 
-      expect(ctx.ui.notify).toHaveBeenCalledWith('Worktree "task-1" destroyed.', "info");
+      expect(ctx.ui.notify).toHaveBeenCalledWith(`Worktree "${handle.path}" destroyed.`, "info");
       expect(pi.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           customType: "worktree_destroyed",
@@ -139,24 +139,23 @@ describe("WorktreeDestroyCommand", () => {
         }),
         { triggerTurn: false },
       );
-      expect(manager.get("task-1")).toBeUndefined();
+      expect(manager.get(handle.path)).toBeUndefined();
     });
 
     it("notifies error when manager.destroy throws", async () => {
       const manager = makeWorkspaceManager();
-      await manager.create("task-1");
-      // Simulate destroy failure
+      const handle = await manager.create("task-1");
       const originalDestroy = manager.destroy.bind(manager);
       manager.destroy = async (id: string) => {
-        if (id === "task-1") throw new Error("cleanup failure");
+        if (id === handle.path) throw new Error("cleanup failure");
         return originalDestroy(id);
       };
       cmd = new WorktreeDestroyCommand(supervisor, pi, makeMockSpecManager(), manager);
 
-      await cmd.handler("task-1", ctx);
+      await cmd.handler(handle.path, ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalledWith(
-        'Failed to destroy worktree "task-1": cleanup failure',
+        `Failed to destroy worktree "${handle.path}": cleanup failure`,
         "error",
       );
     });

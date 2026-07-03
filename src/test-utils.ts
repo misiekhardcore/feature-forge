@@ -265,15 +265,15 @@ export class MockWorktreeRegistry extends WorktreeRegistry {
   }
 
   override async register(handle: WorkspaceHandle): Promise<void> {
-    this.items.set(handle.id, handle);
+    this.items.set(handle.path, handle);
   }
 
-  override async remove(id: string): Promise<void> {
-    this.items.delete(id);
+  override async remove(path: string): Promise<void> {
+    this.items.delete(path);
   }
 
-  get(id: string): WorkspaceHandle | undefined {
-    return this.items.get(id);
+  get(path: string): WorkspaceHandle | undefined {
+    return this.items.get(path);
   }
 
   list(): WorkspaceHandle[] {

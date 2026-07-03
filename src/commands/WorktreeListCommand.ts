@@ -27,7 +27,7 @@ export class WorktreeListCommand extends Command {
 
     const lines = handles.map((h) => {
       const age = Math.round((Date.now() - h.createdAt.getTime()) / 60000);
-      return `  • **${h.id}** → \`${h.path}\` (created ${age} min ago)`;
+      return `  • **\`${h.path}\`** (created ${age} min ago)`;
     });
 
     this.pi.sendMessage(

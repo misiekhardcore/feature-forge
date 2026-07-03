@@ -23,23 +23,18 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   /** Base ref to create the worktree from. Immutable after construction. */
   public readonly baseRef: string;
   /** Suffix appended to the branch name for uniqueness. */
-  private readonly branchSuffix: string;
-  /** Suffix appended to the worktree directory name for uniqueness. */
-  private readonly pathSuffix: string;
+  private readonly suffix: string;
 
   /**
    * @param repoRoot — Absolute path to the repository root. Defaults to `process.cwd()`.
    * @param baseRef — Git ref to create the worktree from. Defaults to `"HEAD"`.
-   * @param branchSuffix — Suffix appended to the branch name. Defaults to `Date.now()`.
-   * @param pathSuffix — Suffix appended to the worktree directory name. Defaults to `Date.now()` (same as branchSuffix).
+   * @param suffix — Suffix appended to the branch/path name. Defaults to `Date.now()`.
    */
-  constructor(repoRoot?: string, baseRef = "HEAD", branchSuffix?: string, pathSuffix?: string) {
+  constructor(repoRoot?: string, baseRef = "HEAD", suffix?: string) {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
     this.baseRef = baseRef;
-    const suffix = branchSuffix ?? Date.now().toString();
-    this.branchSuffix = suffix;
-    this.pathSuffix = pathSuffix ?? suffix;
+    this.suffix = suffix ?? Date.now().toString();
   }
 
   /**
@@ -68,6 +63,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   public override async createWorkspace(workspaceId: string): Promise<string> {
     const worktreePath = this.getWorktreePath(workspaceId);
     const branchName = this.getBranchName(workspaceId);
+    logger.info("Creating workspace", { path: worktreePath, branch: branchName });
 
     await this.assertNoConflictingBranch(branchName);
     await this.assertNoStalePath(worktreePath);
@@ -116,11 +112,11 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   // ─── Private helpers ─────────────────────────────────────────────────
 
   private getWorktreePath(workspaceId: string): string {
-    return resolve(join(this.repoRoot, ".forge", "worktrees", `${workspaceId}-${this.pathSuffix}`));
+    return resolve(join(this.repoRoot, ".forge", "worktrees", `${workspaceId}-${this.suffix}`));
   }
 
   private getBranchName(workspaceId: string): string {
-    return `forge/${workspaceId}-${this.branchSuffix}`;
+    return `forge/${workspaceId}-${this.suffix}`;
   }
 
   private async assertNoStalePath(worktreePath: string): Promise<void> {

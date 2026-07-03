@@ -98,7 +98,7 @@ describe("ShellStepExecutor", () => {
       const context = new FlowContext(
         new Map(),
         "hello world",
-        new Map([["ws", new WorkspaceHandle("ws", "/tmp/ws", new Date())]]),
+        new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
       );
       await executor.execute(instruction, context, vi.fn());
 

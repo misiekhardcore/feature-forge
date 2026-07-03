@@ -37,7 +37,7 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const workspaceHandle = new WorkspaceHandle("ws1", "/fake/ws1", new Date());
+      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
       const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
@@ -53,7 +53,7 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const workspaceHandle = new WorkspaceHandle("ws1", "/fake/ws1", new Date());
+      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
       const context = new FlowContext(
         new Map(),
         "task",
@@ -79,8 +79,8 @@ describe("CleanupStepExecutor", () => {
         new Map(),
         "task",
         new Map([
-          ["ws1", new WorkspaceHandle("ws1", "/fake/ws1", new Date())],
-          ["ws2", new WorkspaceHandle("ws2", "/fake/ws2", new Date())],
+          ["ws1", new WorkspaceHandle("/fake/ws1", new Date())],
+          ["ws2", new WorkspaceHandle("/fake/ws2", new Date())],
         ]),
       );
 
@@ -113,7 +113,7 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext(
         new Map(),
         "task",
-        new Map([["ws1", new WorkspaceHandle("ws1", "/fake/ws1", new Date())]]),
+        new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
@@ -147,7 +147,7 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext(
         new Map(),
         "task",
-        new Map([["ws1", new WorkspaceHandle("ws1", "/fake/ws1", new Date())]]),
+        new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
       );
 
       // Use `of` to target a workspace that uses the resolve path.

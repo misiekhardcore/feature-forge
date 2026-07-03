@@ -29,7 +29,7 @@ export class WorkspaceManager {
    */
   async create(workspaceId: string): Promise<WorkspaceHandle> {
     const path = await this.provider.createWorkspace(workspaceId);
-    const handle = new WorkspaceHandle(workspaceId, path, new Date());
+    const handle = new WorkspaceHandle(path, new Date());
     await this.registry.register(handle);
     return handle;
   }

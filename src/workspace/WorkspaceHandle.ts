@@ -6,27 +6,24 @@
  */
 export class WorkspaceHandle {
   constructor(
-    /** Unique identifier for this workspace (typically the task id). */
-    public readonly id: string,
-    /** Absolute path to the workspace directory. */
+    /** Absolute path to the workspace directory. (unique) */
     public readonly path: string,
     /** Timestamp when the workspace was created. */
     public readonly createdAt: Date,
   ) {}
 
   /**
-   * Compare two handles for equality by id and path.
+   * Compare two handles for equality by path.
    */
   equals(other: WorkspaceHandle): boolean {
-    return this.id === other.id && this.path === other.path;
+    return this.path === other.path;
   }
 
   /**
    * Serialize to a plain object for JSON persistence.
    */
-  toJSON(): { id: string; path: string; createdAt: string } {
+  toJSON(): { path: string; createdAt: string } {
     return {
-      id: this.id,
       path: this.path,
       createdAt: this.createdAt.toISOString(),
     };
@@ -35,7 +32,7 @@ export class WorkspaceHandle {
   /**
    * Deserialize from a plain object (e.g., loaded from JSON storage).
    */
-  static fromJSON(data: { id: string; path: string; createdAt: string }): WorkspaceHandle {
-    return new WorkspaceHandle(data.id, data.path, new Date(data.createdAt));
+  static fromJSON(data: { path: string; createdAt: string }): WorkspaceHandle {
+    return new WorkspaceHandle(data.path, new Date(data.createdAt));
   }
 }

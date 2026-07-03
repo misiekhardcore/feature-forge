@@ -175,7 +175,7 @@ describe("flow round-trip", () => {
 
     it("resolves all agent instruction tasks with no {{...}} survivors", () => {
       const ctx = new FlowContext(new Map(), "test-task")
-        .withWorkspace("ws", new WorkspaceHandle("ws", "/tmp/test-workspace", new Date()))
+        .withWorkspace("ws", new WorkspaceHandle("/tmp/test-workspace", new Date()))
         .withParams({ plan: "test-plan" })
         .withFeedback("test-feedback");
 
