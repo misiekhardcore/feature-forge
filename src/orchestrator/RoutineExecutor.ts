@@ -25,7 +25,7 @@ export class RoutineExecutor {
   constructor(
     private readonly flow: FlowDefinition,
     private readonly stepRegistry: StepExecutorRegistry,
-    private readonly eventBus?: EventBus,
+    private readonly eventBus: EventBus,
   ) {}
 
   /**

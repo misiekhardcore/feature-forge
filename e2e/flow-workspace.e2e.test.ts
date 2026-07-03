@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
+import { makeMockEventBus } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
@@ -94,7 +95,7 @@ describe("Flow workspace lifecycle (e2e)", () => {
       worktreeRegistry,
     );
 
-    executor = new RoutineExecutor(flow, stepRegistry);
+    executor = new RoutineExecutor(flow, stepRegistry, makeMockEventBus());
   });
 
   afterEach(() => {

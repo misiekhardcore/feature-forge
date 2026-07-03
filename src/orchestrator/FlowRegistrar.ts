@@ -29,7 +29,7 @@ export class FlowRegistrar {
       flowsDir: string;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
-      eventBus?: EventBus;
+      eventBus: EventBus;
     },
   ) {}
 
@@ -90,7 +90,7 @@ export class FlowRegistrar {
       workspaceManager: WorkspaceManager;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
-      eventBus?: EventBus;
+      eventBus: EventBus;
     },
   ): Promise<void> {
     const {

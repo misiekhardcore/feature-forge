@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
+import { makeMockEventBus } from "../test-utils";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
@@ -39,7 +40,8 @@ describe("RoutineTool", () => {
   describe("constructor", () => {
     it("sets name to routineName", () => {
       const flow = makeFlow();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       expect(tool.name).toBe("build");
@@ -47,7 +49,8 @@ describe("RoutineTool", () => {
 
     it("sets a human-readable label", () => {
       const flow = makeFlow();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       expect(tool.label).toContain("myflow/build");
@@ -55,7 +58,8 @@ describe("RoutineTool", () => {
 
     it("sets description without params when routine has none", () => {
       const flow = makeFlow();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       expect(tool.description).not.toContain("Parameters:");
@@ -63,7 +67,8 @@ describe("RoutineTool", () => {
 
     it("includes param names in description when routine has params", () => {
       const flow = makeFlow(["task", "plan"]);
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       expect(tool.description).toContain("task, plan");
@@ -71,7 +76,8 @@ describe("RoutineTool", () => {
 
     it("has typed parameters built from the routine's param declarations", () => {
       const flow = makeFlow(["task", "plan"]);
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       expect(tool.parameters).toBeDefined();
@@ -96,7 +102,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       const result = await tool.execute(
@@ -152,7 +159,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       const result = await tool.execute(
@@ -178,7 +186,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       const result = await tool.execute(
@@ -207,7 +216,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       const result = await tool.execute(
@@ -258,7 +268,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       const onUpdateCalls: AgentToolResult<{
@@ -293,7 +304,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       // Should not throw even though no _onUpdate is provided.
@@ -317,7 +329,8 @@ describe("RoutineTool", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
       const result = await tool.execute(
