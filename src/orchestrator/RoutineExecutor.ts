@@ -90,7 +90,7 @@ export class RoutineExecutor {
       });
 
       try {
-        context = await executeStep(step, context);
+        context = await executeStep(step, context, signal);
       } catch (error) {
         // AbortError propagates uncaught — do not convert to a failure result.
         if (error instanceof DOMException && error.name === "AbortError") {

@@ -71,7 +71,7 @@ describe("AgentStepExecutor", () => {
 
       expect(specManager.resolve).toHaveBeenCalled();
       expect(supervisor.spawnGuest).toHaveBeenCalled();
-      expect(agent.executeTask).toHaveBeenCalledWith("do the thing");
+      expect(agent.executeTask).toHaveBeenCalledWith("do the thing", { signal: undefined });
       expect(agent.getResult).toHaveBeenCalled();
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
 
@@ -94,7 +94,7 @@ describe("AgentStepExecutor", () => {
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(agent.executeTask).toHaveBeenCalledWith("do add auth");
+      expect(agent.executeTask).toHaveBeenCalledWith("do add auth", { signal: undefined });
     });
 
     it("parses JSON output when parseJson is true", async () => {
