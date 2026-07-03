@@ -6,7 +6,11 @@
  * created via vi.hoisted() in each test file to avoid TDZ issues with
  * vi.mock hoisting.
  */
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type {
+  EventBus,
+  ExtensionAPI,
+  ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
 import { SpecManager, SpecResolutionParams } from "./agents";
@@ -350,4 +354,19 @@ export function makeMockSpecManager() {
       } satisfies AgentSpecification;
     }),
   } as unknown as SpecManager;
+}
+
+export function makeMockEventBus() {
+  const emitSpy = vi.fn();
+  const onSpy = vi
+    .fn()
+    .mockImplementation((_channel: string, _handler: (data: unknown) => void) => {
+      return () => {};
+    });
+
+  return {
+    emit: emitSpy,
+    on: onSpy,
+    clear: vi.fn(),
+  } as EventBus;
 }
