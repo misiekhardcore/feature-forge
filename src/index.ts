@@ -36,7 +36,6 @@ import {
   WorkspaceManager,
   WorkspaceProviderRegistry,
   WorktreeRegistry,
-  WorktrunkProvider,
 } from "./workspace";
 
 /**
@@ -82,14 +81,12 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Root parent: no env var, so connect to our own server (loopback).
   const client = await connectChildClient(targetSocketPath, pi);
 
-  // Set up worktree infrastructure — prefer Worktrunk if available
+  // Set up worktree infrastructure
   const repoRoot = process.cwd();
-  const provider = (await WorktrunkProvider.canActivate(repoRoot))
-    ? new WorktrunkProvider(repoRoot)
-    : new GitWorktreeProvider(repoRoot);
+  const worktreeProvider = new GitWorktreeProvider(repoRoot);
   const worktreeRegistry = new WorktreeRegistry();
   await worktreeRegistry.load();
-  const workspaceManager = new WorkspaceManager(provider, worktreeRegistry);
+  const workspaceManager = new WorkspaceManager(worktreeProvider, worktreeRegistry);
 
   const cmdRegistry = new CommandRegistry(supervisor, pi, specManager, workspaceManager);
   cmdRegistry.registerAll(
@@ -111,7 +108,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
 
   const workspaceProviderRegistry = new WorkspaceProviderRegistry()
-    .register("git-worktree", provider)
+    .register("git-worktree", worktreeProvider)
     .register("current-dir", new CurrentDirProvider());
 
   // ── Step executor registry ───────────────────────────────────────
