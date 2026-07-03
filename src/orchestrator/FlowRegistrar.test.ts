@@ -1,4 +1,4 @@
-import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type EventBus, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InMemoryAgentSupervisor } from "../agents";
@@ -79,6 +79,7 @@ interface FlowRegistrarParams {
   flowsDir: string;
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
+  eventBus?: EventBus;
 }
 
 function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {

@@ -1,3 +1,5 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
@@ -23,6 +25,7 @@ export class RoutineExecutor {
   constructor(
     private readonly flow: FlowDefinition,
     private readonly stepRegistry: StepExecutorRegistry,
+    private readonly eventBus?: EventBus,
   ) {}
 
   /**
@@ -54,7 +57,14 @@ export class RoutineExecutor {
       stepCount: routine.steps.length,
     });
 
-    const progress = onProgress ?? (() => {});
+    const baseProgress = onProgress ?? (() => {});
+    const eventBus = this.eventBus;
+    const progress: RoutineProgress = eventBus
+      ? (event) => {
+          baseProgress(event);
+          eventBus.emit(`feature-forge:${event.phase}`, event);
+        }
+      : baseProgress;
 
     let context = new FlowContext(new Map(), task, new Map(), new Map(Object.entries(params)));
 

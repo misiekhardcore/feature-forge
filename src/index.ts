@@ -131,6 +131,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     flowsDir,
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
+    eventBus: pi.events,
   });
   await flowRegistrar.registerAll();
 };
