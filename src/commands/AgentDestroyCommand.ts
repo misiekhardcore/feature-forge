@@ -14,6 +14,6 @@ export class AgentDestroyCommand extends Command {
     }
 
     await this.supervisor.destroyAgent(name);
-    ctx.ui.notify(`Agent "${name}" destroyed.`, "info");
+    ctx.ui.notify(`🗑️ Agent "${name}" destroyed.`, "info");
   };
 }
