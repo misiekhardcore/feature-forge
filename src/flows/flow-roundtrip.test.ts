@@ -27,7 +27,6 @@ import { SpecLoader } from "../loaders/SpecLoader";
 import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
 import { FlowContext } from "../orchestrator/FlowContext";
 import type {
-  AgentInstruction,
   FlowDefinition,
   FlowInstruction,
   LoopInstruction,
@@ -51,7 +50,7 @@ function collectParseJsonIds(
   ids = new Set<string>(),
 ): Set<string> {
   for (const instr of instructions) {
-    if (instr.type === "agent" && (instr as AgentInstruction).parseJson) {
+    if (instr.type === "agent" && instr.parseJson) {
       ids.add(instr.id);
     }
     if (isContainerInstruction(instr)) {
@@ -125,9 +124,9 @@ function collectFromRoutines(routines: FlowDefinition["routines"]): {
   const specRefs: string[] = [];
 
   for (const [, routine] of Object.entries(routines)) {
-    collectAgentInstructions(routine.steps, agentTasks);
-    collectAgentSpecs(routine.steps, specRefs);
-    collectLoops(routine.steps, loops);
+    collectAgentInstructions(routine.steps as FlowInstruction[], agentTasks);
+    collectAgentSpecs(routine.steps as FlowInstruction[], specRefs);
+    collectLoops(routine.steps as FlowInstruction[], loops);
   }
 
   return { agentTasks, loops, specRefs };
@@ -237,7 +236,7 @@ describe("flow round-trip", () => {
         if (parseJsonIds.length > 0) {
           const oneFailed = makeStubContext(parseJsonIds, true);
           // Override the first id to passed: false.
-          const failingId = parseJsonIds[0]!;
+          const failingId = parseJsonIds[0];
           oneFailed.results.set(failingId, {
             raw: `stub output for ${failingId}`,
             parsed: { passed: false },

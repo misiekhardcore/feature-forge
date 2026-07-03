@@ -123,8 +123,8 @@ export class ParentSocketServer {
         }
 
         try {
-          const message: SocketMessage = JSON.parse(trimmed);
-          this.handleMessage(socket, message);
+          const message: SocketMessage = JSON.parse(trimmed) as SocketMessage;
+          void this.handleMessage(socket, message);
         } catch (error) {
           this.sendError(socket, "unknown", `Invalid JSON: ${String(error)}`);
         }

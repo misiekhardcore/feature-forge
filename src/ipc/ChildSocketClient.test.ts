@@ -34,7 +34,7 @@ function createMockAgent(): SubprocessAgent {
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     start: vi.fn(),
-  } as SubprocessAgent;
+  };
 }
 
 function createMockSupervisor(): AgentSupervisor {

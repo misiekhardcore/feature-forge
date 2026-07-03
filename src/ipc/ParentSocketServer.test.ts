@@ -2,6 +2,7 @@ import { connect, type Socket } from "node:net";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import { AgentStatus } from "../agents/base";
@@ -28,7 +29,7 @@ function createMockAgent(): SubprocessAgent {
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     start: vi.fn(),
-  } as SubprocessAgent;
+  };
 }
 
 let specManagerCall: { role: string; systemPrompt: string; tools: string[] } | null = null;
@@ -60,7 +61,7 @@ function createMockSpecManager() {
 
 function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupervisor {
   return {
-    spawnGuest: vi.fn().mockImplementation(async (specification) => {
+    spawnGuest: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
       const agent = createMockAgent();
       const id = specification.role;
       Object.defineProperty(agent, "id", { value: id });
@@ -70,9 +71,9 @@ function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupe
     }),
     mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
-    getAgent: vi.fn().mockImplementation((id) => agents.get(id)),
+    getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
-    destroyAgent: vi.fn().mockImplementation(async (id) => agents.delete(id)),
+    destroyAgent: vi.fn().mockImplementation(async (id: string) => agents.delete(id)),
     destroyAll: vi.fn().mockResolvedValue(undefined),
   };
 }

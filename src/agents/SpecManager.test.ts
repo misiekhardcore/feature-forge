@@ -31,7 +31,7 @@ describe("SpecManager", () => {
 
     it("returns false when spec is not a string", () => {
       const result = SpecManager.isSpecParams({
-        spec: undefined as unknown as string,
+        spec: undefined,
         tools: ["read"],
       });
       expect(result).toBe(false);

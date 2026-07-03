@@ -315,7 +315,7 @@ describe("FlowRegistrar", () => {
 
       const toolRegistry = {
         registerInstance: vi.fn().mockImplementation(() => {
-          throw "raw string failure";
+          throw Error("raw string failure");
         }),
       } as unknown as ToolRegistry;
       const params = makeParams({ toolRegistry });

@@ -144,8 +144,15 @@ export class FlowLoader {
 
     for (const [routineName, routine] of Object.entries(flow.routines)) {
       const scope = `routine "${routineName}"`;
-      errors.push(...FlowLoader.checkDuplicateIds(routine.steps, scope));
-      FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders, new Set());
+      errors.push(...FlowLoader.checkDuplicateIds(routine.steps as FlowInstruction[], scope));
+      FlowLoader.walkInstructions(
+        routine.steps as FlowInstruction[],
+        [],
+        errors,
+        knownSpecs,
+        knownProviders,
+        new Set(),
+      );
     }
 
     return errors;

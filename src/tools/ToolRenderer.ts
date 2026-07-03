@@ -49,7 +49,7 @@ function shellBox(context: { state: ShellState }, theme: Theme, toolName: string
 /** Render a generic tool result: checkmark or error in muted text. */
 function resultText(result: AgentToolResult<unknown>, theme: Theme): string {
   if (result.details && typeof result.details === "object" && "error" in result.details) {
-    return theme.fg("error", `✗ ${result.details.error}`);
+    return theme.fg("error", `✗ ${String(result.details.error)}`);
   }
   return theme.fg("muted", "✓ done");
 }

@@ -37,7 +37,7 @@ describe("FileLogger", () => {
   function readLines(): Record<string, unknown>[] {
     const content = readFileSync(filePath, "utf-8").trim();
     if (!content) return [];
-    return content.split("\n").map((line) => JSON.parse(line));
+    return content.split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
   }
 
   describe("construction", () => {
@@ -120,7 +120,7 @@ describe("FileLogger", () => {
       const trimmed = raw.trim();
       const lines = trimmed.split("\n");
       expect(lines).toHaveLength(1);
-      expect(() => JSON.parse(lines[0])).not.toThrow();
+      expect(() => JSON.parse(lines[0]) as Record<string, unknown>).not.toThrow();
       expect(raw.endsWith("\n")).toBe(true);
     });
   });

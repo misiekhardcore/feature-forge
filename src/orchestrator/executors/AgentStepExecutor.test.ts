@@ -20,7 +20,7 @@ function makeMockSpecManager(): SpecManager {
       role: "test",
       systemPrompt: "prompt",
       tools: [],
-    } as unknown as AgentSpecification),
+    }),
   } as unknown as SpecManager;
 }
 

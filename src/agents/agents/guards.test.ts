@@ -18,7 +18,7 @@ describe("agent guards", () => {
         createdAt: new Date(),
         status: AgentStatus.Spawned,
         destroy: async () => {},
-      } as Agent;
+      };
       expect(isSubprocessAgent(bare)).toBe(false);
     });
   });

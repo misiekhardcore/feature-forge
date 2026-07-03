@@ -70,7 +70,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
 
     try {
       const raw = await readFile(this.storagePath, "utf-8");
-      const data: { path: string; createdAt: string }[] = JSON.parse(raw);
+      const data = JSON.parse(raw) as { path: string; createdAt: string }[];
 
       for (const entry of data) {
         const handle = WorkspaceHandle.fromJSON(entry);
