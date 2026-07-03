@@ -10,8 +10,9 @@ import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistr
 import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
 import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
-import type { FlowDefinition } from "./FlowInstruction";
+import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
+import type { RoutineProgress } from "./RoutineProgress";
 import { RoutineTool } from "./RoutineTool";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -118,7 +119,15 @@ describe("RoutineTool", () => {
         () =>
           new (class extends StepExecutor {
             readonly type = "agent";
-            async execute() {
+            async execute(
+              _instruction: FlowInstruction,
+              _context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+              ) => Promise<FlowContext>,
+              _onProgress: RoutineProgress,
+            ) {
               return new FlowContext(new Map(), "resolved-task");
             }
           })(),

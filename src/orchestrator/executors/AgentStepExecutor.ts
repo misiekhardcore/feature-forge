@@ -35,7 +35,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     instruction: AgentInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
     const instructionId = instruction.id;
 
@@ -63,13 +63,11 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     // 3. Spawn agent, execute task, collect result, and destroy.
     const agent: SubprocessAgent = await this.supervisor.spawnGuest(effectiveSpecification);
 
-    if (onProgress) {
-      onProgress({
-        phase: "agent-started",
-        message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
-        details: {},
-      });
-    }
+    onProgress({
+      phase: "agent-started",
+      message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
+      details: {},
+    });
 
     try {
       await agent.executeTask(resolvedTask);
@@ -80,13 +78,11 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const result = this.buildResult(raw, instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
 
-      if (onProgress) {
-        onProgress({
-          phase: "agent-done",
-          message: `Agent "${instructionId}" completed`,
-          details: {},
-        });
-      }
+      onProgress({
+        phase: "agent-done",
+        message: `Agent "${instructionId}" completed`,
+        details: {},
+      });
 
       return updatedContext;
     } catch (error) {

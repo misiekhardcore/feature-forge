@@ -27,7 +27,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     instruction: ShellInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
@@ -38,13 +38,11 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       cwd: resolvedCwd,
     });
 
-    if (onProgress) {
-      onProgress({
-        phase: "shell-start",
-        message: `Shell "${instruction.id}": ${resolvedCommand}`,
-        details: {},
-      });
-    }
+    onProgress({
+      phase: "shell-start",
+      message: `Shell "${instruction.id}": ${resolvedCommand}`,
+      details: {},
+    });
 
     try {
       const { stdout, stderr } = await execFileAsync("/bin/sh", ["-c", resolvedCommand], {
@@ -66,13 +64,11 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
 
       const updatedContext = context.withResult(instruction.id, result);
 
-      if (onProgress) {
-        onProgress({
-          phase: "shell-done",
-          message: `Shell "${instruction.id}" completed`,
-          details: {},
-        });
-      }
+      onProgress({
+        phase: "shell-done",
+        message: `Shell "${instruction.id}" completed`,
+        details: {},
+      });
 
       return updatedContext;
     } catch (error) {

@@ -52,7 +52,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext(new Map(), "task");
-    const result = await executor.execute(instruction, context, vi.fn());
+    const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
     const expectedId = `ws-${MOCK_TIMESTAMP}`;
     expect(provider.created).toContain(`/test/${expectedId}`);
@@ -75,7 +75,7 @@ describe("WorkspaceStepExecutor", () => {
     };
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context, vi.fn())).rejects.toThrow(
+    await expect(executor.execute(instruction, context, vi.fn(), () => {})).rejects.toThrow(
       'Unknown workspace provider "current-dir"',
     );
   });
@@ -93,7 +93,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext(new Map(), "task");
-    await executor.execute(instruction, context, vi.fn());
+    await executor.execute(instruction, context, vi.fn(), () => {});
 
     expect(context.workspaces.size).toBe(0);
     expect(context.results.size).toBe(0);
@@ -125,7 +125,7 @@ describe("WorkspaceStepExecutor", () => {
       expect(events[0].details.workspace).toContain("/test/ws-");
     });
 
-    it("does not fire events when onProgress is not provided", async () => {
+    it("works with a no-op onProgress callback", async () => {
       mockDateNow();
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
@@ -140,7 +140,7 @@ describe("WorkspaceStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
 
       // Should not throw when called without onProgress.
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.workspaces.has("ws")).toBe(true);
     });

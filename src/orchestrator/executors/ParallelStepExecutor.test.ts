@@ -17,7 +17,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch);
+    return executor.execute(instruction, ctx, dispatch, () => {});
   };
   return dispatch;
 }
@@ -93,7 +93,7 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     expect(result.results.get("a")!.raw).toBe("child-a-out");
     expect(result.results.get("b")!.raw).toBe("child-b-out");
@@ -117,7 +117,7 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     expect(result.workspaces.has("ws1")).toBe(true);
     expect(result.workspaces.has("ws2")).toBe(true);
@@ -141,9 +141,9 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context, makeDispatch(registry))).rejects.toThrow(
-      "step b failed",
-    );
+    await expect(
+      executor.execute(instruction, context, makeDispatch(registry), () => {}),
+    ).rejects.toThrow("step b failed");
   });
 
   it("throws for an unknown step type in children", async () => {
@@ -158,9 +158,9 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context, makeDispatch(registry))).rejects.toThrow(
-      'No executor registered for step type "unknown"',
-    );
+    await expect(
+      executor.execute(instruction, context, makeDispatch(registry), () => {}),
+    ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
   it("handles an empty block (no children)", async () => {
@@ -175,7 +175,7 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     expect(result.results.get("empty")!.parsed!.passed).toBe(true);
   });
@@ -235,7 +235,7 @@ describe("ParallelStepExecutor", () => {
       expect(events[0].phase).toBe("parallel-start");
     });
 
-    it("does not fire events when onProgress is not provided", async () => {
+    it("works with a no-op onProgress callback", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new ConfigurableExecutor("op-a", "out"));
 
@@ -251,7 +251,7 @@ describe("ParallelStepExecutor", () => {
       const executeStep = makeDispatch(registry);
 
       // Should not throw when called without onProgress.
-      const result = await executor.execute(instruction, context, executeStep);
+      const result = await executor.execute(instruction, context, executeStep, () => {});
 
       expect(result.results.get("block")!.parsed!.passed).toBe(true);
     });

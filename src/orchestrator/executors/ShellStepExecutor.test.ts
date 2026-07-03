@@ -75,7 +75,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("/bin/sh");
@@ -101,7 +101,7 @@ describe("ShellStepExecutor", () => {
         "hello world",
         new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
       );
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
@@ -118,7 +118,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("sh3")!.raw).toContain("warning: something");
     });
@@ -134,7 +134,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
       expect(result.results.get("sh4")!.raw).toContain("error output");
@@ -160,7 +160,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("sh6")!.parsed!.passed).toBe(false);
     });
@@ -176,7 +176,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext(new Map(), "task");
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
     });
@@ -227,7 +227,7 @@ describe("ShellStepExecutor", () => {
         expect(result.results.get("sh2")!.parsed!.passed).toBe(false);
       });
 
-      it("does not fire events when onProgress is not provided", async () => {
+      it("works with a no-op onProgress callback", async () => {
         mockExecSuccess("ok");
         const executor = new ShellStepExecutor();
 
@@ -240,7 +240,7 @@ describe("ShellStepExecutor", () => {
         const context = new FlowContext(new Map(), "task");
 
         // Should not throw when called without onProgress.
-        const result = await executor.execute(instruction, context, vi.fn());
+        const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
         expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
       });
