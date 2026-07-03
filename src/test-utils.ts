@@ -357,16 +357,43 @@ export function makeMockSpecManager() {
 }
 
 export function makeMockEventBus() {
-  const emitSpy = vi.fn();
-  const onSpy = vi
-    .fn()
-    .mockImplementation((_channel: string, _handler: (data: unknown) => void) => {
-      return () => {};
-    });
+  const handlers = new Map<string, Set<(data: unknown) => void>>();
+
+  function matchesChannel(pattern: string, channel: string): boolean {
+    if (pattern === channel) return true;
+    if (pattern.endsWith("*")) {
+      return channel.startsWith(pattern.slice(0, -1));
+    }
+    return false;
+  }
+
+  const emitSpy = vi.fn().mockImplementation((channel: string, data: unknown) => {
+    for (const [pattern, listeners] of handlers) {
+      if (matchesChannel(pattern, channel)) {
+        for (const handler of listeners) {
+          handler(data);
+        }
+      }
+    }
+  });
+
+  const onSpy = vi.fn().mockImplementation((channel: string, handler: (data: unknown) => void) => {
+    if (!handlers.has(channel)) {
+      handlers.set(channel, new Set());
+    }
+    handlers.get(channel)!.add(handler);
+    return () => {
+      handlers.get(channel)?.delete(handler);
+    };
+  });
+
+  const clearSpy = vi.fn().mockImplementation(() => {
+    handlers.clear();
+  });
 
   return {
     emit: emitSpy,
     on: onSpy,
-    clear: vi.fn(),
+    clear: clearSpy,
   } as EventBus;
 }

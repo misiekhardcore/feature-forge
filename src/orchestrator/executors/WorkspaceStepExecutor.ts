@@ -1,9 +1,10 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -29,7 +30,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     instruction: WorkspaceInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
     const providerName = instruction.provider;
     const workspaceId = `ws-${Date.now()}`;
@@ -44,7 +45,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
 
     await this.worktreeRegistry.register(handle);
 
-    onProgress({
+    eventBus.emit("feature-forge:workspace-ready", {
       phase: "workspace-ready",
       message: `Workspace "${workspaceId}" created at ${path}`,
       details: { workspace: path },

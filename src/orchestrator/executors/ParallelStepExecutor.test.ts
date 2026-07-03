@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
@@ -17,7 +17,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch, () => {});
+    return executor.execute(instruction, ctx, dispatch, makeMockEventBus());
   };
   return dispatch;
 }
@@ -93,7 +93,7 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
     expect(result.results.get("a")!.raw).toBe("child-a-out");
     expect(result.results.get("b")!.raw).toBe("child-b-out");
@@ -117,7 +117,7 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
     expect(result.workspaces.has("ws1")).toBe(true);
     expect(result.workspaces.has("ws2")).toBe(true);
@@ -142,7 +142,7 @@ describe("ParallelStepExecutor", () => {
     const context = new FlowContext(new Map(), "task");
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), () => {}),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
     ).rejects.toThrow("step b failed");
   });
 
@@ -159,7 +159,7 @@ describe("ParallelStepExecutor", () => {
     const context = new FlowContext(new Map(), "task");
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), () => {}),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
     ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
@@ -175,13 +175,13 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, () => {});
+    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
     expect(result.results.get("empty")!.parsed!.passed).toBe(true);
   });
 
-  describe("onProgress", () => {
-    it("fires parallel-start and parallel-done events", async () => {
+  describe("eventBus", () => {
+    it("emits parallel-start and parallel-done events", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new ConfigurableExecutor("op-a", "child-a-out"));
 
@@ -196,19 +196,29 @@ describe("ParallelStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const executeStep = makeDispatch(registry);
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+      const eventBus = makeMockEventBus();
+      await executor.execute(instruction, context, executeStep, eventBus);
 
-      await executor.execute(instruction, context, executeStep, onProgress);
-
-      expect(events).toHaveLength(2);
-      expect(events[0].phase).toBe("parallel-start");
-      expect(events[0].message).toContain("block");
-      expect(events[1].phase).toBe("parallel-done");
-      expect(events[1].message).toContain("block");
+      expect(eventBus.emit).toHaveBeenCalledTimes(2);
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        1,
+        "feature-forge:parallel-start",
+        expect.objectContaining({
+          phase: "parallel-start",
+          message: expect.stringContaining("block") as string,
+        }),
+      );
+      expect(eventBus.emit).toHaveBeenNthCalledWith(
+        2,
+        "feature-forge:parallel-done",
+        expect.objectContaining({
+          phase: "parallel-done",
+          message: expect.stringContaining("block") as string,
+        }),
+      );
     });
 
-    it("does not fire parallel-done when a child fails", async () => {
+    it("does not emit parallel-done when a child fails", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new FailingExecutor());
 
@@ -223,19 +233,15 @@ describe("ParallelStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const executeStep = makeDispatch(registry);
 
-      const events: RoutineProgressEvent[] = [];
-      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+      const eventBus = makeMockEventBus();
 
-      await expect(
-        executor.execute(instruction, context, executeStep, onProgress),
-      ).rejects.toThrow();
+      await expect(executor.execute(instruction, context, executeStep, eventBus)).rejects.toThrow();
 
-      // Only parallel-start fired; parallel-done was NOT fired.
-      expect(events).toHaveLength(1);
-      expect(events[0].phase).toBe("parallel-start");
+      expect(eventBus.emit).toHaveBeenCalledTimes(1);
+      expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:parallel-start", expect.anything());
     });
 
-    it("works with a no-op onProgress callback", async () => {
+    it("works with a mocked eventBus", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new ConfigurableExecutor("op-a", "out"));
 
@@ -250,8 +256,7 @@ describe("ParallelStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
       const executeStep = makeDispatch(registry);
 
-      // Should not throw when called without onProgress.
-      const result = await executor.execute(instruction, context, executeStep, () => {});
+      const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
       expect(result.results.get("block")!.parsed!.passed).toBe(true);
     });

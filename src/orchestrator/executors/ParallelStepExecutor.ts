@@ -1,7 +1,8 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -17,7 +18,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
     instruction: ParallelInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
     const childInstructions = instruction.steps;
 
@@ -26,7 +27,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
       childCount: childInstructions.length,
     });
 
-    onProgress({
+    eventBus.emit("feature-forge:parallel-start", {
       phase: "parallel-start",
       message: `Parallel block "${instruction.id}" — ${childInstructions.length} child(ren)`,
       details: {},
@@ -79,7 +80,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
 
     const finalContext = merged.withResult(instruction.id, blockResult);
 
-    onProgress({
+    eventBus.emit("feature-forge:parallel-done", {
       phase: "parallel-done",
       message: `Parallel block "${instruction.id}" complete`,
       details: {},

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -42,7 +42,7 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -63,7 +63,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "{{target}}" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -85,7 +85,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(provider.destroyedPaths).toContain("/fake/ws2");
@@ -117,7 +117,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -131,14 +131,14 @@ describe("CleanupStepExecutor", () => {
 
       const context = new FlowContext(new Map(), "task");
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       expect(result.results.get("c1")!.raw).toContain('"cleaned":[]');
     });
 
-    describe("onProgress", () => {
-      it("fires cleanup-start and cleanup-done events", async () => {
+    describe("eventBus", () => {
+      it("emits cleanup-start and cleanup-done events", async () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
@@ -149,19 +149,29 @@ describe("CleanupStepExecutor", () => {
 
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
-        const events: RoutineProgressEvent[] = [];
-        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        await executor.execute(instruction, context, vi.fn(), onProgress);
-
-        expect(events).toHaveLength(2);
-        expect(events[0].phase).toBe("cleanup-start");
-        expect(events[0].message).toContain("c1");
-        expect(events[1].phase).toBe("cleanup-done");
-        expect(events[1].message).toContain("c1");
+        expect(eventBus.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          1,
+          "feature-forge:cleanup-start",
+          expect.objectContaining({
+            phase: "cleanup-start",
+            message: expect.stringContaining("c1") as string,
+          }),
+        );
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          2,
+          "feature-forge:cleanup-done",
+          expect.objectContaining({
+            phase: "cleanup-done",
+            message: expect.stringContaining("c1") as string,
+          }),
+        );
       });
 
-      it("works with a no-op onProgress callback", async () => {
+      it("works with a mocked eventBus", async () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
@@ -172,8 +182,7 @@ describe("CleanupStepExecutor", () => {
 
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
-        // Should not throw when called without onProgress.
-        const result = await executor.execute(instruction, context, vi.fn(), () => {});
+        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
         expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       });
@@ -188,7 +197,7 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext(new Map(), "task");
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "/raw/path" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(provider.destroyedPaths).toContain("/raw/path");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -207,7 +216,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);

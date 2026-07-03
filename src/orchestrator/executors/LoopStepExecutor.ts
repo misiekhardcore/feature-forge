@@ -1,8 +1,9 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import { logger } from "../../logging";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { collectAllIds } from "./helpers";
 
@@ -22,7 +23,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     instruction: LoopInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
     const maxIterations = instruction.maxIterations;
     const continueWhileExpr = instruction.continueWhile;
@@ -53,7 +54,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
       logger.debug("Loop iteration", { id: instruction.id, iteration, maxIterations });
 
-      onProgress({
+      eventBus.emit("feature-forge:loop-round-start", {
         phase: "loop-round-start",
         message: `Loop "${instruction.id}" — round ${iteration + 1}/${maxIterations}`,
         details: { rounds: iteration + 1 },
@@ -65,7 +66,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       }
 
       // Build feedback from accumulated results.
-      onProgress({
+      eventBus.emit("feature-forge:loop-round-complete", {
         phase: "loop-round-complete",
         message: `Loop "${instruction.id}" — round ${iteration + 1} complete`,
         details: { rounds: iteration + 1 },

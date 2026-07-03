@@ -15,8 +15,3 @@ export interface RoutineProgressEvent {
   /** Partial routine result reflecting the context state at this point. */
   details: Partial<RoutineResult>;
 }
-
-/**
- * Callback invoked during routine execution to stream progress updates.
- */
-export type RoutineProgress = (event: RoutineProgressEvent) => void;

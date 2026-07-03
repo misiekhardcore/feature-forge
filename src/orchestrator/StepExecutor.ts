@@ -1,6 +1,7 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import type { FlowContext } from "./FlowContext";
 import type { FlowInstruction } from "./FlowInstruction";
-import type { RoutineProgress } from "./RoutineProgress";
 
 /**
  * Executes a single deterministic flow instruction against an immutable context,
@@ -18,13 +19,13 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
    * @param instruction — The instruction to execute (narrowed to the executor's type).
    * @param context — Immutable context carrying current results/workspaces/params.
    * @param executeStep — Dispatch callback for container executors (loop, parallel).
-   * @param onProgress — Callback for streaming progress events.
+   * @param eventBus — Event bus for streaming progress events.
    * @returns A new context with this instruction's result recorded.
    */
   abstract execute(
     instruction: TInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext>;
 }
