@@ -14,20 +14,27 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
  *
  * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
- * Branch name: `forge/<workspaceId>`
- *
- * When Worktrunk CLI is available, prefer {@link WorktrunkProvider} instead.
+ * Branch name: `forge/<workspaceId>-<branchSuffix>` (suffix defaults to
+ * `Date.now()` for collision-free branches across invocations).
  */
 export class GitWorktreeProvider extends WorkspaceProvider {
   /** Absolute path to the root of the git repository. */
   public readonly repoRoot: string;
   /** Base ref to create the worktree from. Immutable after construction. */
   public readonly baseRef: string;
+  /** Suffix appended to the branch name for uniqueness. */
+  private readonly branchSuffix: string;
 
-  constructor(repoRoot?: string, baseRef = "HEAD") {
+  /**
+   * @param repoRoot — Absolute path to the repository root. Defaults to `process.cwd()`.
+   * @param baseRef — Git ref to create the worktree from. Defaults to `"HEAD"`.
+   * @param branchSuffix — Suffix appended to the branch name. Defaults to `Date.now()`.
+   */
+  constructor(repoRoot?: string, baseRef = "HEAD", branchSuffix?: string) {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
     this.baseRef = baseRef;
+    this.branchSuffix = branchSuffix ?? Date.now().toString();
   }
 
   /**
@@ -108,7 +115,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   }
 
   private getBranchName(workspaceId: string): string {
-    return `forge/${workspaceId}`;
+    return `forge/${workspaceId}-${this.branchSuffix}`;
   }
 
   private async assertNoStalePath(worktreePath: string): Promise<void> {

@@ -11,4 +11,3 @@ export { WorkspaceManager } from "./WorkspaceManager";
 export { WorkspaceProvider } from "./WorkspaceProvider";
 export { WorkspaceProviderRegistry } from "./WorkspaceProviderRegistry";
 export { WorktreeRegistry } from "./WorktreeRegistry";
-export { WorktrunkProvider } from "./WorktrunkProvider";

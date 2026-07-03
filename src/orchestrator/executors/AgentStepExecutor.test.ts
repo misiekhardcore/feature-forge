@@ -14,6 +14,7 @@ import { AgentStepExecutor } from "./AgentStepExecutor";
 
 function makeMockSpecManager(): SpecManager {
   return {
+    createDynamic: vi.fn().mockImplementation((spec: AgentSpecification) => spec),
     resolve: vi.fn().mockReturnValue({
       id: "test-agent",
       role: "test",

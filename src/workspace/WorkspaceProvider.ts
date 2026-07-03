@@ -3,7 +3,7 @@
  * directories for agents.
  *
  * Concrete implementations:
- * - {@link GitWorktreeProvider} — creates a git worktree (via Worktrunk or
+ * - {@link GitWorktreeProvider} — creates a git worktree
  *   `git worktree`), suitable for build agents that need to branch and commit.
  * - {@link CurrentDirProvider} — returns `process.cwd()` as a no-op workspace,
  *   suitable for read-only agents that inspect the build worktree.
