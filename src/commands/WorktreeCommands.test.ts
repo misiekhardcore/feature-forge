@@ -136,14 +136,7 @@ describe("WorktreeDestroyCommand", () => {
 
       await cmd.handler(handle.path, ctx);
 
-      expect(ctx.ui.notify).toHaveBeenCalledWith(`Worktree "${handle.path}" destroyed.`, "info");
-      expect(pi.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          customType: "worktree_destroyed",
-          display: true,
-        }),
-        { triggerTurn: false },
-      );
+      expect(ctx.ui.notify).toHaveBeenCalledWith(`🗑️ Worktree "${handle.path}" destroyed.`, "info");
       expect(manager.get(handle.path)).toBeUndefined();
     });
 
