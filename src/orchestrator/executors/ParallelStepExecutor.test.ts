@@ -163,6 +163,33 @@ describe("ParallelStepExecutor", () => {
     ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
+  it("throws AbortError when signal is aborted before dispatching children", async () => {
+    const registry = new StepExecutorRegistry();
+    registry.register(() => new ConfigurableExecutor("op-a", "out"));
+
+    const executor = new ParallelStepExecutor();
+
+    const instruction: ParallelInstruction = {
+      type: "parallel",
+      id: "block",
+      steps: [{ type: "op-a", id: "a" } as unknown as FlowInstruction],
+    };
+
+    const context = new FlowContext(new Map(), "task");
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      executor.execute(
+        instruction,
+        context,
+        makeDispatch(registry),
+        makeMockEventBus(),
+        controller.signal,
+      ),
+    ).rejects.toThrow();
+  });
+
   it("handles an empty block (no children)", async () => {
     const registry = new StepExecutorRegistry();
     const executor = new ParallelStepExecutor();

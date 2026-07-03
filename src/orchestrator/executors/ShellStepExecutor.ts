@@ -27,9 +27,16 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
   async execute(
     instruction: ShellInstruction,
     context: FlowContext,
-    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
+    signal?.throwIfAborted();
+
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
 

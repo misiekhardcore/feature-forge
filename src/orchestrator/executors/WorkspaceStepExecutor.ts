@@ -29,9 +29,16 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
   async execute(
     instruction: WorkspaceInstruction,
     context: FlowContext,
-    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
+    signal?.throwIfAborted();
+
     const providerName = instruction.provider;
     const workspaceId = `ws-${Date.now()}`;
 

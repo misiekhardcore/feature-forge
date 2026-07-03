@@ -55,11 +55,11 @@ export class RoutineTool implements ToolDefinition<
   async execute(
     _toolCallId: string,
     params: Record<string, string>,
-    _signal: AbortSignal | undefined,
+    signal: AbortSignal | undefined,
     onUpdate:
       | AgentToolUpdateCallback<{ routine: string; passed: boolean; summary: string }>
       | undefined,
-    _ctx: ExtensionContext,
+    ctx: ExtensionContext,
   ): Promise<AgentToolResult<{ routine: string; passed: boolean; summary: string }>> {
     logger.info("RoutineTool invoked", {
       routine: this.routineName,
@@ -98,13 +98,23 @@ export class RoutineTool implements ToolDefinition<
       : undefined;
 
     try {
-      const result = await this.executor.run(this.routineName, routineParams, prompt);
+      const result = await this.executor.run(this.routineName, routineParams, prompt, signal);
 
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: { routine: result.routine, passed: result.passed, summary: result.summary },
       };
+    } catch (error) {
+      // AbortError is a deliberate cancellation — report it before re-throwing.
+      if (error instanceof DOMException && error.name === "AbortError") {
+        logger.info("Routine aborted", { routine: this.routineName });
+      }
+      throw error;
     } finally {
+      if (ctx.ui) {
+        ctx.ui.setWidget(this.routineName, undefined);
+        ctx.ui.setStatus(this.routineName, undefined);
+      }
       if (unsubscribe) {
         unsubscribe();
       }

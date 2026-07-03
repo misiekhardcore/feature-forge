@@ -64,6 +64,24 @@ describe("ShellStepExecutor", () => {
   });
 
   describe("execute", () => {
+    it("throws AbortError when signal is aborted at entry", async () => {
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh1",
+        command: "echo hello",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+      ).rejects.toThrow();
+    });
+
     it("runs a shell command in the resolved cwd", async () => {
       mockExecSuccess("pr created: https://github.com/...");
       const executor = new ShellStepExecutor();
