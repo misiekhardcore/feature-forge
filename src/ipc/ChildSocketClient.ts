@@ -3,13 +3,7 @@ import { connect, type Socket } from "node:net";
 
 import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
-import type {
-  ParamsToResponseMap,
-  SocketMessage,
-  SocketPush,
-  SocketResponse,
-  SocketResponseResult,
-} from "./messages";
+import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } from "./messages";
 
 /**
  * Default timeout for IPC requests (ms).
@@ -45,9 +39,7 @@ export class ChildSocketClient {
   private pending = new Map<
     string,
     {
-      resolve: (
-        result: SocketResponseResult["result"] | PromiseLike<SocketResponseResult["result"]>,
-      ) => void;
+      resolve: (result: unknown) => void;
       reject: (error: Error) => void;
     }
   >();
@@ -93,22 +85,19 @@ export class ChildSocketClient {
    * @param type — The message type.
    * @param params — The request parameters.
    * @param timeout — Milliseconds to wait before throwing IpcTimeoutError (default 5 minutes).
+   * @param signal — Optional AbortSignal to cancel the pending request.
    */
   async request<ST extends SocketMessage["type"]>(
     type: ST,
     params: Extract<SocketMessage, { type: ST }>["params"],
     timeout = IPC_REQUEST_TIMEOUT_MS,
+    signal?: AbortSignal,
   ): Promise<ParamsToResponseMap[ST]> {
     const correlationId = randomUUID();
 
-    return new Promise((resolve, reject) => {
-      this.pending.set(correlationId, {
-        resolve: resolve as (
-          result: SocketResponseResult["result"] | PromiseLike<SocketResponseResult["result"]>,
-        ) => void,
-        reject,
-      });
+    signal?.throwIfAborted();
 
+    return new Promise((resolve, reject) => {
       const message: SocketMessage = { type, correlationId, params } as SocketMessage;
       this.socket?.write(JSON.stringify(message) + "\n");
 
@@ -118,17 +107,31 @@ export class ChildSocketClient {
         reject(new IpcTimeoutError(correlationId, timeout));
       }, timeout);
 
-      // Wrap the resolve/reject to clear the timeout
-      const originalResolve = resolve;
-      const originalReject = reject;
+      const onAbort = (): void => {
+        clearTimeout(timer);
+        this.pending.delete(correlationId);
+        reject(new DOMException("The operation was aborted", "AbortError"));
+      };
+
+      if (signal) {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        if (signal) {
+          signal.removeEventListener("abort", onAbort);
+        }
+      };
+
       this.pending.set(correlationId, {
         resolve: (value) => {
-          clearTimeout(timer);
-          originalResolve(value as ParamsToResponseMap[ST]);
+          cleanup();
+          resolve(value as ParamsToResponseMap[ST]);
         },
         reject: (error) => {
-          clearTimeout(timer);
-          originalReject(error);
+          cleanup();
+          reject(error);
         },
       });
     });

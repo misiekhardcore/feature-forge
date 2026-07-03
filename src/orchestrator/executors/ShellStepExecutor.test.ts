@@ -64,24 +64,6 @@ describe("ShellStepExecutor", () => {
   });
 
   describe("execute", () => {
-    it("throws AbortError when signal is aborted at entry", async () => {
-      const executor = new ShellStepExecutor();
-
-      const instruction: ShellInstruction = {
-        type: "shell",
-        id: "sh1",
-        command: "echo hello",
-        cwd: "/tmp/ws",
-      };
-      const context = new FlowContext(new Map(), "task");
-      const controller = new AbortController();
-      controller.abort();
-
-      await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
-      ).rejects.toThrow();
-    });
-
     it("runs a shell command in the resolved cwd", async () => {
       mockExecSuccess("pr created: https://github.com/...");
       const executor = new ShellStepExecutor();
@@ -197,6 +179,54 @@ describe("ShellStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
+    });
+
+    describe("signal", () => {
+      it("passes signal to execFile options", async () => {
+        mockExecSuccess("ok");
+        const executor = new ShellStepExecutor();
+        const controller = new AbortController();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sig",
+          command: "echo hello",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockEventBus(),
+          controller.signal,
+        );
+
+        expect(execFileRaw).toHaveBeenCalledTimes(1);
+        expect(execFileRaw.mock.calls[0][2].signal).toBe(controller.signal);
+      });
+
+      it("propagates AbortError when signal is already aborted", async () => {
+        const controller = new AbortController();
+        controller.abort();
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sig2",
+          command: "echo hello",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        await expect(
+          executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+        ).rejects.toThrow("This operation was aborted");
+
+        // execFile should never be reached when signal is pre-aborted.
+        expect(execFileRaw).not.toHaveBeenCalled();
+      });
     });
 
     describe("eventBus", () => {

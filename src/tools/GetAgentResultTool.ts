@@ -31,16 +31,20 @@ export class GetAgentResultTool extends Tool {
   async execute(
     _toolCallId: string,
     params: GetAgentResultParams,
+    signal: AbortSignal | undefined,
   ): Promise<AgentToolResult<GetAgentResultResult | { error: string }>> {
     if (!this.client) {
+      signal?.throwIfAborted();
       return {
         content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
         details: NO_CLIENT_ERROR,
       };
     }
 
+    signal?.throwIfAborted();
+
     try {
-      const result = await this.client.request("get_agent_result", params);
+      const result = await this.client.request("get_agent_result", params, undefined, signal);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,

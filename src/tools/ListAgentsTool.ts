@@ -1,4 +1,8 @@
-import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentToolResult,
+  AgentToolUpdateCallback,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
@@ -23,16 +27,25 @@ export class ListAgentsTool extends Tool {
     super();
   }
 
-  async execute(): Promise<AgentToolResult<ListAgentsResult | { error: string }>> {
+  async execute(
+    _toolCallId: string,
+    _params: Record<string, never>,
+    signal: AbortSignal | undefined,
+    _onUpdate: AgentToolUpdateCallback<ListAgentsResult | { error: string }> | undefined,
+    _ctx: ExtensionContext,
+  ): Promise<AgentToolResult<ListAgentsResult | { error: string }>> {
     if (!this.client) {
+      signal?.throwIfAborted();
       return {
         content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
         details: NO_CLIENT_ERROR,
       };
     }
 
+    signal?.throwIfAborted();
+
     try {
-      const result = await this.client.request("list_agents", {});
+      const result = await this.client.request("list_agents", {}, undefined, signal);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,

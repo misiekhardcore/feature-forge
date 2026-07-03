@@ -63,27 +63,6 @@ describe("GitStepExecutor", () => {
   });
 
   describe("execute", () => {
-    it("throws AbortError when signal is aborted at entry", async () => {
-      const executor = new GitStepExecutor();
-
-      const instruction: GitInstruction = {
-        type: "git",
-        id: "git1",
-        action: "add-and-commit",
-        cwd: "/tmp/ws",
-      };
-      const context = new FlowContext(new Map(), "task");
-      const controller = new AbortController();
-      controller.abort();
-
-      await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
-      ).rejects.toThrow();
-
-      // execFile was never called.
-      expect(execFileRaw).not.toHaveBeenCalled();
-    });
-
     it("runs add-and-commit in the resolved cwd with the default message", async () => {
       mockExecSuccess();
       const executor = new GitStepExecutor();
@@ -310,6 +289,59 @@ describe("GitStepExecutor", () => {
       // Only git-start was emitted.
       expect(eventBus.emit).toHaveBeenCalledTimes(1);
       expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:git-start", expect.anything());
+    });
+
+    describe("signal", () => {
+      it("passes signal to execFile options for add-and-commit", async () => {
+        mockExecSuccess();
+        const executor = new GitStepExecutor();
+        const controller = new AbortController();
+
+        const instruction: GitInstruction = {
+          type: "git",
+          id: "git-sig",
+          action: "add-and-commit",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockEventBus(),
+          controller.signal,
+        );
+
+        expect(execFileRaw).toHaveBeenCalledTimes(2);
+        expect(execFileRaw.mock.calls[0][2].signal).toBe(controller.signal);
+        expect(execFileRaw.mock.calls[1][2].signal).toBe(controller.signal);
+      });
+
+      it("passes signal to execFile options for push-current", async () => {
+        mockExecSuccess();
+        const executor = new GitStepExecutor();
+        const controller = new AbortController();
+
+        const instruction: GitInstruction = {
+          type: "git",
+          id: "git-sig-push",
+          action: "push-current",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockEventBus(),
+          controller.signal,
+        );
+
+        expect(execFileRaw).toHaveBeenCalledTimes(1);
+        expect(execFileRaw.mock.calls[0][2].signal).toBe(controller.signal);
+      });
     });
 
     it("emits git-done when push-current fails (soft failure still resolves)", async () => {

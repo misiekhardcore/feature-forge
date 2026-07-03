@@ -27,11 +27,15 @@ describe("SpawnAgentTool", () => {
   describe("without socket client", () => {
     it("returns not-available error", async () => {
       const tool = new SpawnAgentTool(null);
-      const result = await tool.execute("call-1", {
-        role: "researcher",
-        systemPrompt: "test",
-        tools: ["read"],
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          role: "researcher",
+          systemPrompt: "test",
+          tools: ["read"],
+        },
+        undefined,
+      );
       expect(result).toEqual({
         content: [
           { type: "text", text: JSON.stringify({ error: "Not available in orchestrator mode" }) },
@@ -53,17 +57,26 @@ describe("SpawnAgentTool", () => {
     it("sends request and returns formatted result", async () => {
       client.request.mockResolvedValue({ agentId: "agent-1", role: "researcher" });
 
-      const result = await tool.execute("call-1", {
-        role: "researcher",
-        systemPrompt: "You are a researcher",
-        tools: ["read", "bash"],
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          role: "researcher",
+          systemPrompt: "You are a researcher",
+          tools: ["read", "bash"],
+        },
+        undefined,
+      );
 
-      expect(client.request).toHaveBeenCalledWith("spawn_agent", {
-        role: "researcher",
-        systemPrompt: "You are a researcher",
-        tools: ["read", "bash"],
-      });
+      expect(client.request).toHaveBeenCalledWith(
+        "spawn_agent",
+        {
+          role: "researcher",
+          systemPrompt: "You are a researcher",
+          tools: ["read", "bash"],
+        },
+        undefined,
+        undefined,
+      );
       expect(result).toEqual({
         content: [
           {
@@ -78,29 +91,42 @@ describe("SpawnAgentTool", () => {
     it("forwards optional prompt to the IPC client", async () => {
       client.request.mockResolvedValue({ agentId: "build-1", role: "build" });
 
-      await tool.execute("call-2", {
-        role: "build",
-        systemPrompt: "You are a builder",
-        tools: ["read"],
-        prompt: "Add auth feature",
-      });
+      await tool.execute(
+        "call-2",
+        {
+          role: "build",
+          systemPrompt: "You are a builder",
+          tools: ["read"],
+          prompt: "Add auth feature",
+        },
+        undefined,
+      );
 
-      expect(client.request).toHaveBeenCalledWith("spawn_agent", {
-        role: "build",
-        systemPrompt: "You are a builder",
-        tools: ["read"],
-        prompt: "Add auth feature",
-      });
+      expect(client.request).toHaveBeenCalledWith(
+        "spawn_agent",
+        {
+          role: "build",
+          systemPrompt: "You are a builder",
+          tools: ["read"],
+          prompt: "Add auth feature",
+        },
+        undefined,
+        undefined,
+      );
     });
 
     it("wraps IPC errors", async () => {
       client.request.mockRejectedValue(new Error("Connection refused"));
 
-      const result = await tool.execute("call-1", {
-        role: "researcher",
-        systemPrompt: "test",
-        tools: [],
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          role: "researcher",
+          systemPrompt: "test",
+          tools: [],
+        },
+        undefined,
+      );
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "Connection refused" }) }],
@@ -111,16 +137,30 @@ describe("SpawnAgentTool", () => {
     it("wraps non-Error rejections", async () => {
       client.request.mockRejectedValue("string error");
 
-      const result = await tool.execute("call-1", {
-        role: "researcher",
-        systemPrompt: "test",
-        tools: [],
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          role: "researcher",
+          systemPrompt: "test",
+          tools: [],
+        },
+        undefined,
+      );
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "string error" }) }],
         details: { error: "string error" },
       });
+    });
+
+    it("throws AbortError when signal is already aborted", async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        tool.execute("call-1", { role: "x", systemPrompt: "x", tools: [] }, controller.signal),
+      ).rejects.toThrow(DOMException);
+      expect(client.request).not.toHaveBeenCalled();
     });
   });
 });

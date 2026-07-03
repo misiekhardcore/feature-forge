@@ -352,6 +352,56 @@ describe("ParentSocketServer", () => {
     await regServer.stop();
   });
 
+  it("sends error response when await task's executeTask throws and socket remains open", async () => {
+    const localAgents = new Map<string, Agent>();
+    const localSupervisor = createMockSupervisor(localAgents);
+    const localServer = new ParentSocketServer(
+      localSupervisor,
+      makeMockPi(),
+      createMockSpecManager(),
+    );
+    const localPath = await localServer.start();
+
+    const client = connect(localPath);
+
+    // Spawn
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "err-1",
+      params: {
+        role: "failing",
+        systemPrompt: "failing agent",
+        tools: ["read"],
+      },
+    });
+    await readResponse(client);
+
+    // Make executeTask throw
+    const agent = localAgents.get("failing") as SubprocessAgent;
+    vi.mocked(agent.executeTask).mockRejectedValue(new Error("simulated task failure"));
+
+    // Send task with await: true
+    await sendJson(client, {
+      type: "send_task",
+      correlationId: "err-2",
+      params: {
+        agentId: "failing",
+        prompt: "do work",
+        await: true,
+      },
+    });
+
+    const errorResponse = await readResponse(client);
+    expect(errorResponse).toEqual({
+      type: "error",
+      correlationId: "err-2",
+      error: "simulated task failure",
+    });
+
+    client.end();
+    await localServer.stop();
+  });
+
   it("validates JSON and returns error for malformed input", async () => {
     const client = connect(socketPath);
 
