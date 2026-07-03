@@ -1,3 +1,5 @@
+import type { EventBus } from "@earendil-works/pi-coding-agent";
+
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { SpecManager } from "../../agents/SpecManager";
@@ -5,7 +7,6 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
-import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";
@@ -35,7 +36,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     instruction: AgentInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress: RoutineProgress,
+    eventBus: EventBus,
   ): Promise<FlowContext> {
     const instructionId = instruction.id;
 
@@ -63,7 +64,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     // 3. Spawn agent, execute task, collect result, and destroy.
     const agent: SubprocessAgent = await this.supervisor.spawnGuest(effectiveSpecification);
 
-    onProgress({
+    eventBus.emit("feature-forge:agent-started", {
       phase: "agent-started",
       message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
       details: {},
@@ -78,7 +79,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const result = this.buildResult(raw, instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
 
-      onProgress({
+      eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
         message: `Agent "${instructionId}" completed`,
         details: {},
