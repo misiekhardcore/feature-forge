@@ -27,16 +27,9 @@ export class WorktreeListCommand extends Command {
 
     const lines = handles.map((h) => {
       const age = Math.round((Date.now() - h.createdAt.getTime()) / 60000);
-      return `  • **\`${h.path}\`** (created ${age} min ago)`;
+      return `  • ${h.path} (created ${age} min ago)`;
     });
 
-    this.pi.sendMessage(
-      {
-        customType: "worktree_list",
-        content: `## Active Worktrees\n\n${lines.join("\n")}`,
-        display: true,
-      },
-      { triggerTurn: false },
-    );
+    ctx.ui.notify(`Active worktrees (${handles.length}):\n${lines.join("\n")}`, "info");
   };
 }
