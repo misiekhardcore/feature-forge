@@ -75,16 +75,7 @@ export class SpecManager {
    * after spawning, not registered for reuse.
    */
   createDynamic(params: SpawnAgentParams): AgentSpecification {
-    const specParams = {
-      id: DynamicAgentSpecification.generateId({ role: params.role }),
-      role: params.role,
-      systemPrompt: params.systemPrompt,
-      tools: params.tools,
-      model: params.model,
-      cwd: params.cwd,
-    };
-
-    return new DynamicAgentSpecification(specParams);
+    return new DynamicAgentSpecification(params);
   }
 
   /**

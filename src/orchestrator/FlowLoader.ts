@@ -25,13 +25,15 @@ import {
  */
 export class FlowLoader {
   constructor(
-    private readonly flowsDir: string,
-    private readonly knownSpecs?: ReadonlySet<string>,
-    private readonly knownProviders?: ReadonlySet<string>,
+    private readonly params: {
+      flowsDir: string;
+      knownSpecs?: ReadonlySet<string>;
+      knownProviders?: ReadonlySet<string>;
+    },
   ) {}
 
   async load(name: string): Promise<FlowDefinition> {
-    const filepath = path.join(this.flowsDir, `${name}.json`);
+    const filepath = path.join(this.params.flowsDir, `${name}.json`);
     logger.info("Loading flow", { name, filepath });
 
     let raw: string;
@@ -61,8 +63,8 @@ export class FlowLoader {
 
     const semanticErrors = FlowLoader.validateSemantics(
       parsed,
-      this.knownSpecs,
-      this.knownProviders,
+      this.params.knownSpecs,
+      this.params.knownProviders,
     );
     if (semanticErrors.length > 0) {
       logger.error("Flow semantic validation failed", { name, errors: semanticErrors });
@@ -78,11 +80,11 @@ export class FlowLoader {
   async loadAll(): Promise<{ flows: Map<string, FlowDefinition>; failures: Map<string, Error> }> {
     const flows = new Map<string, FlowDefinition>();
     const failures = new Map<string, Error>();
-    const files = await fs.readdir(this.flowsDir);
+    const files = await fs.readdir(this.params.flowsDir);
     const jsonFiles = files.filter((f) => f.endsWith(".json") && f !== "flow-schema.json");
 
     logger.info("Loading all flows from directory", {
-      dir: this.flowsDir,
+      dir: this.params.flowsDir,
       count: jsonFiles.length,
     });
 

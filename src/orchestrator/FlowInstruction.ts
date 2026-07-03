@@ -83,6 +83,18 @@ export const ParallelInstructionSchema = defineInstruction("parallel");
  * once. The `continueWhile` condition is evaluated **after** each iteration,
  * so the body runs before the first check. When `continueWhile` is omitted
  * the loop runs exactly `maxIterations` times.
+ *
+ * ### `continueWhile` expression grammar
+ *
+ * The expression string supports the following syntax:
+ *
+ * - `results.<stepId>.<field>` — access step results by id and dot-notation
+ *   field path
+ * - `?.` — optional chaining in field access (e.g.
+ *   `results.builder?.parsed?.passed`)
+ * - `!` — logical negation
+ * - `&&`, `||` — logical AND / OR
+ * - `===`, `!==` — strict equality / inequality
  */
 export const LoopInstructionSchema = defineInstruction("loop", {
   maxIterations: Type.Integer({ minimum: 1 }),
@@ -153,17 +165,24 @@ export const FlowDefinitionSchema = Type.Object({
 // to avoid the circular clone), patch the cloned copy inside the TRecord with the
 // real FlowInstructionUnion-based validator so Value.Check can reject invalid
 // nested instructions.
-const _recordSchema = FlowDefinitionSchema.properties.routines;
-const _patterns: Record<string, { properties: object }> = _recordSchema.patternProperties ?? {};
-for (const _patternKey of Object.keys(_patterns)) {
-  const _clonedRoutine = _patterns[_patternKey];
-  if (_clonedRoutine?.properties) {
-    Object.defineProperty(_clonedRoutine.properties, "steps", {
-      value: Type.Array(FlowInstructionUnion),
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
+// Reaching into TypeBox internals via a structural accessor typed through unknown.
+const routineRecord = FlowDefinitionSchema.properties.routines;
+const patterns: Record<string, { properties?: Record<string, unknown> }> | undefined = (
+  routineRecord as unknown as {
+    patternProperties?: Record<string, { properties?: Record<string, unknown> }>;
+  }
+).patternProperties;
+if (patterns) {
+  for (const patternKey of Object.keys(patterns)) {
+    const clonedRoutine = patterns[patternKey];
+    if (clonedRoutine?.properties) {
+      Object.defineProperty(clonedRoutine.properties, "steps", {
+        value: Type.Array(FlowInstructionUnion),
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }
   }
 }
 
@@ -229,7 +248,7 @@ export function isContainerInstruction(instr: FlowInstruction): instr is Contain
 // ── Helper constructors ────────────────────────────────────────
 
 export function makeParallelInstruction(id: string, steps: FlowInstruction[]): ParallelInstruction {
-  return { type: "parallel", id, steps } as ParallelInstruction;
+  return { type: "parallel", id, steps };
 }
 
 export function makeLoopInstruction(
@@ -239,7 +258,7 @@ export function makeLoopInstruction(
   continueWhile?: string,
   accumulateFrom?: string[],
 ): LoopInstruction {
-  const base: LoopInstruction = { type: "loop", id, maxIterations, steps } as LoopInstruction;
+  const base: LoopInstruction = { type: "loop", id, maxIterations, steps };
   if (continueWhile !== undefined) base.continueWhile = continueWhile;
   if (accumulateFrom !== undefined) base.accumulateFrom = accumulateFrom;
   return base;

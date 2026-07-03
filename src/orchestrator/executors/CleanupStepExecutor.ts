@@ -41,7 +41,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
         path,
       });
 
-      await CleanupStepExecutor.destroyPath(path, this.providerRegistry);
+      await this.destroyPath(path, this.providerRegistry);
       cleaned.push(targetName);
     } else {
       logger.info("Cleanup step — destroying all workspaces", {
@@ -51,7 +51,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
 
       for (const [name, handle] of context.workspaces) {
         try {
-          await CleanupStepExecutor.destroyPath(handle.path, this.providerRegistry);
+          await this.destroyPath(handle.path, this.providerRegistry);
           cleaned.push(name);
         } catch (error) {
           logger.error("Workspace destruction failed", {
@@ -75,10 +75,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     return context.withResult(instruction.id, result);
   }
 
-  private static async destroyPath(
-    path: string,
-    registry: WorkspaceProviderRegistry,
-  ): Promise<void> {
+  private async destroyPath(path: string, registry: WorkspaceProviderRegistry): Promise<void> {
     const errors: Error[] = [];
     for (const providerName of registry.names()) {
       const provider = registry.get(providerName);

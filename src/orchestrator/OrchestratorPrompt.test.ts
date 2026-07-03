@@ -11,7 +11,7 @@ import { FlowLoader } from "./FlowLoader";
  */
 describe("orchestrator system prompt", () => {
   it("fully resolves with no unresolved {{...}} tokens", async () => {
-    const loader = new FlowLoader(path.join(__dirname, "..", "flows", "implement"));
+    const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
     const flow = await loader.load("flow");
 
     const systemPrompt = flow.orchestrator.systemPrompt;
@@ -26,7 +26,7 @@ describe("orchestrator system prompt", () => {
   });
 
   it("contains no uppercase placeholder tokens in raw form", async () => {
-    const loader = new FlowLoader(path.join(__dirname, "..", "flows", "implement"));
+    const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
     const flow = await loader.load("flow");
     const systemPrompt = flow.orchestrator.systemPrompt;
 
@@ -37,7 +37,7 @@ describe("orchestrator system prompt", () => {
   });
 
   it("systemPrompt is a non-empty spec name (not a prompt string)", async () => {
-    const loader = new FlowLoader(path.join(__dirname, "..", "flows", "implement"));
+    const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
     const flow = await loader.load("flow");
 
     expect(flow.orchestrator.systemPrompt).toBeTruthy();

@@ -627,7 +627,7 @@ describe("FlowLoader", () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp("/tmp/flow-loader-test-");
-    loader = new FlowLoader(tempDir);
+    loader = new FlowLoader({ flowsDir: tempDir });
   });
 
   afterEach(async () => {
@@ -657,7 +657,9 @@ describe("FlowLoader", () => {
   });
 
   it("loads the real implement flow", async () => {
-    const realLoader = new FlowLoader(path.join(__dirname, "..", "flows", "implement"));
+    const realLoader = new FlowLoader({
+      flowsDir: path.join(__dirname, "..", "flows", "implement"),
+    });
     const flow = await realLoader.load("flow");
     expect(flow.name).toBe("implement");
     expect(Object.keys(flow.routines).length).toBeGreaterThan(0);
