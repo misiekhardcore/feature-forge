@@ -13,7 +13,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
@@ -107,7 +107,7 @@ describe("Flow workspace lifecycle (e2e)", () => {
   });
 
   it("creates a worktree via flow, registers it, and destroys it", async () => {
-    const result = await executor.run("create_workspace", {}, "create ws for e2e");
+    const result = await executor.run("create_workspace", {}, "create ws for e2e", vi.fn());
 
     expect(result.passed).toBe(true);
     expect(result.workspace).toBeDefined();
@@ -134,6 +134,7 @@ describe("Flow workspace lifecycle (e2e)", () => {
       "destroy_workspace",
       { path: workspacePath },
       "destroy ws",
+      vi.fn(),
     );
 
     expect(cleanupResult.passed).toBe(true);
@@ -151,8 +152,8 @@ describe("Flow workspace lifecycle (e2e)", () => {
   });
 
   it("creates multiple workspaces with unique paths", async () => {
-    const result1 = await executor.run("create_workspace", {}, "first");
-    const result2 = await executor.run("create_workspace", {}, "second");
+    const result1 = await executor.run("create_workspace", {}, "first", vi.fn());
+    const result2 = await executor.run("create_workspace", {}, "second", vi.fn());
 
     expect(result1.passed).toBe(true);
     expect(result2.passed).toBe(true);
@@ -171,15 +172,15 @@ describe("Flow workspace lifecycle (e2e)", () => {
 
     // Clean up both (destroy_workspace destroys all when no `of` parameter,
     // but we pass explicit paths for targeted cleanup)
-    await executor.run("destroy_workspace", { path: result1.workspace! }, "destroy");
-    await executor.run("destroy_workspace", { path: result2.workspace! }, "destroy");
+    await executor.run("destroy_workspace", { path: result1.workspace! }, "destroy", vi.fn());
+    await executor.run("destroy_workspace", { path: result2.workspace! }, "destroy", vi.fn());
 
     expect(existsSync(result1.workspace!)).toBe(false);
     expect(existsSync(result2.workspace!)).toBe(false);
   });
 
   it("worktree registry file is created at <repo>/.forge/worktrees.json", async () => {
-    await executor.run("create_workspace", {}, "create");
+    await executor.run("create_workspace", {}, "create", vi.fn());
 
     const registryPath = WorktreeRegistry.defaultStoragePath(repoRoot);
     expect(existsSync(registryPath)).toBe(true);
@@ -190,6 +191,7 @@ describe("Flow workspace lifecycle (e2e)", () => {
       "destroy_workspace",
       { path: "/nonexistent/path" },
       "destroy",
+      vi.fn(),
     );
 
     // Cleanup is best-effort — should not throw, just report success
