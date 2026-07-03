@@ -53,7 +53,7 @@ describe("WorktreeListCommand", () => {
       expect(ctx.ui.notify).toHaveBeenCalledWith("No active worktrees.", "info");
     });
 
-    it("sends a message listing active worktrees", async () => {
+    it("notifies listing active worktrees", async () => {
       const manager = makeWorkspaceManager();
       await manager.create("task-1");
       await manager.create("task-2");
@@ -61,12 +61,17 @@ describe("WorktreeListCommand", () => {
 
       await cmd.handler("", ctx);
 
-      expect(pi.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          customType: "worktree_list",
-          display: true,
-        }),
-        { triggerTurn: false },
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining("Active worktrees (2):"),
+        "info",
+      );
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining("/tmp/mock-workspaces/task-1"),
+        "info",
+      );
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining("/tmp/mock-workspaces/task-2"),
+        "info",
       );
     });
   });
