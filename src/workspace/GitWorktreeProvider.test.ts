@@ -96,7 +96,7 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
 
 const repoRoot = "/home/user/my-repo";
 const testSuffix = "test-suffix";
-const worktreePath = "/home/user/my-repo/.forge/worktrees/task-1";
+const worktreePath = `/home/user/my-repo/.forge/worktrees/task-1-${testSuffix}`;
 const branchName = `forge/task-1-${testSuffix}`;
 
 function branchCheckPasses() {
