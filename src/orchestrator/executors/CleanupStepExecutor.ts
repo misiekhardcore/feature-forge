@@ -32,9 +32,16 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   async execute(
     instruction: CleanupInstruction,
     context: FlowContext,
-    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
+    signal?.throwIfAborted();
+
     eventBus.emit("feature-forge:cleanup-start", {
       phase: "cleanup-start",
       message: `Cleanup "${instruction.id}" starting`,

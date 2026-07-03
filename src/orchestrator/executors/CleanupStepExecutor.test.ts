@@ -32,6 +32,27 @@ function stubWorktreeRegistry(): WorktreeRegistry {
 
 describe("CleanupStepExecutor", () => {
   describe("execute", () => {
+    it("throws AbortError when signal is aborted at entry", async () => {
+      const provider = new TrackingProvider();
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+
+      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+      const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+
+      const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+      ).rejects.toThrow();
+
+      // No workspace was destroyed.
+      expect(provider.destroyedPaths).toHaveLength(0);
+    });
+
     it("destroys the workspace referenced by `of`", async () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);

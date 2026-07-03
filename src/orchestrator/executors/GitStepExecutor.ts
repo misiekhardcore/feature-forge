@@ -30,9 +30,16 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
   async execute(
     instruction: GitInstruction,
     context: FlowContext,
-    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
+    signal?.throwIfAborted();
+
     const resolvedCwd = context.resolve(instruction.cwd);
 
     logger.info("Executing git step", {

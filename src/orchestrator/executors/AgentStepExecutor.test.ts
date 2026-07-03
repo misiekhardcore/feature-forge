@@ -250,6 +250,32 @@ describe("AgentStepExecutor", () => {
       expect(result.results.get("builder")!.parsed).toBeUndefined();
     });
 
+    it("throws AbortError when signal is aborted before spawn", async () => {
+      const agent = makeMockAgent("output");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+      ).rejects.toThrow();
+
+      // Agent was never spawned.
+      expect(supervisor.spawnGuest).not.toHaveBeenCalled();
+      // destroyAgent is not called because spawn never happened.
+      expect(supervisor.destroyAgent).not.toHaveBeenCalled();
+    });
+
     it("always calls destroyAgent even when executeTask throws", async () => {
       const error = new Error("crash");
       const agent = makeMockAgentThatThrows(error);

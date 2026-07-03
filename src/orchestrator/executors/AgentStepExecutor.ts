@@ -35,10 +35,18 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   async execute(
     instruction: AgentInstruction,
     context: FlowContext,
-    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
     const instructionId = instruction.id;
+
+    // Check abort signal before spawning an agent.
+    signal?.throwIfAborted();
 
     // 1. Build the specification from the named spec registry.
     const specification = this.specManager.resolve({

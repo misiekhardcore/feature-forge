@@ -63,6 +63,27 @@ describe("GitStepExecutor", () => {
   });
 
   describe("execute", () => {
+    it("throws AbortError when signal is aborted at entry", async () => {
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git1",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext(new Map(), "task");
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+      ).rejects.toThrow();
+
+      // execFile was never called.
+      expect(execFileRaw).not.toHaveBeenCalled();
+    });
+
     it("runs add-and-commit in the resolved cwd with the default message", async () => {
       mockExecSuccess();
       const executor = new GitStepExecutor();

@@ -17,8 +17,13 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
   async execute(
     instruction: ParallelInstruction,
     context: FlowContext,
-    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
     const childInstructions = instruction.steps;
 
@@ -32,6 +37,9 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
       message: `Parallel block "${instruction.id}" — ${childInstructions.length} child(ren)`,
       details: {},
     });
+
+    // Check abort signal before dispatching parallel children.
+    signal?.throwIfAborted();
 
     const settled = await Promise.allSettled(
       childInstructions.map(async (child) => executeStep(child, context)),

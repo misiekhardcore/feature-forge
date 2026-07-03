@@ -368,6 +368,120 @@ describe("RoutineExecutor", () => {
       });
     });
 
+    it("passes the abort signal to step executors", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class SignalAwareExecutor extends StepExecutor {
+        readonly type = "signal-aware";
+        async execute(
+          instruction: FlowInstruction,
+          context: FlowContext,
+          _executeStep: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+            signal?: AbortSignal,
+          ) => Promise<FlowContext>,
+          _eventBus: EventBus,
+          signal?: AbortSignal,
+        ): Promise<FlowContext> {
+          // Verify signal is the same controller's signal.
+          expect(signal).toBeDefined();
+          expect(signal!.aborted).toBe(false);
+          return context.withResult(instruction.id, { raw: `got-signal:${instruction.id}` });
+        }
+      }
+
+      registry.register(() => new SignalAwareExecutor());
+
+      const flow: FlowDefinition = {
+        name: "signal-flow",
+        command: "/signal",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "signal-aware", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const controller = new AbortController();
+      const result = await executor.run("main", {}, "task", controller.signal);
+
+      expect(result.passed).toBe(true);
+      expect(result.results["step1"].raw).toBe("got-signal:step1");
+    });
+
+    it("propagates AbortError when signal is aborted before a step", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const flow = makeTestFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(executor.run("main", {}, "task", controller.signal)).rejects.toThrow();
+      expect(RecordExecutor.executed).toHaveLength(0);
+    });
+
+    it("propagates AbortError when signal is aborted during a step", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class AbortedDuringStep extends StepExecutor {
+        readonly type = "abort-during";
+        async execute(
+          _instruction: FlowInstruction,
+          _context: FlowContext,
+          _executeStep: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+            signal?: AbortSignal,
+          ) => Promise<FlowContext>,
+          _eventBus: EventBus,
+          _signal?: AbortSignal,
+        ): Promise<FlowContext> {
+          throw new DOMException("The operation was aborted.", "AbortError");
+        }
+      }
+
+      registry.register(() => new AbortedDuringStep());
+
+      const flow: FlowDefinition = {
+        name: "abort-flow",
+        command: "/abort",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "abort-during", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+
+      await expect(executor.run("main", {}, "task")).rejects.toThrow();
+    });
+
+    it("runs without a signal (backwards-compatible)", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const flow = makeTestFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+
+      const result = await executor.run("main", {}, "task");
+      expect(result.passed).toBe(true);
+    });
+
     it("includes available routines in the unknown routine error", async () => {
       const registry = new StepExecutorRegistry();
       const flow: FlowDefinition = {

@@ -22,8 +22,13 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
   async execute(
     instruction: LoopInstruction,
     context: FlowContext,
-    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
     eventBus: EventBus,
+    signal?: AbortSignal,
   ): Promise<FlowContext> {
     const maxIterations = instruction.maxIterations;
     const continueWhileExpr = instruction.continueWhile;
@@ -43,6 +48,9 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     const bodyIds = collectAllIds(instruction.steps);
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
+      // Check abort signal before each iteration.
+      signal?.throwIfAborted();
+
       // Clear body results from the previous iteration before starting
       // the next one. The first iteration has nothing to clear so results
       // from the final iteration are preserved.
