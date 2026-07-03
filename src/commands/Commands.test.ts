@@ -128,7 +128,7 @@ describe("AgentDestroyCommand", () => {
     vi.spyOn(supervisor, "destroyAgent").mockResolvedValue(undefined);
     await cmd.handler("agent-1", ctx);
     expect(supervisor.destroyAgent).toHaveBeenCalledWith("agent-1");
-    expect(ctx.ui.notify).toHaveBeenCalledWith('Agent "agent-1" destroyed.', "info");
+    expect(ctx.ui.notify).toHaveBeenCalledWith('🗑️ Agent "agent-1" destroyed.', "info");
   });
 });
 
