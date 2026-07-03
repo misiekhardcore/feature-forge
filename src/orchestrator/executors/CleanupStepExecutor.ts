@@ -32,15 +32,13 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     instruction: CleanupInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
-    if (onProgress) {
-      onProgress({
-        phase: "cleanup-start",
-        message: `Cleanup "${instruction.id}" starting`,
-        details: {},
-      });
-    }
+    onProgress({
+      phase: "cleanup-start",
+      message: `Cleanup "${instruction.id}" starting`,
+      details: {},
+    });
 
     const targetName = instruction.of ? context.resolve(instruction.of) : undefined;
     const cleaned: string[] = [];
@@ -91,13 +89,11 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
 
     const updatedContext = context.withResult(instruction.id, result);
 
-    if (onProgress) {
-      onProgress({
-        phase: "cleanup-done",
-        message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
-        details: {},
-      });
-    }
+    onProgress({
+      phase: "cleanup-done",
+      message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
+      details: {},
+    });
 
     return updatedContext;
   }

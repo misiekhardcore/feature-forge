@@ -16,7 +16,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch);
+    return executor.execute(instruction, ctx, dispatch, () => {});
   };
   return dispatch;
 }
@@ -78,7 +78,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     // After 3 iterations the counter should be 3.
     expect(result.results.get("counter")!.raw).toBe("val-round-3");
@@ -102,7 +102,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     // Iteration 1 fails (passed=false → continueWhile true → continues)
     // Iteration 2 passes (passed=true → continueWhile false → stops)
@@ -129,7 +129,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     // Body ran at least once even though condition was initially false-like.
     expect(result.results.get("l")!.raw).toContain('"iterations":1');
@@ -168,7 +168,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
   });
@@ -188,7 +188,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     // After 2 iterations, the accumulated feedback should contain both rounds.
     expect(result.results.get("step")!.raw).toBe("build-round-2");
@@ -213,7 +213,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     // Each counter should show the final iteration's value (2), not 4.
     expect(result.results.get("first")!.raw).toBe("a-round-2");
@@ -237,7 +237,7 @@ describe("LoopStepExecutor", () => {
     const initial = new FlowContext(new Map(), "task").withResult("external", {
       raw: "keep me",
     });
-    const result = await executor.execute(instruction, initial, makeDispatch(registry));
+    const result = await executor.execute(instruction, initial, makeDispatch(registry), () => {});
 
     expect(result.results.get("external")!.raw).toBe("keep me");
   });
@@ -255,9 +255,9 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
 
-    await expect(executor.execute(instruction, context, makeDispatch(registry))).rejects.toThrow(
-      'No executor registered for step type "unknown"',
-    );
+    await expect(
+      executor.execute(instruction, context, makeDispatch(registry), () => {}),
+    ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
   it("handles an empty loop body", async () => {
@@ -273,7 +273,7 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext(new Map(), "task");
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep);
+    const result = await executor.execute(instruction, context, executeStep, () => {});
 
     expect(result.results.get("l")!.parsed!.passed).toBe(true);
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
@@ -312,7 +312,7 @@ describe("LoopStepExecutor", () => {
       expect(events[3].details.rounds).toBe(2);
     });
 
-    it("does not fire events when onProgress is not provided", async () => {
+    it("works with a no-op onProgress callback", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new IncrementingExecutor("val"));
       const executor = new LoopStepExecutor();
@@ -328,7 +328,7 @@ describe("LoopStepExecutor", () => {
       const executeStep = makeDispatch(registry);
 
       // Should not throw when called without onProgress.
-      const result = await executor.execute(instruction, context, executeStep);
+      const result = await executor.execute(instruction, context, executeStep, () => {});
 
       expect(result.results.get("l")!.parsed!.passed).toBe(true);
     });

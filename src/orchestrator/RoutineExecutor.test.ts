@@ -4,7 +4,7 @@ import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
-import type { RoutineProgressEvent } from "./RoutineProgress";
+import type { RoutineProgress, RoutineProgressEvent } from "./RoutineProgress";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -19,7 +19,12 @@ class RecordExecutor extends StepExecutor {
     RecordExecutor.executed = [];
   }
 
-  async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: FlowInstruction,
+    context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _onProgress: RoutineProgress,
+  ): Promise<FlowContext> {
     const instr = instruction as Record<string, unknown>;
     const task = typeof instr.task === "string" ? context.resolve(instr.task) : "";
     RecordExecutor.executed.push({ id: instruction.id, task: task });
@@ -30,7 +35,12 @@ class RecordExecutor extends StepExecutor {
 class FailingExecutor extends StepExecutor {
   readonly type = "fail";
 
-  async execute(instruction: FlowInstruction, _context: FlowContext): Promise<FlowContext> {
+  async execute(
+    instruction: FlowInstruction,
+    _context: FlowContext,
+    _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _onProgress: RoutineProgress,
+  ): Promise<FlowContext> {
     throw new Error(`step ${instruction.id} failed intentionally`);
   }
 }
@@ -231,19 +241,17 @@ describe("RoutineExecutor", () => {
         async execute(
           instruction: FlowInstruction,
           context: FlowContext,
-          _executeStep?: (
+          _executeStep: (
             instruction: FlowInstruction,
             context: FlowContext,
           ) => Promise<FlowContext>,
-          onProgress?: (event: RoutineProgressEvent) => void,
+          onProgress: RoutineProgress,
         ): Promise<FlowContext> {
-          if (onProgress) {
-            onProgress({
-              phase: "custom-event",
-              message: `step ${instruction.id}`,
-              details: {},
-            });
-          }
+          onProgress({
+            phase: "custom-event",
+            message: `step ${instruction.id}`,
+            details: {},
+          });
           return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
         }
       }

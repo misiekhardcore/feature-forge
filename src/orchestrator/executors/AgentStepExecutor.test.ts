@@ -67,7 +67,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(specManager.resolve).toHaveBeenCalled();
       expect(supervisor.spawnGuest).toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "add auth");
 
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(agent.executeTask).toHaveBeenCalledWith("do add auth");
     });
@@ -112,7 +112,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.parsed).toBeDefined();
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
@@ -133,7 +133,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -153,7 +153,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       const resolveCall = (specManager.resolve as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(resolveCall.spec).toBe("build");
@@ -174,7 +174,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.raw).toBe("not json at all");
       expect(result.results.get("builder")!.parsed).toBeUndefined();
@@ -197,7 +197,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
@@ -222,7 +222,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -243,7 +243,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       // Raw preserved, parsed is undefined because no JSON found
       expect(result.results.get("builder")!.raw).toBe("just plain text, no json at all");
@@ -265,7 +265,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
     });
@@ -292,7 +292,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = contextWithWorkspace("ws", "/repos/worktree-ws");
 
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/repos/worktree-ws");
@@ -314,9 +314,9 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      await expect(executor.execute(instruction, context, vi.fn())).rejects.toBeInstanceOf(
-        AgentInstructionWorkingDirMissing,
-      );
+      await expect(
+        executor.execute(instruction, context, vi.fn(), () => {}),
+      ).rejects.toBeInstanceOf(AgentInstructionWorkingDirMissing);
       expect(supervisor.spawnGuest).not.toHaveBeenCalled();
     });
 
@@ -335,7 +335,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/abs/x");
@@ -394,7 +394,7 @@ describe("AgentStepExecutor", () => {
         expect(events[0].phase).toBe("agent-started");
       });
 
-      it("does not fire events when onProgress is not provided", async () => {
+      it("works with a no-op onProgress callback", async () => {
         const agent = makeMockAgent("output");
         const supervisor = makeMockSupervisor(agent);
         const specManager = makeMockSpecManager();
@@ -409,7 +409,7 @@ describe("AgentStepExecutor", () => {
         const context = new FlowContext(new Map(), "task");
 
         // Should not throw when called without onProgress.
-        const result = await executor.execute(instruction, context, vi.fn());
+        const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
         expect(result.results.get("builder")!.raw).toBe("output");
       });
@@ -429,7 +429,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      await executor.execute(instruction, context, vi.fn());
+      await executor.execute(instruction, context, vi.fn(), () => {});
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBeUndefined();
@@ -452,7 +452,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
       expect(result.results.get("builder")!.parsed!.kind).toBe("build");
@@ -473,7 +473,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(result.results.get("builder")!.parsed!.kind).toBe("build");
@@ -494,7 +494,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
     });
@@ -514,7 +514,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
@@ -535,7 +535,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = new FlowContext(new Map(), "task");
 
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);

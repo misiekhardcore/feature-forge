@@ -56,7 +56,7 @@ export class RoutineTool implements ToolDefinition<
     _toolCallId: string,
     params: Record<string, string>,
     _signal: AbortSignal | undefined,
-    _onUpdate:
+    onUpdate:
       | AgentToolUpdateCallback<{ routine: string; passed: boolean; summary: string }>
       | undefined,
     _ctx: ExtensionContext,
@@ -77,7 +77,7 @@ export class RoutineTool implements ToolDefinition<
       }
     }
 
-    const onProgress = this.buildProgressBridge(_onUpdate);
+    const onProgress = this.buildProgressBridge(onUpdate);
 
     const result = await this.executor.run(this.routineName, routineParams, prompt, onProgress);
 
@@ -93,16 +93,17 @@ export class RoutineTool implements ToolDefinition<
    * Build a {@link RoutineProgress} callback that forwards progress events
    * to pi's `onUpdate` stream.
    *
-   * Returns `undefined` when no `onUpdate` callback was provided, avoiding
-   * the overhead of progress tracking for callers that don't need it.
+   * When no `onUpdate` callback is provided, returns a no-op callback so
+   * callers can unconditionally invoke progress without guarding for
+   * `undefined`.
    */
   private buildProgressBridge(
     onUpdate:
       | AgentToolUpdateCallback<{ routine: string; passed: boolean; summary: string }>
       | undefined,
-  ): RoutineProgress | undefined {
+  ): RoutineProgress {
     if (!onUpdate) {
-      return undefined;
+      return () => {};
     }
 
     return (event: RoutineProgressEvent) => {
