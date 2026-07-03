@@ -33,12 +33,15 @@ export class RoutineExecutor {
    * @param routineName — Must exist in {@link flow.routines}.
    * @param params — Key-value pairs exposed as `{{PARAM}}` tokens.
    * @param task — Top-level task description, exposed as `{{prompt}}`.
+   * @param signal — Optional abort signal for cancelling the routine mid-execution.
+   *   When aborted, an {@link AbortError} propagates uncaught to the caller.
    * @returns Structured result with per-instruction outputs.
    */
   async run(
     routineName: string,
     params: Record<string, string>,
     task: string,
+    signal?: AbortSignal,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined = this.flow.routines[routineName];
     if (!routine) {
@@ -62,7 +65,9 @@ export class RoutineExecutor {
     const executeStep = async (
       instruction: FlowInstruction,
       ctx: FlowContext,
+      stepSignal?: AbortSignal,
     ): Promise<FlowContext> => {
+      const effectiveSignal = stepSignal ?? signal;
       const executor = this.stepRegistry.get(instruction.type);
       if (!executor) {
         throw new Error(
@@ -70,10 +75,14 @@ export class RoutineExecutor {
             `(routine "${routineName}", step "${instruction.id}")`,
         );
       }
-      return executor.execute(instruction, ctx, executeStep, this.eventBus);
+      return executor.execute(instruction, ctx, executeStep, this.eventBus, effectiveSignal);
     };
 
     for (const step of routine.steps) {
+      // Check abort signal before each step so the routine can be cancelled
+      // without waiting for the current step to complete.
+      signal?.throwIfAborted();
+
       logger.debug("Executing step", {
         routine: routineName,
         step: step.id,
@@ -83,6 +92,10 @@ export class RoutineExecutor {
       try {
         context = await executeStep(step, context);
       } catch (error) {
+        // AbortError propagates uncaught — do not convert to a failure result.
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
         const err = error instanceof Error ? error : new Error(String(error));
         logger.error("Step execution failed", {
           routine: routineName,

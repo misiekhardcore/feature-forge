@@ -250,6 +250,33 @@ describe("LoopStepExecutor", () => {
     ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
+  it("throws AbortError when signal is aborted before the first iteration", async () => {
+    const registry = new StepExecutorRegistry();
+    registry.register(() => new IncrementingExecutor("val"));
+    const executor = new LoopStepExecutor();
+
+    const instruction: LoopInstruction = {
+      type: "loop",
+      id: "l",
+      maxIterations: 3,
+      steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
+    };
+
+    const context = new FlowContext(new Map(), "task");
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      executor.execute(
+        instruction,
+        context,
+        makeDispatch(registry),
+        makeMockEventBus(),
+        controller.signal,
+      ),
+    ).rejects.toThrow();
+  });
+
   it("handles an empty loop body", async () => {
     const registry = new StepExecutorRegistry();
     const executor = new LoopStepExecutor();

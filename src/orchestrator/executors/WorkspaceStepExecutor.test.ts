@@ -98,6 +98,27 @@ describe("WorkspaceStepExecutor", () => {
     expect(context.results.size).toBe(0);
   });
 
+  it("throws AbortError when signal is aborted at entry", async () => {
+    mockDateNow();
+    const provider = new CountingProvider();
+    const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+    const wtRegistry = stubWorktreeRegistry();
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+    const instruction: WorkspaceInstruction = {
+      type: "workspace",
+      id: "ws1",
+      provider: "git-worktree",
+    };
+    const context = new FlowContext(new Map(), "task");
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+    ).rejects.toThrow();
+  });
+
   describe("eventBus", () => {
     it("emits a workspace-ready event after workspace creation", async () => {
       mockDateNow();

@@ -4,7 +4,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { makeMockEventBus } from "../test-utils";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
@@ -314,6 +314,146 @@ describe("RoutineTool", () => {
       const parsed = JSON.parse((result.content[0] as { text: string }).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
+    });
+
+    it("passes the abort signal through to RoutineExecutor.run", async () => {
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const controller = new AbortController();
+
+      const result = await tool.execute(
+        "call-1",
+        {},
+        controller.signal,
+        undefined,
+        {} as ExtensionContext,
+      );
+
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      expect(parsed.routine).toBe("build");
+      expect(parsed.passed).toBe(true);
+    });
+
+    it("handles AbortError thrown by executor and propagates it", async () => {
+      // Create an executor that throws AbortError.
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              _instruction: FlowInstruction,
+              _context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+                signal?: AbortSignal,
+              ) => Promise<FlowContext>,
+              _eventBus: EventBus,
+              _signal?: AbortSignal,
+            ): Promise<FlowContext> {
+              throw new DOMException("The operation was aborted.", "AbortError");
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [
+              {
+                type: "agent",
+                id: "s1",
+                systemPrompt: "build",
+                task: "do task",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      await expect(
+        tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext),
+      ).rejects.toThrow();
+    });
+
+    it("cleans up UI in finally even when the executor throws", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              _instruction: FlowInstruction,
+              _context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+                signal?: AbortSignal,
+              ) => Promise<FlowContext>,
+              _eventBus: EventBus,
+              _signal?: AbortSignal,
+            ): Promise<FlowContext> {
+              throw new Error("step failed");
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [
+              {
+                type: "agent",
+                id: "s1",
+                systemPrompt: "build",
+                task: "do task",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      const mockUi = {
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+      };
+      const ctx = { ui: mockUi } as unknown as ExtensionContext;
+
+      const result = await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      expect(mockUi.setWidget).toHaveBeenCalledWith("build", undefined);
+      expect(mockUi.setStatus).toHaveBeenCalledWith("build", undefined);
+      expect(result.content).toHaveLength(1);
     });
 
     it("uses _task as fallback when task is not in params", async () => {
