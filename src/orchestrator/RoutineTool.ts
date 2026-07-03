@@ -93,7 +93,7 @@ export class RoutineTool implements ToolDefinition<
         description: param.description,
       });
     }
-    return Type.Object(properties) as unknown as TObject<TProperties>;
+    return Type.Object(properties);
   }
 
   private buildDescription(routineName: string, routineDef: RoutineDefinition): string {

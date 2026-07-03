@@ -171,7 +171,10 @@ export class FlowContext {
       current = (current as Record<string, unknown>)[segments[i]];
     }
 
-    return String(current ?? "");
+    if (current === null || current === undefined) return "";
+    if (typeof current === "string") return current;
+    if (typeof current === "number" || typeof current === "boolean") return String(current);
+    return JSON.stringify(current);
   }
 }
 

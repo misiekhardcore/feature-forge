@@ -3,7 +3,10 @@ import * as path from "node:path";
 
 import type { SpawnAgentParams } from "../ipc/messages";
 import type { SpecLoader } from "../loaders/SpecLoader";
-import type { AgentSpecification } from "./specifications/AgentSpecification";
+import type {
+  AgentSpecification,
+  AgentSpecificationParams,
+} from "./specifications/AgentSpecification";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import type { SpecRegistry } from "./specifications/SpecRegistry";
 
@@ -13,16 +16,9 @@ import type { SpecRegistry } from "./specifications/SpecRegistry";
  * Used internally by {@link AgentStepExecutor} and commands (e.g. ResearchCommand)
  * that look up named specs from the registry.
  */
-export interface SpecResolutionParams {
-  [key: string]: unknown;
+export interface SpecResolutionParams extends AgentSpecificationParams, Record<string, unknown> {
   /** Named spec identifier (e.g. "build", "review", "verify", "research"). */
   spec: string;
-  /** Tool names to grant the agent. */
-  tools?: readonly string[];
-  /** Optional model preference. */
-  model?: string;
-  /** Optional working directory. */
-  cwd?: string;
 }
 
 /**
@@ -59,7 +55,7 @@ export class SpecManager {
    * Looks up the spec name in the registry and delegates to the registered
    * factory.
    */
-  resolve(params: SpecResolutionParams): AgentSpecification {
+  resolve(params: Pick<SpecResolutionParams, "spec">): AgentSpecification {
     if (!this.registry.has(params.spec)) {
       throw new Error(`Spec '${params.spec}' not found`);
     }

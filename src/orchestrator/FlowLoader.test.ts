@@ -705,7 +705,7 @@ describe("FlowLoader", () => {
               params: [],
               steps: [
                 { type: "workspace", id: "ws", provider: "git-worktree" },
-                { type: "cleanup", id: "c" },
+                // { type: "cleanup", id: "c", of: "some-value" },
               ],
             },
           },
@@ -722,7 +722,7 @@ describe("FlowLoader", () => {
               params: [],
               steps: [
                 { type: "workspace", id: "ws", provider: "git-worktree" },
-                { type: "cleanup", id: "c" },
+                { type: "cleanup", id: "c", of: "some-value" },
               ],
             },
           },

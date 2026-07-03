@@ -1,6 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
-import { TOOL_PRESETS } from "../agents";
 import { Command } from "./Command";
 
 export class ResearchCommand extends Command {
@@ -22,7 +21,6 @@ export class ResearchCommand extends Command {
     }
 
     const specification = this.specManager.resolve({
-      tools: TOOL_PRESETS.readOnly,
       spec: "research",
     });
 

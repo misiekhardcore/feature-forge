@@ -24,10 +24,10 @@ export function extractJson(raw: string): ParsedResult | undefined {
 
 function parseOrUndefined(json: string): ParsedResult | undefined {
   try {
-    const parsed = JSON.parse(json);
+    const parsed = JSON.parse(json) as ParsedResult;
 
     // Normalize review findings if present.
-    if (parsed.findings) {
+    if ("findings" in parsed) {
       return {
         kind: "review",
         passed: parsed.passed ?? false,

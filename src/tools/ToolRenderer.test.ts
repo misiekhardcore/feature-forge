@@ -12,7 +12,7 @@ function makeTheme() {
 }
 
 function makeCtx() {
-  return { state: {} as Record<string, unknown> } as { state: Record<string, unknown> };
+  return { state: {} as Record<string, unknown> };
 }
 
 describe("ToolRenderer", () => {
@@ -25,7 +25,7 @@ describe("ToolRenderer", () => {
         { role: "reviewer", systemPrompt: "", tools: [] },
         theme,
         ctx,
-      ) as Box;
+      );
 
       expect(box).toBeInstanceOf(Box);
       expect(ctx.state._box).toBe(box);
@@ -37,7 +37,7 @@ describe("ToolRenderer", () => {
         { role: "reviewer", systemPrompt: "", tools: [], model: "claude-sonnet-4-5" },
         theme,
         ctx,
-      ) as Box;
+      );
 
       expect(box).toBeInstanceOf(Box);
     });
@@ -50,7 +50,7 @@ describe("ToolRenderer", () => {
         { agentId: "agent-1", prompt: "review the code", await: true },
         theme,
         ctx,
-      ) as Box;
+      );
 
       expect(box).toBeInstanceOf(Box);
       expect(ctx.state._box).toBe(box);
@@ -72,7 +72,7 @@ describe("ToolRenderer", () => {
   describe("getAgentResultCall", () => {
     it("renders a Box with agent id", () => {
       const ctx = makeCtx();
-      const box = ToolRenderer.getAgentResultCall({ agentId: "agent-1" }, theme, ctx) as Box;
+      const box = ToolRenderer.getAgentResultCall({ agentId: "agent-1" }, theme, ctx);
 
       expect(box).toBeInstanceOf(Box);
     });
@@ -81,7 +81,7 @@ describe("ToolRenderer", () => {
   describe("destroyAgentCall", () => {
     it("renders a Box with agent id", () => {
       const ctx = makeCtx();
-      const box = ToolRenderer.destroyAgentCall({ agentId: "agent-1" }, theme, ctx) as Box;
+      const box = ToolRenderer.destroyAgentCall({ agentId: "agent-1" }, theme, ctx);
 
       expect(box).toBeInstanceOf(Box);
     });
@@ -90,7 +90,7 @@ describe("ToolRenderer", () => {
   describe("listAgentsCall", () => {
     it("renders a Box with tool name", () => {
       const ctx = makeCtx();
-      const box = ToolRenderer.listAgentsCall({}, theme, ctx) as Box;
+      const box = ToolRenderer.listAgentsCall({}, theme, ctx);
 
       expect(box).toBeInstanceOf(Box);
     });

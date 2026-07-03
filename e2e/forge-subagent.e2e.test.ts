@@ -14,6 +14,7 @@ import { connect } from "node:net";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentSpecification } from "../src/agents";
 import type { Agent } from "../src/agents/agents";
 import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
 import { AgentStatus } from "../src/agents/base";
@@ -40,13 +41,13 @@ function createMockAgent(): SubprocessAgent {
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     start: vi.fn(),
-  } as SubprocessAgent;
+  };
 }
 
 function createMockSupervisor(): AgentSupervisor {
   const agents = new Map<string, Agent>();
   return {
-    spawnGuest: vi.fn().mockImplementation(async (specification) => {
+    spawnGuest: vi.fn().mockImplementation(async (specification: AgentSpecification) => {
       const agent = createMockAgent();
       const identifier = specification.role;
       Object.defineProperty(agent, "id", { value: identifier });
@@ -55,9 +56,9 @@ function createMockSupervisor(): AgentSupervisor {
     }),
     mountInSession: vi.fn().mockResolvedValue(undefined),
     runAgent: vi.fn().mockResolvedValue(undefined),
-    getAgent: vi.fn().mockImplementation((id) => agents.get(id)),
+    getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
-    destroyAgent: vi.fn().mockImplementation(async (id) => agents.delete(id)),
+    destroyAgent: vi.fn().mockImplementation(async (id: string) => agents.delete(id)),
     destroyAll: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -142,7 +143,7 @@ describe("forge-subagent E2E", () => {
         try {
           resolve(JSON.parse(chunk.toString().trim()));
         } catch (error) {
-          reject(error);
+          reject(Error(error instanceof Error ? error.message : String(error)));
         }
       });
 
@@ -204,7 +205,7 @@ describe("forge-subagent E2E", () => {
         try {
           resolve(JSON.parse(chunk.toString().trim()));
         } catch (error) {
-          reject(error);
+          reject(Error(error instanceof Error ? error.message : String(error)));
         }
       });
 

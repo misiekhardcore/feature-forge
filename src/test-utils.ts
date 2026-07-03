@@ -9,11 +9,14 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 
-import { SpecManager } from "./agents";
+import { SpecManager, SpecResolutionParams } from "./agents";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./agents/agents/SubprocessAgent";
 import { AgentStatus } from "./agents/base/AgentStatus";
 import { AgentFactory } from "./agents/factories/AgentFactory";
-import { AgentSpecification } from "./agents/specifications/AgentSpecification";
+import {
+  AgentSpecification,
+  AgentSpecificationParams,
+} from "./agents/specifications/AgentSpecification";
 import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
 import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
 import { WorktreeRegistry } from "./workspace/WorktreeRegistry";
@@ -310,7 +313,7 @@ export function makeMessageEvent(text: string): object {
 
 export function makeMockSpecManager() {
   return {
-    resolve: vi.fn().mockImplementation((params) => {
+    resolve: vi.fn().mockImplementation((params: SpecResolutionParams): AgentSpecification => {
       return {
         id: params.spec ?? params.role ?? "mock",
         role: params.role ?? "mock",
@@ -328,7 +331,7 @@ export function makeMockSpecManager() {
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),
-    createDynamic: vi.fn().mockImplementation((params) => {
+    createDynamic: vi.fn().mockImplementation((params: AgentSpecificationParams) => {
       return {
         id: params.role,
         role: params.role,

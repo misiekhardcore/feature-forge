@@ -91,7 +91,7 @@ describe("SocketPush type", () => {
     const push: SocketPush = {
       type: "agent_update",
       payload: {
-        agentId: "agent-1" as never,
+        agentId: "agent-1",
         status: AgentStatus.Completed,
         result: "Done",
       },

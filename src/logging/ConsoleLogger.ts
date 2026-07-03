@@ -9,7 +9,7 @@ import { Logger } from "./Logger";
 export class ConsoleLogger extends Logger {
   static initialize(): ConsoleLogger {
     Logger.instance = new ConsoleLogger();
-    return Logger.instance as ConsoleLogger;
+    return Logger.instance;
   }
 
   override error(message: string, data?: Record<string, unknown>): void {

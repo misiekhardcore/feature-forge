@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 function makeCmd(supervisor: AgentSupervisor, flow: FlowDefinition): OrchestratorCommand {
-  return new OrchestratorCommand(supervisor as AgentSupervisor, pi, specManager, undefined, flow);
+  return new OrchestratorCommand(supervisor, pi, specManager, undefined, flow);
 }
 
 describe("OrchestratorCommand", () => {

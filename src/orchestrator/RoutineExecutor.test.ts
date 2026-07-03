@@ -20,7 +20,7 @@ class RecordExecutor extends StepExecutor {
 
   async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
     const instr = instruction as Record<string, unknown>;
-    const task = typeof instr.task === "string" ? context.resolve(instr.task as string) : "";
+    const task = typeof instr.task === "string" ? context.resolve(instr.task) : "";
     RecordExecutor.executed.push({ id: instruction.id, task: task });
     return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
   }
@@ -128,8 +128,8 @@ describe("RoutineExecutor", () => {
 
       const result = await executor.run("main", {}, "task");
 
-      expect(result.results["step1"]!.raw).toBe("done:step1");
-      expect(result.results["step2"]!.raw).toBe("done:step2");
+      expect(result.results["step1"].raw).toBe("done:step1");
+      expect(result.results["step2"].raw).toBe("done:step2");
     });
 
     it("returns the first workspace path in the summary", async () => {
