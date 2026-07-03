@@ -5,7 +5,7 @@ import type { InMemoryAgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { logger } from "../logging";
 import type { CommandRegistry, ToolRegistry } from "../registry";
-import { makeMockPi } from "../test-utils";
+import { makeMockEventBus, makeMockPi } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FlowRegistrar } from "./FlowRegistrar";
@@ -79,7 +79,7 @@ interface FlowRegistrarParams {
   flowsDir: string;
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
-  eventBus?: EventBus;
+  eventBus: EventBus;
 }
 
 function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {
@@ -105,6 +105,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     flowsDir: overrides.flowsDir ?? "/flows",
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
+    eventBus: overrides.eventBus ?? makeMockEventBus(),
   };
 }
 

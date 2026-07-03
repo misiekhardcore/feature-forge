@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { makeMockEventBus } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
@@ -95,7 +96,8 @@ describe("RoutineExecutor", () => {
       );
 
       const flow = makeTestFlow();
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
 
       const result = await executor.run("main", { plan: "use JWT" }, "add auth", vi.fn());
 
@@ -135,7 +137,8 @@ describe("RoutineExecutor", () => {
       );
 
       const flow = makeTestFlow();
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
 
       const result = await executor.run("main", {}, "task", vi.fn());
 
@@ -175,7 +178,8 @@ describe("RoutineExecutor", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
       const result = await executor.run("main", {}, "task", vi.fn());
       expect(result.workspace).toBe("/tmp/forge-worktree");
     });
@@ -200,7 +204,8 @@ describe("RoutineExecutor", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
       const result = await executor.run("main", {}, "task", vi.fn());
 
       expect(result.passed).toBe(false);
@@ -212,7 +217,8 @@ describe("RoutineExecutor", () => {
     it("throws for an unknown routine name", async () => {
       const registry = new StepExecutorRegistry();
       const flow = makeTestFlow();
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
 
       await expect(executor.run("nonexistent", {}, "task", vi.fn())).rejects.toThrow(
         'Routine "nonexistent" not found',
@@ -223,7 +229,8 @@ describe("RoutineExecutor", () => {
       const registry = new StepExecutorRegistry();
       // No "record" executor registered.
       const flow = makeTestFlow();
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
 
       const result = await executor.run("main", {}, "task", vi.fn());
 
@@ -273,7 +280,8 @@ describe("RoutineExecutor", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
       const events: RoutineProgressEvent[] = [];
 
       const result = await executor.run("main", {}, "task", (e) => events.push(e));
@@ -292,7 +300,8 @@ describe("RoutineExecutor", () => {
       registry.register(() => new RecordExecutor());
 
       const flow = makeTestFlow();
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
 
       // Should work when onProgress is omitted.
       const result = await executor.run("main", {}, "task", vi.fn());
@@ -362,7 +371,8 @@ describe("RoutineExecutor", () => {
         },
       };
 
-      const executor = new RoutineExecutor(flow, registry);
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
       await expect(executor.run("gamma", {}, "task", vi.fn())).rejects.toThrow("alpha, beta");
     });
   });
