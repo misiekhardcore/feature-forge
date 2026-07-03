@@ -97,7 +97,7 @@ describe("RoutineExecutor", () => {
       const flow = makeTestFlow();
       const executor = new RoutineExecutor(flow, registry);
 
-      const result = await executor.run("main", { plan: "use JWT" }, "add auth");
+      const result = await executor.run("main", { plan: "use JWT" }, "add auth", vi.fn());
 
       expect(result.passed).toBe(true);
       expect(result.routine).toBe("main");
@@ -137,7 +137,7 @@ describe("RoutineExecutor", () => {
       const flow = makeTestFlow();
       const executor = new RoutineExecutor(flow, registry);
 
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", vi.fn());
 
       expect(result.results["step1"].raw).toBe("done:step1");
       expect(result.results["step2"].raw).toBe("done:step2");
@@ -176,7 +176,7 @@ describe("RoutineExecutor", () => {
       };
 
       const executor = new RoutineExecutor(flow, registry);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", vi.fn());
       expect(result.workspace).toBe("/tmp/forge-worktree");
     });
 
@@ -201,7 +201,7 @@ describe("RoutineExecutor", () => {
       };
 
       const executor = new RoutineExecutor(flow, registry);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", vi.fn());
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain("failed");
@@ -214,7 +214,7 @@ describe("RoutineExecutor", () => {
       const flow = makeTestFlow();
       const executor = new RoutineExecutor(flow, registry);
 
-      await expect(executor.run("nonexistent", {}, "task")).rejects.toThrow(
+      await expect(executor.run("nonexistent", {}, "task", vi.fn())).rejects.toThrow(
         'Routine "nonexistent" not found',
       );
     });
@@ -225,7 +225,7 @@ describe("RoutineExecutor", () => {
       const flow = makeTestFlow();
       const executor = new RoutineExecutor(flow, registry);
 
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", vi.fn());
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain('No step executor registered for type "record"');
@@ -295,7 +295,7 @@ describe("RoutineExecutor", () => {
       const executor = new RoutineExecutor(flow, registry);
 
       // Should work when onProgress is omitted.
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", vi.fn());
 
       expect(result.passed).toBe(true);
     });
@@ -341,7 +341,7 @@ describe("RoutineExecutor", () => {
       const eventBus = { emit: emitSpy, on: vi.fn() };
 
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      await executor.run("main", {}, "task");
+      await executor.run("main", {}, "task", vi.fn());
 
       expect(emitSpy).toHaveBeenCalledWith("feature-forge:agent-started", {
         phase: "agent-started",
@@ -363,7 +363,7 @@ describe("RoutineExecutor", () => {
       };
 
       const executor = new RoutineExecutor(flow, registry);
-      await expect(executor.run("gamma", {}, "task")).rejects.toThrow("alpha, beta");
+      await expect(executor.run("gamma", {}, "task", vi.fn())).rejects.toThrow("alpha, beta");
     });
   });
 });
