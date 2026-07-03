@@ -37,15 +37,7 @@ export class WorktreeDestroyCommand extends Command {
 
     try {
       await manager.destroy(path);
-      ctx.ui.notify(`Worktree "${path}" destroyed.`, "info");
-      this.pi.sendMessage(
-        {
-          customType: "worktree_destroyed",
-          content: `## 🗑️ Worktree destroyed\n\n**${path}** at \`${handle.path}\``,
-          display: true,
-        },
-        { triggerTurn: false },
-      );
+      ctx.ui.notify(`🗑️ Worktree "${handle.path}" destroyed.`, "info");
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       ctx.ui.notify(`Failed to destroy worktree "${path}": ${message}`, "error");
