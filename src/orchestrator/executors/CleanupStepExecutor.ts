@@ -1,5 +1,6 @@
 import { logger } from "../../logging";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
@@ -13,12 +14,16 @@ import { StepExecutor } from "../StepExecutor";
  * are destroyed.
  *
  * Best-effort: individual workspace destruction failures are logged but
- * do not stop the routine.
+ * do not stop the routine. Successfully destroyed workspaces are also
+ * removed from the persistent {@link WorktreeRegistry}.
  */
 export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   readonly type = "cleanup";
 
-  constructor(private readonly providerRegistry: WorkspaceProviderRegistry) {
+  constructor(
+    private readonly providerRegistry: WorkspaceProviderRegistry,
+    private readonly worktreeRegistry: WorktreeRegistry,
+  ) {
     super();
   }
 
@@ -42,6 +47,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       });
 
       await this.destroyPath(path, this.providerRegistry);
+      await this.worktreeRegistry.remove(targetName);
       cleaned.push(targetName);
     } else {
       logger.info("Cleanup step — destroying all workspaces", {
@@ -52,6 +58,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       for (const [name, handle] of context.workspaces) {
         try {
           await this.destroyPath(handle.path, this.providerRegistry);
+          await this.worktreeRegistry.remove(name);
           cleaned.push(name);
         } catch (error) {
           logger.error("Workspace destruction failed", {

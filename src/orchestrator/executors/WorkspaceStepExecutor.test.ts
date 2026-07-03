@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
@@ -23,13 +24,19 @@ class CountingProvider extends WorkspaceProvider {
   }
 }
 
+function stubWorktreeRegistry(): WorktreeRegistry {
+  const registry = new WorktreeRegistry();
+  return registry;
+}
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("WorkspaceStepExecutor", () => {
   it("creates a workspace and stores the handle in context", async () => {
     const provider = new CountingProvider();
-    const registry = new WorkspaceProviderRegistry().register("git-worktree", provider);
-    const executor = new WorkspaceStepExecutor(registry);
+    const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+    const wtRegistry = stubWorktreeRegistry();
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -46,8 +53,9 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   it("throws for an unregistered provider", async () => {
-    const registry = new WorkspaceProviderRegistry();
-    const executor = new WorkspaceStepExecutor(registry);
+    const provRegistry = new WorkspaceProviderRegistry();
+    const wtRegistry = stubWorktreeRegistry();
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
 
     // Use a valid union value but don't register it.
     const instruction: WorkspaceInstruction = {
@@ -64,8 +72,9 @@ describe("WorkspaceStepExecutor", () => {
 
   it("does not mutate the original context", async () => {
     const provider = new CountingProvider();
-    const registry = new WorkspaceProviderRegistry().register("git-worktree", provider);
-    const executor = new WorkspaceStepExecutor(registry);
+    const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+    const wtRegistry = stubWorktreeRegistry();
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",

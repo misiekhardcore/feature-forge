@@ -1,5 +1,5 @@
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
-import { WorkspaceProviderRegistry } from "../workspace";
+import { WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
 import {
   AgentStepExecutor,
   CleanupStepExecutor,
@@ -26,13 +26,14 @@ export function createStepExecutorRegistry(
   workspaceProviderRegistry: WorkspaceProviderRegistry,
   supervisor: InMemoryAgentSupervisor,
   specManager: SpecManager,
+  worktreeRegistry: WorktreeRegistry,
 ): StepExecutorRegistry {
   const registry = new StepExecutorRegistry();
 
   // Leaf executors
-  registry.register(() => new WorkspaceStepExecutor(workspaceProviderRegistry));
+  registry.register(() => new WorkspaceStepExecutor(workspaceProviderRegistry, worktreeRegistry));
   registry.register(() => new AgentStepExecutor(supervisor, specManager));
-  registry.register(() => new CleanupStepExecutor(workspaceProviderRegistry));
+  registry.register(() => new CleanupStepExecutor(workspaceProviderRegistry, worktreeRegistry));
   registry.register(() => new GitStepExecutor());
   registry.register(() => new ShellStepExecutor());
 

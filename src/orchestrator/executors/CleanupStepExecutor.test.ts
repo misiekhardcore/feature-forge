@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
@@ -21,14 +22,20 @@ class TrackingProvider extends WorkspaceProvider {
   }
 }
 
+function stubWorktreeRegistry(): WorktreeRegistry {
+  const registry = new WorktreeRegistry();
+  return registry;
+}
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("CleanupStepExecutor", () => {
   describe("execute", () => {
     it("destroys the workspace referenced by `of`", async () => {
       const provider = new TrackingProvider();
-      const registry = new WorkspaceProviderRegistry().register("git-worktree", provider);
-      const executor = new CleanupStepExecutor(registry);
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const workspaceHandle = new WorkspaceHandle("ws1", "/fake/ws1", new Date());
       const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
@@ -42,8 +49,9 @@ describe("CleanupStepExecutor", () => {
 
     it("resolves placeholders in `of`", async () => {
       const provider = new TrackingProvider();
-      const registry = new WorkspaceProviderRegistry().register("git-worktree", provider);
-      const executor = new CleanupStepExecutor(registry);
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const workspaceHandle = new WorkspaceHandle("ws1", "/fake/ws1", new Date());
       const context = new FlowContext(
@@ -63,8 +71,9 @@ describe("CleanupStepExecutor", () => {
 
     it("destroys all workspaces when `of` is omitted", async () => {
       const provider = new TrackingProvider();
-      const registry = new WorkspaceProviderRegistry().register("git-worktree", provider);
-      const executor = new CleanupStepExecutor(registry);
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const context = new FlowContext(
         new Map(),
@@ -94,11 +103,12 @@ describe("CleanupStepExecutor", () => {
         }
       })();
 
-      const registry = new WorkspaceProviderRegistry()
+      const provRegistry = new WorkspaceProviderRegistry()
         .register("git-worktree", goodProvider)
         .register("failing", failingProvider);
 
-      const executor = new CleanupStepExecutor(registry);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const context = new FlowContext(
         new Map(),
@@ -116,8 +126,9 @@ describe("CleanupStepExecutor", () => {
 
     it("handles empty workspaces gracefully", async () => {
       const provider = new TrackingProvider();
-      const registry = new WorkspaceProviderRegistry().register("git-worktree", provider);
-      const executor = new CleanupStepExecutor(registry);
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const context = new FlowContext(new Map(), "task");
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
@@ -129,8 +140,9 @@ describe("CleanupStepExecutor", () => {
 
     it("skips providers that return undefined from get", async () => {
       const goodProvider = new TrackingProvider();
-      const registry = new WorkspaceProviderRegistry().register("git-worktree", goodProvider);
-      const executor = new CleanupStepExecutor(registry);
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", goodProvider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const context = new FlowContext(
         new Map(),
