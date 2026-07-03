@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext } from "./FlowContext";
@@ -298,6 +298,56 @@ describe("RoutineExecutor", () => {
       const result = await executor.run("main", {}, "task");
 
       expect(result.passed).toBe(true);
+    });
+
+    it("emits progress events to eventBus when provided", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class EventBusAwareExecutor extends StepExecutor {
+        readonly type = "event-bus-aware";
+        async execute(
+          instruction: FlowInstruction,
+          context: FlowContext,
+          _executeStep: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+          ) => Promise<FlowContext>,
+          onProgress: RoutineProgress,
+        ): Promise<FlowContext> {
+          onProgress({
+            phase: "agent-started",
+            message: `launching ${instruction.id}`,
+            details: { routine: "main" },
+          });
+          return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
+        }
+      }
+
+      registry.register(() => new EventBusAwareExecutor());
+
+      const flow: FlowDefinition = {
+        name: "event-bus-flow",
+        command: "/event-bus",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "event-bus-aware", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const emitSpy = vi.fn();
+      const eventBus = { emit: emitSpy, on: vi.fn() };
+
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      await executor.run("main", {}, "task");
+
+      expect(emitSpy).toHaveBeenCalledWith("feature-forge:agent-started", {
+        phase: "agent-started",
+        message: "launching step1",
+        details: { routine: "main" },
+      });
     });
 
     it("includes available routines in the unknown routine error", async () => {
