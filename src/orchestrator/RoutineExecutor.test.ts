@@ -4,6 +4,7 @@ import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
+import type { RoutineProgressEvent } from "./RoutineProgress";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -218,6 +219,77 @@ describe("RoutineExecutor", () => {
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain('No step executor registered for type "record"');
+    });
+
+    it("threads onProgress to step executors", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+
+      // Create a custom executor that forwards onProgress to prove threading.
+      class ProgressAwareExecutor extends StepExecutor {
+        readonly type = "progress-aware";
+        async execute(
+          instruction: FlowInstruction,
+          context: FlowContext,
+          _executeStep?: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+          ) => Promise<FlowContext>,
+          onProgress?: (event: RoutineProgressEvent) => void,
+        ): Promise<FlowContext> {
+          if (onProgress) {
+            onProgress({
+              phase: "custom-event",
+              message: `step ${instruction.id}`,
+              details: {},
+            });
+          }
+          return context.withResult(instruction.id, { raw: `done:${instruction.id}` });
+        }
+      }
+
+      registry.register(() => new ProgressAwareExecutor());
+
+      const flow: FlowDefinition = {
+        name: "progress-flow",
+        command: "/progress",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [
+              { type: "progress-aware", id: "step1" } as unknown as FlowInstruction,
+              { type: "progress-aware", id: "step2" } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, registry);
+      const events: RoutineProgressEvent[] = [];
+
+      const result = await executor.run("main", {}, "task", (e) => events.push(e));
+
+      expect(result.passed).toBe(true);
+      expect(events).toHaveLength(2);
+      expect(events[0].phase).toBe("custom-event");
+      expect(events[0].message).toContain("step1");
+      expect(events[1].phase).toBe("custom-event");
+      expect(events[1].message).toContain("step2");
+    });
+
+    it("works without onProgress (optional parameter)", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const flow = makeTestFlow();
+      const executor = new RoutineExecutor(flow, registry);
+
+      // Should work when onProgress is omitted.
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(true);
     });
 
     it("includes available routines in the unknown routine error", async () => {

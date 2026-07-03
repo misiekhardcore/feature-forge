@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
+import type { RoutineProgress, RoutineProgressEvent } from "./RoutineProgress";
 
 /**
  * Tool adapter that wraps a single routine as a pi tool so the
@@ -76,11 +77,49 @@ export class RoutineTool implements ToolDefinition<
       }
     }
 
-    const result = await this.executor.run(this.routineName, routineParams, prompt);
+    const onProgress = this.buildProgressBridge(_onUpdate);
+
+    const result = await this.executor.run(this.routineName, routineParams, prompt, onProgress);
 
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       details: { routine: result.routine, passed: result.passed, summary: result.summary },
+    };
+  }
+
+  // ── Progress bridge ───────────────────────────────────────
+
+  /**
+   * Build a {@link RoutineProgress} callback that forwards progress events
+   * to pi's `onUpdate` stream.
+   *
+   * Returns `undefined` when no `onUpdate` callback was provided, avoiding
+   * the overhead of progress tracking for callers that don't need it.
+   */
+  private buildProgressBridge(
+    onUpdate:
+      | AgentToolUpdateCallback<{ routine: string; passed: boolean; summary: string }>
+      | undefined,
+  ): RoutineProgress | undefined {
+    if (!onUpdate) {
+      return undefined;
+    }
+
+    return (event: RoutineProgressEvent) => {
+      logger.debug("RoutineTool progress", { ...event });
+      onUpdate({
+        content: [
+          {
+            type: "text",
+            text: `[${event.phase}] ${event.message}`,
+          },
+        ],
+        details: {
+          routine: event.details.routine ?? this.routineName,
+          passed: event.details.passed ?? false,
+          summary: event.message,
+        },
+      });
     };
   }
 

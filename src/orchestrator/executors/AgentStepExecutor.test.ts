@@ -7,6 +7,7 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 
@@ -341,6 +342,80 @@ describe("AgentStepExecutor", () => {
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/abs/x");
+    });
+
+    describe("onProgress", () => {
+      it("fires agent-started and agent-done events", async () => {
+        const agent = makeMockAgent("build output");
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "do the thing",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        const events: RoutineProgressEvent[] = [];
+        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+        await executor.execute(instruction, context, vi.fn(), onProgress);
+
+        expect(events).toHaveLength(2);
+        expect(events[0].phase).toBe("agent-started");
+        expect(events[0].message).toContain("builder");
+        expect(events[0].message).toContain("build");
+        expect(events[1].phase).toBe("agent-done");
+        expect(events[1].message).toContain("builder");
+      });
+
+      it("does not fire agent-done when agent execution fails", async () => {
+        const error = new Error("build failed");
+        const agent = makeMockAgentThatThrows(error);
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "build",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        const events: RoutineProgressEvent[] = [];
+        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+        await executor.execute(instruction, context, vi.fn(), onProgress);
+
+        // Only agent-started is fired; agent-done is NOT fired on failure.
+        expect(events).toHaveLength(1);
+        expect(events[0].phase).toBe("agent-started");
+      });
+
+      it("does not fire events when onProgress is not provided", async () => {
+        const agent = makeMockAgent("output");
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "build",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        // Should not throw when called without onProgress.
+        const result = await executor.execute(instruction, context, vi.fn());
+
+        expect(result.results.get("builder")!.raw).toBe("output");
+      });
     });
 
     it("leaves cwd unset (default behaviour) when workingDir is absent", async () => {

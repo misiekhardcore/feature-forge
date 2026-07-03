@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
@@ -177,5 +178,82 @@ describe("ParallelStepExecutor", () => {
     const result = await executor.execute(instruction, context, executeStep);
 
     expect(result.results.get("empty")!.parsed!.passed).toBe(true);
+  });
+
+  describe("onProgress", () => {
+    it("fires parallel-start and parallel-done events", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new ConfigurableExecutor("op-a", "child-a-out"));
+
+      const executor = new ParallelStepExecutor();
+
+      const instruction: ParallelInstruction = {
+        type: "parallel",
+        id: "block",
+        steps: [{ type: "op-a", id: "a" } as unknown as FlowInstruction],
+      };
+
+      const context = new FlowContext(new Map(), "task");
+      const executeStep = makeDispatch(registry);
+
+      const events: RoutineProgressEvent[] = [];
+      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+      await executor.execute(instruction, context, executeStep, onProgress);
+
+      expect(events).toHaveLength(2);
+      expect(events[0].phase).toBe("parallel-start");
+      expect(events[0].message).toContain("block");
+      expect(events[1].phase).toBe("parallel-done");
+      expect(events[1].message).toContain("block");
+    });
+
+    it("does not fire parallel-done when a child fails", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new FailingExecutor());
+
+      const executor = new ParallelStepExecutor();
+
+      const instruction: ParallelInstruction = {
+        type: "parallel",
+        id: "block",
+        steps: [{ type: "failing", id: "b" } as unknown as FlowInstruction],
+      };
+
+      const context = new FlowContext(new Map(), "task");
+      const executeStep = makeDispatch(registry);
+
+      const events: RoutineProgressEvent[] = [];
+      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+      await expect(
+        executor.execute(instruction, context, executeStep, onProgress),
+      ).rejects.toThrow();
+
+      // Only parallel-start fired; parallel-done was NOT fired.
+      expect(events).toHaveLength(1);
+      expect(events[0].phase).toBe("parallel-start");
+    });
+
+    it("does not fire events when onProgress is not provided", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new ConfigurableExecutor("op-a", "out"));
+
+      const executor = new ParallelStepExecutor();
+
+      const instruction: ParallelInstruction = {
+        type: "parallel",
+        id: "block",
+        steps: [{ type: "op-a", id: "a" } as unknown as FlowInstruction],
+      };
+
+      const context = new FlowContext(new Map(), "task");
+      const executeStep = makeDispatch(registry);
+
+      // Should not throw when called without onProgress.
+      const result = await executor.execute(instruction, context, executeStep);
+
+      expect(result.results.get("block")!.parsed!.passed).toBe(true);
+    });
   });
 });

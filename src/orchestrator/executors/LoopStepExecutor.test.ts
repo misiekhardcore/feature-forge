@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { LoopStepExecutor } from "./LoopStepExecutor";
@@ -276,5 +277,60 @@ describe("LoopStepExecutor", () => {
 
     expect(result.results.get("l")!.parsed!.passed).toBe(true);
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
+  });
+
+  describe("onProgress", () => {
+    it("fires loop-round-start and loop-round-complete for each iteration", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new IncrementingExecutor("val"));
+      const executor = new LoopStepExecutor();
+
+      const instruction: LoopInstruction = {
+        type: "loop",
+        id: "l",
+        maxIterations: 2,
+        steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
+      };
+
+      const context = new FlowContext(new Map(), "task");
+      const executeStep = makeDispatch(registry);
+
+      const events: RoutineProgressEvent[] = [];
+      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+      await executor.execute(instruction, context, executeStep, onProgress);
+
+      // 2 iterations × 2 events (start + complete) = 4 events.
+      expect(events).toHaveLength(4);
+      expect(events[0].phase).toBe("loop-round-start");
+      expect(events[0].details.rounds).toBe(1);
+      expect(events[1].phase).toBe("loop-round-complete");
+      expect(events[1].details.rounds).toBe(1);
+      expect(events[2].phase).toBe("loop-round-start");
+      expect(events[2].details.rounds).toBe(2);
+      expect(events[3].phase).toBe("loop-round-complete");
+      expect(events[3].details.rounds).toBe(2);
+    });
+
+    it("does not fire events when onProgress is not provided", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new IncrementingExecutor("val"));
+      const executor = new LoopStepExecutor();
+
+      const instruction: LoopInstruction = {
+        type: "loop",
+        id: "l",
+        maxIterations: 2,
+        steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
+      };
+
+      const context = new FlowContext(new Map(), "task");
+      const executeStep = makeDispatch(registry);
+
+      // Should not throw when called without onProgress.
+      const result = await executor.execute(instruction, context, executeStep);
+
+      expect(result.results.get("l")!.parsed!.passed).toBe(true);
+    });
   });
 });

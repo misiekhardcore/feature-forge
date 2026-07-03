@@ -24,6 +24,7 @@ vi.mock("node:child_process", () => ({
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { ShellInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { ShellStepExecutor } from "./ShellStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -178,6 +179,71 @@ describe("ShellStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn());
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
+    });
+
+    describe("onProgress", () => {
+      it("fires shell-start and shell-done events on success", async () => {
+        mockExecSuccess("ok");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh1",
+          command: "echo hello",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        const events: RoutineProgressEvent[] = [];
+        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+        await executor.execute(instruction, context, vi.fn(), onProgress);
+
+        expect(events).toHaveLength(2);
+        expect(events[0].phase).toBe("shell-start");
+        expect(events[0].message).toContain("echo hello");
+        expect(events[1].phase).toBe("shell-done");
+      });
+
+      it("fires only shell-start when the command fails", async () => {
+        mockExecFailure("Command failed", "error output");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh2",
+          command: "false",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        const events: RoutineProgressEvent[] = [];
+        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+        const result = await executor.execute(instruction, context, vi.fn(), onProgress);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].phase).toBe("shell-start");
+        expect(result.results.get("sh2")!.parsed!.passed).toBe(false);
+      });
+
+      it("does not fire events when onProgress is not provided", async () => {
+        mockExecSuccess("ok");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh1",
+          command: "echo ok",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+
+        // Should not throw when called without onProgress.
+        const result = await executor.execute(instruction, context, vi.fn());
+
+        expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
+      });
     });
   });
 });

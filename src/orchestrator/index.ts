@@ -48,6 +48,7 @@ export {
 export { FlowLoader } from "./FlowLoader";
 export { FlowRegistrar } from "./FlowRegistrar";
 export { RoutineExecutor } from "./RoutineExecutor";
+export type { RoutineProgress, RoutineProgressEvent } from "./RoutineProgress";
 export type { RoutineResult } from "./RoutineResult";
 export { RoutineTool } from "./RoutineTool";
 export { StepExecutor } from "./StepExecutor";
