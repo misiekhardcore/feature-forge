@@ -5,6 +5,7 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -96,5 +97,52 @@ describe("WorkspaceStepExecutor", () => {
 
     expect(context.workspaces.size).toBe(0);
     expect(context.results.size).toBe(0);
+  });
+
+  describe("onProgress", () => {
+    it("fires a workspace-ready event after workspace creation", async () => {
+      mockDateNow();
+      const provider = new CountingProvider();
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+      const instruction: WorkspaceInstruction = {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      const events: RoutineProgressEvent[] = [];
+      const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+      await executor.execute(instruction, context, vi.fn(), onProgress);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].phase).toBe("workspace-ready");
+      expect(events[0].message).toContain("ws-");
+      expect(events[0].details.workspace).toContain("/test/ws-");
+    });
+
+    it("does not fire events when onProgress is not provided", async () => {
+      mockDateNow();
+      const provider = new CountingProvider();
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+      const instruction: WorkspaceInstruction = {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+      };
+      const context = new FlowContext(new Map(), "task");
+
+      // Should not throw when called without onProgress.
+      const result = await executor.execute(instruction, context, vi.fn());
+
+      expect(result.workspaces.has("ws")).toBe(true);
+    });
   });
 });

@@ -3,6 +3,7 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
+import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -31,7 +32,16 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     instruction: CleanupInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    onProgress?: RoutineProgress,
   ): Promise<FlowContext> {
+    if (onProgress) {
+      onProgress({
+        phase: "cleanup-start",
+        message: `Cleanup "${instruction.id}" starting`,
+        details: {},
+      });
+    }
+
     const targetName = instruction.of ? context.resolve(instruction.of) : undefined;
     const cleaned: string[] = [];
 
@@ -79,7 +89,17 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       },
     };
 
-    return context.withResult(instruction.id, result);
+    const updatedContext = context.withResult(instruction.id, result);
+
+    if (onProgress) {
+      onProgress({
+        phase: "cleanup-done",
+        message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
+        details: {},
+      });
+    }
+
+    return updatedContext;
   }
 
   private async destroyPath(path: string, registry: WorkspaceProviderRegistry): Promise<void> {

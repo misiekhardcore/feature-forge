@@ -1,8 +1,9 @@
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
-import type { FlowContext, InstructionResult } from "../FlowContext";
+import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
+import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -28,6 +29,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     instruction: WorkspaceInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    onProgress?: RoutineProgress,
   ): Promise<FlowContext> {
     const providerName = instruction.provider;
     const workspaceId = `ws-${Date.now()}`;
@@ -42,11 +44,17 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
 
     await this.worktreeRegistry.register(handle);
 
-    const result: InstructionResult = {
+    if (onProgress) {
+      onProgress({
+        phase: "workspace-ready",
+        message: `Workspace "${workspaceId}" created at ${path}`,
+        details: { workspace: path },
+      });
+    }
+
+    return context.withWorkspace("ws", handle).withResult("ws", {
       raw: JSON.stringify({ path }),
       parsed: { kind: "build", passed: true, summary: `Workspace created at ${path}` },
-    };
-
-    return context.withWorkspace("ws", handle).withResult("ws", result);
+    });
   }
 }

@@ -1,6 +1,14 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentToolResult,
+  AgentToolUpdateCallback,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
+import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
+import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
+import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
@@ -200,6 +208,87 @@ describe("RoutineTool", () => {
         undefined,
         {} as ExtensionContext,
       );
+
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      expect(parsed.routine).toBe("build");
+      expect(parsed.passed).toBe(true);
+    });
+
+    it("calls _onUpdate for each progress event emitted by executors", async () => {
+      // Use a WorkspaceStepExecutor that fires workspace-ready events.
+      class FakeProvider extends WorkspaceProvider {
+        override async createWorkspace(_id: string): Promise<string> {
+          return "/tmp/ws";
+        }
+        override async destroyWorkspace(_path: string): Promise<void> {
+          // no-op
+        }
+      }
+      const wpRegistry = new WorkspaceProviderRegistry().register(
+        "git-worktree",
+        new FakeProvider(),
+      );
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new WorkspaceStepExecutor(wpRegistry, new WorktreeRegistry()));
+
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [
+              {
+                type: "workspace",
+                id: "ws1",
+                provider: "git-worktree" as const,
+              },
+            ],
+          },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, registry);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      const onUpdateCalls: AgentToolResult<{
+        routine: string;
+        passed: boolean;
+        summary: string;
+      }>[] = [];
+      const onUpdate: AgentToolUpdateCallback<{
+        routine: string;
+        passed: boolean;
+        summary: string;
+      }> = (result) => {
+        onUpdateCalls.push(result);
+      };
+
+      await tool.execute("call-1", {}, undefined, onUpdate, {} as ExtensionContext);
+
+      expect(onUpdateCalls.length).toBeGreaterThanOrEqual(1);
+      const firstUpdate = onUpdateCalls[0];
+      expect(firstUpdate.content[0].type).toBe("text");
+      expect((firstUpdate.content[0] as { text: string }).text).toContain("workspace-ready");
+      expect(firstUpdate.details.routine).toBe("build");
+    });
+
+    it("does not call _onUpdate when none is provided", async () => {
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: { params: [], steps: [] },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry());
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      // Should not throw even though no _onUpdate is provided.
+      const result = await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
       const parsed = JSON.parse((result.content[0] as { text: string }).text);
       expect(parsed.routine).toBe("build");
