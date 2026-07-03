@@ -41,7 +41,7 @@ export class RoutineExecutor {
     routineName: string,
     params: Record<string, string>,
     task: string,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined = this.flow.routines[routineName];
     if (!routine) {
@@ -57,14 +57,13 @@ export class RoutineExecutor {
       stepCount: routine.steps.length,
     });
 
-    const baseProgress = onProgress ?? (() => {});
     const eventBus = this.eventBus;
     const progress: RoutineProgress = eventBus
       ? (event) => {
-          baseProgress(event);
+          onProgress(event);
           eventBus.emit(`feature-forge:${event.phase}`, event);
         }
-      : baseProgress;
+      : onProgress;
 
     let context = new FlowContext(new Map(), task, new Map(), new Map(Object.entries(params)));
 
