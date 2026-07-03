@@ -54,6 +54,8 @@ export class RoutineExecutor {
       stepCount: routine.steps.length,
     });
 
+    const progress = onProgress ?? (() => {});
+
     let context = new FlowContext(new Map(), task, new Map(), new Map(Object.entries(params)));
 
     // Recursive step dispatcher — passes itself to executors so container
@@ -70,7 +72,7 @@ export class RoutineExecutor {
             `(routine "${routineName}", step "${instruction.id}")`,
         );
       }
-      return executor.execute(instruction, ctx, executeStep, onProgress);
+      return executor.execute(instruction, ctx, executeStep, progress);
     };
 
     for (const step of routine.steps) {

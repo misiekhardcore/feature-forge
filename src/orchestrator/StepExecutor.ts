@@ -18,13 +18,13 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
    * @param instruction — The instruction to execute (narrowed to the executor's type).
    * @param context — Immutable context carrying current results/workspaces/params.
    * @param executeStep — Dispatch callback for container executors (loop, parallel).
-   * @param onProgress — Optional callback for streaming progress events.
+   * @param onProgress — Callback for streaming progress events.
    * @returns A new context with this instruction's result recorded.
    */
   abstract execute(
     instruction: TInstruction,
     context: FlowContext,
-    executeStep?: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext>;
 }

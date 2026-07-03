@@ -17,7 +17,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
     instruction: ParallelInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
     const childInstructions = instruction.steps;
 
@@ -26,13 +26,11 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
       childCount: childInstructions.length,
     });
 
-    if (onProgress) {
-      onProgress({
-        phase: "parallel-start",
-        message: `Parallel block "${instruction.id}" — ${childInstructions.length} child(ren)`,
-        details: {},
-      });
-    }
+    onProgress({
+      phase: "parallel-start",
+      message: `Parallel block "${instruction.id}" — ${childInstructions.length} child(ren)`,
+      details: {},
+    });
 
     const settled = await Promise.allSettled(
       childInstructions.map(async (child) => executeStep(child, context)),
@@ -81,13 +79,11 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
 
     const finalContext = merged.withResult(instruction.id, blockResult);
 
-    if (onProgress) {
-      onProgress({
-        phase: "parallel-done",
-        message: `Parallel block "${instruction.id}" complete`,
-        details: {},
-      });
-    }
+    onProgress({
+      phase: "parallel-done",
+      message: `Parallel block "${instruction.id}" complete`,
+      details: {},
+    });
 
     return finalContext;
   }

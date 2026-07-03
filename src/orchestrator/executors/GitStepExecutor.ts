@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, GitInstruction } from "../FlowInstruction";
+import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -29,12 +30,25 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
     instruction: GitInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
     const resolvedCwd = context.resolve(instruction.cwd);
+
     logger.info("Executing git step", {
       instructionId: instruction.id,
       action: instruction.action,
       cwd: resolvedCwd,
+    });
+
+    logger.debug("git-start", {
+      phase: "git-start",
+      message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,
+    });
+
+    onProgress({
+      phase: "git-start",
+      message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,
+      details: {},
     });
 
     let raw: string;
@@ -77,6 +91,17 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         },
       };
 
+      logger.debug("git-done", {
+        phase: "git-done",
+        message: `Git "${instruction.id}": ${instruction.action} complete`,
+      });
+
+      onProgress({
+        phase: "git-done",
+        message: `Git "${instruction.id}": ${instruction.action} complete`,
+        details: {},
+      });
+
       return context.withResult(instruction.id, result);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -93,6 +118,17 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       if (instruction.action === "add-and-commit") {
         throw err;
       }
+
+      logger.debug("git-done", {
+        phase: "git-done",
+        message: `Git "${instruction.id}": ${instruction.action} failed`,
+      });
+
+      onProgress({
+        phase: "git-done",
+        message: `Git "${instruction.id}": ${instruction.action} failed`,
+        details: {},
+      });
 
       const result: InstructionResult = {
         raw: err.message,

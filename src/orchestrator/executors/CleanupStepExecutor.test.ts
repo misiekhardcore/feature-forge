@@ -42,7 +42,7 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -63,7 +63,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "{{target}}" };
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -85,7 +85,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(provider.destroyedPaths).toContain("/fake/ws2");
@@ -117,7 +117,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -131,7 +131,7 @@ describe("CleanupStepExecutor", () => {
 
       const context = new FlowContext(new Map(), "task");
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       expect(result.results.get("c1")!.raw).toContain('"cleaned":[]');
@@ -161,7 +161,7 @@ describe("CleanupStepExecutor", () => {
         expect(events[1].message).toContain("c1");
       });
 
-      it("does not fire events when onProgress is not provided", async () => {
+      it("works with a no-op onProgress callback", async () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
@@ -173,10 +173,25 @@ describe("CleanupStepExecutor", () => {
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
         // Should not throw when called without onProgress.
-        const result = await executor.execute(instruction, context, vi.fn());
+        const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
         expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       });
+    });
+
+    it("treats of as a raw path when not found in workspaces", async () => {
+      const provider = new TrackingProvider();
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+
+      const context = new FlowContext(new Map(), "task");
+
+      const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "/raw/path" };
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
+
+      expect(provider.destroyedPaths).toContain("/raw/path");
+      expect(result.results.get("c1")!.parsed!.passed).toBe(true);
     });
 
     it("skips providers that return undefined from get", async () => {
@@ -192,7 +207,7 @@ describe("CleanupStepExecutor", () => {
       );
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context, vi.fn());
+      const result = await executor.execute(instruction, context, vi.fn(), () => {});
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);

@@ -22,7 +22,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     instruction: LoopInstruction,
     context: FlowContext,
     executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
     const maxIterations = instruction.maxIterations;
     const continueWhileExpr = instruction.continueWhile;
@@ -53,13 +53,11 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
       logger.debug("Loop iteration", { id: instruction.id, iteration, maxIterations });
 
-      if (onProgress) {
-        onProgress({
-          phase: "loop-round-start",
-          message: `Loop "${instruction.id}" — round ${iteration + 1}/${maxIterations}`,
-          details: { rounds: iteration + 1 },
-        });
-      }
+      onProgress({
+        phase: "loop-round-start",
+        message: `Loop "${instruction.id}" — round ${iteration + 1}/${maxIterations}`,
+        details: { rounds: iteration + 1 },
+      });
 
       // Execute each body step in sequence.
       for (const step of instruction.steps) {
@@ -67,13 +65,11 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       }
 
       // Build feedback from accumulated results.
-      if (onProgress) {
-        onProgress({
-          phase: "loop-round-complete",
-          message: `Loop "${instruction.id}" — round ${iteration + 1} complete`,
-          details: { rounds: iteration + 1 },
-        });
-      }
+      onProgress({
+        phase: "loop-round-complete",
+        message: `Loop "${instruction.id}" — round ${iteration + 1} complete`,
+        details: { rounds: iteration + 1 },
+      });
 
       if (accumulateFrom.length > 0) {
         const lines: string[] = [];

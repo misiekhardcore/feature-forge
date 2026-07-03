@@ -29,7 +29,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     instruction: WorkspaceInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
-    onProgress?: RoutineProgress,
+    onProgress: RoutineProgress,
   ): Promise<FlowContext> {
     const providerName = instruction.provider;
     const workspaceId = `ws-${Date.now()}`;
@@ -44,13 +44,11 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
 
     await this.worktreeRegistry.register(handle);
 
-    if (onProgress) {
-      onProgress({
-        phase: "workspace-ready",
-        message: `Workspace "${workspaceId}" created at ${path}`,
-        details: { workspace: path },
-      });
-    }
+    onProgress({
+      phase: "workspace-ready",
+      message: `Workspace "${workspaceId}" created at ${path}`,
+      details: { workspace: path },
+    });
 
     return context.withWorkspace("ws", handle).withResult("ws", {
       raw: JSON.stringify({ path }),
