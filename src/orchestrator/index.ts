@@ -47,10 +47,15 @@ export {
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
 export { FlowRegistrar } from "./FlowRegistrar";
+export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
+export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEvent";
+export type { ProgressSnapshot } from "./progress/ProgressReporter";
+export { ProgressReporter } from "./progress/ProgressReporter";
+export { TuiProgressReporter } from "./progress/TuiProgressReporter";
 export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineProgressEvent } from "./RoutineProgress";
 export type { RoutineResult } from "./RoutineResult";
-export { RoutineTool } from "./RoutineTool";
+export { RoutineTool, type RoutineToolRowState } from "./RoutineTool";
 export { StepExecutor } from "./StepExecutor";
 export { StepExecutorRegistry } from "./StepExecutorRegistry";
 

@@ -2,15 +2,33 @@ import type {
   AgentToolResult,
   AgentToolUpdateCallback,
   ExtensionContext,
+  Theme,
   ToolDefinition,
+  ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
+import { isLoopInstruction } from "./FlowInstruction";
+import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
+import type { ProgressEvent } from "./progress/ProgressEvent";
+import { ProgressReporter } from "./progress/ProgressReporter";
+import { TuiProgressReporter } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
+
+/**
+ * Shared state type for {@link RoutineTool} renderer invalidation.
+ *
+ * The TUI assigns `context.invalidate` to this object so the progress
+ * reporter's `onStateChange` callback can trigger tool-row re-renders.
+ */
+export interface RoutineToolRowState {
+  invalidate: (() => void) | undefined;
+}
 
 /**
  * Tool adapter that wraps a single routine as a pi tool so the
@@ -30,7 +48,8 @@ import type { RoutineProgressEvent } from "./RoutineProgress";
  */
 export class RoutineTool implements ToolDefinition<
   TObject<TProperties>,
-  { routine: string; passed: boolean; summary: string }
+  { routine: string; passed: boolean; summary: string },
+  RoutineToolRowState
 > {
   readonly name: string;
   readonly label: string;
@@ -51,6 +70,48 @@ export class RoutineTool implements ToolDefinition<
     this.description = this.buildDescription(routineName, routineDef);
     this.parameters = RoutineTool.buildParamsSchema(routineDef);
   }
+
+  /** Shared state key for renderCall renderer invalidation. */
+  readonly routineToolRowState: RoutineToolRowState = { invalidate: undefined };
+
+  renderCall = (
+    _args: Record<string, unknown>,
+    theme: Theme,
+    // ToolRenderContext is not publicly exported, so we type context loosely.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    context: { state: RoutineToolRowState; invalidate: () => void; [key: string]: any },
+  ): Component => {
+    context.state.invalidate = context.invalidate;
+
+    return {
+      render: () => {
+        return [theme.fg("accent", `⟳ ${this.routineName} · pending`)];
+      },
+      invalidate: () => {
+        /* stateless — nothing to clear */
+      },
+    };
+  };
+
+  renderResult = (
+    result: AgentToolResult<{ routine: string; passed: boolean; summary: string }>,
+    _options: ToolRenderResultOptions,
+    theme: Theme,
+    _context: { state: RoutineToolRowState; invalidate: () => void },
+  ): Component => {
+    const passed = result.details?.passed ?? false;
+    const routine = result.details?.routine ?? this.routineName;
+    const icon = passed ? theme.fg("success", "✓") : theme.fg("error", "✗");
+
+    return {
+      render: () => {
+        return [`${icon} ${routine} · ${passed ? "passed" : "failed"}`];
+      },
+      invalidate: () => {
+        /* stateless — nothing to clear */
+      },
+    };
+  };
 
   async execute(
     _toolCallId: string,
@@ -77,25 +138,44 @@ export class RoutineTool implements ToolDefinition<
       }
     }
 
-    const unsubscribe = onUpdate
-      ? this.executor.eventBus.on("feature-forge:*", (data: unknown) => {
-          const event = data as RoutineProgressEvent;
-          logger.debug("RoutineTool progress", { ...event });
-          onUpdate({
-            content: [
-              {
-                type: "text",
-                text: `[${event.phase}] ${event.message}`,
-              },
-            ],
-            details: {
-              routine: event.details.routine ?? this.routineName,
-              passed: event.details.passed ?? false,
-              summary: event.message,
-            },
-          });
+    // Extract loop config from the routine definition for progress reporting.
+    const loopConfig = RoutineTool.findLoopConfig(this.routineDef);
+
+    // Wire TUI progress reporter when UI is available.
+    const reporter: ProgressReporter = ctx.ui
+      ? new TuiProgressReporter({
+          ctx,
+          routineName: this.routineName,
+          maxIterations: loopConfig.maxIterations,
+          continueWhile: loopConfig.continueWhile,
+          onStateChange: () => {
+            this.routineToolRowState.invalidate?.();
+          },
         })
-      : undefined;
+      : new NoOpProgressReporter();
+
+    const unsubscribe = this.executor.eventBus.on("feature-forge:*", (data: unknown) => {
+      const event = data as RoutineProgressEvent;
+      logger.debug("RoutineTool progress", { ...event });
+
+      reporter.update(RoutineTool.toProgressEvent(event, this.routineName, loopConfig));
+
+      if (onUpdate) {
+        onUpdate({
+          content: [
+            {
+              type: "text",
+              text: `[${event.phase}] ${event.message}`,
+            },
+          ],
+          details: {
+            routine: event.details.routine ?? this.routineName,
+            passed: event.details.passed ?? false,
+            summary: event.message,
+          },
+        });
+      }
+    });
 
     try {
       const result = await this.executor.run(this.routineName, routineParams, prompt, signal);
@@ -111,17 +191,71 @@ export class RoutineTool implements ToolDefinition<
       }
       throw error;
     } finally {
-      if (ctx.ui) {
-        ctx.ui.setWidget(this.routineName, undefined);
-        ctx.ui.setStatus(this.routineName, undefined);
-      }
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      reporter.clear();
+      unsubscribe();
     }
   }
 
   // ── Static helpers ────────────────────────────────────────
+
+  private static findLoopConfig(routineDef: RoutineDefinition): {
+    maxIterations: number;
+    continueWhile?: string;
+  } {
+    for (const step of routineDef.steps) {
+      if (isLoopInstruction(step)) {
+        return {
+          maxIterations: step.maxIterations,
+          continueWhile: step.continueWhile,
+        };
+      }
+    }
+    return { maxIterations: 0 };
+  }
+
+  /**
+   * Extract the instruction ID from an agent lifecycle event.
+   *
+   * Agent executors embed the instruction id in the message string using
+   * the format `Agent "<id>" (...)`. This method parses that quoted
+   * identifier rather than trying to extract it from the phase, since
+   * phase strings are flat labels (")agent-started") without an identity suffix.
+   *
+   * @visibleForTesting
+   */
+  static extractAgentId(event: RoutineProgressEvent): string | undefined {
+    const match = /Agent "([^"]+)"/.exec(event.message);
+    return match ? match[1] : undefined;
+  }
+
+  private static toProgressEvent(
+    event: RoutineProgressEvent,
+    routineName: string,
+    loopConfig: { maxIterations: number; continueWhile?: string },
+  ): ProgressEvent {
+    const isAgentPhase = event.phase.startsWith("agent-");
+    const agentStatus =
+      event.phase === "agent-started"
+        ? "started"
+        : event.phase === "agent-done"
+          ? "done"
+          : event.phase === "agent-error"
+            ? "error"
+            : undefined;
+
+    return {
+      routineName,
+      phase: event.phase,
+      message: event.message,
+      iteration: event.details.rounds ? event.details.rounds - 1 : 0,
+      maxIterations: loopConfig.maxIterations,
+      agentId: isAgentPhase ? RoutineTool.extractAgentId(event) : undefined,
+      agentStatus,
+      agentSummary: isAgentPhase ? event.details.summary : undefined,
+      workspace: event.details.workspace,
+      continueWhile: loopConfig.continueWhile,
+    };
+  }
 
   private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {
     const properties: Record<string, ReturnType<typeof Type.String>> = {};

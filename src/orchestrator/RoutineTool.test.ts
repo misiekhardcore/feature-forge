@@ -88,6 +88,53 @@ describe("RoutineTool", () => {
     });
   });
 
+  describe("extractAgentId", () => {
+    it("extracts instruction id from AgentStepExecutor started message", () => {
+      const result = RoutineTool.extractAgentId({
+        phase: "agent-started",
+        message: 'Agent "builder" (build) started',
+        details: {},
+      });
+      expect(result).toBe("builder");
+    });
+
+    it("extracts instruction id from AgentStepExecutor done message", () => {
+      const result = RoutineTool.extractAgentId({
+        phase: "agent-done",
+        message: 'Agent "builder" completed',
+        details: {},
+      });
+      expect(result).toBe("builder");
+    });
+
+    it("extracts instruction id from AgentStepExecutor error message", () => {
+      const result = RoutineTool.extractAgentId({
+        phase: "agent-error",
+        message: 'Agent "builder" failed: something broke',
+        details: {},
+      });
+      expect(result).toBe("builder");
+    });
+
+    it("returns undefined for non-agent messages", () => {
+      const result = RoutineTool.extractAgentId({
+        phase: "workspace-ready",
+        message: "Workspace /tmp/ws is ready",
+        details: {},
+      });
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for messages without agent id pattern", () => {
+      const result = RoutineTool.extractAgentId({
+        phase: "agent-started",
+        message: "Agent started successfully",
+        details: {},
+      });
+      expect(result).toBeUndefined();
+    });
+  });
+
   describe("execute", () => {
     it("calls RoutineExecutor.run and returns a structured result", async () => {
       const flow: FlowDefinition = {
@@ -451,12 +498,119 @@ describe("RoutineTool", () => {
 
       const result = await tool.execute("call-1", {}, undefined, undefined, ctx);
 
-      expect(mockUi.setWidget).toHaveBeenCalledWith("build", undefined);
-      expect(mockUi.setStatus).toHaveBeenCalledWith("build", undefined);
+      expect(mockUi.setWidget).toHaveBeenCalledWith("forge-run", undefined);
+      expect(mockUi.setStatus).toHaveBeenCalledWith("feature-forge", undefined);
       expect(result.content).toHaveLength(1);
     });
 
-    it("uses _task as fallback when task is not in params", async () => {
+    it("tracks agent progress with correct agentId mapping through the event bus", async () => {
+      const mockUi = {
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+        theme: {
+          fg: vi.fn((_color: string, text: string) => text),
+        },
+      };
+      const ctx = { ui: mockUi } as unknown as ExtensionContext;
+
+      // Register a fake agent executor that fires started/done events with the
+      // real AgentStepExecutor message format.
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+                signal?: AbortSignal,
+              ) => Promise<FlowContext>,
+              eventBus: EventBus,
+              _signal?: AbortSignal,
+            ): Promise<FlowContext> {
+              eventBus.emit("feature-forge:agent-started", {
+                phase: "agent-started",
+                message: `Agent "${instruction.id}" (build) started`,
+                details: {},
+              });
+              eventBus.emit("feature-forge:agent-done", {
+                phase: "agent-done",
+                message: `Agent "${instruction.id}" completed`,
+                details: {},
+              });
+              return context;
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [
+              {
+                type: "agent",
+                id: "builder",
+                systemPrompt: "build",
+                prompt: "do stuff",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // Filter out the clear() call (which sets status to undefined) and check
+      // that agent progress events produced correct status lines.
+      const statusCalls = (mockUi.setStatus as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (c: unknown[]) => c[1] !== undefined,
+      );
+      expect(statusCalls.length).toBeGreaterThanOrEqual(2); // started + done
+
+      const startedCall = statusCalls.find(
+        (c: unknown[]) => typeof c[1] === "string" && c[1].includes("⏳"),
+      );
+      expect(startedCall).toBeDefined();
+      expect(startedCall![1]).toContain("builder");
+      expect(startedCall![1]).not.toContain("agent-started");
+
+      const doneCall = statusCalls.find(
+        (c: unknown[]) => typeof c[1] === "string" && c[1].includes("✓"),
+      );
+      expect(doneCall).toBeDefined();
+      expect(doneCall![1]).toContain("builder");
+      expect(doneCall![1]).not.toContain("agent-done");
+
+      // Widget render should include the agent row.
+      const widgetCalls = (mockUi.setWidget as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (c: unknown[]) => c[0] === "forge-run" && typeof c[1] === "function",
+      );
+      expect(widgetCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Final cleanup should have cleared both surfaces.
+      const allWidgetCalls = (mockUi.setWidget as ReturnType<typeof vi.fn>).mock.calls;
+      const lastWidgetCall = allWidgetCalls[allWidgetCalls.length - 1];
+      expect(lastWidgetCall[0]).toBe("forge-run");
+      expect(lastWidgetCall[1]).toBeUndefined();
+
+      const allStatusCalls = (mockUi.setStatus as ReturnType<typeof vi.fn>).mock.calls;
+      const lastStatusCall = allStatusCalls[allStatusCalls.length - 1];
+      expect(lastStatusCall[0]).toBe("feature-forge");
+      expect(lastStatusCall[1]).toBeUndefined();
+    });
+
+    it("falls back to _prompt when prompt is not in params", async () => {
       const flow: FlowDefinition = {
         name: "test-flow",
         command: "/test",
@@ -475,7 +629,7 @@ describe("RoutineTool", () => {
 
       const result = await tool.execute(
         "call-1",
-        { _task: "fix bug", branch: "main" },
+        { _prompt: "fix bug", branch: "main" },
         undefined,
         undefined,
         {} as ExtensionContext,
