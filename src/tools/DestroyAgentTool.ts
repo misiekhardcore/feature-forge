@@ -28,16 +28,20 @@ export class DestroyAgentTool extends Tool {
   async execute(
     _toolCallId: string,
     params: DestroyAgentParams,
+    signal: AbortSignal | undefined,
   ): Promise<AgentToolResult<DestroyAgentResult | { error: string }>> {
     if (!this.client) {
+      signal?.throwIfAborted();
       return {
         content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
         details: NO_CLIENT_ERROR,
       };
     }
 
+    signal?.throwIfAborted();
+
     try {
-      const result = await this.client.request("destroy_agent", params);
+      const result = await this.client.request("destroy_agent", params, undefined, signal);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,

@@ -27,11 +27,15 @@ describe("SendTaskTool", () => {
   describe("without socket client", () => {
     it("returns not-available error", async () => {
       const tool = new SendTaskTool(null);
-      const result = await tool.execute("call-1", {
-        agentId: "agent-1",
-        prompt: "do something",
-        await: true,
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          agentId: "agent-1",
+          prompt: "do something",
+          await: true,
+        },
+        undefined,
+      );
       expect(result).toEqual({
         content: [
           { type: "text", text: JSON.stringify({ error: "Not available in orchestrator mode" }) },
@@ -53,11 +57,15 @@ describe("SendTaskTool", () => {
     it("sends request with await: true and returns result", async () => {
       client.request.mockResolvedValue({ result: "task completed" });
 
-      const result = await tool.execute("call-1", {
-        agentId: "agent-1",
-        prompt: "do something",
-        await: true,
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          agentId: "agent-1",
+          prompt: "do something",
+          await: true,
+        },
+        undefined,
+      );
 
       expect(client.request).toHaveBeenCalledWith(
         "send_task",
@@ -66,6 +74,7 @@ describe("SendTaskTool", () => {
           prompt: "do something",
           await: true,
         },
+        undefined,
         undefined,
       );
       expect(result).toEqual({
@@ -77,11 +86,15 @@ describe("SendTaskTool", () => {
     it("sends request with await: false and returns dispatched status", async () => {
       client.request.mockResolvedValue({ status: "dispatched" });
 
-      const result = await tool.execute("call-1", {
-        agentId: "agent-1",
-        prompt: "background task",
-        await: false,
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          agentId: "agent-1",
+          prompt: "background task",
+          await: false,
+        },
+        undefined,
+      );
 
       expect(client.request).toHaveBeenCalledWith(
         "send_task",
@@ -90,6 +103,7 @@ describe("SendTaskTool", () => {
           prompt: "background task",
           await: false,
         },
+        undefined,
         undefined,
       );
       expect(result).toEqual({
@@ -101,28 +115,37 @@ describe("SendTaskTool", () => {
     it("threads timeout through to client.request when set", async () => {
       client.request.mockResolvedValue({ result: "done" });
 
-      await tool.execute("call-1", {
-        agentId: "agent-1",
-        prompt: "long task",
-        await: true,
-        timeout: 1_800_000,
-      });
+      await tool.execute(
+        "call-1",
+        {
+          agentId: "agent-1",
+          prompt: "long task",
+          await: true,
+          timeout: 1_800_000,
+        },
+        undefined,
+      );
 
       expect(client.request).toHaveBeenCalledWith(
         "send_task",
         expect.objectContaining({ timeout: 1_800_000 }),
         1_800_000,
+        undefined,
       );
     });
 
     it("wraps IPC errors", async () => {
       client.request.mockRejectedValue(new Error("Agent not found"));
 
-      const result = await tool.execute("call-1", {
-        agentId: "missing-agent",
-        prompt: "test",
-        await: true,
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          agentId: "missing-agent",
+          prompt: "test",
+          await: true,
+        },
+        undefined,
+      );
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "Agent not found" }) }],
@@ -133,16 +156,34 @@ describe("SendTaskTool", () => {
     it("wraps non-Error rejections", async () => {
       client.request.mockRejectedValue("string error");
 
-      const result = await tool.execute("call-1", {
-        agentId: "bad-agent",
-        prompt: "test",
-        await: true,
-      });
+      const result = await tool.execute(
+        "call-1",
+        {
+          agentId: "bad-agent",
+          prompt: "test",
+          await: true,
+        },
+        undefined,
+      );
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "string error" }) }],
         details: { error: "string error" },
       });
+    });
+
+    it("throws AbortError when signal is already aborted", async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        tool.execute(
+          "call-1",
+          { agentId: "agent-1", prompt: "task", await: true },
+          controller.signal,
+        ),
+      ).rejects.toThrow(DOMException);
+      expect(client.request).not.toHaveBeenCalled();
     });
   });
 });

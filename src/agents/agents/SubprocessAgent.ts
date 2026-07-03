@@ -11,6 +11,8 @@ export interface ExecuteTaskOptions {
   images?: ImageContent[];
   /** Timeout in milliseconds for this prompt execution. */
   timeout?: number;
+  /** Optional AbortSignal to cancel the task execution. */
+  signal?: AbortSignal;
 }
 
 /**

@@ -147,6 +147,61 @@ describe("GitWorktreeProvider", () => {
     });
   });
 
+  // ── signal propagation ───────────────────────────────────────────────
+
+  describe("signal", () => {
+    it("passes signal to execFile options", async () => {
+      const controller = new AbortController();
+      mocks.willSucceed("git", ["rev-parse", "--is-inside-work-tree"], "true\n");
+
+      // execCommandStatic is private static; access via type assertion for testing
+      const Provider = GitWorktreeProvider as unknown as {
+        execCommandStatic: (
+          cwd: string,
+          command: string,
+          args: string[],
+          signal?: AbortSignal,
+        ) => Promise<string>;
+      };
+
+      await Provider.execCommandStatic(repoRoot, "git", ["rev-parse"], controller.signal);
+
+      const callOpts = mocks.execFile.mock.calls[0][2];
+      expect(callOpts.signal).toBe(controller.signal);
+    });
+
+    it("aborts when signal is already aborted", async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      const Provider = GitWorktreeProvider as unknown as {
+        execCommandStatic: (
+          cwd: string,
+          command: string,
+          args: string[],
+          signal?: AbortSignal,
+        ) => Promise<string>;
+      };
+
+      // When signal is already aborted, execFile should reject.
+      // Our mock calls back synchronously with success, so simulate the abort:
+      mocks.execFile.mockImplementationOnce(
+        (
+          _cmd: string,
+          _cmdArgs: string[],
+          _opts: unknown,
+          callback: (error: Error | null, stdout: string, stderr: string) => void,
+        ) => {
+          callback(new DOMException("The operation was aborted", "AbortError"), "", "");
+        },
+      );
+
+      await expect(
+        Provider.execCommandStatic(repoRoot, "git", ["rev-parse"], controller.signal),
+      ).rejects.toThrow("The operation was aborted");
+    });
+  });
+
   // ── canActivate ──────────────────────────────────────────────────────
 
   describe("canActivate", () => {

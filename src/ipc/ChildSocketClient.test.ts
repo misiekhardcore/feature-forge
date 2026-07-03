@@ -193,6 +193,18 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
 
     await client.disconnect();
   });
+
+  it("completes normally when signal is present but not aborted", async () => {
+    const client = new ChildSocketClient(socketPath);
+    await client.connect();
+
+    const controller = new AbortController();
+    const result = await client.request("list_agents", {}, undefined, controller.signal);
+
+    expect(result).toEqual({ agents: [] });
+
+    await client.disconnect();
+  });
 });
 
 describe("ChildSocketClient error handling", () => {
@@ -222,6 +234,41 @@ describe("ChildSocketClient error handling", () => {
     await expect(
       client.request("spawn_agent", { role: "x", systemPrompt: "x", tools: [] }, 100),
     ).rejects.toThrow(IpcTimeoutError);
+
+    silentServer.close();
+  });
+
+  it("aborts a pending request when signal is fired", async () => {
+    // Create a server that accepts connections but never responds
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const abortPath = join(tempDir, "abort.sock");
+
+    const silentServer = createServer(() => {
+      // Accept but never write — request will be aborted
+    });
+
+    await new Promise<void>((resolve) => {
+      silentServer.listen(abortPath, resolve);
+    });
+
+    const client = new ChildSocketClient(abortPath);
+    await client.connect();
+
+    const controller = new AbortController();
+
+    // Start a request that won't receive a response
+    const requestPromise = client.request(
+      "spawn_agent",
+      { role: "x", systemPrompt: "x", tools: [] },
+      60_000,
+      controller.signal,
+    );
+
+    // Abort immediately
+    controller.abort();
+
+    await expect(requestPromise).rejects.toThrow(DOMException);
+    await expect(requestPromise).rejects.toThrow("The operation was aborted");
 
     silentServer.close();
   });

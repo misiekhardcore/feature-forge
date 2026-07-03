@@ -65,16 +65,20 @@ export class SpawnAgentTool extends Tool {
   async execute(
     _toolCallId: string,
     params: SpawnAgentParams,
+    signal: AbortSignal | undefined,
   ): Promise<AgentToolResult<SpawnAgentResult | { error: string }>> {
     if (!this.client) {
+      signal?.throwIfAborted();
       return {
         content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
         details: NO_CLIENT_ERROR,
       };
     }
 
+    signal?.throwIfAborted();
+
     try {
-      const result = await this.client.request("spawn_agent", params);
+      const result = await this.client.request("spawn_agent", params, undefined, signal);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,
