@@ -47,7 +47,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       });
 
       await this.destroyPath(path, this.providerRegistry);
-      await this.worktreeRegistry.remove(targetName);
+      await this.worktreeRegistry.remove(path);
       cleaned.push(targetName);
     } else {
       logger.info("Cleanup step — destroying all workspaces", {
@@ -58,7 +58,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       for (const [name, handle] of context.workspaces) {
         try {
           await this.destroyPath(handle.path, this.providerRegistry);
-          await this.worktreeRegistry.remove(name);
+          await this.worktreeRegistry.remove(handle.path);
           cleaned.push(name);
         } catch (error) {
           logger.error("Workspace destruction failed", {

@@ -1,4 +1,3 @@
-import { logger } from "../../logging";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
@@ -31,18 +30,15 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
   ): Promise<FlowContext> {
     const providerName = instruction.provider;
-    const workspaceId = instruction.id;
+    const workspaceId = `ws-${Date.now()}`;
 
     const provider = this.providerRegistry.get(providerName);
     if (!provider) {
-      throw new Error(
-        `Unknown workspace provider "${providerName}" for instruction "${workspaceId}"`,
-      );
+      throw new Error(`Unknown workspace provider "${providerName}"`);
     }
 
-    logger.info("Creating workspace", { id: workspaceId, provider: providerName });
     const path = await provider.createWorkspace(workspaceId);
-    const handle = new WorkspaceHandle(workspaceId, path, new Date());
+    const handle = new WorkspaceHandle(path, new Date());
 
     await this.worktreeRegistry.register(handle);
 
@@ -51,6 +47,6 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       parsed: { kind: "build", passed: true, summary: `Workspace created at ${path}` },
     };
 
-    return context.withWorkspace(workspaceId, handle).withResult(workspaceId, result);
+    return context.withWorkspace("ws", handle).withResult("ws", result);
   }
 }

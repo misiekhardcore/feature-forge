@@ -273,10 +273,7 @@ describe("AgentStepExecutor", () => {
   describe("workingDir", () => {
     function contextWithWorkspace(name: string, path: string): FlowContext {
       const base = new FlowContext(new Map(), "task");
-      return base.withWorkspace(
-        name,
-        new WorkspaceHandle(name, path, new Date("2025-01-01T00:00:00Z")),
-      );
+      return base.withWorkspace(name, new WorkspaceHandle(path, new Date("2025-01-01T00:00:00Z")));
     }
 
     it("resolves a {workspace} workingDir to the workspace path and passes it as cwd to spawn", async () => {

@@ -64,7 +64,7 @@ class WorkspaceCreatingExecutor extends StepExecutor {
   readonly type = "workspace-creator";
 
   async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
-    const handle = new WorkspaceHandle(instruction.id, `/ws/${instruction.id}`, new Date());
+    const handle = new WorkspaceHandle(`/ws/${instruction.id}`, new Date());
     return context.withWorkspace(instruction.id, handle).withResult(instruction.id, {
       raw: `created ${instruction.id}`,
     });

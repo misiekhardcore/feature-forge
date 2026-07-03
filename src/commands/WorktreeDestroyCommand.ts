@@ -3,15 +3,15 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Command } from "./Command";
 
 /**
- * Destroy a specific worktree by id.
+ * Destroy a specific worktree by path.
  *
- * Usage: `/worktree:destroy <id>`
+ * Usage: `/worktree:destroy <path>`
  *
  * Removes the worktree directory and the registry entry.
  */
 export class WorktreeDestroyCommand extends Command {
   readonly name = "worktree:destroy";
-  readonly description = "Destroy a worktree by id. Usage: /worktree:destroy <id>";
+  readonly description = "Destroy a worktree by path. Usage: /worktree:destroy <path>";
 
   handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const manager = this.workspaceManager;
@@ -20,35 +20,35 @@ export class WorktreeDestroyCommand extends Command {
       return;
     }
 
-    const id = args.trim();
-    if (!id) {
-      ctx.ui.notify("Usage: /worktree:destroy <id>", "error");
+    const path = args.trim();
+    if (!path) {
+      ctx.ui.notify("Usage: /worktree:destroy <path>", "error");
       return;
     }
 
-    const handle = manager.get(id);
+    const handle = manager.get(path);
     if (!handle) {
       ctx.ui.notify(
-        `No worktree found with id "${id}". Use /worktree:list to see active ones.`,
+        `No worktree found with path "${path}". Use /worktree:list to see active ones.`,
         "error",
       );
       return;
     }
 
     try {
-      await manager.destroy(id);
-      ctx.ui.notify(`Worktree "${id}" destroyed.`, "info");
+      await manager.destroy(path);
+      ctx.ui.notify(`Worktree "${path}" destroyed.`, "info");
       this.pi.sendMessage(
         {
           customType: "worktree_destroyed",
-          content: `## 🗑️ Worktree destroyed\n\n**${id}** at \`${handle.path}\``,
+          content: `## 🗑️ Worktree destroyed\n\n**${path}** at \`${handle.path}\``,
           display: true,
         },
         { triggerTurn: false },
       );
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      ctx.ui.notify(`Failed to destroy worktree "${id}": ${message}`, "error");
+      ctx.ui.notify(`Failed to destroy worktree "${path}": ${message}`, "error");
     }
   };
 }

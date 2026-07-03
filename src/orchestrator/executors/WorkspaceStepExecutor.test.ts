@@ -9,6 +9,8 @@ import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
 
+const MOCK_TIMESTAMP = "1712345678000";
+
 class CountingProvider extends WorkspaceProvider {
   created: string[] = [];
   destroyed: string[] = [];
@@ -29,10 +31,15 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
+function mockDateNow() {
+  vi.spyOn(Date, "now").mockReturnValue(Number(MOCK_TIMESTAMP));
+}
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("WorkspaceStepExecutor", () => {
-  it("creates a workspace and stores the handle in context", async () => {
+  it("creates a workspace and stores the handle in context under key 'ws'", async () => {
+    mockDateNow();
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
@@ -46,13 +53,15 @@ describe("WorkspaceStepExecutor", () => {
     const context = new FlowContext(new Map(), "task");
     const result = await executor.execute(instruction, context, vi.fn());
 
-    expect(provider.created).toContain("/test/ws1");
-    expect(result.workspaces.has("ws1")).toBe(true);
-    expect(result.workspaces.get("ws1")!.path).toBe("/test/ws1");
-    expect(result.results.get("ws1")!.parsed!.passed).toBe(true);
+    const expectedId = `ws-${MOCK_TIMESTAMP}`;
+    expect(provider.created).toContain(`/test/${expectedId}`);
+    expect(result.workspaces.has("ws")).toBe(true);
+    expect(result.workspaces.get("ws")!.path).toBe(`/test/${expectedId}`);
+    expect(result.results.get("ws")!.parsed!.passed).toBe(true);
   });
 
   it("throws for an unregistered provider", async () => {
+    mockDateNow();
     const provRegistry = new WorkspaceProviderRegistry();
     const wtRegistry = stubWorktreeRegistry();
     const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
@@ -71,6 +80,7 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   it("does not mutate the original context", async () => {
+    mockDateNow();
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();

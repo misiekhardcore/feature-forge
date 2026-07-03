@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext, type InstructionResult } from "./FlowContext";
 
-function makeHandle(id: string, filePath: string): WorkspaceHandle {
-  return new WorkspaceHandle(id, filePath, new Date("2025-01-01"));
+function makeHandle(filePath: string): WorkspaceHandle {
+  return new WorkspaceHandle(filePath, new Date("2025-01-01"));
 }
 
 function makeResult(overrides: Partial<InstructionResult> = {}): InstructionResult {
@@ -53,7 +53,7 @@ describe("FlowContext", () => {
     });
 
     it("initialises with all optional fields", () => {
-      const workspaces = new Map([["ws", makeHandle("ws", "/tmp/ws")]]);
+      const workspaces = new Map([["ws", makeHandle("/tmp/ws")]]);
       const params = new Map([["plan", "use JWT"]]);
       const ctx = new FlowContext(new Map(), "task", workspaces, params, "fix x", 2);
       expect(ctx.workspaces.get("ws")!.path).toBe("/tmp/ws");
@@ -104,21 +104,21 @@ describe("FlowContext", () => {
   describe("withWorkspace", () => {
     it("stores a workspace handle by name", () => {
       const ctx = new FlowContext(new Map(), "task");
-      const handle = makeHandle("ws", "/tmp/ws");
+      const handle = makeHandle("/tmp/ws");
       const next = ctx.withWorkspace("ws", handle);
       expect(next.workspaces.get("ws")).toBe(handle);
     });
 
     it("does not mutate the original context", () => {
       const ctx = new FlowContext(new Map(), "task");
-      ctx.withWorkspace("ws", makeHandle("ws", "/tmp/ws"));
+      ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
       expect(ctx.workspaces.size).toBe(0);
     });
 
     it("overwrites an existing workspace with the same name", () => {
       const ctx = new FlowContext(new Map(), "task");
-      const first = ctx.withWorkspace("ws", makeHandle("ws", "/tmp/ws1"));
-      const second = first.withWorkspace("ws", makeHandle("ws", "/tmp/ws2"));
+      const first = ctx.withWorkspace("ws", makeHandle("/tmp/ws1"));
+      const second = first.withWorkspace("ws", makeHandle("/tmp/ws2"));
 
       expect(first.workspaces.get("ws")!.path).toBe("/tmp/ws1");
       expect(second.workspaces.get("ws")!.path).toBe("/tmp/ws2");
@@ -131,19 +131,13 @@ describe("FlowContext", () => {
 
   describe("withWorkspaceCleared", () => {
     it("removes a workspace by name", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace(
-        "ws",
-        makeHandle("ws", "/tmp/ws"),
-      );
+      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
       const next = ctx.withWorkspaceCleared("ws");
       expect(next.workspaces.has("ws")).toBe(false);
     });
 
     it("does not mutate the original context", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace(
-        "ws",
-        makeHandle("ws", "/tmp/ws"),
-      );
+      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
       ctx.withWorkspaceCleared("ws");
       expect(ctx.workspaces.has("ws")).toBe(true);
     });
@@ -161,10 +155,7 @@ describe("FlowContext", () => {
 
   describe("getWorkspacePath", () => {
     it("returns the path of a known workspace", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace(
-        "ws",
-        makeHandle("ws", "/tmp/ws"),
-      );
+      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
       expect(ctx.getWorkspacePath("ws")).toBe("/tmp/ws");
     });
 
@@ -304,10 +295,7 @@ describe("FlowContext", () => {
     });
 
     it("resolves {{workspace.<name>}} to the workspace path", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace(
-        "ws",
-        makeHandle("ws", "/tmp/ws"),
-      );
+      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
       expect(ctx.resolve("Workspace: {{workspace.ws}}")).toBe("Workspace: /tmp/ws");
     });
 
@@ -367,7 +355,7 @@ describe("FlowContext", () => {
 
     it("replaces multiple placeholders in one template", () => {
       const ctx = new FlowContext(new Map(), "add auth")
-        .withWorkspace("ws", makeHandle("ws", "/ws"))
+        .withWorkspace("ws", makeHandle("/ws"))
         .withParams({ plan: "use JWT" });
       expect(ctx.resolve("Task: {{prompt}} | Plan: {{plan}} | WS: {{workspace.ws}}")).toBe(
         "Task: add auth | Plan: use JWT | WS: /ws",
@@ -388,7 +376,7 @@ describe("FlowContext", () => {
     it("supports fluent chaining without mutating intermediates", () => {
       const ctx = new FlowContext(new Map(), "task");
 
-      const ctx2 = ctx.withWorkspace("ws", makeHandle("ws", "/tmp/ws"));
+      const ctx2 = ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
       const ctx3 = ctx2.withFeedback("f");
       const ctx4 = ctx3.withIteration(1);
 

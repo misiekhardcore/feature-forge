@@ -213,7 +213,7 @@ describe("GitStepExecutor", () => {
       const context = new FlowContext(
         new Map(),
         "task",
-        new Map([["ws", new WorkspaceHandle("ws", "/resolved/ws", new Date())]]),
+        new Map([["ws", new WorkspaceHandle("/resolved/ws", new Date())]]),
       );
       await executor.execute(instruction, context, vi.fn());
 
