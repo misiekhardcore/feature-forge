@@ -47,16 +47,20 @@ export class SendTaskTool extends Tool {
   async execute(
     _toolCallId: string,
     params: SendTaskParams,
+    signal: AbortSignal | undefined,
   ): Promise<AgentToolResult<SendTaskResult | { error: string }>> {
     if (!this.client) {
+      signal?.throwIfAborted();
       return {
         content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
         details: NO_CLIENT_ERROR,
       };
     }
 
+    signal?.throwIfAborted();
+
     try {
-      const result = await this.client.request("send_task", params, params.timeout);
+      const result = await this.client.request("send_task", params, params.timeout, signal);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,

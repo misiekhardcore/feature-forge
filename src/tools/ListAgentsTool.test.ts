@@ -1,7 +1,10 @@
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { makeMockSocketClient } from "../test-utils";
 import { ListAgentsTool } from "./ListAgentsTool";
+
+const mockCtx = {} as ExtensionContext;
 
 describe("ListAgentsTool", () => {
   it("has name 'list_agents'", () => {
@@ -27,7 +30,7 @@ describe("ListAgentsTool", () => {
   describe("without socket client", () => {
     it("returns not-available error", async () => {
       const tool = new ListAgentsTool(null);
-      const result = await tool.execute();
+      const result = await tool.execute("call-1", {}, undefined, undefined, mockCtx);
       expect(result).toEqual({
         content: [
           { type: "text", text: JSON.stringify({ error: "Not available in orchestrator mode" }) },
@@ -53,9 +56,9 @@ describe("ListAgentsTool", () => {
       ];
       client.request.mockResolvedValue({ agents });
 
-      const result = await tool.execute();
+      const result = await tool.execute("call-1", {}, undefined, undefined, mockCtx);
 
-      expect(client.request).toHaveBeenCalledWith("list_agents", {});
+      expect(client.request).toHaveBeenCalledWith("list_agents", {}, undefined, undefined);
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ agents }, null, 2) }],
         details: { agents },
@@ -65,7 +68,7 @@ describe("ListAgentsTool", () => {
     it("returns empty list when no agents", async () => {
       client.request.mockResolvedValue({ agents: [] });
 
-      const result = await tool.execute();
+      const result = await tool.execute("call-1", {}, undefined, undefined, mockCtx);
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ agents: [] }, null, 2) }],
@@ -76,7 +79,7 @@ describe("ListAgentsTool", () => {
     it("wraps IPC errors", async () => {
       client.request.mockRejectedValue(new Error("Connection lost"));
 
-      const result = await tool.execute();
+      const result = await tool.execute("call-1", {}, undefined, undefined, mockCtx);
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "Connection lost" }) }],
@@ -87,12 +90,22 @@ describe("ListAgentsTool", () => {
     it("wraps non-Error rejections", async () => {
       client.request.mockRejectedValue("string error");
 
-      const result = await tool.execute();
+      const result = await tool.execute("call-1", {}, undefined, undefined, mockCtx);
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify({ error: "string error" }) }],
         details: { error: "string error" },
       });
+    });
+
+    it("throws AbortError when signal is already aborted", async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        tool.execute("call-1", {}, controller.signal, undefined, mockCtx),
+      ).rejects.toThrow(DOMException);
+      expect(client.request).not.toHaveBeenCalled();
     });
   });
 });

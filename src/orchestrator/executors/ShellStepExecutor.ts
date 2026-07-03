@@ -57,6 +57,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         cwd: resolvedCwd,
         timeout: this.timeout,
         maxBuffer: 10 * 1024 * 1024,
+        signal,
       });
 
       const output = (stdout + (stderr ? `\nstderr:\n${stderr}` : "")).trim();

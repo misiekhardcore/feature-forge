@@ -199,13 +199,33 @@ export class ParentSocketServer {
     }
 
     if (params.await) {
+      let socketClosed = false;
+
+      const onSocketClose = (): void => {
+        socketClosed = true;
+        void this.supervisor.destroyAgent(params.agentId).catch((error) => {
+          logger.warn("Failed to destroy agent on socket close", {
+            agentId: params.agentId,
+            error,
+          });
+        });
+      };
+
+      socket.once("close", onSocketClose);
+
       try {
         // Block until the agent completes
         const result = await agent.executeTask(params.prompt, { timeout: params.timeout });
         this.sendResponse(socket, correlationId, { result });
       } catch (error) {
+        if (socketClosed) {
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
+        this.sendError(socket, correlationId, message);
         this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+      } finally {
+        socket.removeListener("close", onSocketClose);
       }
     } else {
       // Fire and forget — respond immediately, push update later

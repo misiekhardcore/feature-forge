@@ -81,10 +81,10 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         //     on transient remote errors (the catch-block below still
         //     records the failure in the result for the orchestrator to
         //     surface).
-        await GitStepExecutor.addAndCommit(resolvedCwd, this.timeout, message);
+        await GitStepExecutor.addAndCommit(resolvedCwd, this.timeout, message, signal);
         raw = JSON.stringify({ action: instruction.action, cwd: resolvedCwd, message });
       } else {
-        const output = await GitStepExecutor.pushCurrent(resolvedCwd, this.timeout);
+        const output = await GitStepExecutor.pushCurrent(resolvedCwd, this.timeout, signal);
         raw =
           `${output.stdout}${output.stderr}`.trim() ||
           JSON.stringify({ action: instruction.action, cwd: resolvedCwd });
@@ -151,18 +151,24 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
     }
   }
 
-  private static async addAndCommit(cwd: string, timeout: number, message: string): Promise<void> {
+  private static async addAndCommit(
+    cwd: string,
+    timeout: number,
+    message: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
     // Stage all changes (including untracked files).
-    await execFileAsync("git", ["add", "-A"], { cwd, timeout });
+    await execFileAsync("git", ["add", "-A"], { cwd, timeout, signal });
 
     // Commit with the resolved message.
-    await execFileAsync("git", ["commit", "-m", message], { cwd, timeout });
+    await execFileAsync("git", ["commit", "-m", message], { cwd, timeout, signal });
   }
 
   private static async pushCurrent(
     cwd: string,
     timeout: number,
+    signal?: AbortSignal,
   ): Promise<{ stdout: string; stderr: string }> {
-    return await execFileAsync("git", ["push", "origin", "HEAD"], { cwd, timeout });
+    return await execFileAsync("git", ["push", "origin", "HEAD"], { cwd, timeout, signal });
   }
 }

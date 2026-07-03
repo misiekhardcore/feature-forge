@@ -147,9 +147,10 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     cwd: string,
     command: string,
     args: string[],
+    signal?: AbortSignal,
   ): Promise<string> {
     return new Promise<string>((resolvePromise, reject) => {
-      execFile(command, args, { cwd, timeout: 30_000 }, (error, stdout, stderr) => {
+      execFile(command, args, { cwd, timeout: 30_000, signal }, (error, stdout, stderr) => {
         if (error) {
           const message = stderr?.trim() || error.message;
           reject(

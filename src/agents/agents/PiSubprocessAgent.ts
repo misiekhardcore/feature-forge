@@ -81,6 +81,8 @@ export class PiSubprocessAgent extends SubprocessAgent {
       throw new Error(`Cannot execute task on agent "${this.id}" in state "${this._status}"`);
     }
 
+    options?.signal?.throwIfAborted();
+
     try {
       const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
       const events = await this.rpcClient.promptAndWait(prompt, options?.images, timeout);

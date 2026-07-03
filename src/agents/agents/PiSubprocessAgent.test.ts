@@ -190,6 +190,17 @@ describe("PiSubprocessAgent", () => {
       expect(agent.status).toBe(AgentStatus.Failed);
     });
 
+    it("throws AbortError when signal is already aborted before task execution", async () => {
+      await agent.start();
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        agent.executeTask("should-abort", { signal: controller.signal }),
+      ).rejects.toThrow(DOMException);
+      expect(getRpcMock().promptAndWait).not.toHaveBeenCalled();
+    });
+
     it("transitions to Failed when task throws", async () => {
       await agent.start();
       getRpcMock().promptAndWait.mockRejectedValueOnce(new Error("Task error"));
