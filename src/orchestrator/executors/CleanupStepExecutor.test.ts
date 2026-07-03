@@ -6,6 +6,7 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -61,7 +62,6 @@ describe("CleanupStepExecutor", () => {
         new Map([["target", "ws1"]]),
       );
 
-      // `of` uses a placeholder that resolves to the workspace id.
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "{{target}}" };
       const result = await executor.execute(instruction, context, vi.fn());
 
@@ -119,7 +119,6 @@ describe("CleanupStepExecutor", () => {
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
       const result = await executor.execute(instruction, context, vi.fn());
 
-      // The good provider still destroyed the path.
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
     });
@@ -138,6 +137,48 @@ describe("CleanupStepExecutor", () => {
       expect(result.results.get("c1")!.raw).toContain('"cleaned":[]');
     });
 
+    describe("onProgress", () => {
+      it("fires cleanup-start and cleanup-done events", async () => {
+        const provider = new TrackingProvider();
+        const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+        const wtRegistry = stubWorktreeRegistry();
+        const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+
+        const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+        const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+
+        const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
+
+        const events: RoutineProgressEvent[] = [];
+        const onProgress = (e: RoutineProgressEvent) => events.push(e);
+
+        await executor.execute(instruction, context, vi.fn(), onProgress);
+
+        expect(events).toHaveLength(2);
+        expect(events[0].phase).toBe("cleanup-start");
+        expect(events[0].message).toContain("c1");
+        expect(events[1].phase).toBe("cleanup-done");
+        expect(events[1].message).toContain("c1");
+      });
+
+      it("does not fire events when onProgress is not provided", async () => {
+        const provider = new TrackingProvider();
+        const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+        const wtRegistry = stubWorktreeRegistry();
+        const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+
+        const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+        const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+
+        const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
+
+        // Should not throw when called without onProgress.
+        const result = await executor.execute(instruction, context, vi.fn());
+
+        expect(result.results.get("c1")!.parsed!.passed).toBe(true);
+      });
+    });
+
     it("skips providers that return undefined from get", async () => {
       const goodProvider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", goodProvider);
@@ -150,7 +191,6 @@ describe("CleanupStepExecutor", () => {
         new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
       );
 
-      // Use `of` to target a workspace that uses the resolve path.
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
       const result = await executor.execute(instruction, context, vi.fn());
 

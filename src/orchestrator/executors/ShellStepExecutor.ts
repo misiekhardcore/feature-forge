@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
+import type { RoutineProgress } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -26,6 +27,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     instruction: ShellInstruction,
     context: FlowContext,
     _executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    onProgress?: RoutineProgress,
   ): Promise<FlowContext> {
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
@@ -35,6 +37,14 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       command: resolvedCommand,
       cwd: resolvedCwd,
     });
+
+    if (onProgress) {
+      onProgress({
+        phase: "shell-start",
+        message: `Shell "${instruction.id}": ${resolvedCommand}`,
+        details: {},
+      });
+    }
 
     try {
       const { stdout, stderr } = await execFileAsync("/bin/sh", ["-c", resolvedCommand], {
@@ -54,7 +64,17 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         },
       };
 
-      return context.withResult(instruction.id, result);
+      const updatedContext = context.withResult(instruction.id, result);
+
+      if (onProgress) {
+        onProgress({
+          phase: "shell-done",
+          message: `Shell "${instruction.id}" completed`,
+          details: {},
+        });
+      }
+
+      return updatedContext;
     } catch (error) {
       // execFile rejects on non-zero exit codes — capture stdout/stderr from the error.
       const err = error instanceof Error ? error : new Error(String(error));
@@ -70,7 +90,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         error: err,
       });
 
-      const result: InstructionResult = {
+      const failureResult: InstructionResult = {
         raw: raw,
         parsed: {
           kind: "build",
@@ -79,7 +99,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         },
       };
 
-      return context.withResult(instruction.id, result);
+      return context.withResult(instruction.id, failureResult);
     }
   }
 }
