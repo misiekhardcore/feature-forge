@@ -149,12 +149,22 @@ export class RoutineTool implements ToolDefinition<
 
   renderResult = (
     result: AgentToolResult<RoutineResult>,
-    _options: ToolRenderResultOptions,
+    options: ToolRenderResultOptions,
     theme: Theme,
     _context: { state: ToolRowInvalidation; invalidate: () => void },
   ): Component => {
-    const passed = result.details?.passed ?? false;
     const routine = result.details?.routine ?? this.routineName;
+
+    if (options.isPartial) {
+      return {
+        render: () => {
+          return [`${theme.fg("warning", "⏳")} ${routine} · running`];
+        },
+        invalidate: () => {},
+      };
+    }
+
+    const passed = result.details?.passed ?? false;
     const icon = passed ? theme.fg("success", "✓") : theme.fg("error", "✗");
 
     return {
@@ -204,7 +214,7 @@ export class RoutineTool implements ToolDefinition<
       logger.debug("RoutineTool progress", { ...event });
 
       // Accumulate display contributions from all executors.
-      for (const executor of this.executor.stepRegistry.all().values()) {
+      for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
 
