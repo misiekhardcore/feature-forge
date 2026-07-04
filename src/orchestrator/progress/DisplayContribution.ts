@@ -27,6 +27,4 @@ export interface DisplayContribution {
   message?: string;
   /** The `continueWhile` expression from the loop instruction, if any. */
   continueWhile?: string;
-  /** Current session state snapshot (populated by SessionStepExecutor). */
-  sessionEntries?: Record<string, string>;
 }

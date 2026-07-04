@@ -33,8 +33,6 @@ export interface BuildWidgetLinesParams {
   metadata?: string[];
   /** Optional workspace path line. */
   path?: string;
-  /** Optional pre-formatted session status line (e.g. "base=main"). */
-  sessionLine?: string;
 }
 
 /** Parameters for {@link ProgressRenderer.buildStatusLine}. */
@@ -104,7 +102,7 @@ export class ProgressRenderer {
    * metadata / workspace lines.
    */
   static buildWidgetLines(params: BuildWidgetLinesParams): string[] {
-    const { theme, title, subtitle, rows, metadata, path, sessionLine } = params;
+    const { theme, title, subtitle, rows, metadata, path } = params;
     const lines: string[] = [];
 
     // Header
@@ -137,11 +135,6 @@ export class ProgressRenderer {
     // Workspace path
     if (path) {
       lines.push(theme.fg("muted", `  ws: ${path}`));
-    }
-
-    // Session (formatted upstream by renderToWidget from contributions)
-    if (sessionLine) {
-      lines.push(theme.fg("muted", `  session: ${sessionLine}`));
     }
 
     return lines;
@@ -319,15 +312,6 @@ export class ProgressRenderer {
       metadata.push(`while: ${continueWhile}`);
     }
 
-    // Extract session state from contributions (set by SessionStepExecutor).
-    let sessionLine: string | undefined;
-    const sessionContrib = [...state.contributions].reverse().find((c) => c.sessionEntries);
-    if (sessionContrib?.sessionEntries) {
-      sessionLine = Object.entries(sessionContrib.sessionEntries)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(" ");
-    }
-
     const widgetLines = ProgressRenderer.buildWidgetLines({
       theme,
       title: state.routineName,
@@ -335,7 +319,6 @@ export class ProgressRenderer {
       rows,
       metadata: metadata.length > 0 ? metadata : undefined,
       path: workspace,
-      sessionLine,
     });
 
     const tags: string[] = [];
