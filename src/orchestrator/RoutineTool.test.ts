@@ -138,7 +138,10 @@ describe("RoutineTool", () => {
               ) => Promise<FlowContext>,
               _eventBus: EventBus,
             ) {
-              return new FlowContext(new Map(), "resolved-task");
+              return new FlowContext({
+                results: new Map(),
+                prompt: "resolved-task",
+              });
             }
           })(),
       );

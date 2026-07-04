@@ -168,13 +168,19 @@ describe("flow round-trip", () => {
     // ── 2. No unresolved placeholders in any task ──────────────────
 
     it("resolves orchestrator.systemPrompt with no {{...}} survivors", () => {
-      const ctx = new FlowContext(new Map(), "test-task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      });
       const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
       expect(resolved).not.toMatch(/\{\{/);
     });
 
     it("resolves all agent instruction tasks with no {{...}} survivors", () => {
-      const ctx = new FlowContext(new Map(), "test-task")
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      })
         .withWorkspace("ws", new WorkspaceHandle("/tmp/test-workspace", new Date()))
         .withParams({ plan: "test-plan" })
         .withFeedback("test-feedback");
@@ -206,7 +212,10 @@ describe("flow round-trip", () => {
     it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
       expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
 
-      const ctx = new FlowContext(new Map(), "test-task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      });
       const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
 
       expect(resolved).not.toMatch(/\{\{/);

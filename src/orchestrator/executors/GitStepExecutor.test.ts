@@ -73,7 +73,7 @@ describe("GitStepExecutor", () => {
         action: "add-and-commit",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(2);
@@ -101,7 +101,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
         message: "chore: bump version",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       const commitCall = execFileRaw.mock.calls[1];
@@ -119,7 +119,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
         message: "feat: {{prompt}}",
       };
-      const context = new FlowContext(new Map(), "implement login");
+      const context = new FlowContext({ results: new Map(), prompt: "implement login" });
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       const commitCall = execFileRaw.mock.calls[1];
@@ -136,7 +136,7 @@ describe("GitStepExecutor", () => {
         action: "push-current",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
@@ -156,7 +156,7 @@ describe("GitStepExecutor", () => {
         action: "push-current",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("git-push")!.parsed!.passed).toBe(true);
@@ -175,7 +175,7 @@ describe("GitStepExecutor", () => {
         action: "push-current",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("git-push-empty")!.parsed!.passed).toBe(true);
@@ -193,7 +193,7 @@ describe("GitStepExecutor", () => {
         action: "push-current",
         cwd: "/bad/path",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("git-push-fail")!.parsed!.passed).toBe(false);
@@ -210,11 +210,11 @@ describe("GitStepExecutor", () => {
         action: "add-and-commit",
         cwd: "{{workspace.ws}}",
       };
-      const context = new FlowContext(
-        new Map(),
-        "task",
-        new Map([["ws", new WorkspaceHandle("/resolved/ws", new Date())]]),
-      );
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([["ws", new WorkspaceHandle("/resolved/ws", new Date())]]),
+      });
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/resolved/ws");
@@ -230,7 +230,7 @@ describe("GitStepExecutor", () => {
         action: "add-and-commit",
         cwd: "/bad/path",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       await expect(
         executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
@@ -247,7 +247,7 @@ describe("GitStepExecutor", () => {
         action: "push-current",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const eventBus = makeMockEventBus();
       await executor.execute(instruction, context, vi.fn(), eventBus);
@@ -278,7 +278,7 @@ describe("GitStepExecutor", () => {
         action: "add-and-commit",
         cwd: "/bad/path",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const eventBus = makeMockEventBus();
 
@@ -303,7 +303,7 @@ describe("GitStepExecutor", () => {
           action: "add-and-commit",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         await executor.execute(
           instruction,
@@ -329,7 +329,7 @@ describe("GitStepExecutor", () => {
           action: "push-current",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         await executor.execute(
           instruction,
@@ -354,7 +354,7 @@ describe("GitStepExecutor", () => {
         action: "push-current",
         cwd: "/bad/path",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const eventBus = makeMockEventBus();
 

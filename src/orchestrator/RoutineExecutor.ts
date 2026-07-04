@@ -77,15 +77,12 @@ export class RoutineExecutor {
       mergedParams.set(key, value);
     }
 
-    let context = new FlowContext(
-      new Map(),
-      task,
-      new Map(),
-      mergedParams,
-      undefined,
-      0,
-      this.store,
-    );
+    let context = new FlowContext({
+      params: mergedParams,
+      results: new Map(),
+      prompt: task,
+      store: this.store,
+    });
 
     // Recursive step dispatcher — passes itself to executors so container
     // instructions (loop, parallel) can dispatch their children without
@@ -159,15 +156,10 @@ export class RoutineExecutor {
       ? `Routine "${routineName}" completed with ${Object.keys(results).length} results`
       : `Routine "${routineName}" failed: ${error?.message ?? "unknown error"}`;
 
-    const sessionObj: FlowParams = {};
-    for (const [key, value] of context.store.entries()) {
-      sessionObj[key] = value;
-    }
-
     return {
       routine: routineName,
       passed,
-      session: sessionObj,
+      session: context.store.toObject(),
       rounds: context.iteration + 1,
       workspace,
       results,

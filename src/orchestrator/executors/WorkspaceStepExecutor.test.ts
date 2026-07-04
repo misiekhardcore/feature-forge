@@ -51,7 +51,7 @@ describe("WorkspaceStepExecutor", () => {
       id: "ws1",
       provider: "git-worktree",
     };
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
     const expectedId = `ws-${MOCK_TIMESTAMP}`;
@@ -72,7 +72,7 @@ describe("WorkspaceStepExecutor", () => {
       id: "ws1",
       provider: "current-dir",
     };
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
       executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
@@ -91,7 +91,7 @@ describe("WorkspaceStepExecutor", () => {
       id: "ws",
       provider: "git-worktree",
     };
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
     expect(context.workspaces.size).toBe(0);
@@ -110,7 +110,7 @@ describe("WorkspaceStepExecutor", () => {
       id: "ws1",
       provider: "git-worktree",
     };
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const controller = new AbortController();
     controller.abort();
 
@@ -132,7 +132,7 @@ describe("WorkspaceStepExecutor", () => {
         id: "ws1",
         provider: "git-worktree",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const eventBus = makeMockEventBus();
       await executor.execute(instruction, context, vi.fn(), eventBus);
@@ -162,7 +162,7 @@ describe("WorkspaceStepExecutor", () => {
         id: "ws1",
         provider: "git-worktree",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 

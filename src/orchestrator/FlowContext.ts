@@ -2,6 +2,23 @@ import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
 
+type FlowContextParams = {
+  /** Step results keyed by instruction id. */
+  readonly results: ReadonlyMap<string, InstructionResult>;
+  /** The top-level task description. */
+  readonly prompt: string;
+  /** Named workspaces created during routine execution. */
+  readonly workspaces?: ReadonlyMap<string, WorkspaceHandle>;
+  /** Routine parameters passed by the orchestrator LLM. */
+  readonly params?: ReadonlyMap<string, string>;
+  /** Accumulated feedback from prior loop iterations. */
+  readonly feedback?: string;
+  /** Current loop iteration (0-indexed). */
+  readonly iteration?: number;
+  /** Flow-global session that persists across routine calls. */
+  readonly store?: FlowStateStore;
+};
+
 /**
  * Immutable value object carrying the state of an in-progress routine execution.
  *
@@ -9,99 +26,109 @@ import { FlowParams, FlowStateStore } from "./FlowStateStore";
  * instruction executors.
  */
 export class FlowContext {
-  constructor(
-    /** Step results keyed by instruction id. */
-    readonly results: ReadonlyMap<string, InstructionResult>,
-    /** The top-level task description. */
-    readonly prompt: string,
-    /** Named workspaces created during routine execution. */
-    readonly workspaces: ReadonlyMap<string, WorkspaceHandle> = new Map(),
-    /** Routine parameters passed by the orchestrator LLM. */
-    readonly params: ReadonlyMap<string, string> = new Map(),
-    /** Accumulated feedback from prior loop iterations. */
-    readonly feedback?: string,
-    /** Current loop iteration (0-indexed). */
-    readonly iteration: number = 0,
-    /** Flow-global session that persists across routine calls. */
-    readonly store: FlowStateStore = new FlowStateStore(),
-  ) {}
+  /** Step results keyed by instruction id. */
+  readonly results: ReadonlyMap<string, InstructionResult>;
+  /** The top-level task description. */
+  readonly prompt: string;
+  /** Named workspaces created during routine execution. */
+  readonly workspaces: ReadonlyMap<string, WorkspaceHandle>;
+  /** Routine parameters passed by the orchestrator LLM. */
+  readonly params: ReadonlyMap<string, string>;
+  /** Accumulated feedback from prior loop iterations. */
+  readonly feedback?: string;
+  /** Current loop iteration (0-indexed). */
+  readonly iteration: number;
+  /** Flow-global session that persists across routine calls. */
+  readonly store: FlowStateStore;
+
+  constructor(params: FlowContextParams) {
+    this.results = params.results;
+    this.prompt = params.prompt;
+    this.workspaces = params.workspaces ?? new Map();
+    this.params = params.params ?? new Map();
+    this.feedback = params.feedback;
+    this.iteration = params.iteration ?? 0;
+    this.store = params.store ?? new FlowStateStore();
+  }
 
   // ── Mutations (return new FlowContext) ────────────────────
 
   withResult(id: string, result: InstructionResult): FlowContext {
     const next = new Map(this.results);
     next.set(id, result);
-    return new FlowContext(
-      next,
-      this.prompt,
-      this.workspaces,
-      this.params,
-      this.feedback,
-      this.iteration,
-      this.store,
-    );
+    return new FlowContext({
+      results: next,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+    });
   }
 
   withWorkspace(name: string, handle: WorkspaceHandle): FlowContext {
     const next = new Map(this.workspaces);
     next.set(name, handle);
-    return new FlowContext(
-      this.results,
-      this.prompt,
-      next,
-      this.params,
-      this.feedback,
-      this.iteration,
-      this.store,
-    );
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: next,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+    });
   }
 
   withWorkspaceCleared(name: string): FlowContext {
     const next = new Map(this.workspaces);
     next.delete(name);
-    return new FlowContext(
-      this.results,
-      this.prompt,
-      next,
-      this.params,
-      this.feedback,
-      this.iteration,
-      this.store,
-    );
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: next,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+    });
   }
 
   withParams(params: FlowParams): FlowContext {
-    return new FlowContext(
-      this.results,
-      this.prompt,
-      this.workspaces,
-      new Map(Object.entries(params)),
-      this.feedback,
-      this.iteration,
-    );
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: new Map(Object.entries(params)),
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+    });
   }
 
   withFeedback(feedback: string): FlowContext {
-    return new FlowContext(
-      this.results,
-      this.prompt,
-      this.workspaces,
-      this.params,
-      feedback,
-      this.iteration,
-      this.store,
-    );
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: this.params,
+      feedback: feedback,
+      iteration: this.iteration,
+      store: this.store,
+    });
   }
 
   withIteration(n: number): FlowContext {
-    return new FlowContext(
-      this.results,
-      this.prompt,
-      this.workspaces,
-      this.params,
-      this.feedback,
-      n,
-    );
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: n,
+      store: this.store,
+    });
   }
 
   withResultsCleared(removeIds: Set<string>): FlowContext {
@@ -109,14 +136,15 @@ export class FlowContext {
     for (const id of removeIds) {
       next.delete(id);
     }
-    return new FlowContext(
-      next,
-      this.prompt,
-      this.workspaces,
-      this.params,
-      this.feedback,
-      this.iteration,
-    );
+    return new FlowContext({
+      results: next,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+    });
   }
 
   // ── Workspace access ──────────────────────────────────────

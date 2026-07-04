@@ -108,7 +108,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         ],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const eventBus = makeMockEventBus();
 
       const result = await executor.execute(instruction, context, makeDispatch(registry), eventBus);
@@ -133,7 +133,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         ],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       await expect(
         executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
@@ -159,7 +159,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         ],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const eventBus = makeMockEventBus();
 
       const result = await executor.execute(instruction, context, makeDispatch(registry), eventBus);
@@ -197,7 +197,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         ],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const result = await executor.execute(
         instruction,
@@ -229,7 +229,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         ],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       const result = await executor.execute(
         instruction,
