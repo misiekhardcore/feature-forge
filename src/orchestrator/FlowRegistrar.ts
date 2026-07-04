@@ -8,7 +8,9 @@ import { OrchestratorCommand } from "../commands";
 import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
+import type { FlowInstruction } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
+import { FlowSession } from "./FlowSession";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { RoutineTool } from "./RoutineTool";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -133,8 +135,16 @@ export class FlowRegistrar {
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
+    let session = new FlowSession();
     try {
       flow = await flowLoader.load("flow");
+
+      // Seed flow-global session from flow-level param defaults.
+      for (const param of flow.params ?? []) {
+        if (param.default !== undefined) {
+          session = session.set(param.name, param.default);
+        }
+      }
     } catch (error) {
       logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, { error });
       return;
@@ -162,7 +172,7 @@ export class FlowRegistrar {
     }
 
     // Register routine tools for this flow.
-    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus);
+    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus, session);
     for (const [routineName, routineDef] of Object.entries(flow.routines)) {
       const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
       try {
@@ -172,6 +182,33 @@ export class FlowRegistrar {
           error,
         });
       }
+    }
+
+    // Auto-register set_flow_param routine (system-built, not from flow.json).
+    const setFlowParamDef = {
+      params: [
+        { name: "key", description: "Session key to set" },
+        { name: "value", description: "Value to store" },
+      ],
+      steps: [
+        {
+          type: "session",
+          id: "set",
+          key: "{{key}}",
+          value: "{{value}}",
+        } as unknown as FlowInstruction,
+      ],
+    };
+    const setFlowParamTool = new RoutineTool(
+      flowName,
+      "set_flow_param",
+      routineExecutor,
+      setFlowParamDef,
+    );
+    try {
+      toolRegistry.registerInstance(setFlowParamTool);
+    } catch (error) {
+      logger.warn("[feature-forge] Failed to register set_flow_param", { error });
     }
   }
 }

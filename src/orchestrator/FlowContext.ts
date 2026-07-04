@@ -1,5 +1,6 @@
 import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
+import { FlowSession } from "./FlowSession";
 
 /**
  * Immutable value object carrying the state of an in-progress routine execution.
@@ -21,6 +22,8 @@ export class FlowContext {
     readonly feedback?: string,
     /** Current loop iteration (0-indexed). */
     readonly iteration: number = 0,
+    /** Flow-global session that persists across routine calls. */
+    readonly session: FlowSession = new FlowSession(),
   ) {}
 
   // ── Mutations (return new FlowContext) ────────────────────
@@ -35,6 +38,7 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
+      this.session,
     );
   }
 
@@ -48,6 +52,7 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
+      this.session,
     );
   }
 
@@ -61,6 +66,7 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
+      this.session,
     );
   }
 
@@ -83,6 +89,7 @@ export class FlowContext {
       this.params,
       feedback,
       this.iteration,
+      this.session,
     );
   }
 
@@ -112,6 +119,18 @@ export class FlowContext {
     );
   }
 
+  withSessionValue(key: string, value: string): FlowContext {
+    return new FlowContext(
+      this.results,
+      this.prompt,
+      this.workspaces,
+      this.params,
+      this.feedback,
+      this.iteration,
+      this.session.set(key, value),
+    );
+  }
+
   // ── Workspace access ──────────────────────────────────────
 
   getWorkspacePath(name: string): string | undefined {
@@ -138,6 +157,12 @@ export class FlowContext {
       default: {
         const paramValue = this.params.get(key);
         if (paramValue !== undefined) return paramValue;
+
+        // session.<key> — flow-global state persisted across routine calls.
+        if (key.startsWith("session.")) {
+          const sessionKey = key.slice("session.".length);
+          return this.session.values.get(sessionKey) ?? "";
+        }
 
         if (key.startsWith("workspace.")) {
           const name = key.slice("workspace.".length);

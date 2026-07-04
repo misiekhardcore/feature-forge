@@ -171,7 +171,7 @@ describe("FlowRegistrar", () => {
       await registrar.registerAll();
 
       // Only flow-a and flow-b should be processed => 2 registerInstance calls
-      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2); // +set_flow_param;
     });
 
     it("skips directories without an orchestrator.md file", async () => {
@@ -300,7 +300,7 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // +set_flow_param
     });
 
     it("handles RoutineTool registration failures gracefully (non-Error throw)", async () => {
@@ -324,7 +324,7 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // +set_flow_param
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
         expect.any(Object),
@@ -359,7 +359,7 @@ describe("FlowRegistrar", () => {
       await registrar.registerAll();
 
       // First call threw, second succeeded
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2);
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(3); // +set_flow_param;
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
         expect.any(Object),

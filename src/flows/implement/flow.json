@@ -4,13 +4,21 @@
   "orchestrator": {
     "systemPrompt": "implement-orchestrator",
     "prompt": "{{prompt}}",
-    "promptParams": { "TASK": "{{prompt}}" }
+    "promptParams": {
+      "TASK": "{{prompt}}"
+    }
   },
   "routines": {
     "run_build_loop": {
       "params": [
-        { "name": "task", "description": "The task description" },
-        { "name": "plan", "description": "The implementation plan" }
+        {
+          "name": "task",
+          "description": "The task description"
+        },
+        {
+          "name": "plan",
+          "description": "The implementation plan"
+        }
       ],
       "steps": [
         {
@@ -29,7 +37,9 @@
               "type": "agent",
               "id": "builder",
               "systemPrompt": "build",
-              "workingDir": { "workspace": "ws" },
+              "workingDir": {
+                "workspace": "ws"
+              },
               "parseJson": true,
               "promptParams": {
                 "TASK": "{{prompt}}",
@@ -47,7 +57,9 @@
                   "type": "agent",
                   "id": "review",
                   "systemPrompt": "review",
-                  "workingDir": { "workspace": "ws" },
+                  "workingDir": {
+                    "workspace": "ws"
+                  },
                   "parseJson": true,
                   "prompt": "Review the code changes against:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
                 },
@@ -55,7 +67,9 @@
                   "type": "agent",
                   "id": "verify",
                   "systemPrompt": "verify",
-                  "workingDir": { "workspace": "ws" },
+                  "workingDir": {
+                    "workspace": "ws"
+                  },
                   "parseJson": true,
                   "prompt": "Verify acceptance criteria:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
                 }
@@ -73,7 +87,7 @@
           "name": "commit_message",
           "description": "Commit message in conventional commits format"
         },
-        { "name": "body", "description": "Markdown PR description summarizing the changes" }
+        { "name": "body", "description": "Markdown PR description summarizing the changes" } (feat(orchestrator): parallel failure_mode + FlowSession flow-global store (#51))
       ],
       "steps": [
         {
@@ -87,14 +101,32 @@
         {
           "type": "shell",
           "id": "pr",
-          "command": "gh pr create --title \"{{title}}\" --body \"{{body}}\"",
+          "command": "gh pr create --title \"{{title}}\" --body \"{{body}}\" --base \"{{session.base}}\"", (feat(orchestrator): parallel failure_mode + FlowSession flow-global store (#51))
           "cwd": "{{workspace}}"
         }
       ]
     },
     "destroy_workspace": {
-      "params": [{ "name": "workspace", "description": "Worktree path to release" }],
-      "steps": [{ "type": "cleanup", "id": "cleanup", "of": "{{workspace}}" }]
+      "params": [
+        {
+          "name": "workspace",
+          "description": "Worktree path to release"
+        }
+      ],
+      "steps": [
+        {
+          "type": "cleanup",
+          "id": "cleanup",
+          "of": "{{workspace}}"
+        }
+      ]
     }
-  }
+  },
+  "params": [
+    {
+      "name": "base",
+      "description": "Target base branch for the PR",
+      "default": "main"
+    }
+  ]
 }

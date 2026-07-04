@@ -38,6 +38,13 @@ function defineInstruction<Type extends string, Extra extends TProperties | unde
   );
 }
 
+// ── Session ───────────────────────────────────────────────
+
+export const SessionInstructionSchema = defineInstruction("session", {
+  key: Type.String({ minLength: 1 }),
+  value: Type.String(),
+});
+
 // ── Leaf schemas ────────────────────────────────────────────
 
 export const WorkspaceInstructionSchema = defineInstruction("workspace", {
@@ -72,9 +79,21 @@ export const ShellInstructionSchema = defineInstruction("shell", {
   cwd: Type.String({ minLength: 1 }),
 });
 
+// ── Parallel failure mode ──────────────────────────────────
+
+export const ParallelFailureModeSchema = Type.Union([
+  Type.Literal("fail_fast"),
+  Type.Literal("continue_on_error"),
+  Type.Literal("all_or_nothing"),
+]);
+
+export type ParallelFailureMode = Type.Static<typeof ParallelFailureModeSchema>;
+
 // ── Container schemas (steps added via patch below) ─────────
 
-export const ParallelInstructionSchema = defineInstruction("parallel");
+export const ParallelInstructionSchema = defineInstruction("parallel", {
+  failureMode: Type.Optional(ParallelFailureModeSchema),
+});
 
 /**
  * Loop instruction schema.
@@ -111,6 +130,7 @@ const FlowInstructionUnion = Type.Union([
   LoopInstructionSchema,
   CleanupInstructionSchema,
   GitInstructionSchema,
+  SessionInstructionSchema,
   ShellInstructionSchema,
 ]);
 
@@ -144,6 +164,7 @@ export const OrchestratorConfigSchema = Type.Object({
 export const RoutineParamSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   description: Type.Optional(Type.String()),
+  default: Type.Optional(Type.String()),
 });
 
 const RoutineDefinitionSchema = Type.Object({
@@ -155,6 +176,7 @@ const RoutineDefinitionSchema = Type.Object({
 });
 
 export const FlowDefinitionSchema = Type.Object({
+  params: Type.Optional(Type.Array(RoutineParamSchema)),
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
   orchestrator: OrchestratorConfigSchema,
@@ -194,6 +216,7 @@ export type AgentInstruction = Type.Static<typeof AgentInstructionSchema>;
 
 export type ParallelInstruction = Type.Static<typeof ParallelInstructionSchema> & {
   steps: FlowInstruction[];
+  failureMode?: ParallelFailureMode;
 };
 
 export type LoopInstruction = Type.Static<typeof LoopInstructionSchema> & {
@@ -203,6 +226,8 @@ export type LoopInstruction = Type.Static<typeof LoopInstructionSchema> & {
 export type CleanupInstruction = Type.Static<typeof CleanupInstructionSchema>;
 
 export type GitInstruction = Type.Static<typeof GitInstructionSchema>;
+
+export type SessionInstruction = Type.Static<typeof SessionInstructionSchema>;
 
 export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
 
@@ -216,7 +241,8 @@ export type FlowInstruction =
   | LoopInstruction
   | CleanupInstruction
   | GitInstruction
-  | ShellInstruction;
+  | ShellInstruction
+  | SessionInstruction;
 
 export type OrchestratorConfig = Type.Static<typeof OrchestratorConfigSchema>;
 
@@ -228,6 +254,7 @@ export type RoutineDefinition = {
 };
 
 export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {
+  params?: RoutineParam[];
   routines: Record<string, RoutineDefinition>;
 };
 
@@ -247,8 +274,14 @@ export function isContainerInstruction(instr: FlowInstruction): instr is Contain
 
 // ── Helper constructors ────────────────────────────────────────
 
-export function makeParallelInstruction(id: string, steps: FlowInstruction[]): ParallelInstruction {
-  return { type: "parallel", id, steps };
+export function makeParallelInstruction(
+  id: string,
+  steps: FlowInstruction[],
+  failureMode?: ParallelFailureMode,
+): ParallelInstruction {
+  const instr: ParallelInstruction = { type: "parallel", id, steps };
+  if (failureMode !== undefined) instr.failureMode = failureMode;
+  return instr;
 }
 
 export function makeLoopInstruction(
