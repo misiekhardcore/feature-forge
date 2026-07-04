@@ -160,8 +160,29 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
     // Stage all changes (including untracked files).
     await execFileAsync("git", ["add", "-A"], { cwd, timeout, signal });
 
-    // Commit with the resolved message.
-    await execFileAsync("git", ["commit", "-m", message], { cwd, timeout, signal });
+    // Commit with the resolved message. When the tree has already been
+    // committed (idempotent re-run), "nothing to commit" is not a real
+    // failure — we verify HEAD exists and return silently. A truly empty
+    // branch (no prior commits) re-throws as before.
+    try {
+      await execFileAsync("git", ["commit", "-m", message], { cwd, timeout, signal });
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      const stderrText = (error as { stderr?: string }).stderr ?? err.message;
+      if (/nothing to commit/.test(stderrText)) {
+        try {
+          await execFileAsync("git", ["rev-parse", "--verify", "HEAD"], {
+            cwd,
+            timeout,
+            signal,
+          });
+          return;
+        } catch {
+          throw err;
+        }
+      }
+      throw err;
+    }
   }
 
   private static async pushCurrent(
