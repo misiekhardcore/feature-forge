@@ -11,12 +11,14 @@ import {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
+  isRoutineRefInstruction,
   LoopInstructionSchema,
   makeLoopInstruction,
   makeParallelInstruction,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -799,6 +801,87 @@ describe("isContainerInstruction", () => {
     expect(isContainerInstruction({ type: "shell", id: "s1", command: "ls", cwd: "/ws" })).toBe(
       false,
     );
+  });
+});
+
+describe("isRoutineRefInstruction", () => {
+  it("returns true for routine instructions", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "routine",
+        id: "r1",
+        flow: "target",
+        routine: "build",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false for non-routine instructions", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "agent",
+        id: "a1",
+        systemPrompt: "build",
+        prompt: "do it",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for loop instructions", () => {
+    expect(isRoutineRefInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for parallel instructions", () => {
+    expect(isRoutineRefInstruction({ type: "parallel", id: "p1", steps: [] })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RoutineRefInstructionSchema
+// ---------------------------------------------------------------------------
+
+describe("RoutineRefInstructionSchema", () => {
+  it("validates a minimal routine ref instruction", () => {
+    const valid = { type: "routine", id: "r1", flow: "target", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, valid)).toBe(true);
+  });
+
+  it("validates with optional params", () => {
+    const valid = {
+      type: "routine",
+      id: "r1",
+      flow: "target",
+      routine: "build",
+      params: { workspace: "{{workspace.ws}}" },
+    };
+    expect(Value.Check(RoutineRefInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects missing flow", () => {
+    const invalid = { type: "routine", id: "r1", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing routine", () => {
+    const invalid = { type: "routine", id: "r1", flow: "target" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty flow", () => {
+    const invalid = { type: "routine", id: "r1", flow: "", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty routine", () => {
+    const invalid = { type: "routine", id: "r1", flow: "target", routine: "" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing id", () => {
+    const invalid = { type: "routine", flow: "target", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
   });
 });
 

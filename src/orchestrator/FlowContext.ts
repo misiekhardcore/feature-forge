@@ -147,6 +147,28 @@ export class FlowContext {
     });
   }
 
+  // ── Child context (for cross-flow routine calls) ──────────
+
+  /**
+   * Create a child context for executing a cross-flow routine call.
+   *
+   * Shares the parent's {@link prompt} and {@link store} reference,
+   * but starts with fresh {@link results}, {@link workspaces},
+   * {@link feedback}, and {@link iteration}. The callee sets its own
+   * params through {@link withParams}.
+   */
+  fork(): FlowContext {
+    return new FlowContext({
+      results: new Map(),
+      prompt: this.prompt,
+      workspaces: new Map(),
+      params: new Map(),
+      feedback: undefined,
+      iteration: 0,
+      store: this.store,
+    });
+  }
+
   // ── Workspace access ──────────────────────────────────────
 
   getWorkspacePath(name: string): string | undefined {

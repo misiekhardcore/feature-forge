@@ -12,6 +12,7 @@ import {
   FlowInstructionSchema,
   isContainerInstruction,
   isLoopInstruction,
+  isRoutineRefInstruction,
 } from "./FlowInstruction";
 
 /**
@@ -335,5 +336,160 @@ export class FlowLoader {
         FlowLoader.collectIdsByFlag(instruction.steps, flag, ids);
       }
     }
+  }
+
+  /**
+   * Validate cross-flow routine references across all loaded flows.
+   *
+   * Checks that every {@code type: "routine"} instruction references a
+   * flow and routine that actually exist, that all required params are
+   * provided, and that there are no circular dependencies between flows.
+   */
+  static validateCrossFlow(flows: ReadonlyMap<string, FlowDefinition>): string[] {
+    const errors: string[] = [];
+
+    for (const [flowName, flow] of flows) {
+      for (const [routineName, routine] of Object.entries(flow.routines)) {
+        const scope = `${flowName} → ${routineName}`;
+        FlowLoader.checkRoutineRefs(routine.steps as FlowInstruction[], scope, flows, errors);
+      }
+    }
+
+    // Build dependency graph and run DFS cycle detection.
+    const graph = new Map<string, Set<string>>();
+    for (const [flowName] of flows) {
+      graph.set(flowName, new Set());
+    }
+
+    for (const [flowName, flow] of flows) {
+      for (const routine of Object.values(flow.routines)) {
+        FlowLoader.collectCrossFlowDeps(routine.steps as FlowInstruction[], flowName, graph);
+      }
+    }
+
+    const cycles = FlowLoader.detectCycles(graph);
+    for (const cycle of cycles) {
+      errors.push(`Circular flow dependency: ${cycle.join(" → ")} → ${cycle[0]}`);
+    }
+
+    return errors;
+  }
+
+  /**
+   * Recursively check {@code type: "routine"} instructions for validity.
+   */
+  private static checkRoutineRefs(
+    instructions: FlowInstruction[],
+    scope: string,
+    flows: ReadonlyMap<string, FlowDefinition>,
+    errors: string[],
+  ): void {
+    for (const instruction of instructions) {
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.checkRoutineRefs(instruction.steps, scope, flows, errors);
+        continue;
+      }
+
+      if (!isRoutineRefInstruction(instruction)) continue;
+
+      const targetFlow = flows.get(instruction.flow);
+      if (!targetFlow) {
+        errors.push(
+          `Routine ref "${instruction.id}" in ${scope} ` +
+            `references unknown flow "${instruction.flow}"`,
+        );
+        continue;
+      }
+
+      const targetRoutine = targetFlow.routines[instruction.routine];
+      if (!targetRoutine) {
+        errors.push(
+          `Routine ref "${instruction.id}" in ${scope} ` +
+            `references unknown routine "${instruction.routine}" ` +
+            `in flow "${instruction.flow}"`,
+        );
+        continue;
+      }
+
+      // Check that all required params are provided.
+      for (const param of targetRoutine.params) {
+        if (param.default !== undefined) continue;
+        const provided = instruction.params?.[param.name];
+        if (provided === undefined) {
+          errors.push(
+            `Routine ref "${instruction.id}" in ${scope} ` +
+              `is missing required param "${param.name}" ` +
+              `for routine "${instruction.routine}" in flow "${instruction.flow}"`,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Collect cross-flow dependency edges from routine-ref instructions
+   * into the dependency graph for cycle detection.
+   */
+  private static collectCrossFlowDeps(
+    instructions: FlowInstruction[],
+    currentFlow: string,
+    graph: Map<string, Set<string>>,
+  ): void {
+    for (const instruction of instructions) {
+      if (isRoutineRefInstruction(instruction)) {
+        const deps = graph.get(currentFlow);
+        if (deps && instruction.flow !== currentFlow) {
+          deps.add(instruction.flow);
+        }
+      }
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.collectCrossFlowDeps(instruction.steps, currentFlow, graph);
+      }
+    }
+  }
+
+  /**
+   * Run DFS-based cycle detection on a directed graph.
+   * Returns a list of cycles, each as an ordered list of node names.
+   */
+  private static detectCycles(graph: Map<string, Set<string>>): string[][] {
+    const cycles: string[][] = [];
+    const visited = new Set<string>();
+    const stack = new Set<string>();
+    const path: string[] = [];
+
+    function dfs(node: string): void {
+      if (stack.has(node)) {
+        // Found a cycle — extract from path.
+        const startIndex = path.indexOf(node);
+        if (startIndex !== -1) {
+          cycles.push(path.slice(startIndex));
+        }
+        return;
+      }
+      if (visited.has(node)) return;
+
+      visited.add(node);
+      stack.add(node);
+      path.push(node);
+
+      const neighbours = graph.get(node);
+      if (neighbours) {
+        for (const next of neighbours) {
+          dfs(next);
+        }
+      }
+
+      path.pop();
+      stack.delete(node);
+    }
+
+    for (const node of graph.keys()) {
+      if (!visited.has(node)) {
+        dfs(node);
+      }
+    }
+
+    return cycles;
   }
 }

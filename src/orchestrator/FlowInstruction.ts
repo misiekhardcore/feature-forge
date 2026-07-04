@@ -45,6 +45,12 @@ export const SessionInstructionSchema = defineInstruction("session", {
   value: Type.String(),
 });
 
+export const RoutineRefInstructionSchema = defineInstruction("routine", {
+  flow: Type.String({ minLength: 1 }),
+  routine: Type.String({ minLength: 1 }),
+  params: Type.Optional(Type.Record(Type.String(), Type.String())),
+});
+
 // ── Leaf schemas ────────────────────────────────────────────
 
 export const WorkspaceInstructionSchema = defineInstruction("workspace", {
@@ -132,6 +138,7 @@ const FlowInstructionUnion = Type.Union([
   GitInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
+  RoutineRefInstructionSchema,
 ]);
 
 // Patch container schemas so `steps` validates recursively.
@@ -235,6 +242,8 @@ export type SessionInstruction = Type.Static<typeof SessionInstructionSchema>;
 
 export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
 
+export type RoutineRefInstruction = Type.Static<typeof RoutineRefInstructionSchema>;
+
 /** Instructions that contain nested `steps` arrays. */
 export type ContainerInstruction = ParallelInstruction | LoopInstruction;
 
@@ -246,7 +255,8 @@ export type FlowInstruction =
   | CleanupInstruction
   | GitInstruction
   | ShellInstruction
-  | SessionInstruction;
+  | SessionInstruction
+  | RoutineRefInstruction;
 
 export type OrchestratorConfig = Type.Static<typeof OrchestratorConfigSchema>;
 
@@ -274,6 +284,10 @@ export function isLoopInstruction(instr: FlowInstruction): instr is LoopInstruct
 
 export function isContainerInstruction(instr: FlowInstruction): instr is ContainerInstruction {
   return instr.type === "parallel" || instr.type === "loop";
+}
+
+export function isRoutineRefInstruction(instr: FlowInstruction): instr is RoutineRefInstruction {
+  return instr.type === "routine";
 }
 
 // ── Helper constructors ────────────────────────────────────────

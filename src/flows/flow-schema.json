@@ -326,6 +326,36 @@
         }
       }
     },
+    "RoutineRefInstruction": {
+      "type": "object",
+      "required": ["id", "type", "flow", "routine"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "routine"
+        },
+        "flow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "routine": {
+          "type": "string",
+          "minLength": 1
+        },
+        "params": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
     "FlowInstruction": {
       "anyOf": [
         {
@@ -351,6 +381,9 @@
         },
         {
           "$ref": "#/$defs/ShellInstruction"
+        },
+        {
+          "$ref": "#/$defs/RoutineRefInstruction"
         }
       ]
     }

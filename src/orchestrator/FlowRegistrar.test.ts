@@ -19,6 +19,7 @@ const {
   accessMock,
   flowLoaderLoadMock,
   flowLoaderCtorMock,
+  flowLoaderValidateCrossFlowMock,
   orchestratorCtorMock,
   specManagerLoadFromDirectoryMock,
   specManagerSpecNamesMock,
@@ -26,11 +27,13 @@ const {
   const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
   const access = vi.fn<(p: string) => Promise<void>>();
   const load = vi.fn<() => Promise<FlowDefinition>>();
+  const validateCrossFlow = vi.fn<() => string[]>();
 
   // Must use named functions — arrow functions are not constructable
   function FlowLoaderMock() {
     return { load };
   }
+  FlowLoaderMock.validateCrossFlow = validateCrossFlow;
   const flowLoaderCtor = vi.fn(FlowLoaderMock);
 
   function OrchestratorCommandMock() {
@@ -49,6 +52,7 @@ const {
     accessMock: access,
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
+    flowLoaderValidateCrossFlowMock: validateCrossFlow,
     orchestratorCtorMock: orchestratorCtor,
     specManagerLoadFromDirectoryMock: specManagerLoadFromDirectory,
     specManagerSpecNamesMock: specManagerSpecNames,
@@ -62,6 +66,10 @@ vi.mock("node:fs/promises", () => ({
 
 vi.mock("./FlowLoader", () => ({
   FlowLoader: flowLoaderCtorMock,
+}));
+
+vi.mock("./executors/RoutineRefStepExecutor", () => ({
+  RoutineRefStepExecutor: vi.fn(),
 }));
 
 vi.mock("../commands", () => ({
@@ -105,7 +113,9 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
     flowsDir: overrides.flowsDir ?? "/flows",
     knownProviders: overrides.knownProviders ?? new Set(),
-    stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
+    stepExecutorRegistry:
+      overrides.stepExecutorRegistry ??
+      ({ register: vi.fn().mockReturnValue(undefined) } as unknown as StepExecutorRegistry),
     eventBus: overrides.eventBus ?? makeMockEventBus(),
   };
 }
@@ -136,6 +146,7 @@ describe("FlowRegistrar", () => {
     vi.clearAllMocks();
     specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
     specManagerSpecNamesMock.mockReturnValue(new Set());
+    flowLoaderValidateCrossFlowMock.mockReturnValue([]);
   });
 
   describe("registerAll", () => {
@@ -398,6 +409,39 @@ describe("FlowRegistrar", () => {
 
       // Command registered, but no tools (no routines to iterate over)
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+    });
+
+    it("registers RoutineRefStepExecutor during Phase 2", async () => {
+      setupSingleFlow();
+
+      const stepExecutorRegistry = {
+        register: vi.fn().mockReturnValue(undefined),
+      } as unknown as StepExecutorRegistry;
+      const params = makeParams({ stepExecutorRegistry });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      expect(stepExecutorRegistry.register).toHaveBeenCalledTimes(1);
+      // The factory is a zero-arg function that produces a RoutineRefStepExecutor.
+      const factory = (stepExecutorRegistry.register as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(typeof factory).toBe("function");
+    });
+
+    it("throws when cross-flow validation fails", async () => {
+      readdirMock.mockResolvedValue([
+        { name: "flow-a", isDirectory: () => true },
+        { name: "flow-b", isDirectory: () => true },
+      ]);
+      accessMock.mockResolvedValue(undefined);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+      flowLoaderValidateCrossFlowMock.mockReturnValue([
+        'Routine ref "call" references unknown flow "nonexistent"',
+      ]);
+
+      const params = makeParams();
+      const registrar = new FlowRegistrar(params);
+
+      await expect(registrar.registerAll()).rejects.toThrow("Cross-flow validation failed");
     });
   });
 });

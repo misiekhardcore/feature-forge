@@ -349,6 +349,86 @@ describe("FlowContext", () => {
   });
 
   // -----------------------------------------------------------------------
+  // fork — child context for cross-flow routine calls
+  // -----------------------------------------------------------------------
+
+  describe("fork", () => {
+    it("creates a child context with the same prompt", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "build feature X",
+      });
+      const child = ctx.fork();
+      expect(child.prompt).toBe("build feature X");
+    });
+
+    it("creates a child context with fresh results, workspaces, and feedback", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      })
+        .withResult("a", makeResult())
+        .withWorkspace("ws", makeHandle("/tmp/ws"))
+        .withFeedback("some feedback");
+
+      const child = ctx.fork();
+
+      expect(child.results.size).toBe(0);
+      expect(child.workspaces.size).toBe(0);
+      expect(child.feedback).toBeUndefined();
+    });
+
+    it("shares the store reference with the child", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      ctx.store.set("key", "value");
+
+      const child = ctx.fork();
+      expect(child.store.get("key")).toBe("value");
+
+      // Mutations via child are visible via parent
+      child.store.set("key2", "value2");
+      expect(ctx.store.get("key2")).toBe("value2");
+    });
+
+    it("resets iteration to 0", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        iteration: 5,
+      });
+      const child = ctx.fork();
+      expect(child.iteration).toBe(0);
+    });
+
+    it("starts with empty params", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["plan", "use JWT"]]),
+      });
+      const child = ctx.fork();
+      expect(child.params.size).toBe(0);
+    });
+
+    it("does not mutate the original context", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      })
+        .withResult("parent", makeResult())
+        .withWorkspace("ws", makeHandle("/tmp/ws"));
+
+      ctx.fork();
+
+      expect(ctx.results.size).toBe(1);
+      expect(ctx.workspaces.size).toBe(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // resolve — template placeholders
   // -----------------------------------------------------------------------
 

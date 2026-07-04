@@ -819,3 +819,429 @@ describe("FlowLoader", () => {
     expect(failures.size).toBe(0);
   });
 });
+
+// ── Cross-flow validation ────────────────────────────────────
+
+describe("validateCrossFlow", () => {
+  function makeCrossFlow(name: string, routines: FlowDefinition["routines"]): FlowDefinition {
+    return {
+      name,
+      command: `/${name}`,
+      orchestrator: { systemPrompt: `${name} orchestrator.` },
+      routines,
+    };
+  }
+
+  it("accepts flows with no cross-flow references", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [{ type: "workspace", id: "ws", provider: "git-worktree" as const }],
+        },
+      }),
+    );
+    flows.set(
+      "flow-b",
+      makeCrossFlow("flow-b", {
+        review: {
+          params: [],
+          steps: [{ type: "cleanup", id: "c" }],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toEqual([]);
+  });
+
+  it("accepts a routine ref to an existing flow and routine", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call",
+              flow: "flow-b",
+              routine: "review",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-b",
+      makeCrossFlow("flow-b", {
+        review: {
+          params: [],
+          steps: [{ type: "cleanup", id: "c" }],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toEqual([]);
+  });
+
+  it("rejects routine ref to unknown flow", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call",
+              flow: "nonexistent",
+              routine: "review",
+            },
+          ],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('references unknown flow "nonexistent"');
+  });
+
+  it("rejects routine ref to unknown routine in existing flow", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call",
+              flow: "flow-b",
+              routine: "nonexistent",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-b",
+      makeCrossFlow("flow-b", {
+        review: {
+          params: [],
+          steps: [],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('references unknown routine "nonexistent"');
+  });
+
+  it("detects missing required param (no default)", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "caller",
+      makeCrossFlow("caller", {
+        main: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "ref",
+              flow: "callee",
+              routine: "build",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "callee",
+      makeCrossFlow("callee", {
+        build: {
+          params: [{ name: "workspace" }, { name: "plan", default: "default-plan" }],
+          steps: [],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('missing required param "workspace"');
+  });
+
+  it("accepts when required params are provided", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "caller",
+      makeCrossFlow("caller", {
+        main: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "ref",
+              flow: "callee",
+              routine: "build",
+              params: { workspace: "{{workspace.ws}}" },
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "callee",
+      makeCrossFlow("callee", {
+        build: {
+          params: [{ name: "workspace" }],
+          steps: [],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toEqual([]);
+  });
+
+  it("detects circular dependencies between flows", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call",
+              flow: "flow-b",
+              routine: "review",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-b",
+      makeCrossFlow("flow-b", {
+        review: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "callback",
+              flow: "flow-a",
+              routine: "build",
+            },
+          ],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors.some((e) => e.includes("Circular flow dependency"))).toBe(true);
+  });
+
+  it("checks routine refs inside nested containers", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "loop" as const,
+              id: "l",
+              maxIterations: 3,
+              steps: [
+                {
+                  type: "routine" as const,
+                  id: "inner",
+                  flow: "nonexistent",
+                  routine: "x",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('references unknown flow "nonexistent"');
+  });
+
+  it("checks routine refs inside parallel containers", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "parallel" as const,
+              id: "p",
+              steps: [
+                {
+                  type: "routine" as const,
+                  id: "inner",
+                  flow: "nonexistent",
+                  routine: "x",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('references unknown flow "nonexistent"');
+  });
+
+  it("accepts empty flows map", () => {
+    const flows = new Map<string, FlowDefinition>();
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toEqual([]);
+  });
+
+  it("detects a three-tier cycle (A→B→C→A)", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call-b",
+              flow: "flow-b",
+              routine: "review",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-b",
+      makeCrossFlow("flow-b", {
+        review: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call-c",
+              flow: "flow-c",
+              routine: "inspect",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-c",
+      makeCrossFlow("flow-c", {
+        inspect: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call-a",
+              flow: "flow-a",
+              routine: "build",
+            },
+          ],
+        },
+      }),
+    );
+
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors.some((e) => e.includes("Circular flow dependency"))).toBe(true);
+  });
+
+  it("accepts a diamond dependency shape (A→B, A→C, B→D, C→D)", () => {
+    const flows = new Map<string, FlowDefinition>();
+    flows.set(
+      "flow-a",
+      makeCrossFlow("flow-a", {
+        build: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call-b",
+              flow: "flow-b",
+              routine: "x",
+            },
+            {
+              type: "routine" as const,
+              id: "call-c",
+              flow: "flow-c",
+              routine: "x",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-b",
+      makeCrossFlow("flow-b", {
+        x: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call-d",
+              flow: "flow-d",
+              routine: "x",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-c",
+      makeCrossFlow("flow-c", {
+        x: {
+          params: [],
+          steps: [
+            {
+              type: "routine" as const,
+              id: "call-d",
+              flow: "flow-d",
+              routine: "x",
+            },
+          ],
+        },
+      }),
+    );
+    flows.set(
+      "flow-d",
+      makeCrossFlow("flow-d", {
+        x: {
+          params: [],
+          steps: [{ type: "cleanup", id: "c" }],
+        },
+      }),
+    );
+
+    // Diamond is acyclic — no errors expected.
+    const errors = FlowLoader.validateCrossFlow(flows);
+    expect(errors).toEqual([]);
+  });
+});
