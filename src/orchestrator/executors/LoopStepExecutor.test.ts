@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makeMockEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import type { RoutineResult } from "../RoutineResult";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { LoopStepExecutor } from "./LoopStepExecutor";
@@ -320,22 +321,32 @@ describe("LoopStepExecutor", () => {
       expect(eventBus.emit).toHaveBeenNthCalledWith(
         1,
         "feature-forge:loop-round-start",
-        expect.objectContaining({ phase: "loop-round-start", details: { rounds: 1 } }),
+        expect.objectContaining({
+          phase: "loop-round-start",
+          details: expect.objectContaining({ rounds: 1 }),
+        }),
       );
       expect(eventBus.emit).toHaveBeenNthCalledWith(
         2,
         "feature-forge:loop-round-complete",
-        expect.objectContaining({ phase: "loop-round-complete", details: { rounds: 1 } }),
+        expect.objectContaining({
+          phase: "loop-round-complete",
+          details: expect.objectContaining({ rounds: 1 }),
+        }),
       );
       expect(eventBus.emit).toHaveBeenNthCalledWith(
         3,
         "feature-forge:loop-round-start",
-        expect.objectContaining({ details: { rounds: 2 } }),
+        expect.objectContaining({
+          details: expect.objectContaining({ rounds: 2 }),
+        }),
       );
       expect(eventBus.emit).toHaveBeenNthCalledWith(
         4,
         "feature-forge:loop-round-complete",
-        expect.objectContaining({ details: { rounds: 2 } }),
+        expect.objectContaining({
+          details: expect.objectContaining({ rounds: 2 }),
+        }),
       );
     });
 
@@ -357,6 +368,55 @@ describe("LoopStepExecutor", () => {
       const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
       expect(result.results.get("l")!.parsed!.passed).toBe(true);
+    });
+  });
+
+  describe("getDisplayContribution", () => {
+    const executor = new LoopStepExecutor();
+
+    it("returns iteration and maxIterations for loop-round-start events", () => {
+      const contrib = executor.getDisplayContribution({
+        phase: "loop-round-start",
+        message: 'Loop "l" — round 2/5',
+        details: { rounds: 2, maxIterations: 5 } as Partial<RoutineResult>,
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.iteration).toBe(1); // rounds - 1 (0-based)
+      expect(contrib!.maxIterations).toBe(5);
+    });
+
+    it("returns iteration and maxIterations for loop-round-complete events", () => {
+      const contrib = executor.getDisplayContribution({
+        phase: "loop-round-complete",
+        message: 'Loop "l" — round 3 complete',
+        details: { rounds: 3, maxIterations: 3 } as Partial<RoutineResult>,
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.iteration).toBe(2);
+      expect(contrib!.maxIterations).toBe(3);
+    });
+
+    it("defaults maxIterations to 0 when not present in details", () => {
+      const contrib = executor.getDisplayContribution({
+        phase: "loop-round-start",
+        message: "Loop started",
+        details: { rounds: 1 },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.maxIterations).toBe(0);
+    });
+
+    it("returns undefined for non-loop phase events", () => {
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: "Agent started",
+        details: {},
+      });
+
+      expect(contrib).toBeUndefined();
     });
   });
 });
