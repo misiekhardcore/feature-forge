@@ -70,6 +70,7 @@ export const GitInstructionSchema = defineInstruction("git", {
 export const ShellInstructionSchema = defineInstruction("shell", {
   command: Type.String({ minLength: 1 }),
   cwd: Type.String({ minLength: 1 }),
+  bodyFile: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 // ── Container schemas (steps added via patch below) ─────────

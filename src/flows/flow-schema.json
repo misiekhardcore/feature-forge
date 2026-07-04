@@ -279,6 +279,10 @@
         "cwd": {
           "type": "string",
           "minLength": 1
+        },
+        "bodyFile": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

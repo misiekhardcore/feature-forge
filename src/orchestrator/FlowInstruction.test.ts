@@ -237,6 +237,17 @@ describe("GitInstructionSchema", () => {
     expect(Value.Check(GitInstructionSchema, valid)).toBe(true);
   });
 
+  it("validates a git instruction with a commit message", () => {
+    const valid = {
+      type: "git",
+      id: "g1",
+      action: "add-and-commit",
+      cwd: "/tmp/ws",
+      message: "feat: add feature",
+    };
+    expect(Value.Check(GitInstructionSchema, valid)).toBe(true);
+  });
+
   it("validates push-current action", () => {
     const valid = { type: "git", id: "g1", action: "push-current", cwd: "/tmp/ws" };
     expect(Value.Check(GitInstructionSchema, valid)).toBe(true);
@@ -266,6 +277,17 @@ describe("GitInstructionSchema", () => {
 describe("ShellInstructionSchema", () => {
   it("validates a shell instruction", () => {
     const valid = { type: "shell", id: "s1", command: "echo hello", cwd: "/tmp/ws" };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
+  });
+
+  it("validates a shell instruction with bodyFile", () => {
+    const valid = {
+      type: "shell",
+      id: "s1",
+      command: 'gh pr create --body-file "$BODY_FILE"',
+      cwd: "/tmp/ws",
+      bodyFile: "markdown body content",
+    };
     expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
   });
 
@@ -480,13 +502,19 @@ describe("FlowDefinitionSchema", () => {
         ],
       },
       open_pr: {
-        params: [{ name: "workspace" }, { name: "title" }],
+        params: [
+          { name: "workspace" },
+          { name: "title" },
+          { name: "commit_message" },
+          { name: "body" },
+        ],
         steps: [
           {
             type: "git" as const,
             id: "commit",
             action: "add-and-commit" as const,
             cwd: "{{workspace}}",
+            message: "{{commit_message}}",
           },
           {
             type: "git" as const,
@@ -494,7 +522,13 @@ describe("FlowDefinitionSchema", () => {
             action: "push-current" as const,
             cwd: "{{workspace}}",
           },
-          { type: "shell" as const, id: "pr", command: "gh pr create", cwd: "{{workspace}}" },
+          {
+            type: "shell" as const,
+            id: "pr",
+            command: 'gh pr create --title "{{title}}" --body-file "$BODY_FILE"',
+            cwd: "{{workspace}}",
+            bodyFile: "{{body}}",
+          },
         ],
       },
     },

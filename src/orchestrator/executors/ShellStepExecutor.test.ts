@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execFileRaw } = vi.hoisted(() => ({
+const { execFileRaw, writeFileRaw, unlinkRaw } = vi.hoisted(() => ({
   execFileRaw: vi.fn(),
+  writeFileRaw: vi.fn(),
+  unlinkRaw: vi.fn(),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -19,6 +21,15 @@ vi.mock("node:child_process", () => ({
       });
     },
   }),
+}));
+
+vi.mock("node:fs/promises", () => ({
+  writeFile: writeFileRaw,
+  unlink: unlinkRaw,
+}));
+
+vi.mock("node:os", () => ({
+  tmpdir: () => "/tmp",
 }));
 
 import { makeMockEventBus } from "../../test-utils";
@@ -179,6 +190,119 @@ describe("ShellStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
+    });
+
+    describe("bodyFile", () => {
+      it("writes bodyFile content to a temp file and exposes BODY_FILE env var", async () => {
+        mockExecSuccess("pr created: https://github.com/...");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "pr",
+          command: 'gh pr create --title "fix" --body-file "$BODY_FILE"',
+          cwd: "/tmp/ws",
+          bodyFile: "# PR Body\n\nThis is a markdown description.",
+        };
+        const context = new FlowContext(new Map(), "task");
+        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+        // Body content was written to temp file.
+        expect(writeFileRaw).toHaveBeenCalledTimes(1);
+        expect(writeFileRaw).toHaveBeenCalledWith(
+          "/tmp/feature-forge-body-pr.txt",
+          "# PR Body\n\nThis is a markdown description.",
+          "utf-8",
+        );
+
+        // BODY_FILE env var is passed to execFile.
+        expect(execFileRaw).toHaveBeenCalledTimes(1);
+        expect(execFileRaw.mock.calls[0][2].env.BODY_FILE).toBe("/tmp/feature-forge-body-pr.txt");
+
+        // Temp file is cleaned up.
+        expect(unlinkRaw).toHaveBeenCalledWith("/tmp/feature-forge-body-pr.txt");
+
+        expect(result.results.get("pr")!.parsed!.passed).toBe(true);
+      });
+
+      it("resolves {{...}} placeholders in bodyFile content", async () => {
+        mockExecSuccess("done");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "pr2",
+          command: 'gh pr create --body-file "$BODY_FILE"',
+          cwd: "/tmp/ws",
+          bodyFile: "Summary of: {{prompt}}",
+        };
+        const context = new FlowContext(new Map(), "implement login");
+        await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+        expect(writeFileRaw).toHaveBeenCalledWith(
+          "/tmp/feature-forge-body-pr2.txt",
+          "Summary of: implement login",
+          "utf-8",
+        );
+      });
+
+      it("cleans up temp file even when the command fails", async () => {
+        mockExecFailure("gh: command not found");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "pr3",
+          command: 'gh pr create --body-file "$BODY_FILE"',
+          cwd: "/tmp/ws",
+          bodyFile: "body",
+        };
+        const context = new FlowContext(new Map(), "task");
+        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+        expect(result.results.get("pr3")!.parsed!.passed).toBe(false);
+        // Still cleans up.
+        expect(unlinkRaw).toHaveBeenCalledWith("/tmp/feature-forge-body-pr3.txt");
+      });
+
+      it("propagates unlink errors silently (best-effort cleanup)", async () => {
+        mockExecSuccess("ok");
+        unlinkRaw.mockRejectedValue(new Error("ENOENT"));
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "pr4",
+          command: "echo done",
+          cwd: "/tmp/ws",
+          bodyFile: "body",
+        };
+        const context = new FlowContext(new Map(), "task");
+        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+        expect(result.results.get("pr4")!.parsed!.passed).toBe(true);
+        expect(unlinkRaw).toHaveBeenCalled();
+      });
+
+      it("does not write file or set env when bodyFile is not present", async () => {
+        mockExecSuccess("ok");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "no-body",
+          command: "echo hello",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext(new Map(), "task");
+        await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+        expect(writeFileRaw).not.toHaveBeenCalled();
+        expect(unlinkRaw).not.toHaveBeenCalled();
+        // env is passed but without BODY_FILE.
+        expect(execFileRaw.mock.calls[0][2].env).toBeDefined();
+        expect(execFileRaw.mock.calls[0][2].env.BODY_FILE).toBeUndefined();
+      });
     });
 
     describe("signal", () => {

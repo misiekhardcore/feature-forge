@@ -54,11 +54,17 @@ The routine returns:
 
 ### Phase 3: Summarise and PR
 
-1. If `run_build_loop.passed` is true, call `open_pr(workspace, title)` to
-   commit, push, and create the PR.
-2. After `open_pr` succeeds, call `destroy_workspace(workspace)` to release
+1. If `run_build_loop.passed` is true, derive a conventional-commits message
+   and a concise markdown PR body from the build loop results:
+   - The commit message must follow [conventional commits](https://www.conventionalcommits.org/)
+     (e.g. `feat: short description`, `fix: short description`).
+   - The PR body should include a brief summary of what was changed and what
+     was tested.
+2. Call `open_pr(workspace, title, commit_message, body)` to commit, push,
+   and create the PR.
+3. After `open_pr` succeeds, call `destroy_workspace(workspace)` to release
    the worktree.
-3. Post the PR URL to the user.
+4. Post the PR URL to the user.
 
 If `run_build_loop.passed` is false, summarise the remaining findings to the
 user and ask whether to retry with updated feedback.

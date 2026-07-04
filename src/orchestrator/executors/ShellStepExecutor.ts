@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { promisify } from "node:util";
 
 import type { EventBus } from "@earendil-works/pi-coding-agent";
@@ -40,6 +43,21 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
 
+    // When bodyFile is present, write the resolved content to a temp file and
+    // expose its path via the BODY_FILE environment variable. This avoids
+    // interpolating LLM-derived content directly into the shell command string,
+    // which would be vulnerable to shell injection.
+    let bodyFilePath: string | undefined;
+    const extraEnv: Record<string, string> = {};
+
+    if (instruction.bodyFile !== undefined) {
+      const bodyContent = context.resolve(instruction.bodyFile);
+      const tmpDir = os.tmpdir();
+      bodyFilePath = path.join(tmpDir, `feature-forge-body-${instruction.id}.txt`);
+      await fs.writeFile(bodyFilePath, bodyContent, "utf-8");
+      extraEnv.BODY_FILE = bodyFilePath;
+    }
+
     logger.info("Executing shell step", {
       instructionId: instruction.id,
       command: resolvedCommand,
@@ -58,6 +76,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         timeout: this.timeout,
         maxBuffer: 10 * 1024 * 1024,
         signal,
+        env: { ...process.env, ...extraEnv },
       });
 
       const output = (stdout + (stderr ? `\nstderr:\n${stderr}` : "")).trim();
@@ -105,6 +124,14 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       };
 
       return context.withResult(instruction.id, failureResult);
+    } finally {
+      if (bodyFilePath !== undefined) {
+        try {
+          await fs.unlink(bodyFilePath);
+        } catch {
+          // Best-effort cleanup — temp files are in the OS tmpdir.
+        }
+      }
     }
   }
 }
