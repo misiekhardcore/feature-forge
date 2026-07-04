@@ -5,7 +5,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 
-import type { FlowParams } from "../../orchestrator/FlowStateStore";
 import type { RoutineResult } from "../RoutineResult";
 import type { DisplayContribution } from "./DisplayContribution";
 import type { ProgressWidget } from "./ProgressReporter";
@@ -34,8 +33,8 @@ export interface BuildWidgetLinesParams {
   metadata?: string[];
   /** Optional workspace path line. */
   path?: string;
-  /** Optional session K/V pairs to display in the footer. */
-  sessionEntries?: FlowParams;
+  /** Optional pre-formatted session status line (e.g. "base=main"). */
+  sessionLine?: string;
 }
 
 /** Parameters for {@link ProgressRenderer.buildStatusLine}. */
@@ -105,7 +104,7 @@ export class ProgressRenderer {
    * metadata / workspace lines.
    */
   static buildWidgetLines(params: BuildWidgetLinesParams): string[] {
-    const { theme, title, subtitle, rows, metadata, path, sessionEntries } = params;
+    const { theme, title, subtitle, rows, metadata, path, sessionLine } = params;
     const lines: string[] = [];
 
     // Header
@@ -140,11 +139,8 @@ export class ProgressRenderer {
       lines.push(theme.fg("muted", `  ws: ${path}`));
     }
 
-    // Session
-    if (sessionEntries) {
-      const sessionLine = Object.entries(sessionEntries)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(" ");
+    // Session (formatted upstream by renderToWidget from contributions)
+    if (sessionLine) {
       lines.push(theme.fg("muted", `  session: ${sessionLine}`));
     }
 
@@ -323,6 +319,15 @@ export class ProgressRenderer {
       metadata.push(`while: ${continueWhile}`);
     }
 
+    // Extract session state from contributions (set by SessionStepExecutor).
+    let sessionLine: string | undefined;
+    const sessionContrib = [...state.contributions].reverse().find((c) => c.sessionEntries);
+    if (sessionContrib?.sessionEntries) {
+      sessionLine = Object.entries(sessionContrib.sessionEntries)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" ");
+    }
+
     const widgetLines = ProgressRenderer.buildWidgetLines({
       theme,
       title: state.routineName,
@@ -330,8 +335,7 @@ export class ProgressRenderer {
       rows,
       metadata: metadata.length > 0 ? metadata : undefined,
       path: workspace,
-      sessionEntries:
-        Object.keys(state.sessionEntries).length > 0 ? state.sessionEntries : undefined,
+      sessionLine,
     });
 
     const tags: string[] = [];

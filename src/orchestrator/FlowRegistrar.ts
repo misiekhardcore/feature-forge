@@ -8,7 +8,6 @@ import { OrchestratorCommand } from "../commands";
 import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
-import type { FlowInstruction } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
@@ -182,33 +181,6 @@ export class FlowRegistrar {
           error,
         });
       }
-    }
-
-    // Auto-register set_flow_param routine (system-built, not from flow.json).
-    const setFlowParamDef = {
-      params: [
-        { name: "key", description: "Session key to set" },
-        { name: "value", description: "Value to store" },
-      ],
-      steps: [
-        {
-          type: "session",
-          id: "set",
-          key: "{{key}}",
-          value: "{{value}}",
-        } as unknown as FlowInstruction,
-      ],
-    };
-    const setFlowParamTool = new RoutineTool(
-      flowName,
-      "set_flow_param",
-      routineExecutor,
-      setFlowParamDef,
-    );
-    try {
-      toolRegistry.registerInstance(setFlowParamTool);
-    } catch (error) {
-      logger.warn("[feature-forge] Failed to register set_flow_param", { error });
     }
   }
 }

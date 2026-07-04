@@ -12,7 +12,6 @@ import { Type } from "typebox";
 
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
-import type { FlowParams } from "./FlowStateStore";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -112,10 +111,6 @@ export class RoutineTool
     return this._contributions;
   }
 
-  get sessionEntries(): FlowParams {
-    return this.executor.store.toObject();
-  }
-
   // ── ToolDefinition rendering ───────────────────────────────
 
   renderCall = (
@@ -143,7 +138,7 @@ export class RoutineTool
 
   async execute(
     toolCallId: string,
-    params: FlowParams,
+    params: Record<string, string>,
     signal: AbortSignal | undefined,
     onUpdate: AgentToolUpdateCallback<RoutineResult> | undefined,
     ctx: ExtensionContext,
@@ -154,7 +149,7 @@ export class RoutineTool
     });
 
     const prompt = params["prompt"] ?? params["_prompt"] ?? "";
-    const routineParams: FlowParams = {};
+    const routineParams: Record<string, string> = {};
     for (const param of this.routineDef.params) {
       if (param.name in params) {
         routineParams[param.name] = params[param.name];
@@ -202,7 +197,7 @@ export class RoutineTool
             workspace: event.details.workspace,
             results: {},
             summary: event.message,
-            session: this.sessionEntries,
+            session: this.executor.store.toObject(),
           },
         });
       }
