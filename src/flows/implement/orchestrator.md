@@ -29,6 +29,31 @@ You have access to these sub-agent types via routine tools:
 
 ## Workflow
 
+### Phase 0: Orient
+
+Before writing any code, determine the correct target base branch for the PR.
+
+1. Check which branch existing open PRs target:
+   ```
+   gh pr list --state open --json baseRefName,headRefName,title --limit 20
+   ```
+2. Note the dominant `baseRefName` — this is the integration branch.
+3. If issue files match paths on multiple branches, diff them to pick the
+   most evolved one (the one with the file layout and infrastructure relevant
+   to the task):
+   ```
+   git fetch origin
+   git diff --stat origin/<candidate-a> origin/<candidate-b> -- <paths-from-issue>
+   ```
+4. If ambiguous, ask the user: "Which branch should this PR target?"
+5. **Store the resolved base branch** — you will pass it to `open_pr` in Phase 3.
+6. **Create a fresh branch from the base** before implementing:
+   ```
+   git fetch origin && git checkout -b feat/<slug> origin/<base>
+   ```
+7. Never implement on a stale feature branch — always start from the verified
+   integration branch.
+
 ### Phase 1: Plan
 
 1. Analyse the task and break it into implementation steps.
@@ -54,8 +79,8 @@ The routine returns:
 
 ### Phase 3: Summarise and PR
 
-1. If `run_build_loop.passed` is true, call `open_pr(workspace, title)` to
-   commit, push, and create the PR.
+1. If `run_build_loop.passed` is true, call `open_pr(workspace, title, base)` to
+   commit, push, and create the PR — where `base` is the branch resolved in Phase 0.
 2. After `open_pr` succeeds, call `destroy_workspace(workspace)` to release
    the worktree.
 3. Post the PR URL to the user.

@@ -68,7 +68,8 @@
     "open_pr": {
       "params": [
         { "name": "workspace", "description": "Worktree path from run_build_loop result" },
-        { "name": "title", "description": "PR title" }
+        { "name": "title", "description": "PR title" },
+        { "name": "base", "description": "Target base branch for the PR" }
       ],
       "steps": [
         { "type": "git", "id": "commit", "action": "add-and-commit", "cwd": "{{workspace}}" },
@@ -76,7 +77,7 @@
         {
           "type": "shell",
           "id": "pr",
-          "command": "gh pr create --title \"{{title}}\" --body \"See session summary\"",
+          "command": "gh pr create --title \"{{title}}\" --body \"See session summary\" --base \"{{base}}\"",
           "cwd": "{{workspace}}"
         }
       ]
