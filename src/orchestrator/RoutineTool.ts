@@ -197,6 +197,7 @@ export class RoutineTool
             workspace: event.details.workspace,
             results: {},
             summary: event.message,
+            session: this.executor.store.toObject(),
           },
         });
       }

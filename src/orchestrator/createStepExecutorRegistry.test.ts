@@ -45,7 +45,7 @@ describe("createStepExecutorRegistry", () => {
       worktreeRegistry,
     );
 
-    expect(registry.types().size).toBe(7);
+    expect(registry.types().size).toBe(8);
   });
 
   it("registers leaf executors with correct types", () => {

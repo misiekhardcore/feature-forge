@@ -2,6 +2,7 @@
 id: "implement-orchestrator"
 role: "orchestrator"
 tools:
+  - set_flow_param
   - run_build_loop
   - open_pr
   - destroy_workspace

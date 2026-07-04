@@ -65,7 +65,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "do the thing",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -90,7 +93,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "do {{prompt}}",
       };
-      const context = new FlowContext(new Map(), "add auth");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "add auth",
+      });
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -110,7 +116,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -131,7 +140,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "build",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -151,7 +163,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "build it",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -172,7 +187,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -195,7 +213,10 @@ describe("AgentStepExecutor", () => {
         prompt: "review",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -220,7 +241,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "build",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -241,7 +265,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -262,7 +289,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "build",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const controller = new AbortController();
       controller.abort();
 
@@ -289,7 +319,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "build",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -299,7 +332,10 @@ describe("AgentStepExecutor", () => {
 
   describe("workingDir", () => {
     function contextWithWorkspace(name: string, path: string): FlowContext {
-      const base = new FlowContext(new Map(), "task");
+      const base = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       return base.withWorkspace(name, new WorkspaceHandle(path, new Date("2025-01-01T00:00:00Z")));
     }
 
@@ -338,7 +374,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         workingDir: { workspace: "missing" },
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       await expect(
         executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
@@ -359,7 +398,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         workingDir: { path: "/abs/x" },
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -380,7 +422,10 @@ describe("AgentStepExecutor", () => {
           systemPrompt: "build",
           prompt: "do the thing",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
 
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
@@ -417,7 +462,10 @@ describe("AgentStepExecutor", () => {
           systemPrompt: "build",
           prompt: "build",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
 
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
@@ -442,7 +490,10 @@ describe("AgentStepExecutor", () => {
           systemPrompt: "build",
           prompt: "build",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
 
         // Should work with an event bus that is mocked.
         const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
@@ -463,7 +514,10 @@ describe("AgentStepExecutor", () => {
         systemPrompt: "build",
         prompt: "build",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -486,7 +540,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -507,7 +564,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -528,7 +588,10 @@ describe("AgentStepExecutor", () => {
         prompt: "build",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -548,7 +611,10 @@ describe("AgentStepExecutor", () => {
         prompt: "review",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -569,7 +635,10 @@ describe("AgentStepExecutor", () => {
         prompt: "review",
         parseJson: true,
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 

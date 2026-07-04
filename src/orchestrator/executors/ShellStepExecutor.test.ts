@@ -74,7 +74,7 @@ describe("ShellStepExecutor", () => {
         command: "gh pr create --title 'fix'",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
@@ -96,11 +96,11 @@ describe("ShellStepExecutor", () => {
         command: "echo {{prompt}}",
         cwd: "{{workspace.ws}}",
       };
-      const context = new FlowContext(
-        new Map(),
-        "hello world",
-        new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
-      );
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "hello world",
+        workspaces: new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
+      });
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
@@ -117,7 +117,7 @@ describe("ShellStepExecutor", () => {
         command: "npm test",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh3")!.raw).toContain("warning: something");
@@ -133,7 +133,7 @@ describe("ShellStepExecutor", () => {
         command: "exit 1",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
@@ -159,7 +159,7 @@ describe("ShellStepExecutor", () => {
         command: "bad",
         cwd: "/tmp",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh6")!.parsed!.passed).toBe(false);
@@ -175,7 +175,7 @@ describe("ShellStepExecutor", () => {
         command: "curl http://localhost:12345",
         cwd: "/tmp/ws",
       };
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
@@ -193,7 +193,7 @@ describe("ShellStepExecutor", () => {
           command: "echo hello",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         await executor.execute(
           instruction,
@@ -218,7 +218,7 @@ describe("ShellStepExecutor", () => {
           command: "echo hello",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         await expect(
           executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
@@ -240,7 +240,7 @@ describe("ShellStepExecutor", () => {
           command: "echo hello",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
@@ -271,7 +271,7 @@ describe("ShellStepExecutor", () => {
           command: "false",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         const eventBus = makeMockEventBus();
         const result = await executor.execute(instruction, context, vi.fn(), eventBus);
@@ -291,7 +291,7 @@ describe("ShellStepExecutor", () => {
           command: "echo ok",
           cwd: "/tmp/ws",
         };
-        const context = new FlowContext(new Map(), "task");
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 

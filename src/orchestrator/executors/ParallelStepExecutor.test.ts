@@ -91,7 +91,7 @@ describe("ParallelStepExecutor", () => {
       ],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -115,7 +115,7 @@ describe("ParallelStepExecutor", () => {
       ],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -139,7 +139,7 @@ describe("ParallelStepExecutor", () => {
       ],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
       executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
@@ -156,7 +156,7 @@ describe("ParallelStepExecutor", () => {
       steps: [{ type: "unknown", id: "x" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
       executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
@@ -175,7 +175,7 @@ describe("ParallelStepExecutor", () => {
       steps: [{ type: "op-a", id: "a" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const controller = new AbortController();
     controller.abort();
 
@@ -200,7 +200,7 @@ describe("ParallelStepExecutor", () => {
       steps: [],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -220,7 +220,7 @@ describe("ParallelStepExecutor", () => {
         steps: [{ type: "op-a", id: "a" } as unknown as FlowInstruction],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
       const eventBus = makeMockEventBus();
@@ -257,7 +257,7 @@ describe("ParallelStepExecutor", () => {
         steps: [{ type: "failing", id: "b" } as unknown as FlowInstruction],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
       const eventBus = makeMockEventBus();
@@ -280,7 +280,7 @@ describe("ParallelStepExecutor", () => {
         steps: [{ type: "op-a", id: "a" } as unknown as FlowInstruction],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
       const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
