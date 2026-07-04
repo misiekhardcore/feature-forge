@@ -100,7 +100,7 @@ describe("routine progress display (e2e)", () => {
 
     const onEvent = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
-      for (const exec of executor.stepRegistry.all().values()) {
+      for (const exec of executor.stepRegistry.getAll().values()) {
         const contrib: DisplayContribution | undefined = exec.getDisplayContribution(event);
         if (!contrib) continue;
         if (contrib.agentId && contrib.agentStatus) {

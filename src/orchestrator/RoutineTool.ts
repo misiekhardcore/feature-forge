@@ -204,7 +204,7 @@ export class RoutineTool implements ToolDefinition<
       logger.debug("RoutineTool progress", { ...event });
 
       // Accumulate display contributions from all executors.
-      for (const executor of this.executor.stepRegistry.all().values()) {
+      for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
 

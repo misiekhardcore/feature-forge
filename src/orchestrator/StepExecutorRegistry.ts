@@ -43,7 +43,7 @@ export class StepExecutorRegistry {
   }
 
   /** Return all registered executors. */
-  all(): ReadonlyMap<string, StepExecutor> {
+  getAll(): ReadonlyMap<string, StepExecutor> {
     return this.executors;
   }
 }
