@@ -8,6 +8,7 @@ import { OrchestratorCommand } from "../commands";
 import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
+import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";
 import { FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
@@ -181,6 +182,13 @@ export class FlowRegistrar {
           error,
         });
       }
+    }
+
+    // Builtin routines — available in every flow, not declared in flow.json.
+    try {
+      toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor));
+    } catch (error) {
+      logger.warn("[feature-forge] Failed to register set_flow_param", { error });
     }
   }
 }

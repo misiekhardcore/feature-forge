@@ -300,7 +300,7 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // 1 user + 1 builtin
     });
 
     it("handles RoutineTool registration failures gracefully (non-Error throw)", async () => {
@@ -324,7 +324,7 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // 1 user + 1 builtin
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
         expect.any(Object),
@@ -359,7 +359,7 @@ describe("FlowRegistrar", () => {
       await registrar.registerAll();
 
       // First call threw, second succeeded
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2);
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(3); // +builtin set_flow_param
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
         expect.any(Object),

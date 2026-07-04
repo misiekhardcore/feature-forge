@@ -120,27 +120,6 @@
           "of": "{{workspace}}"
         }
       ]
-    },
-    "set_flow_param": {
-      "description": "Set a flow-global session parameter. Values persist across all routine calls within this flow execution.",
-      "params": [
-        {
-          "name": "key",
-          "description": "Session key to set"
-        },
-        {
-          "name": "value",
-          "description": "Value to store"
-        }
-      ],
-      "steps": [
-        {
-          "type": "session",
-          "id": "set",
-          "key": "{{key}}",
-          "value": "{{value}}"
-        }
-      ]
     }
   },
   "params": [
