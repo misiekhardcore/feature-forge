@@ -18,10 +18,39 @@ export interface ProgressSnapshot {
 }
 
 /**
+ * A pre-initialized empty snapshot suitable as a default return value.
+ *
+ * Used by {@link NoOpProgressReporter} and other consumers that need an
+ * empty snapshot without constructing a fresh one each time.
+ */
+export const EMPTY_PROGRESS_SNAPSHOT: ProgressSnapshot = {
+  routineName: "",
+  phase: "",
+  message: "",
+  iteration: 0,
+  maxIterations: 0,
+  agents: new Map(),
+};
+
+/**
+ * Generic progress-widget surface for routine execution.
+ *
+ * Implementations drive TUI or no-op rendering. The caller is responsible
+ * for formatting lines and status text; the widget only handles
+ * throttled rendering and surface lifecycle.
+ */
+export interface ProgressWidget {
+  /** Render the given widget lines and status text to the display surface. */
+  render(lines: string[], status: string): void;
+  /** Remove all progress-related UI elements from the display surface. */
+  clear(): void;
+}
+
+/**
  * Abstract port for routine progress reporting.
  *
  * Concrete implementations drive different rendering targets:
- * {@link import("./TuiProgressReporter").TuiProgressReporter} for TUI
+ * {@link import("./TuiProgressReporter").TuiRoutineWidget} for TUI
  * widgets and status bars, {@link import("./NoOpProgressReporter").NoOpProgressReporter}
  * for non-TUI environments.
  */

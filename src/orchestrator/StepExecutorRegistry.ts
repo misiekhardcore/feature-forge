@@ -41,4 +41,9 @@ export class StepExecutorRegistry {
   types(): ReadonlySet<string> {
     return new Set(this.executors.keys());
   }
+
+  /** Return all registered executors. */
+  all(): ReadonlyMap<string, StepExecutor> {
+    return this.executors;
+  }
 }

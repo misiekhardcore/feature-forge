@@ -14,19 +14,25 @@ import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { isLoopInstruction } from "./FlowInstruction";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
-import type { ProgressEvent } from "./progress/ProgressEvent";
-import { ProgressReporter } from "./progress/ProgressReporter";
-import { TuiProgressReporter } from "./progress/TuiProgressReporter";
+import {
+  buildStatusLine,
+  buildWidgetLines,
+  formatAgentRow,
+  statusIcon,
+} from "./progress/ProgressRenderer";
+import type { ProgressWidget } from "./progress/ProgressReporter";
+import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
+import type { RoutineResult } from "./RoutineResult";
 
 /**
- * Shared state type for {@link RoutineTool} renderer invalidation.
+ * Internal state for tool-row invalidation.
  *
- * The TUI assigns `context.invalidate` to this object so the progress
- * reporter's `onStateChange` callback can trigger tool-row re-renders.
+ * The TUI framework stores its `invalidate` callback here so that
+ * progress-state changes can trigger tool-row re-renders.
  */
-export interface RoutineToolRowState {
+interface ToolRowInvalidation {
   invalidate: (() => void) | undefined;
 }
 
@@ -41,15 +47,15 @@ export interface RoutineToolRowState {
  * declared `params` array so the LLM receives accurate parameter hints
  * with names and descriptions.
  *
- * Implements {@link ToolDefinition} directly rather than extending
- * the abstract {@link Tool} class, because the Tool base class
- * constrains TParams to extend TSchema, while we build a dynamic
- * schema that varies per routine.
+ * Progress reporting extracts display contributions from each registered
+ * {@link import("./StepExecutor").StepExecutor} via
+ * {@link import("./StepExecutor").StepExecutor.getDisplayContribution}
+ * and renders them through a {@link ProgressWidget} (TUI or no-op).
  */
 export class RoutineTool implements ToolDefinition<
   TObject<TProperties>,
-  { routine: string; passed: boolean; summary: string },
-  RoutineToolRowState
+  RoutineResult,
+  ToolRowInvalidation
 > {
   readonly name: string;
   readonly label: string;
@@ -57,6 +63,17 @@ export class RoutineTool implements ToolDefinition<
   readonly parameters: TObject<TProperties>;
 
   private readonly routineName: string;
+  private readonly continueWhile?: string;
+
+  /** Tracks agent state accumulated from display contributions. */
+  private readonly agentState = new Map<string, { status: string; summary?: string }>();
+
+  /** Current iteration index (0-based), updated from loop events. */
+  private iteration = 0;
+  /** Maximum loop iterations, updated from loop events. */
+  private maxIterations = 0;
+  /** Current workspace path, updated from workspace events. */
+  private workspace?: string;
 
   constructor(
     flowName: string,
@@ -69,35 +86,55 @@ export class RoutineTool implements ToolDefinition<
     this.label = `Routine: ${flowName}/${routineName}`;
     this.description = this.buildDescription(routineName, routineDef);
     this.parameters = RoutineTool.buildParamsSchema(routineDef);
+
+    // Extract continueWhile from the loop instruction, if present.
+    for (const step of routineDef.steps) {
+      if (isLoopInstruction(step) && step.continueWhile) {
+        this.continueWhile = step.continueWhile;
+        break;
+      }
+    }
   }
 
-  /** Shared state key for renderCall renderer invalidation. */
-  readonly routineToolRowState: RoutineToolRowState = { invalidate: undefined };
+  /** Tool-row invalidation handle for renderCall/renderResult. */
+  private readonly toolRowState: ToolRowInvalidation = { invalidate: undefined };
 
   renderCall = (
     _args: Record<string, unknown>,
     theme: Theme,
     // ToolRenderContext is not publicly exported, so we type context loosely.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    context: { state: RoutineToolRowState; invalidate: () => void; [key: string]: any },
+    context: { state: ToolRowInvalidation; invalidate: () => void; [key: string]: any },
   ): Component => {
     context.state.invalidate = context.invalidate;
 
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
     return {
       render: () => {
-        return [theme.fg("accent", `⟳ ${this.routineName} · pending`)];
+        const parts = [theme.fg("accent", `⟳ ${self.routineName}`)];
+        if (self.maxIterations > 0) {
+          parts.push(theme.fg("muted", ` ${self.iteration + 1}/${self.maxIterations}`));
+        }
+        const agentCount = self.agentState.size;
+        if (agentCount > 0) {
+          parts.push(theme.fg("muted", ` · ${agentCount} agent${agentCount > 1 ? "s" : ""}`));
+        } else {
+          parts.push(theme.fg("muted", " · pending"));
+        }
+        return [parts.join("")];
       },
       invalidate: () => {
-        /* stateless — nothing to clear */
+        /* stateless — re-render is handled by onStateChange */
       },
     };
   };
 
   renderResult = (
-    result: AgentToolResult<{ routine: string; passed: boolean; summary: string }>,
+    result: AgentToolResult<RoutineResult>,
     _options: ToolRenderResultOptions,
     theme: Theme,
-    _context: { state: RoutineToolRowState; invalidate: () => void },
+    _context: { state: ToolRowInvalidation; invalidate: () => void },
   ): Component => {
     const passed = result.details?.passed ?? false;
     const routine = result.details?.routine ?? this.routineName;
@@ -114,22 +151,17 @@ export class RoutineTool implements ToolDefinition<
   };
 
   async execute(
-    _toolCallId: string,
+    toolCallId: string,
     params: Record<string, string>,
     signal: AbortSignal | undefined,
-    onUpdate:
-      | AgentToolUpdateCallback<{ routine: string; passed: boolean; summary: string }>
-      | undefined,
+    onUpdate: AgentToolUpdateCallback<RoutineResult> | undefined,
     ctx: ExtensionContext,
-  ): Promise<AgentToolResult<{ routine: string; passed: boolean; summary: string }>> {
+  ): Promise<AgentToolResult<RoutineResult>> {
     logger.info("RoutineTool invoked", {
       routine: this.routineName,
       params: Object.keys(params),
     });
 
-    // `_prompt` is a collision-avoidance fallback: when a routine declares a
-    // param also named "prompt", the LLM may pass the task under the underscore
-    // alias. Both are accepted; the named param wins when present.
     const prompt = params["prompt"] ?? params["_prompt"] ?? "";
     const routineParams: Record<string, string> = {};
     for (const param of this.routineDef.params) {
@@ -138,18 +170,14 @@ export class RoutineTool implements ToolDefinition<
       }
     }
 
-    // Extract loop config from the routine definition for progress reporting.
-    const loopConfig = RoutineTool.findLoopConfig(this.routineDef);
+    // Reset accumulated state for this execution.
+    this.resetState();
 
-    // Wire TUI progress reporter when UI is available.
-    const reporter: ProgressReporter = ctx.ui
-      ? new TuiProgressReporter({
+    const widget: ProgressWidget = ctx.ui
+      ? new TuiRoutineWidget({
           ctx,
-          routineName: this.routineName,
-          maxIterations: loopConfig.maxIterations,
-          continueWhile: loopConfig.continueWhile,
           onStateChange: () => {
-            this.routineToolRowState.invalidate?.();
+            this.toolRowState.invalidate?.();
           },
         })
       : new NoOpProgressReporter();
@@ -158,7 +186,29 @@ export class RoutineTool implements ToolDefinition<
       const event = data as RoutineProgressEvent;
       logger.debug("RoutineTool progress", { ...event });
 
-      reporter.update(RoutineTool.toProgressEvent(event, this.routineName, loopConfig));
+      // Accumulate display contributions from all executors.
+      for (const executor of this.executor.stepRegistry.all().values()) {
+        const contrib = executor.getDisplayContribution(event);
+        if (!contrib) continue;
+
+        if (contrib.agentId && contrib.agentStatus) {
+          this.agentState.set(contrib.agentId, {
+            status: contrib.agentStatus,
+            summary: contrib.agentSummary,
+          });
+        }
+        if (contrib.iteration !== undefined) {
+          this.iteration = contrib.iteration;
+        }
+        if (contrib.maxIterations !== undefined) {
+          this.maxIterations = contrib.maxIterations;
+        }
+        if (contrib.workspace !== undefined) {
+          this.workspace = contrib.workspace;
+        }
+      }
+
+      this.renderProgress(widget, ctx);
 
       if (onUpdate) {
         onUpdate({
@@ -171,6 +221,9 @@ export class RoutineTool implements ToolDefinition<
           details: {
             routine: event.details.routine ?? this.routineName,
             passed: event.details.passed ?? false,
+            rounds: event.details.rounds ?? this.iteration + 1,
+            workspace: event.details.workspace,
+            results: {},
             summary: event.message,
           },
         });
@@ -182,79 +235,73 @@ export class RoutineTool implements ToolDefinition<
 
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        details: { routine: result.routine, passed: result.passed, summary: result.summary },
+        details: result,
       };
     } catch (error) {
-      // AbortError is a deliberate cancellation — report it before re-throwing.
       if (error instanceof DOMException && error.name === "AbortError") {
         logger.info("Routine aborted", { routine: this.routineName });
       }
       throw error;
     } finally {
-      reporter.clear();
+      widget.clear();
       unsubscribe();
     }
   }
 
-  // ── Static helpers ────────────────────────────────────────
+  // ── Private helpers ────────────────────────────────────────
 
-  private static findLoopConfig(routineDef: RoutineDefinition): {
-    maxIterations: number;
-    continueWhile?: string;
-  } {
-    for (const step of routineDef.steps) {
-      if (isLoopInstruction(step)) {
-        return {
-          maxIterations: step.maxIterations,
-          continueWhile: step.continueWhile,
-        };
-      }
+  /** Reset accumulated display state before each execution. */
+  private resetState(): void {
+    this.agentState.clear();
+    this.iteration = 0;
+    this.maxIterations = 0;
+    this.workspace = undefined;
+  }
+
+  /** Build and render progress surfaces from accumulated state. */
+  private renderProgress(widget: ProgressWidget, ctx: ExtensionContext): void {
+    const theme = ctx.ui?.theme ?? { fg: (_c: string, t: string) => t };
+
+    // Format agent rows for the widget.
+    const rows: string[] = [];
+    for (const [label, agent] of this.agentState) {
+      const icon = statusIcon(agent.status, theme);
+      rows.push(formatAgentRow(icon, label, agent.summary));
     }
-    return { maxIterations: 0 };
-  }
 
-  /**
-   * Extract the instruction ID from an agent lifecycle event.
-   *
-   * Agent executors embed the instruction id in the message string using
-   * the format `Agent "<id>" (...)`. This method parses that quoted
-   * identifier rather than trying to extract it from the phase, since
-   * phase strings are flat labels (")agent-started") without an identity suffix.
-   *
-   * @visibleForTesting
-   */
-  static extractAgentId(event: RoutineProgressEvent): string | undefined {
-    const match = /Agent "([^"]+)"/.exec(event.message);
-    return match ? match[1] : undefined;
-  }
+    // Widget subtitle and metadata.
+    const subtitle =
+      this.maxIterations > 0 ? `iteration ${this.iteration + 1}/${this.maxIterations}` : undefined;
 
-  private static toProgressEvent(
-    event: RoutineProgressEvent,
-    routineName: string,
-    loopConfig: { maxIterations: number; continueWhile?: string },
-  ): ProgressEvent {
-    const isAgentPhase = event.phase.startsWith("agent-");
-    const agentStatus =
-      event.phase === "agent-started"
-        ? "started"
-        : event.phase === "agent-done"
-          ? "done"
-          : event.phase === "agent-error"
-            ? "error"
-            : undefined;
+    const metadata: string[] = [];
+    if (this.continueWhile) {
+      metadata.push(`while: ${this.continueWhile}`);
+    }
 
-    return {
-      routineName,
-      phase: event.phase,
-      message: event.message,
-      iteration: event.details.rounds ? event.details.rounds - 1 : 0,
-      maxIterations: loopConfig.maxIterations,
-      agentId: isAgentPhase ? RoutineTool.extractAgentId(event) : undefined,
-      agentStatus,
-      agentSummary: isAgentPhase ? event.details.summary : undefined,
-      workspace: event.details.workspace,
-      continueWhile: loopConfig.continueWhile,
-    };
+    const widgetLines = buildWidgetLines({
+      theme: theme,
+      title: this.routineName,
+      subtitle,
+      rows,
+      metadata: metadata.length > 0 ? metadata : undefined,
+      path: this.workspace,
+    });
+
+    // Format agent tags for the status line.
+    const tags: string[] = [];
+    for (const [label, agent] of this.agentState) {
+      const icon = statusIcon(agent.status, theme);
+      tags.push(`${icon} ${label}`);
+    }
+
+    const statusText = buildStatusLine({
+      theme: theme,
+      title: this.routineName,
+      subtitle: this.maxIterations > 0 ? `${this.iteration + 1}/${this.maxIterations}` : undefined,
+      tags,
+    });
+
+    widget.render(widgetLines, statusText);
   }
 
   private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {

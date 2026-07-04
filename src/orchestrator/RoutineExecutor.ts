@@ -23,7 +23,11 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
 export class RoutineExecutor {
   constructor(
     private readonly flow: FlowDefinition,
-    private readonly stepRegistry: StepExecutorRegistry,
+    /**
+     * Registry of step executors, exposed so callers (e.g. RoutineTool)
+     * can iterate executors for display-contribution extraction.
+     */
+    public readonly stepRegistry: StepExecutorRegistry,
     public readonly eventBus: EventBus,
   ) {}
 
