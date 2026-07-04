@@ -1,3 +1,5 @@
+import type { DisplayContribution } from "./DisplayContribution";
+
 /**
  * Live progress state consumed by {@link import("./ProgressRenderer").ProgressRenderer}.
  *
@@ -9,18 +11,10 @@ export interface RoutineProgressState {
   /** Routine name (e.g. "run_build_loop"). */
   readonly routineName: string;
 
-  /** Agents tracked during execution, keyed by instruction id. */
-  readonly agentState: ReadonlyMap<string, { status: string; summary?: string }>;
-
-  /** Current loop iteration (0-based). */
-  readonly iteration: number;
-
-  /** Maximum loop iterations. 0 when there is no loop. */
-  readonly maxIterations: number;
-
-  /** Path to the current workspace, if one was created. */
-  readonly workspace: string | undefined;
-
-  /** The `continueWhile` expression from the loop instruction, if any. */
-  readonly continueWhile: string | undefined;
+  /**
+   * Accumulated {@link DisplayContribution} records from all step executors,
+   * in the order they were received. The renderer derives agent state,
+   * iteration counters, workspace path, and continueWhile from these records.
+   */
+  readonly contributions: readonly DisplayContribution[];
 }

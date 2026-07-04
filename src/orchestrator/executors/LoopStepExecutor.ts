@@ -68,7 +68,11 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       eventBus.emit("feature-forge:loop-round-start", {
         phase: "loop-round-start",
         message: `Loop "${instruction.id}" — round ${iteration + 1}/${maxIterations}`,
-        details: { rounds: iteration + 1, maxIterations } as Partial<RoutineResult>,
+        details: {
+          rounds: iteration + 1,
+          maxIterations,
+          continueWhile: continueWhileExpr,
+        } as Partial<RoutineResult>,
       });
 
       // Execute each body step in sequence.
@@ -80,7 +84,11 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       eventBus.emit("feature-forge:loop-round-complete", {
         phase: "loop-round-complete",
         message: `Loop "${instruction.id}" — round ${iteration + 1} complete`,
-        details: { rounds: iteration + 1, maxIterations } as Partial<RoutineResult>,
+        details: {
+          rounds: iteration + 1,
+          maxIterations,
+          continueWhile: continueWhileExpr,
+        } as Partial<RoutineResult>,
       });
 
       if (accumulateFrom.length > 0) {
@@ -144,11 +152,16 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     if (!event.phase.startsWith("loop-")) {
       return undefined;
     }
-    const details = event.details as { rounds?: number; maxIterations?: number };
+    const details = event.details as {
+      rounds?: number;
+      maxIterations?: number;
+      continueWhile?: string;
+    };
     const maxIterations = typeof details.maxIterations === "number" ? details.maxIterations : 0;
     return {
       iteration: (details.rounds ?? 1) - 1,
       maxIterations,
+      continueWhile: details.continueWhile,
       phase: event.phase,
       message: event.message,
     };

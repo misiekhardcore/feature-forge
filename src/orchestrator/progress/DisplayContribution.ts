@@ -25,4 +25,6 @@ export interface DisplayContribution {
   phase?: string;
   /** Human-readable description of the current progress. */
   message?: string;
+  /** The `continueWhile` expression from the loop instruction, if any. */
+  continueWhile?: string;
 }

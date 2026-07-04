@@ -12,7 +12,7 @@ import { Type } from "typebox";
 
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { isLoopInstruction } from "./FlowInstruction";
+import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
 import type { ProgressWidget } from "./progress/ProgressReporter";
@@ -74,17 +74,9 @@ export class RoutineTool
 
   /** Private backing fields — exposed through {@link RoutineProgressState} getters. */
   private readonly _routineName: string;
-  private readonly _continueWhile?: string;
 
-  /** Tracks agent state accumulated from display contributions. */
-  private readonly _agentState = new Map<string, { status: string; summary?: string }>();
-
-  /** Current iteration index (0-based), updated from loop events. */
-  private _iteration = 0;
-  /** Maximum loop iterations, updated from loop events. */
-  private _maxIterations = 0;
-  /** Current workspace path, updated from workspace events. */
-  private _workspace?: string;
+  /** Accumulated display contributions from all step executors, in arrival order. */
+  private readonly _contributions: DisplayContribution[] = [];
 
   /** Tool-row invalidation handle for renderCall/renderResult. */
   private readonly toolRowState: ToolRowInvalidation = { invalidate: undefined };
@@ -104,14 +96,6 @@ export class RoutineTool
     this.description = this.buildDescription(routineName, routineDef);
     this.parameters = RoutineTool.buildParamsSchema(routineDef);
 
-    // Extract continueWhile from the loop instruction, if present.
-    for (const step of routineDef.steps) {
-      if (isLoopInstruction(step) && step.continueWhile) {
-        this._continueWhile = step.continueWhile;
-        break;
-      }
-    }
-
     this.renderer = new ProgressRenderer(this);
   }
 
@@ -122,29 +106,9 @@ export class RoutineTool
     return this._routineName;
   }
 
-  /** Agents tracked during execution, keyed by instruction id. */
-  get agentState(): ReadonlyMap<string, { status: string; summary?: string }> {
-    return this._agentState;
-  }
-
-  /** Current loop iteration (0-based). */
-  get iteration(): number {
-    return this._iteration;
-  }
-
-  /** Maximum loop iterations. 0 when there is no loop. */
-  get maxIterations(): number {
-    return this._maxIterations;
-  }
-
-  /** Path to the current workspace, if one was created. */
-  get workspace(): string | undefined {
-    return this._workspace;
-  }
-
-  /** The `continueWhile` expression from the loop instruction, if any. */
-  get continueWhile(): string | undefined {
-    return this._continueWhile;
+  /** Accumulated display contributions from all step executors, in arrival order. */
+  get contributions(): readonly DisplayContribution[] {
+    return this._contributions;
   }
 
   // ── ToolDefinition rendering ───────────────────────────────
@@ -212,27 +176,13 @@ export class RoutineTool
       for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
-
-        if (contrib.agentId && contrib.agentStatus) {
-          this._agentState.set(contrib.agentId, {
-            status: contrib.agentStatus,
-            summary: contrib.agentSummary,
-          });
-        }
-        if (contrib.iteration !== undefined) {
-          this._iteration = contrib.iteration;
-        }
-        if (contrib.maxIterations !== undefined) {
-          this._maxIterations = contrib.maxIterations;
-        }
-        if (contrib.workspace !== undefined) {
-          this._workspace = contrib.workspace;
-        }
+        this._contributions.push(contrib);
       }
 
       this.renderProgress(widget, ctx);
 
       if (onUpdate) {
+        const iterInfo = ProgressRenderer.getIterationInfo(this._contributions);
         onUpdate({
           content: [
             {
@@ -243,7 +193,7 @@ export class RoutineTool
           details: {
             routine: event.details.routine ?? this._routineName,
             passed: event.details.passed ?? false,
-            rounds: event.details.rounds ?? this._iteration + 1,
+            rounds: event.details.rounds ?? iterInfo.iteration + 1,
             workspace: event.details.workspace,
             results: {},
             summary: event.message,
@@ -278,10 +228,7 @@ export class RoutineTool
 
   /** Reset accumulated display state before each execution. */
   private resetState(): void {
-    this._agentState.clear();
-    this._iteration = 0;
-    this._maxIterations = 0;
-    this._workspace = undefined;
+    this._contributions.length = 0;
   }
 
   /** Build and render progress surfaces via the renderer. */
