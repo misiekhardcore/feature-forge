@@ -46,7 +46,10 @@ Before writing any code, determine the correct target base branch for the PR.
    git diff --stat origin/<candidate-a> origin/<candidate-b> -- <paths-from-issue>
    ```
 4. If ambiguous, ask the user: "Which branch should this PR target?"
-5. **Store the resolved base branch** — you will pass it to `open_pr` in Phase 3.
+5. **Store the resolved base branch** — you will pass it to `run_build_loop` in Phase 2.
+   The routine persists it in the worktree's git config, so all downstream
+   routines (including `open_pr`) read it automatically without you needing to
+   re-pass it.
 6. **Create a fresh branch from the base** before implementing:
    ```
    git fetch origin && git checkout -b feat/<slug> origin/<base>
@@ -63,11 +66,11 @@ Before writing any code, determine the correct target base branch for the PR.
 
 ### Phase 2: Loop
 
-Call `run_build_loop` with your task and plan. This routine runs up to 5
-rounds of build → review + verify and returns the results.
+Call `run_build_loop` with your task, plan, and the base branch determined in Phase 0.
+This routine runs up to 5 rounds of build → review + verify and returns the results.
 
 ```
-run_build_loop(task, plan)
+run_build_loop(task, plan, base)
 ```
 
 The routine returns:
@@ -77,10 +80,14 @@ The routine returns:
 - `workspace`: the git worktree path
 - `results`: per-agent results (builder, review, verify)
 
+The routine also persists `base` in the worktree's git config
+(`feature-forge.baseBranch`) — downstream routines read it from there.
+
 ### Phase 3: Summarise and PR
 
-1. If `run_build_loop.passed` is true, call `open_pr(workspace, title, base)` to
-   commit, push, and create the PR — where `base` is the branch resolved in Phase 0.
+1. If `run_build_loop.passed` is true, call `open_pr(workspace, title)` to
+   commit, push, and create the PR. The base branch is read automatically from
+   the worktree's git config.
 2. After `open_pr` succeeds, call `destroy_workspace(workspace)` to release
    the worktree.
 3. Post the PR URL to the user.
