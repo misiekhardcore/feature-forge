@@ -4,6 +4,9 @@ import { logger } from "../../logging";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { RoutineProgressEvent } from "../RoutineProgress";
+import type { RoutineResult } from "../RoutineResult";
 import { StepExecutor } from "../StepExecutor";
 import { collectAllIds } from "./helpers";
 
@@ -65,7 +68,11 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       eventBus.emit("feature-forge:loop-round-start", {
         phase: "loop-round-start",
         message: `Loop "${instruction.id}" — round ${iteration + 1}/${maxIterations}`,
-        details: { rounds: iteration + 1 },
+        details: {
+          rounds: iteration + 1,
+          maxIterations,
+          continueWhile: continueWhileExpr,
+        } as Partial<RoutineResult>,
       });
 
       // Execute each body step in sequence.
@@ -77,7 +84,11 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       eventBus.emit("feature-forge:loop-round-complete", {
         phase: "loop-round-complete",
         message: `Loop "${instruction.id}" — round ${iteration + 1} complete`,
-        details: { rounds: iteration + 1 },
+        details: {
+          rounds: iteration + 1,
+          maxIterations,
+          continueWhile: continueWhileExpr,
+        } as Partial<RoutineResult>,
       });
 
       if (accumulateFrom.length > 0) {
@@ -130,5 +141,29 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     };
 
     return current.withResult(instruction.id, loopResult);
+  }
+
+  /**
+   * Extract loop iteration info from a progress event.
+   *
+   * Only contributes for {@code loop-round-*} phase events.
+   */
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (!event.phase.startsWith("loop-")) {
+      return undefined;
+    }
+    const details = event.details as {
+      rounds?: number;
+      maxIterations?: number;
+      continueWhile?: string;
+    };
+    const maxIterations = typeof details.maxIterations === "number" ? details.maxIterations : 0;
+    return {
+      iteration: (details.rounds ?? 1) - 1,
+      maxIterations,
+      continueWhile: details.continueWhile,
+      phase: event.phase,
+      message: event.message,
+    };
   }
 }

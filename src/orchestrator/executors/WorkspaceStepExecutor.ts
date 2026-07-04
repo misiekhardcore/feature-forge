@@ -5,6 +5,8 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -62,5 +64,23 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       raw: JSON.stringify({ path }),
       parsed: { kind: "build", passed: true, summary: `Workspace created at ${path}` },
     });
+  }
+
+  /**
+   * Extract workspace path from a workspace-ready event.
+   */
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (event.phase !== "workspace-ready") {
+      return undefined;
+    }
+    const workspace = event.details.workspace;
+    if (typeof workspace !== "string") {
+      return undefined;
+    }
+    return {
+      workspace,
+      phase: event.phase,
+      message: event.message,
+    };
   }
 }

@@ -11,3 +11,4 @@ coverage/
 
 # Worktree runtime state
 .forge/
+.lavish/

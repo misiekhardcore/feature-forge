@@ -577,4 +577,73 @@ describe("AgentStepExecutor", () => {
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
   });
+
+  describe("getDisplayContribution", () => {
+    function makeExecutor(): AgentStepExecutor {
+      const agent = makeMockAgent("output");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      return new AgentStepExecutor(supervisor, specManager);
+    }
+
+    it("returns agentId and agentStatus for agent-started events", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: 'Agent "builder" (build) started',
+        details: {},
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.agentId).toBe("builder");
+      expect(contrib!.agentStatus).toBe("started");
+    });
+
+    it("returns agentId and agentStatus for agent-done events", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-done",
+        message: 'Agent "reviewer" completed',
+        details: { summary: "All good" },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.agentId).toBe("reviewer");
+      expect(contrib!.agentStatus).toBe("done");
+      expect(contrib!.agentSummary).toBe("All good");
+    });
+
+    it("returns agentStatus 'error' for agent-error phase", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-error",
+        message: 'Agent "builder" failed: something broke',
+        details: {},
+      });
+
+      expect(contrib!.agentStatus).toBe("error");
+    });
+
+    it("returns undefined for non-agent phase events", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "workspace-ready",
+        message: "Workspace /tmp/ws ready",
+        details: {},
+      });
+
+      expect(contrib).toBeUndefined();
+    });
+
+    it("returns undefined when the message does not contain an agent id", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: "Agent started successfully",
+        details: {},
+      });
+
+      expect(contrib).toBeUndefined();
+    });
+  });
 });

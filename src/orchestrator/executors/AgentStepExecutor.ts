@@ -7,6 +7,8 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";
@@ -110,6 +112,37 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     } finally {
       await this.supervisor.destroyAgent(agent.id);
     }
+  }
+
+  /**
+   * Extract agent display info from a progress event.
+   *
+   * Parses the agent instruction id from the event message (format:
+   * {@code Agent "<id>" ...}) and maps the phase to a lifecycle status.
+   */
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (!event.phase.startsWith("agent-")) {
+      return undefined;
+    }
+    const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
+    if (!agentId) {
+      return undefined;
+    }
+    const agentStatus =
+      event.phase === "agent-started"
+        ? "started"
+        : event.phase === "agent-done"
+          ? "done"
+          : event.phase === "agent-error"
+            ? "error"
+            : undefined;
+    return {
+      agentId,
+      agentStatus,
+      agentSummary: event.details.summary,
+      phase: event.phase,
+      message: event.message,
+    };
   }
 
   /**

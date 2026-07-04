@@ -2,6 +2,8 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 
 import type { FlowContext } from "./FlowContext";
 import type { FlowInstruction } from "./FlowInstruction";
+import type { DisplayContribution } from "./progress/DisplayContribution";
+import type { RoutineProgressEvent } from "./RoutineProgress";
 
 /**
  * Executes a single deterministic flow instruction against an immutable context,
@@ -34,4 +36,20 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
     eventBus: EventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext>;
+
+  /**
+   * Extract display-relevant fields from a progress event.
+   *
+   * Each concrete executor returns a {@link DisplayContribution} with the
+   * subset of fields it owns (agents return agentId/status, loops return
+   * iteration info, workspaces return the path). The default returns
+   * `undefined`, meaning "no contribution".
+   *
+   * Consumers iterate all executors in the registry, call this for each
+   * event, and merge non-undefined contributions into an accumulated
+   * display snapshot.
+   */
+  getDisplayContribution(_event: RoutineProgressEvent): DisplayContribution | undefined {
+    return undefined;
+  }
 }
