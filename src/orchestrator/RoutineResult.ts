@@ -19,4 +19,6 @@ export interface RoutineResult {
   results: Record<string, InstructionResult>;
   /** Human-readable digest for the orchestrator LLM. */
   summary: string;
+  /** Flow-global session state at routine completion. */
+  session: Record<string, string>;
 }

@@ -162,9 +162,15 @@ export class RoutineExecutor {
       ? `Routine "${routineName}" completed with ${Object.keys(results).length} results`
       : `Routine "${routineName}" failed: ${error?.message ?? "unknown error"}`;
 
+    const sessionObj: Record<string, string> = {};
+    for (const [key, value] of context.session.entries()) {
+      sessionObj[key] = value;
+    }
+
     return {
       routine: routineName,
       passed,
+      session: sessionObj,
       rounds: context.iteration + 1,
       workspace,
       results,
