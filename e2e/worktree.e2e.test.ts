@@ -40,15 +40,13 @@ function createTempRepo(): string {
   return dir;
 }
 
-const E2E_SUFFIX = "e2e-test";
-
 /** Full path to the worktree the provider would create. */
 function expectedWorktreePath(repoRoot: string, workspaceId: string): string {
-  return join(repoRoot, ".forge", "worktrees", `${workspaceId}-${E2E_SUFFIX}`);
+  return join(repoRoot, ".forge", "worktrees", workspaceId);
 }
 
 function expectedBranchName(workspaceId: string): string {
-  return `forge/${workspaceId}-${E2E_SUFFIX}`;
+  return `forge/${workspaceId}`;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -59,7 +57,7 @@ describe("GitWorktreeProvider (e2e)", () => {
 
   beforeEach(() => {
     repoRoot = createTempRepo();
-    provider = new GitWorktreeProvider(repoRoot, "HEAD", "e2e-test");
+    provider = new GitWorktreeProvider(repoRoot, "HEAD");
   });
 
   afterEach(() => {
@@ -115,7 +113,7 @@ describe("GitWorktreeProvider (e2e)", () => {
     git(repoRoot, "checkout -b develop");
     git(repoRoot, "checkout main");
 
-    const p = new GitWorktreeProvider(repoRoot, "develop", E2E_SUFFIX);
+    const p = new GitWorktreeProvider(repoRoot, "develop");
     const workspacePath = await p.createWorkspace("task-3");
 
     // The worktree should be on the develop branch

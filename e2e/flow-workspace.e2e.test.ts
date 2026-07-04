@@ -80,7 +80,7 @@ describe("Flow workspace lifecycle (e2e)", () => {
     repoRoot = createTempRepo();
     flow = makeWorkspaceFlow();
 
-    const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD", "e2e-test");
+    const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD");
     const workspaceProviderRegistry = new WorkspaceProviderRegistry().register(
       "git-worktree",
       worktreeProvider,

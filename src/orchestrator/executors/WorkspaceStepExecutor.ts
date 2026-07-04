@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
@@ -42,7 +44,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     signal?.throwIfAborted();
 
     const providerName = instruction.provider;
-    const workspaceId = `ws-${Date.now()}`;
+    const workspaceId = `ws-${randomUUID().split("-")[0]}`;
 
     const provider = this.providerRegistry.get(providerName);
     if (!provider) {

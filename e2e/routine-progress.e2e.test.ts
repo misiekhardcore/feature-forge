@@ -82,7 +82,7 @@ describe("routine progress display (e2e)", () => {
       },
     };
 
-    const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD", "e2e-progress");
+    const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD");
     const wpRegistry = new WorkspaceProviderRegistry().register("git-worktree", worktreeProvider);
     const wtRegistry = new WorktreeRegistry(WorktreeRegistry.defaultStoragePath(repoRoot));
     const supervisor = new InMemoryAgentSupervisor(makeMockFactory());
