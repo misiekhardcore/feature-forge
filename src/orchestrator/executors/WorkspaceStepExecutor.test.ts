@@ -8,9 +8,19 @@ import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
 
-// ── Helpers ──────────────────────────────────────────────────
+// ── Mock setup ───────────────────────────────────────────────
 
-const MOCK_TIMESTAMP = "1712345678000";
+const { MOCK_UUID } = vi.hoisted(() => ({
+  MOCK_UUID: "00000000-0000-4000-a000-000000000000",
+}));
+
+vi.mock("node:crypto", async () => {
+  const actual = await vi.importActual<typeof import("node:crypto")>("node:crypto");
+  return {
+    ...actual,
+    randomUUID: vi.fn().mockReturnValue(MOCK_UUID),
+  };
+});
 
 class CountingProvider extends WorkspaceProvider {
   created: string[] = [];
@@ -32,15 +42,10 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
-function mockDateNow() {
-  vi.spyOn(Date, "now").mockReturnValue(Number(MOCK_TIMESTAMP));
-}
-
 // ── Tests ────────────────────────────────────────────────────
 
 describe("WorkspaceStepExecutor", () => {
   it("creates a workspace and stores the handle in context under key 'ws'", async () => {
-    mockDateNow();
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
@@ -54,7 +59,7 @@ describe("WorkspaceStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-    const expectedId = `ws-${MOCK_TIMESTAMP}`;
+    const expectedId = `ws-00000000`;
     expect(provider.created).toContain(`/test/${expectedId}`);
     expect(result.workspaces.has("ws")).toBe(true);
     expect(result.workspaces.get("ws")!.path).toBe(`/test/${expectedId}`);
@@ -62,7 +67,6 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   it("throws for an unregistered provider", async () => {
-    mockDateNow();
     const provRegistry = new WorkspaceProviderRegistry();
     const wtRegistry = stubWorktreeRegistry();
     const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
@@ -80,7 +84,6 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   it("does not mutate the original context", async () => {
-    mockDateNow();
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
@@ -99,7 +102,6 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   it("throws AbortError when signal is aborted at entry", async () => {
-    mockDateNow();
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
@@ -121,7 +123,6 @@ describe("WorkspaceStepExecutor", () => {
 
   describe("eventBus", () => {
     it("emits a workspace-ready event after workspace creation", async () => {
-      mockDateNow();
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
@@ -151,7 +152,6 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("works with a mocked eventBus", async () => {
-      mockDateNow();
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();

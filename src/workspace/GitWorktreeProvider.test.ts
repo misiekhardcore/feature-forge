@@ -95,9 +95,8 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 const repoRoot = "/home/user/my-repo";
-const testSuffix = "test-suffix";
-const worktreePath = `/home/user/my-repo/.forge/worktrees/task-1-${testSuffix}`;
-const branchName = `forge/task-1-${testSuffix}`;
+const worktreePath = `/home/user/my-repo/.forge/worktrees/task-1`;
+const branchName = `forge/task-1`;
 
 function branchCheckPasses() {
   mocks.willSucceed("git", ["branch", "--list", branchName], "");
@@ -110,14 +109,14 @@ describe("GitWorktreeProvider", () => {
 
   beforeEach(() => {
     mocks.reset();
-    provider = new GitWorktreeProvider(repoRoot, "HEAD", testSuffix);
+    provider = new GitWorktreeProvider(repoRoot, "HEAD");
   });
 
   // ── Constructor ──────────────────────────────────────────────────────
 
   describe("constructor", () => {
     it("defaults repoRoot to process.cwd()", () => {
-      const p = new GitWorktreeProvider(undefined, "HEAD", testSuffix);
+      const p = new GitWorktreeProvider(undefined, "HEAD");
       expect(p.repoRoot).toBe(process.cwd());
     });
 
@@ -126,20 +125,13 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("defaults baseRef to HEAD", () => {
-      const p = new GitWorktreeProvider(repoRoot, undefined, testSuffix);
+      const p = new GitWorktreeProvider(repoRoot, undefined);
       expect(p.baseRef).toBe("HEAD");
     });
 
     it("accepts a custom baseRef", () => {
-      const p = new GitWorktreeProvider(repoRoot, "main", testSuffix);
+      const p = new GitWorktreeProvider(repoRoot, "main");
       expect(p.baseRef).toBe("main");
-    });
-
-    it("defaults branchSuffix to Date.now() when not provided", () => {
-      const fakeNow = 1751565000000;
-      vi.spyOn(Date, "now").mockReturnValueOnce(fakeNow);
-      const p = new GitWorktreeProvider(repoRoot, "HEAD");
-      expect(p.repoRoot).toBe(repoRoot);
     });
 
     it("extends WorkspaceProvider", () => {
@@ -243,7 +235,7 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("uses custom baseRef", async () => {
-      const p = new GitWorktreeProvider(repoRoot, "main", testSuffix);
+      const p = new GitWorktreeProvider(repoRoot, "main");
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
       mocks.willSucceed(
         "git",

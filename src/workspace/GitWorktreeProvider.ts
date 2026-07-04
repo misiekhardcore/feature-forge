@@ -13,28 +13,23 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
  *
- * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>-<pathSuffix>`
- * Branch name: `forge/<workspaceId>-<branchSuffix>`
- * Both suffixes default to `Date.now()` for collision-free invocations.
+ * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
+ * Branch name: `forge/<workspaceId>`
  */
 export class GitWorktreeProvider extends WorkspaceProvider {
   /** Absolute path to the root of the git repository. */
   public readonly repoRoot: string;
   /** Base ref to create the worktree from. Immutable after construction. */
   public readonly baseRef: string;
-  /** Suffix appended to the branch name for uniqueness. */
-  private readonly suffix: string;
 
   /**
    * @param repoRoot — Absolute path to the repository root. Defaults to `process.cwd()`.
    * @param baseRef — Git ref to create the worktree from. Defaults to `"HEAD"`.
-   * @param suffix — Suffix appended to the branch/path name. Defaults to `Date.now()`.
    */
-  constructor(repoRoot?: string, baseRef = "HEAD", suffix?: string) {
+  constructor(repoRoot?: string, baseRef = "HEAD") {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
     this.baseRef = baseRef;
-    this.suffix = suffix ?? Date.now().toString();
   }
 
   /**
@@ -112,11 +107,11 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   // ─── Private helpers ─────────────────────────────────────────────────
 
   private getWorktreePath(workspaceId: string): string {
-    return resolve(join(this.repoRoot, ".forge", "worktrees", `${workspaceId}-${this.suffix}`));
+    return resolve(join(this.repoRoot, ".forge", "worktrees", workspaceId));
   }
 
   private getBranchName(workspaceId: string): string {
-    return `forge/${workspaceId}-${this.suffix}`;
+    return `forge/${workspaceId}`;
   }
 
   private async assertNoStalePath(worktreePath: string): Promise<void> {
