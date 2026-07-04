@@ -68,15 +68,26 @@
     "open_pr": {
       "params": [
         { "name": "workspace", "description": "Worktree path from run_build_loop result" },
-        { "name": "title", "description": "PR title" }
+        { "name": "title", "description": "PR title" },
+        {
+          "name": "commit_message",
+          "description": "Commit message in conventional commits format"
+        },
+        { "name": "body", "description": "Markdown PR description summarizing the changes" }
       ],
       "steps": [
-        { "type": "git", "id": "commit", "action": "add-and-commit", "cwd": "{{workspace}}" },
+        {
+          "type": "git",
+          "id": "commit",
+          "action": "add-and-commit",
+          "cwd": "{{workspace}}",
+          "message": "{{commit_message}}"
+        },
         { "type": "git", "id": "branch", "action": "push-current", "cwd": "{{workspace}}" },
         {
           "type": "shell",
           "id": "pr",
-          "command": "gh pr create --title \"{{title}}\" --body \"See session summary\"",
+          "command": "gh pr create --title \"{{title}}\" --body \"{{body}}\"",
           "cwd": "{{workspace}}"
         }
       ]
