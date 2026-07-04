@@ -112,8 +112,8 @@ export class RoutineTool
     return this._contributions;
   }
 
-  get sessionEntries(): [string, string][] {
-    return Array.from(this.executor.store.entries());
+  get sessionEntries(): FlowParams {
+    return this.executor.store.toObject();
   }
 
   // ── ToolDefinition rendering ───────────────────────────────

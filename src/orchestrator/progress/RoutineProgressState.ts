@@ -1,3 +1,4 @@
+import type { FlowParams } from "../../orchestrator/FlowStateStore";
 import type { DisplayContribution } from "./DisplayContribution";
 
 /**
@@ -19,5 +20,5 @@ export interface RoutineProgressState {
   readonly contributions: readonly DisplayContribution[];
 
   /** Current FlowStateStore entries, exposed by {@link RoutineTool}. */
-  readonly sessionEntries: [string, string][];
+  readonly sessionEntries: FlowParams;
 }

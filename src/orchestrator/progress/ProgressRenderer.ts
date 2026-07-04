@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 
+import type { FlowParams } from "../../orchestrator/FlowStateStore";
 import type { RoutineResult } from "../RoutineResult";
 import type { DisplayContribution } from "./DisplayContribution";
 import type { ProgressWidget } from "./ProgressReporter";
@@ -34,7 +35,7 @@ export interface BuildWidgetLinesParams {
   /** Optional workspace path line. */
   path?: string;
   /** Optional session K/V pairs to display in the footer. */
-  sessionEntries?: [string, string][];
+  sessionEntries?: FlowParams;
 }
 
 /** Parameters for {@link ProgressRenderer.buildStatusLine}. */
@@ -140,8 +141,10 @@ export class ProgressRenderer {
     }
 
     // Session
-    if (sessionEntries && sessionEntries.length > 0) {
-      const sessionLine = sessionEntries.map(([k, v]) => `${k}=${v}`).join(" ");
+    if (sessionEntries) {
+      const sessionLine = Object.entries(sessionEntries)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" ");
       lines.push(theme.fg("muted", `  session: ${sessionLine}`));
     }
 
@@ -327,7 +330,8 @@ export class ProgressRenderer {
       rows,
       metadata: metadata.length > 0 ? metadata : undefined,
       path: workspace,
-      sessionEntries: state.sessionEntries.length > 0 ? state.sessionEntries : undefined,
+      sessionEntries:
+        Object.keys(state.sessionEntries).length > 0 ? state.sessionEntries : undefined,
     });
 
     const tags: string[] = [];
