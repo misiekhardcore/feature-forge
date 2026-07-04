@@ -10,7 +10,7 @@ import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import type { FlowInstruction } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
-import { FlowSession } from "./FlowSession";
+import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { RoutineTool } from "./RoutineTool";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -135,14 +135,14 @@ export class FlowRegistrar {
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
-    let session = new FlowSession();
+    const store = new FlowStateStore();
     try {
       flow = await flowLoader.load("flow");
 
       // Seed flow-global session from flow-level param defaults.
       for (const param of flow.params ?? []) {
         if (param.default !== undefined) {
-          session = session.set(param.name, param.default);
+          store.set(param.name, param.default);
         }
       }
     } catch (error) {
@@ -172,7 +172,7 @@ export class FlowRegistrar {
     }
 
     // Register routine tools for this flow.
-    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus, session);
+    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus, store);
     for (const [routineName, routineDef] of Object.entries(flow.routines)) {
       const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
       try {

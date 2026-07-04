@@ -1,6 +1,6 @@
 import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
-import { FlowSession } from "./FlowSession";
+import { FlowStateStore } from "./FlowStateStore";
 
 /**
  * Immutable value object carrying the state of an in-progress routine execution.
@@ -23,7 +23,7 @@ export class FlowContext {
     /** Current loop iteration (0-indexed). */
     readonly iteration: number = 0,
     /** Flow-global session that persists across routine calls. */
-    readonly session: FlowSession = new FlowSession(),
+    readonly store: FlowStateStore = new FlowStateStore(),
   ) {}
 
   // ── Mutations (return new FlowContext) ────────────────────
@@ -38,7 +38,7 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
-      this.session,
+      this.store,
     );
   }
 
@@ -52,7 +52,7 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
-      this.session,
+      this.store,
     );
   }
 
@@ -66,7 +66,7 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
-      this.session,
+      this.store,
     );
   }
 
@@ -89,7 +89,7 @@ export class FlowContext {
       this.params,
       feedback,
       this.iteration,
-      this.session,
+      this.store,
     );
   }
 
@@ -116,18 +116,6 @@ export class FlowContext {
       this.params,
       this.feedback,
       this.iteration,
-    );
-  }
-
-  withSessionValue(key: string, value: string): FlowContext {
-    return new FlowContext(
-      this.results,
-      this.prompt,
-      this.workspaces,
-      this.params,
-      this.feedback,
-      this.iteration,
-      this.session.set(key, value),
     );
   }
 
@@ -161,7 +149,7 @@ export class FlowContext {
         // session.<key> — flow-global state persisted across routine calls.
         if (key.startsWith("session.")) {
           const sessionKey = key.slice("session.".length);
-          return this.session.values.get(sessionKey) ?? "";
+          return this.store.get(sessionKey) ?? "";
         }
 
         if (key.startsWith("workspace.")) {

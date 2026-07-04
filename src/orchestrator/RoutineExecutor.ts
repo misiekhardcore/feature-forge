@@ -4,7 +4,7 @@ import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
-import { FlowSession } from "./FlowSession";
+import { FlowStateStore } from "./FlowStateStore";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -22,8 +22,8 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
  * ```
  */
 export class RoutineExecutor {
-  /** Flow-global session that survives across routine calls. */
-  session: FlowSession;
+  /** Flow-global state store that survives across routine calls. */
+  private readonly store: FlowStateStore;
 
   constructor(
     private readonly flow: FlowDefinition,
@@ -33,9 +33,9 @@ export class RoutineExecutor {
      */
     public readonly stepRegistry: StepExecutorRegistry,
     public readonly eventBus: EventBus,
-    session?: FlowSession,
+    store?: FlowStateStore,
   ) {
-    this.session = session ?? new FlowSession();
+    this.store = store ?? new FlowStateStore();
   }
 
   /**
@@ -70,7 +70,7 @@ export class RoutineExecutor {
 
     // Merge session values into params — routine params override session defaults.
     const mergedParams = new Map<string, string>();
-    for (const [key, value] of this.session.entries()) {
+    for (const [key, value] of this.store.entries()) {
       mergedParams.set(key, value);
     }
     for (const [key, value] of Object.entries(params)) {
@@ -84,7 +84,7 @@ export class RoutineExecutor {
       mergedParams,
       undefined,
       0,
-      this.session,
+      this.store,
     );
 
     // Recursive step dispatcher — passes itself to executors so container
@@ -135,9 +135,6 @@ export class RoutineExecutor {
       }
     }
 
-    // Persist session mutations so the next routine sees updated state.
-    this.session = context.session;
-
     return this.buildResult(routineName, context, true);
   }
 
@@ -163,7 +160,7 @@ export class RoutineExecutor {
       : `Routine "${routineName}" failed: ${error?.message ?? "unknown error"}`;
 
     const sessionObj: Record<string, string> = {};
-    for (const [key, value] of context.session.entries()) {
+    for (const [key, value] of context.store.entries()) {
       sessionObj[key] = value;
     }
 

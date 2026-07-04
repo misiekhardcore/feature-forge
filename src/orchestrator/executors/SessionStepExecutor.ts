@@ -26,6 +26,7 @@ export class SessionStepExecutor extends StepExecutor<SessionInstruction> {
     _eventBus: EventBus,
     _signal?: AbortSignal,
   ): Promise<FlowContext> {
-    return context.withSessionValue(instruction.key, instruction.value);
+    context.store.set(instruction.key, instruction.value);
+    return context;
   }
 }
