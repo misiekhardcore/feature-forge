@@ -25,6 +25,21 @@ import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
+const FEATURE_FORGE_CHANNELS = [
+  "feature-forge:workspace-ready",
+  "feature-forge:agent-started",
+  "feature-forge:agent-done",
+  "feature-forge:loop-round-start",
+  "feature-forge:loop-round-complete",
+  "feature-forge:parallel-start",
+  "feature-forge:parallel-done",
+  "feature-forge:cleanup-start",
+  "feature-forge:cleanup-done",
+  "feature-forge:git-start",
+  "feature-forge:git-done",
+  "feature-forge:shell-start",
+  "feature-forge:shell-done",
+];
 
 /**
  * Internal state for tool-row invalidation.
@@ -184,7 +199,7 @@ export class RoutineTool implements ToolDefinition<
         })
       : new NoOpProgressReporter();
 
-    const unsubscribe = this.executor.eventBus.on("feature-forge:*", (data: unknown) => {
+    const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
       logger.debug("RoutineTool progress", { ...event });
 
@@ -230,7 +245,11 @@ export class RoutineTool implements ToolDefinition<
           },
         });
       }
-    });
+    };
+
+    const unsubscribers = FEATURE_FORGE_CHANNELS.map((channel) =>
+      this.executor.eventBus.on(channel, handler),
+    );
 
     try {
       const result = await this.executor.run(this.routineName, routineParams, prompt, signal);
@@ -246,7 +265,7 @@ export class RoutineTool implements ToolDefinition<
       throw error;
     } finally {
       widget.clear();
-      unsubscribe();
+      for (const unsub of unsubscribers) unsub();
     }
   }
 
