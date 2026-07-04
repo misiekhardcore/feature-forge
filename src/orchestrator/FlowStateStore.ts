@@ -1,31 +1,28 @@
-import { logger } from "../logging";
+import { Registry } from "../registry";
 
 /**
  * Mutable registry for flow-global state that persists across routine calls
  * within a single flow execution.
  *
  * Owned by {@link RoutineExecutor}, mutated in-place by step executors,
- * and merged into every new {@link FlowContext}. Follows the Registry
- * pattern used by {@link StepExecutorRegistry}, {@link WorktreeRegistry},
+ * and merged into every new {@link FlowContext}. Extends {@link Registry}
+ * for consistency with {@link StepExecutorRegistry}, {@link WorktreeRegistry},
  * {@link ToolRegistry}, and {@link SpecRegistry}.
+ *
+ * Unlike other registries, `set()` allows overwrites — flow state values
+ * are expected to change across routine calls (e.g. `base` is set once
+ * in Phase 0, then never changed).
  */
-export class FlowStateStore {
-  private readonly store = new Map<string, string>();
-
-  set(key: string, value: string): void {
-    this.store.set(key, value);
-    logger.debug("FlowStateStore.set", { key, value: value.slice(0, 80) });
-  }
-
-  get(key: string): string | undefined {
-    return this.store.get(key);
+export class FlowStateStore extends Registry<string> {
+  override set(key: string, value: string): void {
+    this.items.set(key, value);
   }
 
   entries(): IterableIterator<[string, string]> {
-    return this.store.entries();
+    return this.items.entries();
   }
 
   toObject(): Record<string, string> {
-    return Object.fromEntries(this.store);
+    return Object.fromEntries(this.items);
   }
 }
