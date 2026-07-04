@@ -107,6 +107,8 @@ export class RoutineTool implements ToolDefinition<
     context: { state: ToolRowInvalidation; invalidate: () => void; [key: string]: any },
   ): Component => {
     context.state.invalidate = context.invalidate;
+    // Sync the TUI invalidate to our private handle so execute() can trigger re-renders.
+    this.toolRowState.invalidate = context.invalidate;
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
