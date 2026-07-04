@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { InMemoryAgentSupervisor } from "../src/agents";
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import type { DisplayContribution } from "../src/orchestrator/progress/DisplayContribution";
 import { ProgressRenderer } from "../src/orchestrator/progress/ProgressRenderer";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
@@ -54,6 +55,7 @@ describe("routine progress display (e2e)", () => {
     repoRoot = createTempRepo();
 
     const flow: FlowDefinition = {
+      $schema: FLOW_SCHEMA_URL,
       name: "e2e-progress",
       command: "/e2e-progress",
       orchestrator: { systemPrompt: "test" },

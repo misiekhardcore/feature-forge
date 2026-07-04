@@ -5,6 +5,7 @@ import { makeMockEventBus } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
+import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -48,6 +49,7 @@ class FailingExecutor extends StepExecutor {
 
 function makeTestFlow(overrides: Partial<FlowDefinition["routines"]["_"]> = {}): FlowDefinition {
   return {
+    $schema: FLOW_SCHEMA_URL,
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "You are the test orchestrator." },
@@ -167,6 +169,7 @@ describe("RoutineExecutor", () => {
       );
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "ws-flow",
         command: "/ws",
         orchestrator: { systemPrompt: "t" },
@@ -190,6 +193,7 @@ describe("RoutineExecutor", () => {
       registry.register(() => new RecordExecutor()); // won't run
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "fail-flow",
         command: "/fail",
         orchestrator: { systemPrompt: "t" },
@@ -264,6 +268,7 @@ describe("RoutineExecutor", () => {
       registry.register(() => new EventBusAwareExecutor());
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "event-bus-flow",
         command: "/event-bus",
         orchestrator: { systemPrompt: "t" },
@@ -344,6 +349,7 @@ describe("RoutineExecutor", () => {
       registry.register(() => new EventBusAwareExecutor());
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "event-bus-flow",
         command: "/event-bus",
         orchestrator: { systemPrompt: "t" },
@@ -394,6 +400,7 @@ describe("RoutineExecutor", () => {
       registry.register(() => new SignalAwareExecutor());
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "signal-flow",
         command: "/signal",
         orchestrator: { systemPrompt: "t" },
@@ -452,6 +459,7 @@ describe("RoutineExecutor", () => {
       registry.register(() => new AbortedDuringStep());
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "abort-flow",
         command: "/abort",
         orchestrator: { systemPrompt: "t" },
@@ -485,6 +493,7 @@ describe("RoutineExecutor", () => {
     it("includes available routines in the unknown routine error", async () => {
       const registry = new StepExecutorRegistry();
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "multi",
         command: "/multi",
         orchestrator: { systemPrompt: "t" },

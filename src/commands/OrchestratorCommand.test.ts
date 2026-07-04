@@ -5,6 +5,7 @@ import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
 import { makeMockCtx, makeMockPi } from "../test-utils";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
@@ -55,6 +56,7 @@ function makeCmd(supervisor: AgentSupervisor, flow: FlowDefinition): Orchestrato
 
 describe("OrchestratorCommand", () => {
   const baseFlow: FlowDefinition = {
+    $schema: FLOW_SCHEMA_URL,
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "implement" },

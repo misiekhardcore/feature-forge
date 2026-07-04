@@ -8,6 +8,7 @@ import type { CommandRegistry, ToolRegistry } from "../registry";
 import { makeMockEventBus, makeMockPi } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
 import type { FlowDefinition } from "./FlowInstruction";
+import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowRegistrar } from "./FlowRegistrar";
 import type { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -111,6 +112,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
 
 function makeFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
   return {
+    $schema: FLOW_SCHEMA_URL,
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "test-orchestrator" },

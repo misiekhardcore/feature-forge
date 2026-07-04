@@ -153,6 +153,9 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 
 // ── Runtime validation schema ────────────────────────────────
 
+export const FLOW_SCHEMA_URL =
+  "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json";
+
 export const FlowInstructionSchema = FlowInstructionUnion;
 
 export const OrchestratorConfigSchema = Type.Object({
@@ -176,6 +179,7 @@ const RoutineDefinitionSchema = Type.Object({
 });
 
 export const FlowDefinitionSchema = Type.Object({
+  $schema: Type.String({ const: FLOW_SCHEMA_URL }),
   params: Type.Optional(Type.Array(RoutineParamSchema)),
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),

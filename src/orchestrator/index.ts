@@ -5,6 +5,7 @@ export {
   GitStepExecutor,
   LoopStepExecutor,
   ParallelStepExecutor,
+  SessionStepExecutor,
   ShellStepExecutor,
   WorkspaceStepExecutor,
 } from "./executors";
@@ -24,12 +25,14 @@ export type {
   ParallelInstruction,
   RoutineDefinition,
   RoutineParam,
+  SessionInstruction,
   ShellInstruction,
   WorkspaceInstruction,
 } from "./FlowInstruction";
 export {
   AgentInstructionSchema,
   CleanupInstructionSchema,
+  FLOW_SCHEMA_URL,
   FlowDefinitionSchema,
   FlowInstructionSchema,
   GitInstructionSchema,
@@ -42,6 +45,7 @@ export {
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";

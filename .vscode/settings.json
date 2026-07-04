@@ -1,0 +1,8 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["src/flows/**/flow.json"],
+      "url": "./src/flows/flow-schema.json"
+    }
+  ]
+}
