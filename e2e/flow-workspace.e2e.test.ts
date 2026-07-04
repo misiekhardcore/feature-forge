@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockEventBus } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
@@ -46,6 +47,7 @@ function createTempRepo(): string {
  */
 function makeWorkspaceFlow(): FlowDefinition {
   return {
+    $schema: FLOW_SCHEMA_URL,
     name: "ws-test",
     command: "/ws-test",
     orchestrator: { systemPrompt: "test" },

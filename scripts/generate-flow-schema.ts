@@ -5,11 +5,13 @@ import { fileURLToPath } from "node:url";
 import {
   AgentInstructionSchema,
   CleanupInstructionSchema,
+  FlowDefinitionSchema,
   GitInstructionSchema,
   LoopInstructionSchema,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "../src/orchestrator/FlowInstruction.js";
@@ -26,6 +28,10 @@ import {
  * `$ref` to `FlowInstruction` for the export.
  */
 
+// ── Constants ─────────────────────────────────────────────
+
+const META_SCHEMA_URL = "https://json-schema.org/draft/2020-12/schema";
+
 // ── Build individual defs (TypeBox schemas → JSON Schema) ──
 
 const defs: Record<string, unknown> = {
@@ -37,6 +43,7 @@ const defs: Record<string, unknown> = {
   LoopInstruction: replaceStepsRef(LoopInstructionSchema),
   CleanupInstruction: CleanupInstructionSchema,
   GitInstruction: GitInstructionSchema,
+  SessionInstruction: SessionInstructionSchema,
   ShellInstruction: ShellInstructionSchema,
 };
 
@@ -48,6 +55,7 @@ defs.FlowInstruction = {
     { $ref: "#/$defs/LoopInstruction" },
     { $ref: "#/$defs/CleanupInstruction" },
     { $ref: "#/$defs/GitInstruction" },
+    { $ref: "#/$defs/SessionInstruction" },
     { $ref: "#/$defs/ShellInstruction" },
   ],
 };
@@ -55,14 +63,15 @@ defs.FlowInstruction = {
 // ── Top-level schema ────────────────────────────────────────
 
 const schema = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $schema: META_SCHEMA_URL,
   title: "Feature Forge Flow Definition",
   description:
     "Self-contained flow definition. " +
     "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: ["name", "command", "orchestrator", "routines"],
+  required: ["$schema", "name", "command", "orchestrator", "routines"],
   properties: {
+    $schema: FlowDefinitionSchema.properties.$schema,
     name: { type: "string", minLength: 1 },
     command: { type: "string", minLength: 1 },
     orchestrator: { $ref: "#/$defs/OrchestratorConfig" },

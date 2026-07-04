@@ -4,12 +4,14 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { FlowDefinition } from "./FlowInstruction";
+import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
 
 // ── Helpers ──────────────────────────────────────────────────
 
 function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
   return {
+    $schema: FLOW_SCHEMA_URL,
     name: "test",
     command: "/test",
     orchestrator: { systemPrompt: "You are the test orchestrator." },
@@ -126,6 +128,7 @@ describe("validateStructure", () => {
   it("produces human-readable error messages", () => {
     try {
       FlowLoader.validateStructure({
+        $schema: FLOW_SCHEMA_URL,
         name: "x",
         command: "/x",
         orchestrator: { systemPrompt: "t" },
@@ -636,6 +639,7 @@ describe("FlowLoader", () => {
 
   it("loads and validates a flow file", async () => {
     const flow: FlowDefinition = {
+      $schema: FLOW_SCHEMA_URL,
       name: "test",
       command: "/load-test",
       orchestrator: { systemPrompt: "t" },
@@ -676,6 +680,7 @@ describe("FlowLoader", () => {
 
   it("throws for semantically invalid flow (duplicate ids)", async () => {
     const flow: FlowDefinition = {
+      $schema: FLOW_SCHEMA_URL,
       name: "dup",
       command: "/dup",
       orchestrator: { systemPrompt: "t" },
@@ -784,6 +789,7 @@ describe("FlowLoader", () => {
     await fs.writeFile(
       path.join(tempDir, "bad.json"),
       JSON.stringify({
+        $schema: FLOW_SCHEMA_URL,
         name: "bad",
         command: "/bad",
         orchestrator: { systemPrompt: "t" },

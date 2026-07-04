@@ -28,6 +28,7 @@
     "typecheck": "tsc --noEmit",
     "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts",
     "flow:validate": "npx tsx scripts/validate-flow.ts",
+    "flow:validate-json": "npx tsx scripts/validate-flow-json.ts",
     "changelog": "git-cliff -o CHANGELOG.md",
     "check": "npm run lint && npm run format && npm run test",
     "prepare": "husky"
@@ -48,6 +49,8 @@
     "@eslint/js": "10.0.1",
     "@types/node": "26.0.0",
     "@vitest/coverage-v8": "4.1.9",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "eslint": "10.5.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.6",

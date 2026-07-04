@@ -13,6 +13,7 @@ import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
 import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
+import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
@@ -25,6 +26,7 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 function makeFlow(routineParamNames: string[] = []): FlowDefinition {
   return {
+    $schema: FLOW_SCHEMA_URL,
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "t" },
@@ -94,6 +96,7 @@ describe("RoutineTool", () => {
   describe("execute", () => {
     it("calls RoutineExecutor.run and returns a structured result", async () => {
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -147,6 +150,7 @@ describe("RoutineTool", () => {
       );
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -184,6 +188,7 @@ describe("RoutineTool", () => {
 
     it("uses empty string when neither task nor _task is in params", async () => {
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -211,6 +216,7 @@ describe("RoutineTool", () => {
 
     it("skips params not present in input", async () => {
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -257,6 +263,7 @@ describe("RoutineTool", () => {
       registry.register(() => new WorkspaceStepExecutor(wpRegistry, new WorktreeRegistry()));
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -294,6 +301,7 @@ describe("RoutineTool", () => {
 
     it("does not call _onUpdate when none is provided", async () => {
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -316,6 +324,7 @@ describe("RoutineTool", () => {
 
     it("passes the abort signal through to RoutineExecutor.run", async () => {
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -369,6 +378,7 @@ describe("RoutineTool", () => {
       );
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -419,6 +429,7 @@ describe("RoutineTool", () => {
       );
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -514,6 +525,7 @@ describe("RoutineTool", () => {
       );
 
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
@@ -579,6 +591,7 @@ describe("RoutineTool", () => {
 
     it("falls back to _prompt when prompt is not in params", async () => {
       const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },

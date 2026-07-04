@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   AgentInstructionSchema,
   CleanupInstructionSchema,
+  FLOW_SCHEMA_URL,
   FlowDefinitionSchema,
   FlowInstructionSchema,
   GitInstructionSchema,
@@ -16,6 +17,7 @@ import {
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
@@ -263,6 +265,28 @@ describe("GitInstructionSchema", () => {
   });
 });
 
+describe("SessionInstructionSchema", () => {
+  it("validates a session instruction", () => {
+    const valid = { type: "session", id: "s1", key: "base", value: "/tmp/ws" };
+    expect(Value.Check(SessionInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects missing key", () => {
+    const invalid = { type: "session", id: "s1", value: "/tmp/ws" };
+    expect(Value.Check(SessionInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty key", () => {
+    const invalid = { type: "session", id: "s1", key: "", value: "/tmp/ws" };
+    expect(Value.Check(SessionInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing value", () => {
+    const invalid = { type: "session", id: "s1", key: "base" };
+    expect(Value.Check(SessionInstructionSchema, invalid)).toBe(false);
+  });
+});
+
 describe("ShellInstructionSchema", () => {
   it("validates a shell instruction", () => {
     const valid = { type: "shell", id: "s1", command: "echo hello", cwd: "/tmp/ws" };
@@ -422,6 +446,7 @@ describe("RoutineParamSchema", () => {
 
 describe("FlowDefinitionSchema", () => {
   const validFlow = {
+    $schema: FLOW_SCHEMA_URL,
     name: "implement",
     command: "/implement",
     orchestrator: {
@@ -599,6 +624,7 @@ describe("FlowDefinitionSchema", () => {
 
   it("rejects a nested instruction missing required fields (recursive validation)", () => {
     const invalid = {
+      $schema: FLOW_SCHEMA_URL,
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
@@ -623,6 +649,7 @@ describe("FlowDefinitionSchema", () => {
 
   it("rejects deeply nested invalid instruction type", () => {
     const invalid = {
+      $schema: FLOW_SCHEMA_URL,
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
@@ -653,6 +680,7 @@ describe("FlowDefinitionSchema", () => {
 
   it("produces human-readable errors for invalid flows", () => {
     const invalid = {
+      $schema: FLOW_SCHEMA_URL,
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
@@ -664,6 +692,30 @@ describe("FlowDefinitionSchema", () => {
       },
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
+  });
+
+  it("accepts a flow with the correct $schema value", () => {
+    expect(
+      Value.Check(FlowDefinitionSchema, {
+        $schema: FLOW_SCHEMA_URL,
+        name: "test",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: { main: { params: [], steps: [] } },
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a flow with an incorrect $schema value", () => {
+    expect(
+      Value.Check(FlowDefinitionSchema, {
+        $schema: "https://example.com/wrong-schema.json",
+        name: "test",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: { main: { params: [], steps: [] } },
+      }),
+    ).toBe(false);
   });
 });
 

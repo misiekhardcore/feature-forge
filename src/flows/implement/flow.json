@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json",
   "name": "implement",
   "command": "/implement",
   "orchestrator": {
