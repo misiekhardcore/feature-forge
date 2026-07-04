@@ -1,5 +1,6 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 
 import type { ProgressWidget } from "./ProgressReporter";
 
@@ -82,7 +83,7 @@ export class TuiRoutineWidget implements ProgressWidget {
     const lines = this.cachedLines;
 
     const renderFn = (_tui: TUI, _renderTheme: Theme): Component => ({
-      render: (_width: number) => lines,
+      render: (width: number) => lines.map((line) => truncateToWidth(line, width)),
       invalidate: () => {
         /* stateless — re-render is handled by throttled update */
       },
