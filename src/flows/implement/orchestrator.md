@@ -54,8 +54,13 @@ The routine returns:
 
 ### Phase 3: Summarise and PR
 
-1. If `run_build_loop.passed` is true, call `open_pr(workspace, title)` to
+1. If `run_build_loop.passed` is true, call `open_pr(workspace, title, commit_message, body)` to
    commit, push, and create the PR.
+   - Derive `commit_message` from the build results in conventional commits format
+     (e.g., `feat: description`, `fix: description`).
+   - Derive `body` as a concise markdown summary of what was built, key changes,
+     and test results. Avoid double-quote characters (") in the body content
+     since it is passed inline in the shell command.
 2. After `open_pr` succeeds, call `destroy_workspace(workspace)` to release
    the worktree.
 3. Post the PR URL to the user.

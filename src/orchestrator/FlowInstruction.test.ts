@@ -480,13 +480,19 @@ describe("FlowDefinitionSchema", () => {
         ],
       },
       open_pr: {
-        params: [{ name: "workspace" }, { name: "title" }],
+        params: [
+          { name: "workspace" },
+          { name: "title" },
+          { name: "commit_message" },
+          { name: "body" },
+        ],
         steps: [
           {
             type: "git" as const,
             id: "commit",
             action: "add-and-commit" as const,
             cwd: "{{workspace}}",
+            message: "{{commit_message}}",
           },
           {
             type: "git" as const,
@@ -494,7 +500,12 @@ describe("FlowDefinitionSchema", () => {
             action: "push-current" as const,
             cwd: "{{workspace}}",
           },
-          { type: "shell" as const, id: "pr", command: "gh pr create", cwd: "{{workspace}}" },
+          {
+            type: "shell" as const,
+            id: "pr",
+            command: 'gh pr create --title "{{title}}" --body "{{body}}"',
+            cwd: "{{workspace}}",
+          },
         ],
       },
     },
