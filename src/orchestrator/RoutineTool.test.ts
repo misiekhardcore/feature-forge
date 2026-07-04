@@ -13,7 +13,10 @@ import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
 import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
+import type { DisplayContribution } from "./progress/DisplayContribution";
 import { RoutineExecutor } from "./RoutineExecutor";
+import type { RoutineProgressEvent } from "./RoutineProgress";
+import type { RoutineResult } from "./RoutineResult";
 import { RoutineTool } from "./RoutineTool";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -85,53 +88,6 @@ describe("RoutineTool", () => {
       const schemaJson = JSON.stringify(tool.parameters);
       expect(schemaJson).toContain('"task"');
       expect(schemaJson).toContain('"plan"');
-    });
-  });
-
-  describe("extractAgentId", () => {
-    it("extracts instruction id from AgentStepExecutor started message", () => {
-      const result = RoutineTool.extractAgentId({
-        phase: "agent-started",
-        message: 'Agent "builder" (build) started',
-        details: {},
-      });
-      expect(result).toBe("builder");
-    });
-
-    it("extracts instruction id from AgentStepExecutor done message", () => {
-      const result = RoutineTool.extractAgentId({
-        phase: "agent-done",
-        message: 'Agent "builder" completed',
-        details: {},
-      });
-      expect(result).toBe("builder");
-    });
-
-    it("extracts instruction id from AgentStepExecutor error message", () => {
-      const result = RoutineTool.extractAgentId({
-        phase: "agent-error",
-        message: 'Agent "builder" failed: something broke',
-        details: {},
-      });
-      expect(result).toBe("builder");
-    });
-
-    it("returns undefined for non-agent messages", () => {
-      const result = RoutineTool.extractAgentId({
-        phase: "workspace-ready",
-        message: "Workspace /tmp/ws is ready",
-        details: {},
-      });
-      expect(result).toBeUndefined();
-    });
-
-    it("returns undefined for messages without agent id pattern", () => {
-      const result = RoutineTool.extractAgentId({
-        phase: "agent-started",
-        message: "Agent started successfully",
-        details: {},
-      });
-      expect(result).toBeUndefined();
     });
   });
 
@@ -319,16 +275,8 @@ describe("RoutineTool", () => {
       const executor = new RoutineExecutor(flow, registry, eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
-      const onUpdateCalls: AgentToolResult<{
-        routine: string;
-        passed: boolean;
-        summary: string;
-      }>[] = [];
-      const onUpdate: AgentToolUpdateCallback<{
-        routine: string;
-        passed: boolean;
-        summary: string;
-      }> = (result) => {
+      const onUpdateCalls: AgentToolResult<RoutineResult>[] = [];
+      const onUpdate: AgentToolUpdateCallback<RoutineResult> = (result) => {
         onUpdateCalls.push(result);
       };
 
@@ -503,7 +451,7 @@ describe("RoutineTool", () => {
       expect(result.content).toHaveLength(1);
     });
 
-    it("tracks agent progress with correct agentId mapping through the event bus", async () => {
+    it("tracks agent progress with correct agentId mapping through display contributions", async () => {
       const mockUi = {
         setWidget: vi.fn(),
         setStatus: vi.fn(),
@@ -513,13 +461,29 @@ describe("RoutineTool", () => {
       };
       const ctx = { ui: mockUi } as unknown as ExtensionContext;
 
-      // Register a fake agent executor that fires started/done events with the
-      // real AgentStepExecutor message format.
+      // Register a fake agent executor that fires started/done events AND
+      // provides getDisplayContribution so RoutineTool can extract agent state.
       const registry = new StepExecutorRegistry();
       registry.register(
         () =>
           new (class extends StepExecutor {
             readonly type = "agent";
+
+            override getDisplayContribution(
+              event: RoutineProgressEvent,
+            ): DisplayContribution | undefined {
+              if (!event.phase.startsWith("agent-")) return undefined;
+              const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
+              if (!agentId) return undefined;
+              const agentStatus =
+                event.phase === "agent-started"
+                  ? "started"
+                  : event.phase === "agent-done"
+                    ? "done"
+                    : undefined;
+              return { agentId, agentStatus, phase: event.phase, message: event.message };
+            }
+
             async execute(
               instruction: FlowInstruction,
               context: FlowContext,

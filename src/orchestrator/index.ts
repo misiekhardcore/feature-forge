@@ -47,15 +47,23 @@ export {
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
 export { FlowRegistrar } from "./FlowRegistrar";
+export type { DisplayContribution } from "./progress/DisplayContribution";
 export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEvent";
-export type { ProgressSnapshot } from "./progress/ProgressReporter";
-export { ProgressReporter } from "./progress/ProgressReporter";
-export { TuiProgressReporter } from "./progress/TuiProgressReporter";
+export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/ProgressRenderer";
+export {
+  buildStatusLine,
+  buildWidgetLines,
+  formatAgentRow,
+  statusIcon,
+} from "./progress/ProgressRenderer";
+export type { ProgressSnapshot, ProgressWidget } from "./progress/ProgressReporter";
+export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./progress/ProgressReporter";
+export { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineProgressEvent } from "./RoutineProgress";
 export type { RoutineResult } from "./RoutineResult";
-export { RoutineTool, type RoutineToolRowState } from "./RoutineTool";
+export { RoutineTool } from "./RoutineTool";
 export { StepExecutor } from "./StepExecutor";
 export { StepExecutorRegistry } from "./StepExecutorRegistry";
 

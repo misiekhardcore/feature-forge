@@ -1,0 +1,28 @@
+/**
+ * A DTO returned by {@link import("../StepExecutor").StepExecutor.getDisplayContribution}
+ * carrying display-relevant fields extracted from a
+ * {@link import("../RoutineProgress").RoutineProgressEvent}.
+ *
+ * All fields are optional — each executor populates only the subset
+ * it owns (agents track agentId/agentStatus, loops track iteration, etc.).
+ * The consumer merges contributions into an accumulated state snapshot
+ * for rendering.
+ */
+export interface DisplayContribution {
+  /** Agent instruction id, set when the event is agent-scoped. */
+  agentId?: string;
+  /** Agent lifecycle status ("started" | "done" | "error"). */
+  agentStatus?: string;
+  /** Summary text from a completed agent step. */
+  agentSummary?: string;
+  /** Current iteration index (0-based). */
+  iteration?: number;
+  /** Maximum number of loop iterations. */
+  maxIterations?: number;
+  /** Workspace path, if one has been provisioned. */
+  workspace?: string;
+  /** The event phase label (e.g. "agent-started"). */
+  phase?: string;
+  /** Human-readable description of the current progress. */
+  message?: string;
+}
