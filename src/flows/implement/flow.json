@@ -87,7 +87,7 @@
           "name": "commit_message",
           "description": "Commit message in conventional commits format"
         },
-        { "name": "body", "description": "Markdown PR description summarizing the changes" } (feat(orchestrator): parallel failure_mode + FlowSession flow-global store (#51))
+        { "name": "body", "description": "Markdown PR description summarizing the changes" }
       ],
       "steps": [
         {
@@ -101,7 +101,7 @@
         {
           "type": "shell",
           "id": "pr",
-          "command": "gh pr create --title \"{{title}}\" --body \"{{body}}\" --base \"{{session.base}}\"", (feat(orchestrator): parallel failure_mode + FlowSession flow-global store (#51))
+          "command": "gh pr create --title \"{{title}}\" --body \"{{body}}\" --base \"{{session.base}}\"",
           "cwd": "{{workspace}}"
         }
       ]
