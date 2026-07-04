@@ -10,7 +10,6 @@ import {
   ShellStepExecutor,
   WorkspaceStepExecutor,
 } from "./executors";
-import { FlowStateStore } from "./FlowStateStore";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
@@ -38,9 +37,7 @@ export function createStepExecutorRegistry(
   registry.register(() => new CleanupStepExecutor(workspaceProviderRegistry, worktreeRegistry));
   registry.register(() => new GitStepExecutor());
   registry.register(() => new ShellStepExecutor());
-  registry.register(
-    (store?: FlowStateStore) => new SessionStepExecutor(store ?? new FlowStateStore()),
-  );
+  registry.register(() => new SessionStepExecutor());
 
   // Container executors — registered after leaves so they can use the
   // populated registry for child dispatch.

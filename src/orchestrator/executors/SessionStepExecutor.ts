@@ -2,7 +2,6 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, SessionInstruction } from "../FlowInstruction";
-import type { FlowStateStore } from "../FlowStateStore";
 import type { DisplayContribution } from "../progress/DisplayContribution";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
@@ -17,10 +16,6 @@ import { StepExecutor } from "../StepExecutor";
  */
 export class SessionStepExecutor extends StepExecutor<SessionInstruction> {
   readonly type = "session";
-
-  constructor(private readonly store: FlowStateStore) {
-    super();
-  }
 
   async execute(
     instruction: SessionInstruction,
