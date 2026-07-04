@@ -39,7 +39,11 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
-      const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([["ws1", workspaceHandle]]),
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
       const controller = new AbortController();
@@ -60,7 +64,11 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
-      const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([["ws1", workspaceHandle]]),
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
@@ -76,12 +84,12 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
       const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
-      const context = new FlowContext(
-        new Map(),
-        "task",
-        new Map([["ws1", workspaceHandle]]),
-        new Map([["target", "ws1"]]),
-      );
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([["ws1", workspaceHandle]]),
+        params: new Map([["target", "ws1"]]),
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "{{target}}" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
@@ -96,14 +104,14 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const context = new FlowContext(
-        new Map(),
-        "task",
-        new Map([
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([
           ["ws1", new WorkspaceHandle("/fake/ws1", new Date())],
           ["ws2", new WorkspaceHandle("/fake/ws2", new Date())],
         ]),
-      );
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
@@ -131,11 +139,11 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const context = new FlowContext(
-        new Map(),
-        "task",
-        new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
-      );
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
@@ -150,7 +158,10 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
@@ -166,7 +177,11 @@ describe("CleanupStepExecutor", () => {
         const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
         const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
-        const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+          workspaces: new Map([["ws1", workspaceHandle]]),
+        });
 
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
@@ -199,7 +214,11 @@ describe("CleanupStepExecutor", () => {
         const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
         const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
-        const context = new FlowContext(new Map(), "task", new Map([["ws1", workspaceHandle]]));
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+          workspaces: new Map([["ws1", workspaceHandle]]),
+        });
 
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
@@ -215,7 +234,11 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map(),
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "/raw/path" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
@@ -230,11 +253,11 @@ describe("CleanupStepExecutor", () => {
       const wtRegistry = stubWorktreeRegistry();
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
 
-      const context = new FlowContext(
-        new Map(),
-        "task",
-        new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
-      );
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces: new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
+      });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());

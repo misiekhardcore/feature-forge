@@ -17,7 +17,10 @@ describe("orchestrator system prompt", () => {
     const systemPrompt = flow.orchestrator.systemPrompt;
     expect(systemPrompt.length).toBeGreaterThan(0);
 
-    const ctx = new FlowContext(new Map(), "Add user authentication");
+    const ctx = new FlowContext({
+      results: new Map(),
+      prompt: "Add user authentication",
+    });
     const resolved = ctx.resolve(systemPrompt);
 
     // The resolved systemPrompt must not contain any {{...}} tokens.

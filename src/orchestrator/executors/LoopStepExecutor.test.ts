@@ -77,7 +77,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -100,7 +100,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "parsejson", id: "check" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -122,7 +122,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "parsejson", id: "check" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -158,7 +158,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "always-fail", id: "check" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -178,7 +178,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "inc", id: "step" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -200,7 +200,7 @@ describe("LoopStepExecutor", () => {
       ],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -220,7 +220,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "inc", id: "body" } as unknown as FlowInstruction],
     };
 
-    const initial = new FlowContext(new Map(), "task").withResult("external", {
+    const initial = new FlowContext({ results: new Map(), prompt: "task" }).withResult("external", {
       raw: "keep me",
     });
     const result = await executor.execute(
@@ -244,7 +244,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "unknown", id: "x" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
       executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
@@ -263,7 +263,7 @@ describe("LoopStepExecutor", () => {
       steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const controller = new AbortController();
     controller.abort();
 
@@ -289,7 +289,7 @@ describe("LoopStepExecutor", () => {
       steps: [],
     };
 
-    const context = new FlowContext(new Map(), "task");
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
     const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
 
@@ -310,7 +310,7 @@ describe("LoopStepExecutor", () => {
         steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
       const eventBus = makeMockEventBus();
@@ -362,7 +362,7 @@ describe("LoopStepExecutor", () => {
         steps: [{ type: "inc", id: "counter" } as unknown as FlowInstruction],
       };
 
-      const context = new FlowContext(new Map(), "task");
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
       const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());

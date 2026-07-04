@@ -43,7 +43,10 @@ function makeFailedResult(critical: string[]): InstructionResult {
 describe("FlowContext", () => {
   describe("construction", () => {
     it("initialises with required fields and sensible defaults", () => {
-      const ctx = new FlowContext(new Map(), "add auth");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "add auth",
+      });
       expect(ctx.prompt).toBe("add auth");
       expect(ctx.results.size).toBe(0);
       expect(ctx.workspaces.size).toBe(0);
@@ -55,7 +58,14 @@ describe("FlowContext", () => {
     it("initialises with all optional fields", () => {
       const workspaces = new Map([["ws", makeHandle("/tmp/ws")]]);
       const params = new Map([["plan", "use JWT"]]);
-      const ctx = new FlowContext(new Map(), "task", workspaces, params, "fix x", 2);
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        workspaces,
+        params,
+        feedback: "fix x",
+        iteration: 2,
+      });
       expect(ctx.workspaces.get("ws")!.path).toBe("/tmp/ws");
       expect(ctx.params.get("plan")).toBe("use JWT");
       expect(ctx.feedback).toBe("fix x");
@@ -69,7 +79,10 @@ describe("FlowContext", () => {
 
   describe("withResult", () => {
     it("stores a result and returns a new context", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const result = makeResult({ raw: "hello" });
       const next = ctx.withResult("builder", result);
 
@@ -82,13 +95,19 @@ describe("FlowContext", () => {
     });
 
     it("does not mutate the original context's results map", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       ctx.withResult("a", makeResult());
       expect(ctx.results.size).toBe(0);
     });
 
     it("overwrites an existing result for the same id", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const first = ctx.withResult("a", makeResult({ raw: "first" }));
       const second = first.withResult("a", makeResult({ raw: "second" }));
 
@@ -103,20 +122,29 @@ describe("FlowContext", () => {
 
   describe("withWorkspace", () => {
     it("stores a workspace handle by name", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const handle = makeHandle("/tmp/ws");
       const next = ctx.withWorkspace("ws", handle);
       expect(next.workspaces.get("ws")).toBe(handle);
     });
 
     it("does not mutate the original context", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
       expect(ctx.workspaces.size).toBe(0);
     });
 
     it("overwrites an existing workspace with the same name", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const first = ctx.withWorkspace("ws", makeHandle("/tmp/ws1"));
       const second = first.withWorkspace("ws", makeHandle("/tmp/ws2"));
 
@@ -131,19 +159,28 @@ describe("FlowContext", () => {
 
   describe("withWorkspaceCleared", () => {
     it("removes a workspace by name", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withWorkspace("ws", makeHandle("/tmp/ws"));
       const next = ctx.withWorkspaceCleared("ws");
       expect(next.workspaces.has("ws")).toBe(false);
     });
 
     it("does not mutate the original context", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withWorkspace("ws", makeHandle("/tmp/ws"));
       ctx.withWorkspaceCleared("ws");
       expect(ctx.workspaces.has("ws")).toBe(true);
     });
 
     it("is a no-op for non-existent workspace name", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const next = ctx.withWorkspaceCleared("nonexistent");
       expect(next.workspaces.size).toBe(0);
     });
@@ -155,12 +192,18 @@ describe("FlowContext", () => {
 
   describe("getWorkspacePath", () => {
     it("returns the path of a known workspace", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withWorkspace("ws", makeHandle("/tmp/ws"));
       expect(ctx.getWorkspacePath("ws")).toBe("/tmp/ws");
     });
 
     it("returns undefined for unknown workspace", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.getWorkspacePath("nonexistent")).toBeUndefined();
     });
   });
@@ -171,14 +214,21 @@ describe("FlowContext", () => {
 
   describe("withParams", () => {
     it("stores params and returns a new context", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       const next = ctx.withParams({ plan: "use JWT", prompt: "add auth" });
       expect(next.params.get("plan")).toBe("use JWT");
       expect(next.params.get("prompt")).toBe("add auth");
     });
 
     it("replaces existing params entirely", () => {
-      const ctx = new FlowContext(new Map(), "task", undefined, new Map([["plan", "old"]]));
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["plan", "old"]]),
+      });
       const next = ctx.withParams({ prompt: "new task" });
       expect(next.params.size).toBe(1);
       expect(next.params.has("plan")).toBe(false);
@@ -186,7 +236,10 @@ describe("FlowContext", () => {
     });
 
     it("does not mutate the original context", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       ctx.withParams({ plan: "x" });
       expect(ctx.params.size).toBe(0);
     });
@@ -198,7 +251,10 @@ describe("FlowContext", () => {
 
   describe("withFeedback", () => {
     it("replaces feedback", () => {
-      const ctx = new FlowContext(new Map(), "task").withFeedback("[review] CRITICAL: fix");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withFeedback("[review] CRITICAL: fix");
       expect(ctx.feedback).toBe("[review] CRITICAL: fix");
     });
   });
@@ -209,7 +265,10 @@ describe("FlowContext", () => {
 
   describe("withIteration", () => {
     it("sets the iteration counter", () => {
-      const ctx = new FlowContext(new Map(), "task").withIteration(3);
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withIteration(3);
       expect(ctx.iteration).toBe(3);
     });
   });
@@ -220,7 +279,10 @@ describe("FlowContext", () => {
 
   describe("withResultsCleared", () => {
     it("removes specified ids while keeping others", () => {
-      const ctx = new FlowContext(new Map(), "task")
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      })
         .withResult("a", makeResult())
         .withResult("b", makeResult())
         .withResult("c", makeResult());
@@ -234,7 +296,10 @@ describe("FlowContext", () => {
     });
 
     it("does not mutate the original context", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult("a", makeResult());
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("a", makeResult());
 
       ctx.withResultsCleared(new Set(["a"]));
 
@@ -243,13 +308,19 @@ describe("FlowContext", () => {
     });
 
     it("is a no-op for ids not in the results map", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult("a", makeResult());
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("a", makeResult());
       const next = ctx.withResultsCleared(new Set(["nonexistent"]));
       expect(next.results.size).toBe(1);
     });
 
     it("is a no-op for an empty set", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult("a", makeResult());
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("a", makeResult());
       const next = ctx.withResultsCleared(new Set());
       expect(next.results.size).toBe(1);
     });
@@ -257,7 +328,10 @@ describe("FlowContext", () => {
     it("clears loop-internal results between iterations", () => {
       // Simulates two loop iterations — iteration 2 should not see
       // results from iteration 1 for loop-internal instructions.
-      let ctx = new FlowContext(new Map(), "task");
+      let ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       // Iteration 1: build + review run, produce results
       ctx = ctx.withResult("builder", makeResult({ raw: "round 1 build" }));
@@ -280,81 +354,116 @@ describe("FlowContext", () => {
 
   describe("resolve", () => {
     it("resolves {{prompt}}", () => {
-      const ctx = new FlowContext(new Map(), "add auth");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "add auth",
+      });
       expect(ctx.resolve("Build: {{prompt}}")).toBe("Build: add auth");
     });
 
     it("resolves {{feedback}} with a default when none set", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.resolve("Feedback: {{feedback}}")).toBe("Feedback: (no prior findings)");
     });
 
     it("resolves {{feedback}} from the context", () => {
-      const ctx = new FlowContext(new Map(), "task", undefined, undefined, "fix validation");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        feedback: "fix validation",
+      });
       expect(ctx.resolve("Feedback: {{feedback}}")).toBe("Feedback: fix validation");
     });
 
     it("resolves {{workspace.<name>}} to the workspace path", () => {
-      const ctx = new FlowContext(new Map(), "task").withWorkspace("ws", makeHandle("/tmp/ws"));
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withWorkspace("ws", makeHandle("/tmp/ws"));
       expect(ctx.resolve("Workspace: {{workspace.ws}}")).toBe("Workspace: /tmp/ws");
     });
 
     it("resolves {{workspace.<name>}} as empty string when not set", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.resolve("{{workspace.ws}}")).toBe("");
     });
 
     it("resolves param placeholders via params map", () => {
-      const ctx = new FlowContext(new Map(), "task", undefined, new Map([["plan", "use JWT"]]));
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["plan", "use JWT"]]),
+      });
       expect(ctx.resolve("Plan: {{plan}}")).toBe("Plan: use JWT");
     });
 
     it("resolves param placeholder as {{key}} when param not in map", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.resolve("{{plan}}")).toBe("{{plan}}");
     });
 
     it("resolves {{results.<id>.raw}}", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult(
-        "builder",
-        makeResult({ raw: "created auth.ts" }),
-      );
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("builder", makeResult({ raw: "created auth.ts" }));
       expect(ctx.resolve("Output: {{results.builder.raw}}")).toBe("Output: created auth.ts");
     });
 
     it("resolves {{results.<id>.raw}} as empty for missing id", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.resolve("{{results.missing.raw}}")).toBe("");
     });
 
     it("resolves {{results.<id>.parsed.passed}}", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult("review", makePassedResult());
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("review", makePassedResult());
       expect(ctx.resolve("Passed: {{results.review.parsed.passed}}")).toBe("Passed: true");
     });
 
     it("resolves {{results.<id>.parsed.passed}} for failed", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult(
-        "review",
-        makeFailedResult(["no validation"]),
-      );
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("review", makeFailedResult(["no validation"]));
       expect(ctx.resolve("Passed: {{results.review.parsed.passed}}")).toBe("Passed: false");
     });
 
     it("resolves nested parsed field as empty for unparsed result", () => {
-      const ctx = new FlowContext(new Map(), "task").withResult(
-        "builder",
-        makeResult({ raw: "done", parsed: undefined }),
-      );
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("builder", makeResult({ raw: "done", parsed: undefined }));
       expect(ctx.resolve("{{results.builder.parsed.passed}}")).toBe("");
     });
 
     it("resolves nested parsed field as empty for missing id", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.resolve("{{results.missing.parsed.passed}}")).toBe("");
     });
 
     it("replaces multiple placeholders in one template", () => {
-      const ctx = new FlowContext(new Map(), "add auth")
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "add auth",
+      })
         .withWorkspace("ws", makeHandle("/ws"))
         .withParams({ plan: "use JWT" });
       expect(ctx.resolve("Task: {{prompt}} | Plan: {{plan}} | WS: {{workspace.ws}}")).toBe(
@@ -363,7 +472,10 @@ describe("FlowContext", () => {
     });
 
     it("leaves unknown placeholders unchanged", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
       expect(ctx.resolve("Hello {{UNKNOWN}}")).toBe("Hello {{UNKNOWN}}");
     });
   });
@@ -374,7 +486,10 @@ describe("FlowContext", () => {
 
   describe("immutability", () => {
     it("supports fluent chaining without mutating intermediates", () => {
-      const ctx = new FlowContext(new Map(), "task");
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
 
       const ctx2 = ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
       const ctx3 = ctx2.withFeedback("f");

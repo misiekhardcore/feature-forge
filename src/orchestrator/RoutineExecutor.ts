@@ -4,6 +4,7 @@ import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
+import { FlowParams, FlowStateStore } from "./FlowStateStore";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -21,6 +22,9 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
  * ```
  */
 export class RoutineExecutor {
+  /** Flow-global state store that survives across routine calls. */
+  readonly store: FlowStateStore;
+
   constructor(
     private readonly flow: FlowDefinition,
     /**
@@ -29,7 +33,10 @@ export class RoutineExecutor {
      */
     public readonly stepRegistry: StepExecutorRegistry,
     public readonly eventBus: EventBus,
-  ) {}
+    store?: FlowStateStore,
+  ) {
+    this.store = store ?? new FlowStateStore();
+  }
 
   /**
    * Execute every step in the named routine and return a structured result.
@@ -43,7 +50,7 @@ export class RoutineExecutor {
    */
   async run(
     routineName: string,
-    params: Record<string, string>,
+    params: FlowParams,
     task: string,
     signal?: AbortSignal,
   ): Promise<RoutineResult> {
@@ -61,7 +68,21 @@ export class RoutineExecutor {
       stepCount: routine.steps.length,
     });
 
-    let context = new FlowContext(new Map(), task, new Map(), new Map(Object.entries(params)));
+    // Merge session values into params — routine params override session defaults.
+    const mergedParams = new Map<string, string>();
+    for (const [key, value] of this.store.entries()) {
+      mergedParams.set(key, value);
+    }
+    for (const [key, value] of Object.entries(params)) {
+      mergedParams.set(key, value);
+    }
+
+    let context = new FlowContext({
+      params: mergedParams,
+      results: new Map(),
+      prompt: task,
+      store: this.store,
+    });
 
     // Recursive step dispatcher — passes itself to executors so container
     // instructions (loop, parallel) can dispatch their children without
@@ -138,6 +159,7 @@ export class RoutineExecutor {
     return {
       routine: routineName,
       passed,
+      session: context.store.toObject(),
       rounds: context.iteration + 1,
       workspace,
       results,
