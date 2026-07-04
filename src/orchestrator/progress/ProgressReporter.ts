@@ -78,13 +78,6 @@ export abstract class ProgressReporter {
    * Subclasses that track state should override this.
    */
   getState(): ProgressSnapshot {
-    return {
-      routineName: "",
-      phase: "",
-      message: "",
-      iteration: 0,
-      maxIterations: 0,
-      agents: new Map(),
-    };
+    return EMPTY_PROGRESS_SNAPSHOT;
   }
 }
