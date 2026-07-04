@@ -8,6 +8,13 @@
       "TASK": "{{prompt}}"
     }
   },
+  "params": [
+    {
+      "name": "base",
+      "description": "Target base branch for the PR",
+      "default": "main"
+    }
+  ],
   "routines": {
     "run_build_loop": {
       "params": [
@@ -121,12 +128,5 @@
         }
       ]
     }
-  },
-  "params": [
-    {
-      "name": "base",
-      "description": "Target base branch for the PR",
-      "default": "main"
-    }
-  ]
+  }
 }
