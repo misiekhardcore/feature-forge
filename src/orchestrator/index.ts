@@ -50,15 +50,15 @@ export { FlowRegistrar } from "./FlowRegistrar";
 export type { DisplayContribution } from "./progress/DisplayContribution";
 export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEvent";
-export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/ProgressRenderer";
-export {
-  buildStatusLine,
-  buildWidgetLines,
-  formatAgentRow,
-  statusIcon,
+export type {
+  BuildStatusLineParams,
+  BuildWidgetLinesParams,
+  ThemeLike,
 } from "./progress/ProgressRenderer";
+export { ProgressRenderer } from "./progress/ProgressRenderer";
 export type { ProgressSnapshot, ProgressWidget } from "./progress/ProgressReporter";
 export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./progress/ProgressReporter";
+export type { RoutineProgressState } from "./progress/RoutineProgressState";
 export { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineProgressEvent } from "./RoutineProgress";

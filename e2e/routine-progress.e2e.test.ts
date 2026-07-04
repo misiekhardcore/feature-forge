@@ -19,7 +19,7 @@ import { InMemoryAgentSupervisor } from "../src/agents";
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import type { DisplayContribution } from "../src/orchestrator/progress/DisplayContribution";
-import { buildStatusLine, buildWidgetLines } from "../src/orchestrator/progress/ProgressRenderer";
+import { ProgressRenderer } from "../src/orchestrator/progress/ProgressRenderer";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import type { RoutineProgressEvent } from "../src/orchestrator/RoutineProgress";
 import { makeMockEventBus, makeMockFactory, makeMockSpecManager } from "../src/test-utils";
@@ -133,7 +133,7 @@ describe("routine progress display (e2e)", () => {
     const rows = [...agentState].map(
       ([l, a]) => `${a.status === "done" ? "✓" : "⏳"} ${l}${a.summary ? ` — ${a.summary}` : ""}`,
     );
-    const lines = buildWidgetLines({
+    const lines = ProgressRenderer.buildWidgetLines({
       theme: mockTheme,
       title: "run_build_loop",
       subtitle: `iteration ${capturedIteration + 1}/${capturedMaxIterations}`,
@@ -144,7 +144,7 @@ describe("routine progress display (e2e)", () => {
     expect(lines.some((l) => l.includes("run_build_loop"))).toBe(true);
     expect(lines.some((l) => l.includes("builder"))).toBe(true);
 
-    const status = buildStatusLine({
+    const status = ProgressRenderer.buildStatusLine({
       theme: mockTheme,
       title: "run_build_loop",
       subtitle: `${capturedIteration + 1}/${capturedMaxIterations}`,
