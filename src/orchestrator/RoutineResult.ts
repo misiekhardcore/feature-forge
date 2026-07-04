@@ -1,4 +1,5 @@
 import type { InstructionResult } from "./FlowContext";
+import type { FlowParams } from "./FlowStateStore";
 
 /**
  * The structured result produced by executing one routine to completion.
@@ -20,5 +21,5 @@ export interface RoutineResult {
   /** Human-readable digest for the orchestrator LLM. */
   summary: string;
   /** Flow-global session state at routine completion. */
-  session: Record<string, string>;
+  session: FlowParams;
 }

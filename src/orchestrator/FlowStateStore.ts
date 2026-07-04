@@ -1,5 +1,8 @@
 import { Registry } from "../registry";
 
+/** Named alias for flow-level parameter/state maps used across the orchestrator. */
+export type FlowParams = Record<string, string>;
+
 /**
  * Mutable registry for flow-global state that persists across routine calls
  * within a single flow execution.
@@ -22,7 +25,7 @@ export class FlowStateStore extends Registry<string> {
     return this.items.entries();
   }
 
-  toObject(): Record<string, string> {
+  toObject(): FlowParams {
     return Object.fromEntries(this.items);
   }
 }

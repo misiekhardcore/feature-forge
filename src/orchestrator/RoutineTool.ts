@@ -12,6 +12,7 @@ import { Type } from "typebox";
 
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
+import type { FlowParams } from "./FlowStateStore";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -142,7 +143,7 @@ export class RoutineTool
 
   async execute(
     toolCallId: string,
-    params: Record<string, string>,
+    params: FlowParams,
     signal: AbortSignal | undefined,
     onUpdate: AgentToolUpdateCallback<RoutineResult> | undefined,
     ctx: ExtensionContext,
@@ -153,7 +154,7 @@ export class RoutineTool
     });
 
     const prompt = params["prompt"] ?? params["_prompt"] ?? "";
-    const routineParams: Record<string, string> = {};
+    const routineParams: FlowParams = {};
     for (const param of this.routineDef.params) {
       if (param.name in params) {
         routineParams[param.name] = params[param.name];

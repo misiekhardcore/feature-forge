@@ -4,7 +4,7 @@ import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
-import { FlowStateStore } from "./FlowStateStore";
+import { FlowParams, FlowStateStore } from "./FlowStateStore";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -50,7 +50,7 @@ export class RoutineExecutor {
    */
   async run(
     routineName: string,
-    params: Record<string, string>,
+    params: FlowParams,
     task: string,
     signal?: AbortSignal,
   ): Promise<RoutineResult> {
@@ -159,7 +159,7 @@ export class RoutineExecutor {
       ? `Routine "${routineName}" completed with ${Object.keys(results).length} results`
       : `Routine "${routineName}" failed: ${error?.message ?? "unknown error"}`;
 
-    const sessionObj: Record<string, string> = {};
+    const sessionObj: FlowParams = {};
     for (const [key, value] of context.store.entries()) {
       sessionObj[key] = value;
     }

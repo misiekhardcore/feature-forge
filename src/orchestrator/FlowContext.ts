@@ -1,6 +1,6 @@
 import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
-import { FlowStateStore } from "./FlowStateStore";
+import { FlowParams, FlowStateStore } from "./FlowStateStore";
 
 /**
  * Immutable value object carrying the state of an in-progress routine execution.
@@ -70,7 +70,7 @@ export class FlowContext {
     );
   }
 
-  withParams(params: Record<string, string>): FlowContext {
+  withParams(params: FlowParams): FlowContext {
     return new FlowContext(
       this.results,
       this.prompt,
