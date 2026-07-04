@@ -33,6 +33,8 @@ export interface BuildWidgetLinesParams {
   metadata?: string[];
   /** Optional workspace path line. */
   path?: string;
+  /** Optional session K/V pairs to display in the footer. */
+  sessionEntries?: [string, string][];
 }
 
 /** Parameters for {@link ProgressRenderer.buildStatusLine}. */
@@ -102,7 +104,7 @@ export class ProgressRenderer {
    * metadata / workspace lines.
    */
   static buildWidgetLines(params: BuildWidgetLinesParams): string[] {
-    const { theme, title, subtitle, rows, metadata, path } = params;
+    const { theme, title, subtitle, rows, metadata, path, sessionEntries } = params;
     const lines: string[] = [];
 
     // Header
@@ -135,6 +137,12 @@ export class ProgressRenderer {
     // Workspace path
     if (path) {
       lines.push(theme.fg("muted", `  ws: ${path}`));
+    }
+
+    // Session
+    if (sessionEntries && sessionEntries.length > 0) {
+      const sessionLine = sessionEntries.map(([k, v]) => `${k}=${v}`).join(" ");
+      lines.push(theme.fg("muted", `  session: ${sessionLine}`));
     }
 
     return lines;
@@ -319,6 +327,7 @@ export class ProgressRenderer {
       rows,
       metadata: metadata.length > 0 ? metadata : undefined,
       path: workspace,
+      sessionEntries: state.sessionEntries.length > 0 ? state.sessionEntries : undefined,
     });
 
     const tags: string[] = [];

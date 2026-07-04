@@ -23,7 +23,7 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
  */
 export class RoutineExecutor {
   /** Flow-global state store that survives across routine calls. */
-  private readonly store: FlowStateStore;
+  readonly store: FlowStateStore;
 
   constructor(
     private readonly flow: FlowDefinition,

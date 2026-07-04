@@ -111,6 +111,10 @@ export class RoutineTool
     return this._contributions;
   }
 
+  get sessionEntries(): [string, string][] {
+    return Array.from(this.executor.store.entries());
+  }
+
   // ── ToolDefinition rendering ───────────────────────────────
 
   renderCall = (
@@ -197,6 +201,7 @@ export class RoutineTool
             workspace: event.details.workspace,
             results: {},
             summary: event.message,
+            session: this.executor.store.toObject(),
           },
         });
       }

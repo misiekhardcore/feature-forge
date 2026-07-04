@@ -17,4 +17,7 @@ export interface RoutineProgressState {
    * iteration counters, workspace path, and continueWhile from these records.
    */
   readonly contributions: readonly DisplayContribution[];
+
+  /** Current FlowStateStore entries, exposed by {@link RoutineTool}. */
+  readonly sessionEntries: [string, string][];
 }
