@@ -72,9 +72,21 @@ export const ShellInstructionSchema = defineInstruction("shell", {
   cwd: Type.String({ minLength: 1 }),
 });
 
+// ── Parallel failure mode ──────────────────────────────────
+
+export const ParallelFailureModeSchema = Type.Union([
+  Type.Literal("fail_fast"),
+  Type.Literal("continue_on_error"),
+  Type.Literal("all_or_nothing"),
+]);
+
+export type ParallelFailureMode = Type.Static<typeof ParallelFailureModeSchema>;
+
 // ── Container schemas (steps added via patch below) ─────────
 
-export const ParallelInstructionSchema = defineInstruction("parallel");
+export const ParallelInstructionSchema = defineInstruction("parallel", {
+  failureMode: Type.Optional(ParallelFailureModeSchema),
+});
 
 /**
  * Loop instruction schema.
@@ -194,6 +206,7 @@ export type AgentInstruction = Type.Static<typeof AgentInstructionSchema>;
 
 export type ParallelInstruction = Type.Static<typeof ParallelInstructionSchema> & {
   steps: FlowInstruction[];
+  failureMode?: ParallelFailureMode;
 };
 
 export type LoopInstruction = Type.Static<typeof LoopInstructionSchema> & {
@@ -247,8 +260,14 @@ export function isContainerInstruction(instr: FlowInstruction): instr is Contain
 
 // ── Helper constructors ────────────────────────────────────────
 
-export function makeParallelInstruction(id: string, steps: FlowInstruction[]): ParallelInstruction {
-  return { type: "parallel", id, steps };
+export function makeParallelInstruction(
+  id: string,
+  steps: FlowInstruction[],
+  failureMode?: ParallelFailureMode,
+): ParallelInstruction {
+  const instr: ParallelInstruction = { type: "parallel", id, steps };
+  if (failureMode !== undefined) instr.failureMode = failureMode;
+  return instr;
 }
 
 export function makeLoopInstruction(
