@@ -18,10 +18,20 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["node_modules/", "dist/", "eslint.config.js", ".pi/extensions/index.ts"],
+    ignores: [
+      "node_modules/",
+      "dist/",
+      "eslint.config.js",
+      ".pi/extensions/index.ts",
+      ".turbo/",
+      "coverage/",
+      "**/coverage/**",
+      "vitest.config.ts",
+      "packages/*/scripts/**",
+    ],
   },
   {
-    files: ["src/**/*.test.ts"],
+    files: ["packages/*/src/**/*.test.ts"],
     rules: {
       "@typescript-eslint/unbound-method": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
@@ -35,7 +45,7 @@ export default tseslint.config(
       "unused-imports": unusedImports,
     },
     // Test files: relax rules that clash with vitest mocking patterns
-    files: ["src/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
+    files: ["packages/*/src/**/*.ts", "packages/*/e2e/**/*.ts", "packages/*/scripts/**/*.ts"],
     rules: {
       "simple-import-sort/imports": "error",
       "simple-import-sort/exports": "error",

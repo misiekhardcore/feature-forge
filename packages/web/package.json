@@ -1,0 +1,13 @@
+{
+  "name": "@feature-forge/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Feature Forge web frontend (placeholder)",
+  "scripts": {
+    "build": "echo 'web: nothing to build yet'",
+    "test": "echo 'web: no tests yet'",
+    "lint": "echo 'web: no source yet'",
+    "format": "echo 'web: no source yet'",
+    "typecheck": "echo 'web: no source yet'"
+  }
+}
