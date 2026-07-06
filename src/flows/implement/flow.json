@@ -17,8 +17,22 @@
     }
   ],
   "routines": {
+    "create_workspace": {
+      "params": [],
+      "steps": [
+        {
+          "type": "workspace",
+          "id": "ws",
+          "provider": "git-worktree"
+        }
+      ]
+    },
     "run_build_loop": {
       "params": [
+        {
+          "name": "workspace",
+          "description": "Absolute path to the git worktree to build in"
+        },
         {
           "name": "task",
           "description": "The task description"
@@ -29,11 +43,6 @@
         }
       ],
       "steps": [
-        {
-          "type": "workspace",
-          "id": "ws",
-          "provider": "git-worktree"
-        },
         {
           "type": "loop",
           "id": "build_loop",
@@ -46,16 +55,10 @@
               "id": "builder",
               "systemPrompt": "build",
               "workingDir": {
-                "workspace": "ws"
+                "path": "{{workspace}}"
               },
               "parseJson": true,
-              "promptParams": {
-                "TASK": "{{prompt}}",
-                "PLAN": "{{plan}}",
-                "FEEDBACK": "{{feedback}}",
-                "WORKSPACE": "{{workspace.ws}}"
-              },
-              "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace.ws}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass."
+              "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass."
             },
             {
               "type": "parallel",
@@ -66,7 +69,7 @@
                   "id": "review",
                   "systemPrompt": "review",
                   "workingDir": {
-                    "workspace": "ws"
+                    "path": "{{workspace}}"
                   },
                   "parseJson": true,
                   "prompt": "Review the code changes against:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
@@ -76,7 +79,7 @@
                   "id": "verify",
                   "systemPrompt": "verify",
                   "workingDir": {
-                    "workspace": "ws"
+                    "path": "{{workspace}}"
                   },
                   "parseJson": true,
                   "prompt": "Verify acceptance criteria:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
