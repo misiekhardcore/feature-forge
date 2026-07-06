@@ -237,6 +237,113 @@ describe("GitStepExecutor", () => {
       ).rejects.toThrow("fatal: not a git repository");
     });
 
+    it("already committed, nothing new to commit → succeeds (idempotent)", async () => {
+      // git add succeeds, git commit fails with "nothing to commit", rev-parse succeeds
+      execFileRaw
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: null, stdout: string, stderr: string) => void,
+          ) => {
+            cb(null, "", "");
+          },
+        )
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: Error, stdout: string, stderr: string) => void,
+          ) => {
+            cb(
+              new Error("nothing to commit, working tree clean"),
+              "",
+              "nothing to commit, working tree clean",
+            );
+          },
+        )
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: null, stdout: string, stderr: string) => void,
+          ) => {
+            cb(null, "abc123def456", "");
+          },
+        );
+
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-idempotent",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+      expect(execFileRaw).toHaveBeenCalledTimes(3);
+      expect(execFileRaw.mock.calls[2][1]).toEqual(["rev-parse", "--verify", "HEAD"]);
+      expect(result.results.get("git-idempotent")!.parsed!.passed).toBe(true);
+    });
+
+    it("empty branch with nothing to commit → still throws", async () => {
+      // git add succeeds, git commit fails with "nothing to commit", rev-parse fails
+      execFileRaw
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: null, stdout: string, stderr: string) => void,
+          ) => {
+            cb(null, "", "");
+          },
+        )
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: Error, stdout: string, stderr: string) => void,
+          ) => {
+            cb(
+              new Error("nothing to commit, working tree clean"),
+              "",
+              "nothing to commit, working tree clean",
+            );
+          },
+        )
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: Error, stdout: string, stderr: string) => void,
+          ) => {
+            cb(new Error("fatal: Needed a single revision"), "", "fatal: Needed a single revision");
+          },
+        );
+
+      const executor = new GitStepExecutor();
+
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-empty",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+      ).rejects.toThrow("nothing to commit");
+    });
+
     it("emits git-start/git-done with correct phase and message for push-current", async () => {
       mockExecSuccess("pushed ok\n", "");
       const executor = new GitStepExecutor();
