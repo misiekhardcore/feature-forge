@@ -1,3 +1,4 @@
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -13,6 +14,8 @@ export interface ExecuteTaskOptions {
   timeout?: number;
   /** Optional AbortSignal to cancel the task execution. */
   signal?: AbortSignal;
+  /** Receive real-time AgentEvents during execution. */
+  onEvent?: (event: AgentEvent) => void;
 }
 
 /**

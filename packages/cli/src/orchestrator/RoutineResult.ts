@@ -22,4 +22,10 @@ export interface RoutineResult {
   summary: string;
   /** Flow-global session state at routine completion. */
   session: FlowParams;
+  /** Agent instruction id carried by agent-stream events. */
+  agentId?: string;
+  /** Agent role label carried by agent-stream events. */
+  label?: string;
+  /** Raw agent event payload carried by agent-stream events. */
+  event?: unknown;
 }

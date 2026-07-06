@@ -28,7 +28,22 @@ function makeMockSpecManager(): SpecManager {
 function makeMockAgent(result: string): SubprocessAgent {
   return {
     id: "test-agent",
-    executeTask: vi.fn().mockResolvedValue(result),
+    executeTask: vi
+      .fn()
+      .mockImplementation(
+        (
+          _prompt: string,
+          options?: { signal?: AbortSignal; onEvent?: (event: object) => void },
+        ) => {
+          // Simulate streaming: fire a few events through the callback
+          options?.onEvent?.({ type: "tool_use", tool: "read" });
+          options?.onEvent?.({
+            type: "message_end",
+            message: { role: "assistant", content: [{ type: "text", text: result }] },
+          });
+          return Promise.resolve(result);
+        },
+      ),
     getResult: vi.fn().mockReturnValue(result),
     destroy: vi.fn().mockResolvedValue(undefined),
   } as unknown as SubprocessAgent;
@@ -74,7 +89,10 @@ describe("AgentStepExecutor", () => {
 
       expect(specManager.resolve).toHaveBeenCalled();
       expect(supervisor.spawnGuest).toHaveBeenCalled();
-      expect(agent.executeTask).toHaveBeenCalledWith("do the thing", { signal: undefined });
+      expect(agent.executeTask).toHaveBeenCalledWith(
+        "do the thing",
+        expect.objectContaining({ signal: undefined }),
+      );
       expect(agent.getResult).toHaveBeenCalled();
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
 
@@ -100,7 +118,10 @@ describe("AgentStepExecutor", () => {
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(agent.executeTask).toHaveBeenCalledWith("do add auth", { signal: undefined });
+      expect(agent.executeTask).toHaveBeenCalledWith(
+        "do add auth",
+        expect.objectContaining({ signal: undefined }),
+      );
     });
 
     it("parses JSON output when parseJson is true", async () => {
@@ -456,7 +477,7 @@ describe("AgentStepExecutor", () => {
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.emit).toHaveBeenCalledTimes(4);
         expect(eventBus.emit).toHaveBeenNthCalledWith(
           1,
           "feature-forge:agent-started",
@@ -466,7 +487,7 @@ describe("AgentStepExecutor", () => {
           }),
         );
         expect(eventBus.emit).toHaveBeenNthCalledWith(
-          2,
+          4,
           "feature-forge:agent-done",
           expect.objectContaining({
             phase: "agent-done",
@@ -536,6 +557,41 @@ describe("AgentStepExecutor", () => {
         expect(eventBus.emit).toHaveBeenCalledWith(
           "feature-forge:agent-started",
           expect.anything(),
+        );
+      });
+
+      it("emits agent-stream events during agent execution", async () => {
+        const agent = makeMockAgent("build output");
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "do the thing",
+        };
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
+
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
+
+        // agent-started, 2x agent-stream, agent-done = 4 emits
+        expect(eventBus.emit).toHaveBeenCalledTimes(4);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+          "feature-forge:agent-stream",
+          expect.objectContaining({
+            phase: "agent-stream",
+            details: expect.objectContaining({
+              agentId: "builder",
+              label: "test",
+              event: expect.objectContaining({ type: "tool_use" }),
+            }),
+          }),
         );
       });
 

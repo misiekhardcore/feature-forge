@@ -82,7 +82,20 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     });
 
     try {
-      await agent.executeTask(resolvedTask, { signal });
+      await agent.executeTask(resolvedTask, {
+        signal,
+        onEvent: (event) => {
+          eventBus.emit("feature-forge:agent-stream", {
+            phase: "agent-stream",
+            message: `Agent "${instructionId}" stream event`,
+            details: {
+              agentId: instructionId,
+              label: specification.role,
+              event,
+            },
+          });
+        },
+      });
 
       const raw = agent.getResult();
       logger.info("Agent completed", { instructionId, resultLength: raw.length });

@@ -12,6 +12,7 @@ import { Type } from "typebox";
 
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
+import { AgentViewerOverlay } from "./progress";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -25,6 +26,7 @@ import type { RoutineResult } from "./RoutineResult";
 const FEATURE_FORGE_CHANNELS = [
   "feature-forge:workspace-ready",
   "feature-forge:agent-started",
+  "feature-forge:agent-stream",
   "feature-forge:agent-done",
   "feature-forge:loop-round-start",
   "feature-forge:loop-round-complete",
@@ -83,6 +85,9 @@ export class RoutineTool
 
   /** Rendering delegate — builds TUI components and widget content from live state. */
   private readonly renderer: ProgressRenderer;
+
+  /** Agent viewer overlay instance — created fresh per execution. */
+  private agentViewer: AgentViewerOverlay | undefined;
 
   constructor(
     flowName: string,
@@ -168,16 +173,37 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
+    // Agent viewer overlay — a separate widget panel showing live agent details.
+    this.agentViewer = new AgentViewerOverlay();
+    const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
+    if (hasUI && ctx.ui) {
+      ctx.ui.setWidget("forge-agent-viewer", this.agentViewer.buildWidgetFactory(), {
+        placement: "belowEditor",
+      });
+    }
+
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
       logger.debug("RoutineTool progress", { ...event });
 
       // Accumulate display contributions from all executors.
+      let agentViewerDirty = false;
       for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
         this._contributions.push(contrib);
+
+        // Update the agent viewer overlay when the event is agent-scoped.
+        if (contrib.agentId && contrib.agentStatus && this.agentViewer) {
+          this.agentViewer.update({
+            id: contrib.agentId,
+            status: contrib.agentStatus,
+            summary: contrib.agentSummary,
+          });
+          agentViewerDirty = true;
+        }
       }
+      if (agentViewerDirty) this.renderAgentViewer(ctx);
 
       this.renderProgress(widget, ctx);
 
@@ -221,6 +247,10 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
+      if (hasUI && ctx.ui) {
+        ctx.ui.setWidget("forge-agent-viewer", undefined);
+      }
+      this.agentViewer?.clear();
       for (const unsub of unsubscribers) unsub();
     }
   }
@@ -236,6 +266,16 @@ export class RoutineTool
   private renderProgress(widget: ProgressWidget, ctx: ExtensionContext): void {
     const theme = ctx.ui?.theme ?? { fg: (_c: string, t: string) => t };
     this.renderer.renderToWidget(widget, theme);
+  }
+
+  /** Re-render the agent viewer overlay widget. */
+  private renderAgentViewer(ctx: ExtensionContext): void {
+    if (!ctx.ui || ctx.mode !== "tui" || !this.agentViewer) return;
+    // Re-set the widget with the factory to force a re-render.
+    // The factory reads live state from the AgentViewerOverlay instance.
+    ctx.ui.setWidget("forge-agent-viewer", this.agentViewer.buildWidgetFactory(), {
+      placement: "belowEditor",
+    });
   }
 
   private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {
