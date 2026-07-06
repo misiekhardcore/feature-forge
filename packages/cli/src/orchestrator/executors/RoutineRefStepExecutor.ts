@@ -131,7 +131,7 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       // Store the routine result under the instruction id (or output_as if specified).
       const outputId = instruction.output_as ?? instruction.id;
       const resultValue: InstructionResult = {
-        raw: result.summary,
+        raw: JSON.stringify(result),
         parsed: {
           kind: "build",
           passed: result.passed,

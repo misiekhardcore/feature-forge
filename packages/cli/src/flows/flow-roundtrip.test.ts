@@ -51,7 +51,7 @@ function collectParseJsonIds(
   ids = new Set<string>(),
 ): Set<string> {
   for (const instr of instructions) {
-    if (instr.type === "agent" && instr.parseJson) {
+    if ((instr.type === "agent" && instr.parseJson) || instr.type === "routine") {
       ids.add(instr.id);
     }
     if (isContainerInstruction(instr)) {
@@ -241,16 +241,19 @@ describe("flow round-trip", () => {
           expect(ExpressionEvaluator.evaluateExpression(expr, allPassed)).toBe(false);
         }
 
-        // 5c. With one result failing, the loop should continue (expression → true).
+        // 5c. With one expression-relevant result failing, the loop should
+        //     continue (expression → true). Pick the first parseJson id that
+        //     actually appears in the expression — if none appear, skip.
         if (parseJsonIds.length > 0) {
-          const oneFailed = makeStubContext(parseJsonIds, true);
-          // Override the first id to passed: false.
-          const failingId = parseJsonIds[0];
-          oneFailed.results.set(failingId, {
-            raw: `stub output for ${failingId}`,
-            parsed: { passed: false },
-          });
-          expect(ExpressionEvaluator.evaluateExpression(expr, oneFailed)).toBe(true);
+          const relevantId = parseJsonIds.find((id) => expr.includes(id));
+          if (relevantId) {
+            const oneFailed = makeStubContext(parseJsonIds, true);
+            oneFailed.results.set(relevantId, {
+              raw: `stub output for ${relevantId}`,
+              parsed: { passed: false },
+            });
+            expect(ExpressionEvaluator.evaluateExpression(expr, oneFailed)).toBe(true);
+          }
         }
 
         // 5d. Missing required results (builder without ?.) intentionally throws.

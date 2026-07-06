@@ -440,7 +440,50 @@ describe("validateSemantics", () => {
       expect(errors).toEqual([]);
     });
 
-    it("rejects accumulateFrom targeting instruction without parseJson", () => {
+    it("accepts accumulateFrom targeting type routine instructions", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  accumulateFrom: ["call-review", "call-verify"],
+                  steps: [
+                    {
+                      type: "parallel",
+                      id: "inspect",
+                      steps: [
+                        {
+                          type: "routine",
+                          id: "call-review",
+                          target: "/review",
+                          routine: "inspect",
+                          input: {},
+                        },
+                        {
+                          type: "routine",
+                          id: "call-verify",
+                          target: "/verify",
+                          routine: "check",
+                          input: {},
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("rejects accumulateFrom targeting instruction without parseJson and not type routine", () => {
       const errors = FlowLoader.validateSemantics(
         makeValidFlow({
           routines: {

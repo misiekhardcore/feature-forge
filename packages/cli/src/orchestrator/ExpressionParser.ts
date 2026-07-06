@@ -153,7 +153,8 @@ export class ExpressionParser {
           ((input[i] >= "a" && input[i] <= "z") ||
             (input[i] >= "A" && input[i] <= "Z") ||
             (input[i] >= "0" && input[i] <= "9") ||
-            input[i] === "_")
+            input[i] === "_" ||
+            input[i] === "-")
         ) {
           ident += input[i];
           i++;

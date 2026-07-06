@@ -1,0 +1,43 @@
+{
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json",
+  "name": "verify",
+  "command": "/verify",
+  "orchestrator": {
+    "systemPrompt": "verify-orchestrator",
+    "prompt": "{{prompt}}",
+    "promptParams": {
+      "TASK": "{{prompt}}"
+    }
+  },
+  "routines": {
+    "check": {
+      "description": "Verify acceptance criteria for code changes in a workspace",
+      "params": [
+        {
+          "name": "workspace",
+          "description": "Absolute path to the git worktree containing the changes"
+        },
+        {
+          "name": "task",
+          "description": "The task description with acceptance criteria"
+        },
+        {
+          "name": "build_output",
+          "description": "Output from the build step (agent output, test results, etc.)"
+        }
+      ],
+      "steps": [
+        {
+          "type": "agent",
+          "id": "verify",
+          "systemPrompt": "verify",
+          "workingDir": {
+            "path": "{{workspace}}"
+          },
+          "parseJson": true,
+          "prompt": "Verify acceptance criteria:\n{{task}}\n\nBuild output:\n{{build_output}}"
+        }
+      ]
+    }
+  }
+}

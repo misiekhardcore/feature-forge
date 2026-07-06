@@ -295,8 +295,8 @@ export class FlowLoader {
     const reachableIds = new Set<string>();
     FlowLoader.collectAllIds(loop.steps, reachableIds);
 
-    const parseJsonIds = new Set<string>();
-    FlowLoader.collectIdsByFlag(loop.steps, "parseJson", parseJsonIds);
+    const parseableIds = new Set<string>();
+    FlowLoader.collectParseableIds(loop.steps, parseableIds);
 
     for (const targetId of loop.accumulateFrom) {
       if (!reachableIds.has(targetId)) {
@@ -304,10 +304,10 @@ export class FlowLoader {
           `accumulateFrom references unknown id "${targetId}" in loop ` +
             `"${path.join(" → ")}" (not found in loop body)`,
         );
-      } else if (!parseJsonIds.has(targetId)) {
+      } else if (!parseableIds.has(targetId)) {
         errors.push(
           `accumulateFrom id "${targetId}" points to an instruction ` +
-            `without parseJson: true in loop "${path.join(" → ")}"`,
+            `without parseJson: true and not type routine in loop "${path.join(" → ")}"`,
         );
       }
     }
@@ -322,17 +322,22 @@ export class FlowLoader {
     }
   }
 
-  private static collectIdsByFlag(
-    instructions: FlowInstruction[],
-    flag: "parseJson",
-    ids: Set<string>,
-  ): void {
+  /**
+   * Collect IDs of instructions whose results carry structured (parsed)
+   * output. This includes instructions with {@code parseJson: true}
+   * (agent steps) and {@code type: "routine"} steps which always produce
+   * a structured result wrapper.
+   */
+  private static collectParseableIds(instructions: FlowInstruction[], ids: Set<string>): void {
     for (const instruction of instructions) {
-      if (flag in instruction && instruction[flag] === true) {
+      if (
+        ("parseJson" in instruction && instruction.parseJson === true) ||
+        instruction.type === "routine"
+      ) {
         ids.add(instruction.id);
       }
       if (isContainerInstruction(instruction)) {
-        FlowLoader.collectIdsByFlag(instruction.steps, flag, ids);
+        FlowLoader.collectParseableIds(instruction.steps, ids);
       }
     }
   }
