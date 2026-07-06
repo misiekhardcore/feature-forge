@@ -6,12 +6,10 @@ import {
   GitStepExecutor,
   LoopStepExecutor,
   ParallelStepExecutor,
-  RoutineRefStepExecutor,
   SessionStepExecutor,
   ShellStepExecutor,
   WorkspaceStepExecutor,
 } from "./executors";
-import { RuntimeCapabilities } from "./RuntimeCapabilities";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
@@ -24,13 +22,16 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
  * Leaf executors are registered first so container executors
  * (parallel, loop) can use the populated registry for child dispatch
  * at execution time.
+ *
+ * Note: {@link RoutineRefStepExecutor} is registered separately after
+ * {@link RuntimeCapabilities} is created (see the extension entry point),
+ * because it depends on the fully populated registry and loaded flows.
  */
 export function createStepExecutorRegistry(
   workspaceProviderRegistry: WorkspaceProviderRegistry,
   supervisor: InMemoryAgentSupervisor,
   specManager: SpecManager,
   worktreeRegistry: WorktreeRegistry,
-  runtimeCapabilities: RuntimeCapabilities,
 ): StepExecutorRegistry {
   const registry = new StepExecutorRegistry();
 
@@ -41,7 +42,6 @@ export function createStepExecutorRegistry(
   registry.register(() => new GitStepExecutor());
   registry.register(() => new ShellStepExecutor());
   registry.register(() => new SessionStepExecutor());
-  registry.register(() => new RoutineRefStepExecutor(runtimeCapabilities));
 
   // Container executors — registered after leaves so they can use the
   // populated registry for child dispatch.

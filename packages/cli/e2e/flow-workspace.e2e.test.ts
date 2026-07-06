@@ -19,8 +19,6 @@ import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecut
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
-import { RuntimeCapabilities } from "../src/orchestrator/RuntimeCapabilities";
-import { StepExecutorRegistry } from "../src/orchestrator/StepExecutorRegistry";
 import { makeMockEventBus } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
@@ -97,7 +95,6 @@ describe("Flow workspace lifecycle (e2e)", () => {
       null as never, // supervisor — not used for workspace/cleanup steps
       null as never, // specManager — not used for workspace/cleanup steps
       worktreeRegistry,
-      new RuntimeCapabilities(makeMockEventBus(), new StepExecutorRegistry(), new Map()),
     );
 
     executor = new RoutineExecutor(flow, stepRegistry, makeMockEventBus());

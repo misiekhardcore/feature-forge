@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { InMemoryAgentSupervisor } from "../src/agents";
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
+import { RoutineRefStepExecutor } from "../src/orchestrator/executors/RoutineRefStepExecutor";
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
@@ -106,46 +107,37 @@ function makeParentFlow(): FlowDefinition {
 /**
  * Set up the full infrastructure needed for cross-flow routine tests.
  *
- * Returns the step executor registry (populated with all built-in executors
- * including RoutineRefStepExecutor) and the event bus so tests can inspect
- * emitted events.
+ * Order: create populated step registry (without RoutineRefStepExecutor),
+ * create RuntimeCapabilities with it, then register RoutineRefStepExecutor.
  *
- * Uses the same placeholder-then-replace pattern as the production
- * entry point (see src/index.ts).
+ * Returns the step executor registry (with RoutineRefStepExecutor registered)
+ * and the event bus for inspecting events.
  */
 function setupInfrastructure(
   repoRoot: string,
+  eventBus: ReturnType<typeof makeMockEventBus>,
   childFlow?: FlowDefinition,
-): { stepRegistry: StepExecutorRegistry; eventBus: ReturnType<typeof makeMockEventBus> } {
+): StepExecutorRegistry {
   const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD");
   const wpRegistry = new WorkspaceProviderRegistry().register("git-worktree", worktreeProvider);
   const wtRegistry = new WorktreeRegistry(WorktreeRegistry.defaultStoragePath(repoRoot));
   const supervisor = new InMemoryAgentSupervisor(makeMockFactory());
   const specManager = makeMockSpecManager();
-  const eventBus = makeMockEventBus();
 
   const flows = new Map<string, FlowDefinition>();
   if (childFlow) flows.set("/child", childFlow);
 
-  // Create a placeholder registry that will be replaced after
-  // createStepExecutorRegistry populates the real one.
-  const runtimeCapabilities = new RuntimeCapabilities(eventBus, new StepExecutorRegistry(), flows);
+  // 1. Create the populated step registry (built-in executors only).
+  const stepRegistry = createStepExecutorRegistry(wpRegistry, supervisor, specManager, wtRegistry);
 
-  const stepRegistry = createStepExecutorRegistry(
-    wpRegistry,
-    supervisor,
-    specManager,
-    wtRegistry,
-    runtimeCapabilities,
-  );
+  // 2. Create RuntimeCapabilities with the fully populated registry.
+  const runtimeCapabilities = new RuntimeCapabilities(eventBus, stepRegistry, flows);
 
-  // Replace the placeholder with the populated registry so
-  // RoutineRefStepExecutor can dispatch child steps.
-  Object.assign(runtimeCapabilities as { stepExecutorRegistry: StepExecutorRegistry }, {
-    stepExecutorRegistry: stepRegistry,
-  });
+  // 3. Register RoutineRefStepExecutor — it needs RuntimeCapabilities
+  //    which now holds a reference to the populated stepRegistry.
+  stepRegistry.register(() => new RoutineRefStepExecutor(runtimeCapabilities));
 
-  return { stepRegistry, eventBus };
+  return stepRegistry;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -168,7 +160,8 @@ describe("cross-flow routine reference (e2e)", () => {
     const childFlow = makeChildFlow();
     const parentFlow = makeParentFlow();
 
-    const { stepRegistry, eventBus } = setupInfrastructure(repoRoot, childFlow);
+    const eventBus = makeMockEventBus();
+    const stepRegistry = setupInfrastructure(repoRoot, eventBus, childFlow);
     const executor = new RoutineExecutor(parentFlow, stepRegistry, eventBus);
 
     const result = await executor.run("call_child_session", {}, "e2e cross-flow test");
@@ -184,10 +177,6 @@ describe("cross-flow routine reference (e2e)", () => {
     const childFlow = makeChildFlow();
     const parentFlow = makeParentFlow();
 
-    // Build infrastructure with a capturing event bus.
-    const flows = new Map<string, FlowDefinition>();
-    flows.set("/child", childFlow);
-
     const events: RoutineProgressEvent[] = [];
     const captureBus = makeMockEventBus();
     const origEmit = captureBus.emit.bind(captureBus);
@@ -198,28 +187,7 @@ describe("cross-flow routine reference (e2e)", () => {
       return origEmit(channel, data);
     };
 
-    const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD");
-    const wpRegistry = new WorkspaceProviderRegistry().register("git-worktree", worktreeProvider);
-    const wtRegistry = new WorktreeRegistry(WorktreeRegistry.defaultStoragePath(repoRoot));
-    const supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    const specManager = makeMockSpecManager();
-
-    const runtimeCapabilities = new RuntimeCapabilities(
-      captureBus,
-      new StepExecutorRegistry(),
-      flows,
-    );
-    const stepRegistry = createStepExecutorRegistry(
-      wpRegistry,
-      supervisor,
-      specManager,
-      wtRegistry,
-      runtimeCapabilities,
-    );
-    Object.assign(runtimeCapabilities as { stepExecutorRegistry: StepExecutorRegistry }, {
-      stepExecutorRegistry: stepRegistry,
-    });
-
+    const stepRegistry = setupInfrastructure(repoRoot, captureBus, childFlow);
     const executor = new RoutineExecutor(parentFlow, stepRegistry, captureBus);
 
     await executor.run("call_child_session", {}, "e2e event test");
@@ -242,7 +210,8 @@ describe("cross-flow routine reference (e2e)", () => {
     const childFlow = makeChildFlow();
     const parentFlow = makeParentFlow();
 
-    const { stepRegistry, eventBus } = setupInfrastructure(repoRoot, childFlow);
+    const eventBus = makeMockEventBus();
+    const stepRegistry = setupInfrastructure(repoRoot, eventBus, childFlow);
     const executor = new RoutineExecutor(parentFlow, stepRegistry, eventBus);
 
     const result = await executor.run("call_child_workspace", {}, "e2e workspace test");
@@ -250,13 +219,6 @@ describe("cross-flow routine reference (e2e)", () => {
     expect(result.passed).toBe(true);
     expect(result.results["ws_result"]).toBeDefined();
     expect(result.results["ws_result"].parsed?.passed).toBe(true);
-
-    // The workspace created inside the child flow is managed by the child's
-    // RoutineExecutor instance. It is not surfaced on the parent's
-    // RoutineResult.workspace (which only reports the parent flow's own
-    // workspaces). The cross-flow call succeeded, which means the child's
-    // WorkspaceStepExecutor ran without error — the git worktree was
-    // successfully created and the child context is clean.
   });
 
   it("parent flow fails gracefully when target flow is not registered", async () => {
@@ -283,7 +245,8 @@ describe("cross-flow routine reference (e2e)", () => {
       },
     };
 
-    const { stepRegistry, eventBus } = setupInfrastructure(repoRoot);
+    const eventBus = makeMockEventBus();
+    const stepRegistry = setupInfrastructure(repoRoot, eventBus);
     const executor = new RoutineExecutor(flowWithMissingTarget, stepRegistry, eventBus);
 
     const result = await executor.run("call_missing", {}, "e2e missing target");
@@ -320,7 +283,8 @@ describe("cross-flow routine reference (e2e)", () => {
       },
     };
 
-    const { stepRegistry, eventBus } = setupInfrastructure(repoRoot, childFlow);
+    const eventBus = makeMockEventBus();
+    const stepRegistry = setupInfrastructure(repoRoot, eventBus, childFlow);
     const executor = new RoutineExecutor(combinedFlow, stepRegistry, eventBus);
 
     const result = await executor.run("hybrid", {}, "e2e hybrid test");
