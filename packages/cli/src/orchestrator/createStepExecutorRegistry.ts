@@ -6,10 +6,12 @@ import {
   GitStepExecutor,
   LoopStepExecutor,
   ParallelStepExecutor,
+  RoutineRefStepExecutor,
   SessionStepExecutor,
   ShellStepExecutor,
   WorkspaceStepExecutor,
 } from "./executors";
+import { RuntimeCapabilities } from "./RuntimeCapabilities";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
@@ -28,6 +30,7 @@ export function createStepExecutorRegistry(
   supervisor: InMemoryAgentSupervisor,
   specManager: SpecManager,
   worktreeRegistry: WorktreeRegistry,
+  runtimeCapabilities: RuntimeCapabilities,
 ): StepExecutorRegistry {
   const registry = new StepExecutorRegistry();
 
@@ -38,6 +41,7 @@ export function createStepExecutorRegistry(
   registry.register(() => new GitStepExecutor());
   registry.register(() => new ShellStepExecutor());
   registry.register(() => new SessionStepExecutor());
+  registry.register(() => new RoutineRefStepExecutor(runtimeCapabilities));
 
   // Container executors — registered after leaves so they can use the
   // populated registry for child dispatch.

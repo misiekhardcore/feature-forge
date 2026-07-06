@@ -11,6 +11,7 @@ import {
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -45,6 +46,7 @@ const defs: Record<string, unknown> = {
   GitInstruction: GitInstructionSchema,
   SessionInstruction: SessionInstructionSchema,
   ShellInstruction: ShellInstructionSchema,
+  RoutineRefInstruction: RoutineRefInstructionSchema,
 };
 
 defs.FlowInstruction = {
@@ -57,6 +59,7 @@ defs.FlowInstruction = {
     { $ref: "#/$defs/GitInstruction" },
     { $ref: "#/$defs/SessionInstruction" },
     { $ref: "#/$defs/ShellInstruction" },
+    { $ref: "#/$defs/RoutineRefInstruction" },
   ],
 };
 

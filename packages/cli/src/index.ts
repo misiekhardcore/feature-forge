@@ -24,6 +24,8 @@ import { SpecLoader } from "./loaders";
 import { FileLogger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
+import { RuntimeCapabilities } from "./orchestrator/RuntimeCapabilities";
+import { StepExecutorRegistry } from "./orchestrator/StepExecutorRegistry";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -124,12 +126,24 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     .register("current-dir", new CurrentDirProvider());
 
   // ── Step executor registry ───────────────────────────────────────
+  const runtimeCapabilities = new RuntimeCapabilities(
+    pi.events,
+    new StepExecutorRegistry(), // placeholder — replaced by the real one below
+    new Map(),
+  );
   const stepExecutorRegistry = createStepExecutorRegistry(
     workspaceProviderRegistry,
     supervisor,
     specManager,
     worktreeRegistry,
+    runtimeCapabilities,
   );
+  // Replace the placeholder registry with the real one so the
+  // RoutineRefStepExecutor (which holds a reference to the same
+  // RuntimeCapabilities instance) dispatches to the fully populated registry.
+  Object.assign(runtimeCapabilities as { stepExecutorRegistry: StepExecutorRegistry }, {
+    stepExecutorRegistry,
+  });
 
   // ── Flow-based orchestration commands ────────────────────────────
   const flowsDir = path.join(__dirname, "flows");
@@ -144,6 +158,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
     eventBus: pi.events,
+    runtimeCapabilities,
   });
   await flowRegistrar.registerAll();
 };

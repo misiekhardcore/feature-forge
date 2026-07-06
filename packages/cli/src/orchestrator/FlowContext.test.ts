@@ -53,6 +53,7 @@ describe("FlowContext", () => {
       expect(ctx.params.size).toBe(0);
       expect(ctx.feedback).toBeUndefined();
       expect(ctx.iteration).toBe(0);
+      expect(ctx.depth).toBe(0);
     });
 
     it("initialises with all optional fields", () => {
@@ -325,6 +326,15 @@ describe("FlowContext", () => {
       expect(next.results.size).toBe(1);
     });
 
+    it("initialises depth from params", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 3,
+      });
+      expect(ctx.depth).toBe(3);
+    });
+
     it("clears loop-internal results between iterations", () => {
       // Simulates two loop iterations — iteration 2 should not see
       // results from iteration 1 for loop-internal instructions.
@@ -345,6 +355,119 @@ describe("FlowContext", () => {
       // Iteration 2 starts fresh
       expect(ctx.results.has("builder")).toBe(false);
       expect(ctx.results.has("review")).toBe(false);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // withDepth
+  // -----------------------------------------------------------------------
+
+  describe("withDepth", () => {
+    it("sets the depth on the new context", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      const next = ctx.withDepth(2);
+      expect(next.depth).toBe(2);
+    });
+
+    it("does not mutate the original context", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 0,
+      });
+      ctx.withDepth(3);
+      expect(ctx.depth).toBe(0);
+    });
+
+    it("preserves other fields when changing depth", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        feedback: "f",
+      });
+      const next = ctx.withDepth(1);
+      expect(next.prompt).toBe("task");
+      expect(next.feedback).toBe("f");
+      expect(next.depth).toBe(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // depth propagation through mutations
+  // -----------------------------------------------------------------------
+
+  describe("depth propagation", () => {
+    it("preserves depth through withResult", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 5,
+      });
+      const next = ctx.withResult("a", makeResult());
+      expect(next.depth).toBe(5);
+    });
+
+    it("preserves depth through withWorkspace", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 3,
+      });
+      const next = ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
+      expect(next.depth).toBe(3);
+    });
+
+    it("preserves depth through withFeedback", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withFeedback("f");
+      expect(next.depth).toBe(2);
+    });
+
+    it("preserves depth through withIteration", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 4,
+      });
+      const next = ctx.withIteration(1);
+      expect(next.depth).toBe(4);
+    });
+
+    it("preserves depth through withParams", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 1,
+      });
+      const next = ctx.withParams({ k: "v" });
+      expect(next.depth).toBe(1);
+    });
+
+    it("preserves depth through withWorkspaceCleared", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withWorkspaceCleared("nonexistent");
+      expect(next.depth).toBe(2);
+    });
+
+    it("preserves depth through withResultsCleared", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 3,
+      });
+      const next = ctx.withResultsCleared(new Set(["a"]));
+      expect(next.depth).toBe(3);
     });
   });
 

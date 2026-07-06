@@ -79,6 +79,28 @@ export const ShellInstructionSchema = defineInstruction("shell", {
   cwd: Type.String({ minLength: 1 }),
 });
 
+// ── Cross-flow routine reference ───────────────────────────
+
+export const RoutineRefInstructionSchema = defineInstruction("routine", {
+  /** The target flow command name (e.g. "/implement"). */
+  target: Type.String({ minLength: 1 }),
+  /** The routine name inside the target flow to execute. */
+  routine: Type.String({ minLength: 1 }),
+  /** Key-value input map passed as routine params. */
+  input: Type.Record(Type.String(), Type.String()),
+  /** Optional key under which to store the routine result in the parent context. */
+  output_as: Type.Optional(Type.String({ minLength: 1 })),
+  /** Maximum time in milliseconds before aborting (0 = no timeout). */
+  timeout: Type.Optional(Type.Integer({ minimum: 0 })),
+  /**
+   * Behaviour when the cross-flow routine fails.
+   *
+   * - `"fail"` — propagate the error (default).
+   * - `"continue"` — store the failure as a result and continue.
+   */
+  on_error: Type.Optional(Type.Union([Type.Literal("fail"), Type.Literal("continue")])),
+});
+
 // ── Parallel failure mode ──────────────────────────────────
 
 export const ParallelFailureModeSchema = Type.Union([
@@ -132,6 +154,7 @@ const FlowInstructionUnion = Type.Union([
   GitInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
+  RoutineRefInstructionSchema,
 ]);
 
 // Patch container schemas so `steps` validates recursively.
@@ -235,6 +258,8 @@ export type SessionInstruction = Type.Static<typeof SessionInstructionSchema>;
 
 export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
 
+export type RoutineRefInstruction = Type.Static<typeof RoutineRefInstructionSchema>;
+
 /** Instructions that contain nested `steps` arrays. */
 export type ContainerInstruction = ParallelInstruction | LoopInstruction;
 
@@ -246,7 +271,8 @@ export type FlowInstruction =
   | CleanupInstruction
   | GitInstruction
   | ShellInstruction
-  | SessionInstruction;
+  | SessionInstruction
+  | RoutineRefInstruction;
 
 export type OrchestratorConfig = Type.Static<typeof OrchestratorConfigSchema>;
 
@@ -274,6 +300,10 @@ export function isLoopInstruction(instr: FlowInstruction): instr is LoopInstruct
 
 export function isContainerInstruction(instr: FlowInstruction): instr is ContainerInstruction {
   return instr.type === "parallel" || instr.type === "loop";
+}
+
+export function isRoutineRefInstruction(instr: FlowInstruction): instr is RoutineRefInstruction {
+  return instr.type === "routine";
 }
 
 // ── Helper constructors ────────────────────────────────────────

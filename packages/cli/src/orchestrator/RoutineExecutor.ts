@@ -46,6 +46,8 @@ export class RoutineExecutor {
    * @param task — Top-level task description, exposed as `{{prompt}}`.
    * @param signal — Optional abort signal for cancelling the routine mid-execution.
    *   When aborted, an {@link AbortError} propagates uncaught to the caller.
+   * @param depth — Optional nested call depth for cross-flow routine calls.
+   *   Defaults to 0 for top-level routine invocations.
    * @returns Structured result with per-instruction outputs.
    */
   async run(
@@ -53,6 +55,7 @@ export class RoutineExecutor {
     params: FlowParams,
     task: string,
     signal?: AbortSignal,
+    depth?: number,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined = this.flow.routines[routineName];
     if (!routine) {
@@ -82,6 +85,7 @@ export class RoutineExecutor {
       results: new Map(),
       prompt: task,
       store: this.store,
+      depth,
     });
 
     // Recursive step dispatcher — passes itself to executors so container

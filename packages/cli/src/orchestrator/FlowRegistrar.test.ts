@@ -10,6 +10,7 @@ import type { WorkspaceManager } from "../workspace";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowRegistrar } from "./FlowRegistrar";
+import { RuntimeCapabilities } from "./RuntimeCapabilities";
 import type { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Hoisted mock state ───────────────────────────────────────
@@ -81,6 +82,7 @@ interface FlowRegistrarParams {
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
   eventBus: EventBus;
+  runtimeCapabilities: RuntimeCapabilities;
 }
 
 function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {
@@ -107,6 +109,9 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
     eventBus: overrides.eventBus ?? makeMockEventBus(),
+    runtimeCapabilities:
+      overrides.runtimeCapabilities ??
+      new RuntimeCapabilities(makeMockEventBus(), {} as StepExecutorRegistry, new Map()),
   };
 }
 

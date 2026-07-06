@@ -23,6 +23,8 @@ import type { DisplayContribution } from "../src/orchestrator/progress/DisplayCo
 import { ProgressRenderer } from "../src/orchestrator/progress/ProgressRenderer";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import type { RoutineProgressEvent } from "../src/orchestrator/RoutineProgress";
+import { RuntimeCapabilities } from "../src/orchestrator/RuntimeCapabilities";
+import { StepExecutorRegistry } from "../src/orchestrator/StepExecutorRegistry";
 import { makeMockEventBus, makeMockFactory, makeMockSpecManager } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
@@ -93,6 +95,7 @@ describe("routine progress display (e2e)", () => {
       supervisor,
       makeMockSpecManager(),
       wtRegistry,
+      new RuntimeCapabilities(makeMockEventBus(), new StepExecutorRegistry(), new Map()),
     );
     const executor = new RoutineExecutor(flow, stepRegistry, makeMockEventBus());
 

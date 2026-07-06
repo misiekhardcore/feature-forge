@@ -13,6 +13,7 @@ import { FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { RoutineTool } from "./RoutineTool";
+import { RuntimeCapabilities } from "./RuntimeCapabilities";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
@@ -32,6 +33,7 @@ export class FlowRegistrar {
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: EventBus;
+      runtimeCapabilities: RuntimeCapabilities;
     },
   ) {}
 
@@ -51,6 +53,7 @@ export class FlowRegistrar {
       knownProviders,
       stepExecutorRegistry,
       eventBus,
+      runtimeCapabilities,
     } = this.params;
 
     const flowDirectories = await this.discoverFlowDirectories(flowsDir);
@@ -67,6 +70,7 @@ export class FlowRegistrar {
         knownProviders,
         stepExecutorRegistry,
         eventBus,
+        runtimeCapabilities,
       });
     }
   }
@@ -93,6 +97,7 @@ export class FlowRegistrar {
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: EventBus;
+      runtimeCapabilities: RuntimeCapabilities;
     },
   ): Promise<void> {
     const {
@@ -105,6 +110,7 @@ export class FlowRegistrar {
       knownProviders,
       stepExecutorRegistry,
       eventBus,
+      runtimeCapabilities,
     } = ctx;
 
     // Skip flows without an orchestrator markdown file.
@@ -138,6 +144,10 @@ export class FlowRegistrar {
     const store = new FlowStateStore();
     try {
       flow = await flowLoader.load("flow");
+
+      // Register the loaded flow in runtime capabilities so cross-flow
+      // routine references can look it up by command name.
+      runtimeCapabilities.flows.set(flow.command, flow);
 
       // Seed flow-global session from flow-level param defaults.
       for (const param of flow.params ?? []) {
