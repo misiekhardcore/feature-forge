@@ -41,7 +41,6 @@ import { RoutineExecutor } from "../orchestrator/RoutineExecutor";
 import { RoutineTool } from "../orchestrator/RoutineTool";
 import { StepExecutorRegistry } from "../orchestrator/StepExecutorRegistry";
 import { makeMockEventBus } from "../test-utils";
-import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -181,8 +180,7 @@ describe("flow round-trip", () => {
         results: new Map(),
         prompt: "test-task",
       })
-        .withWorkspace("ws", new WorkspaceHandle("/tmp/test-workspace", new Date()))
-        .withParams({ plan: "test-plan" })
+        .withParams({ plan: "test-plan", workspace: "/tmp/test-workspace" })
         .withFeedback("test-feedback");
 
       const { agentTasks } = collectFromRoutines(flow.routines);
