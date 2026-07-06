@@ -5,6 +5,7 @@ dist/
 *.log
 .DS_Store
 coverage/
+.turbo/
 
 # Project memory artifacts
 .claude/
