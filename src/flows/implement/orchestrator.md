@@ -59,8 +59,7 @@ The routine returns:
 After each call:
 
 - If `passed` is true → proceed to the next subtask.
-- If `passed` is false after 5 rounds → ask the user: retry / skip / abort.
-  If retry is chosen, call `run_build_loop` again (optionally with a revised plan).
+- If `passed` is false after 5 rounds → Post the failures in the PR.
 
 ### Phase 3: Summarise and PR
 
