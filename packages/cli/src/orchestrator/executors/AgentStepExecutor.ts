@@ -12,6 +12,7 @@ import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";
+import { isAbortError } from "./isAbortError";
 
 /**
  * Executes an "agent" instruction by spawning an agent via
@@ -99,7 +100,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     } catch (error) {
       // Propagate abort signals immediately so the routine can be cancelled
       // without waiting for the current step to finish.
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (isAbortError(error)) {
         throw error;
       }
       const err = error instanceof Error ? error : new Error(String(error));
