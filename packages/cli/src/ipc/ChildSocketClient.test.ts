@@ -1,0 +1,275 @@
+import { mkdtempSync } from "node:fs";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { AgentStatus } from "@feature-forge/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { AgentSpecification } from "../agents";
+import type { Agent } from "../agents/agents";
+import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
+import type { AgentSupervisor } from "../agents/supervisors";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
+import { ChildSocketClient } from "./ChildSocketClient";
+import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
+import { ParentSocketServer } from "./ParentSocketServer";
+
+function createMockAgent(): SubprocessAgent {
+  const id = "test-agent";
+  return {
+    id,
+    specification: {
+      role: "test",
+      systemPrompt: "",
+      tools: ["read"],
+      id,
+    } as never,
+    status: AgentStatus.Running,
+    createdAt: new Date(),
+    executeTask: vi.fn().mockResolvedValue("task result"),
+    destroy: vi.fn().mockResolvedValue(undefined),
+    getResult: vi.fn().mockReturnValue("task result"),
+    getError: vi.fn().mockReturnValue(undefined),
+    deliverResult: vi.fn(),
+    deliverError: vi.fn(),
+    start: vi.fn(),
+  };
+}
+
+function createMockSupervisor(): AgentSupervisor {
+  const agents = new Map<string, Agent>();
+  return {
+    spawnGuest: vi.fn().mockImplementation((specification: AgentSpecification) => {
+      const agent = createMockAgent();
+      const id = specification.id;
+      Object.defineProperty(agent, "id", { value: id });
+      Object.defineProperty(agent, "specification", { value: specification });
+      agents.set(id, agent);
+      return agent;
+    }),
+    mountInSession: vi.fn().mockResolvedValue(undefined),
+    runAgent: vi.fn().mockResolvedValue(undefined),
+    getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
+    getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
+    destroyAgent: vi.fn().mockImplementation((id: string) => agents.delete(id)),
+    destroyAll: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+describe("ChildSocketClient with real ParentSocketServer", () => {
+  let server: ParentSocketServer;
+  let supervisor: AgentSupervisor;
+  let socketPath: string;
+
+  beforeEach(async () => {
+    supervisor = createMockSupervisor();
+    server = new ParentSocketServer(supervisor, makeMockPi(), makeMockSpecManager());
+    socketPath = await server.start();
+  });
+
+  afterEach(async () => {
+    await server.stop();
+  });
+
+  it("connects, sends a spawn_agent request, and receives a response", async () => {
+    const client = new ChildSocketClient(socketPath);
+    await client.connect();
+
+    const result = await client.request("spawn_agent", {
+      role: "researcher",
+      systemPrompt: "You are a researcher",
+      tools: ["read", "grep"],
+    });
+
+    expect(result).toMatchObject({
+      agentId: expect.stringContaining("researcher"),
+      role: "researcher",
+    });
+
+    await client.disconnect();
+  });
+
+  it("sends a list_agents request and receives an empty list", async () => {
+    const client = new ChildSocketClient(socketPath);
+    await client.connect();
+
+    const result = await client.request("list_agents", {});
+
+    expect(result).toEqual({ agents: [] });
+
+    await client.disconnect();
+  });
+
+  it("sends a send_task request with await=true and receives the result", async () => {
+    const client = new ChildSocketClient(socketPath);
+
+    // First spawn an agent
+    await client.connect();
+    const spawnResult = await client.request("spawn_agent", {
+      role: "worker",
+      systemPrompt: "You are a worker",
+      tools: ["read"],
+    });
+
+    // Send a task using the actual agentId from spawn
+    const result = await client.request("send_task", {
+      agentId: spawnResult.agentId,
+      prompt: "Do the work",
+      await: true,
+    });
+
+    expect(result).toEqual({ result: "task result" });
+
+    await client.disconnect();
+  });
+
+  it("receives an error response for a non-existent agent", async () => {
+    const client = new ChildSocketClient(socketPath);
+    await client.connect();
+
+    await expect(
+      client.request("send_task", {
+        agentId: "non-existent",
+        prompt: "do something",
+        await: true,
+      }),
+    ).rejects.toThrow(IpcRequestError);
+
+    await client.disconnect();
+  });
+
+  it("sends a destroy_agent request and receives success", async () => {
+    const client = new ChildSocketClient(socketPath);
+    await client.connect();
+
+    // Spawn first
+    const spawnResult = await client.request("spawn_agent", {
+      role: "temp",
+      systemPrompt: "temp",
+      tools: ["read"],
+    });
+
+    // Destroy using the actual agentId from spawn
+    const result = await client.request("destroy_agent", {
+      agentId: spawnResult.agentId,
+    });
+
+    expect(result).toEqual({ status: "destroyed" });
+
+    await client.disconnect();
+  });
+
+  it("receives push events via onPush handler", async () => {
+    const client = new ChildSocketClient(socketPath);
+    const pushEvents: unknown[] = [];
+
+    client.onPush((event) => {
+      pushEvents.push(event);
+    });
+
+    await client.connect();
+
+    // Spawn an agent
+    const spawnResult = await client.request("spawn_agent", {
+      role: "pusher",
+      systemPrompt: "pusher",
+      tools: ["read"],
+    });
+
+    // Fire a non-awaited task (this triggers pushAgentUpdate)
+    await client.request("send_task", {
+      agentId: spawnResult.agentId,
+      prompt: "background work",
+      await: false,
+    });
+
+    // Wait a tick for the push to arrive
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(pushEvents.length).toBeGreaterThanOrEqual(1);
+    expect(pushEvents[0]).toHaveProperty("type", "agent_update");
+    expect(pushEvents[0]).toHaveProperty("payload");
+
+    await client.disconnect();
+  });
+
+  it("completes normally when signal is present but not aborted", async () => {
+    const client = new ChildSocketClient(socketPath);
+    await client.connect();
+
+    const controller = new AbortController();
+    const result = await client.request("list_agents", {}, undefined, controller.signal);
+
+    expect(result).toEqual({ agents: [] });
+
+    await client.disconnect();
+  });
+});
+
+describe("ChildSocketClient error handling", () => {
+  it("throws IpcConnectionError when connecting to a non-existent socket", async () => {
+    const client = new ChildSocketClient("/tmp/non-existent-socket.sock");
+
+    await expect(client.connect()).rejects.toThrow(IpcConnectionError);
+  });
+
+  it("throws IpcTimeoutError when request times out", async () => {
+    // Create a server that accepts connections but never responds
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const timeoutPath = join(tempDir, "timeout.sock");
+
+    const silentServer = createServer(() => {
+      // Accept but never write — client will time out
+    });
+
+    await new Promise<void>((resolve) => {
+      silentServer.listen(timeoutPath, resolve);
+    });
+
+    const client = new ChildSocketClient(timeoutPath);
+    await client.connect();
+
+    // Request with very short timeout
+    await expect(
+      client.request("spawn_agent", { role: "x", systemPrompt: "x", tools: [] }, 100),
+    ).rejects.toThrow(IpcTimeoutError);
+
+    silentServer.close();
+  });
+
+  it("aborts a pending request when signal is fired", async () => {
+    // Create a server that accepts connections but never responds
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const abortPath = join(tempDir, "abort.sock");
+
+    const silentServer = createServer(() => {
+      // Accept but never write — request will be aborted
+    });
+
+    await new Promise<void>((resolve) => {
+      silentServer.listen(abortPath, resolve);
+    });
+
+    const client = new ChildSocketClient(abortPath);
+    await client.connect();
+
+    const controller = new AbortController();
+
+    // Start a request that won't receive a response
+    const requestPromise = client.request(
+      "spawn_agent",
+      { role: "x", systemPrompt: "x", tools: [] },
+      60_000,
+      controller.signal,
+    );
+
+    // Abort immediately
+    controller.abort();
+
+    await expect(requestPromise).rejects.toThrow(DOMException);
+    await expect(requestPromise).rejects.toThrow("The operation was aborted");
+
+    silentServer.close();
+  });
+});

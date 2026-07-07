@@ -1,26 +1,10 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "outDir": "dist",
-    "rootDir": "."
+    "allowJs": true,
+    "checkJs": false
   },
-  "include": [
-    "src/**/*.ts",
-    "e2e/**/*.ts",
-    "scripts/**/*.ts",
-    "vitest.config.ts",
-    "vitest.e2e.config.ts",
-    "eslint.config.js"
-  ],
-  "exclude": ["node_modules", "dist"]
+  "include": ["*.ts", "*.js", "*.mjs"],
+  "exclude": ["node_modules", "dist", "packages"]
 }
