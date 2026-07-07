@@ -187,11 +187,15 @@ export class RoutineTool
     let hasAgentWidget = false;
     if (ctx.ui && ctx.mode === "tui") {
       this.streamDir = mkdtempSync(join(tmpdir(), "forge-stream-"));
-      ctx.ui.setWidget("agent-viewer", (tui: TUI, theme: Theme) => {
-        const viewer = new AgentViewerOverlay(tui, theme);
-        this.agentViewer = viewer;
-        return viewer;
-      });
+      ctx.ui.setWidget(
+        "agent-viewer",
+        (tui: TUI, theme: Theme) => {
+          const viewer = new AgentViewerOverlay(tui, theme);
+          this.agentViewer = viewer;
+          return viewer;
+        },
+        { placement: "aboveEditor" },
+      );
       hasAgentWidget = true;
     }
 

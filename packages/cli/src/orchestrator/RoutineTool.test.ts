@@ -757,7 +757,7 @@ describe("RoutineTool", () => {
       await tool.execute("call-1", {}, undefined, undefined, ctx);
 
       // setWidget should have been called for "agent-viewer" with a factory function.
-      expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", expect.any(Function));
+      expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", expect.any(Function), { placement: "aboveEditor" });
 
       // Invoke the factory to verify it produces a valid Component.
       const factoryCalls = mockSetWidget.mock.calls.filter(
