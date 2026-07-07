@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,
@@ -6,7 +10,7 @@ import type {
   ToolDefinition,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { Component } from "@earendil-works/pi-tui";
+import type { Component, OverlayHandle } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
@@ -88,6 +92,12 @@ export class RoutineTool
 
   /** Agent viewer overlay instance — created fresh per execution. */
   private agentViewer: AgentViewerOverlay | undefined;
+
+  /** Temp directory for per-agent stream log files, created fresh per execution. */
+  private streamDir: string | undefined;
+
+  /** Whether setAgentExecutionId has been called this execution cycle. */
+  private executionIdSet = false;
 
   constructor(
     flowName: string,
@@ -173,23 +183,36 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
-    // Agent viewer overlay — a separate widget panel showing live agent details.
+    // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
+    let viewerDismiss: (() => void) | undefined;
+    let viewerHandle: OverlayHandle | undefined;
     const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
     if (hasUI && ctx.ui) {
-      ctx.ui.setWidget(
-        "forge-agent-viewer",
-        (tui, theme) => {
-          const viewer = new AgentViewerOverlay(tui, theme, () => {
-            ctx.ui.setWidget("forge-agent-viewer", undefined);
-            this.agentViewer = undefined;
-          });
-          this.agentViewer = viewer;
-          return viewer;
-        },
-        {
-          placement: "belowEditor",
-        },
-      );
+      this.streamDir = mkdtempSync(join(tmpdir(), "forge-stream-"));
+      ctx.ui
+        .custom<void>(
+          (tui, theme, _kb, done) => {
+            viewerDismiss = done;
+            const viewer = new AgentViewerOverlay(tui, theme, () => done());
+            this.agentViewer = viewer;
+            return viewer;
+          },
+          {
+            overlay: true,
+            overlayOptions: {
+              anchor: "bottom-center",
+              width: 80,
+              maxHeight: 15,
+              margin: { bottom: 1 },
+            },
+            onHandle: (handle) => {
+              viewerHandle = handle;
+            },
+          },
+        )
+        .catch(() => {
+          logger.warn("Agent viewer overlay creation failed");
+        });
     }
 
     const handler = (data: unknown): void => {
@@ -201,6 +224,13 @@ export class RoutineTool
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
         this._contributions.push(contrib);
+
+        // Wire the execution id for stream file persistence on the first
+        // agent-scoped contribution that carries one.
+        if (contrib.executionId && this.agentViewer && !this.executionIdSet) {
+          this.agentViewer.setAgentExecutionId(contrib.executionId, this.streamDir);
+          this.executionIdSet = true;
+        }
 
         // Update the agent viewer overlay when the event is agent-scoped.
         if (contrib.agentId && contrib.agentStatus && this.agentViewer) {
@@ -259,10 +289,18 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      if (hasUI && ctx.ui) {
-        ctx.ui.setWidget("forge-agent-viewer", undefined);
-      }
+      viewerHandle?.hide();
+      viewerDismiss?.();
       this.agentViewer?.dispose();
+      // Clean up stream directory when overlay creation failed before
+      // AgentViewerOverlay was instantiated (and therefore dispose() never ran).
+      if (!this.agentViewer && this.streamDir) {
+        try {
+          rmSync(this.streamDir, { recursive: true, force: true });
+        } catch {
+          // Silently ignore cleanup errors.
+        }
+      }
       for (const unsub of unsubscribers) unsub();
     }
   }
@@ -272,6 +310,7 @@ export class RoutineTool
   /** Reset accumulated display state before each execution. */
   private resetState(): void {
     this._contributions.length = 0;
+    this.executionIdSet = false;
   }
 
   /** Build and render progress surfaces via the renderer. */

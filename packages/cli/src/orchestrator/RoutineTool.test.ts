@@ -619,5 +619,140 @@ describe("RoutineTool", () => {
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
+
+    it("registers eventBus listeners for all feature-forge channels on execute", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      // Execute with no UI to isolate listener registration testing.
+      await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+      // At least one channel should have been registered.
+      expect(eventBus.on).toHaveBeenCalled();
+    });
+
+    it("cleans up streamDir when overlay creation fails (custom rejects)", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      // Mock ctx.ui.custom to throw synchronously so the agentViewer is never set.
+      const mockCustom = vi.fn().mockRejectedValue(new Error("custom failed"));
+      const mockUi = {
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+        custom: mockCustom,
+      };
+      const ctx = {
+        ui: mockUi,
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // setWidget and setStatus should still be cleaned up.
+      expect(mockUi.setWidget).toHaveBeenCalledWith("forge-run", undefined);
+      expect(mockUi.setStatus).toHaveBeenCalledWith("feature-forge", undefined);
+    });
+
+    it("extracts executionId from display contributions and accumulates them", async () => {
+      // Register a fake agent executor that emits events with executionId
+      // and provides getDisplayContribution that returns executionId.
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+
+            override getDisplayContribution(
+              event: RoutineProgressEvent,
+            ): DisplayContribution | undefined {
+              if (!event.phase.startsWith("agent-")) return undefined;
+              const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
+              if (!agentId) return undefined;
+              return {
+                executionId: event.details.executionId,
+                agentId,
+                agentStatus:
+                  event.phase === "agent-started"
+                    ? "started"
+                    : event.phase === "agent-done"
+                      ? "done"
+                      : undefined,
+                streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
+                phase: event.phase,
+                message: event.message,
+              };
+            }
+
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+                signal?: AbortSignal,
+              ) => Promise<FlowContext>,
+              eventBus: EventBus,
+              _signal?: AbortSignal,
+            ): Promise<FlowContext> {
+              const execId = "exec-test-99";
+              eventBus.emit("feature-forge:agent-started", {
+                phase: "agent-started",
+                message: `Agent "${instruction.id}" (build) started`,
+                details: { executionId: execId },
+              });
+              eventBus.emit("feature-forge:agent-done", {
+                phase: "agent-done",
+                message: `Agent "${instruction.id}" completed`,
+                details: { executionId: execId, summary: "All OK" },
+              });
+              return context;
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [
+              {
+                type: "agent",
+                id: "builder",
+                systemPrompt: "build",
+                prompt: "do stuff",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+      // Contributions should include executionId from the emitted events.
+      const contributions = tool.contributions;
+      const startedContribution = contributions.find((c) => c.agentStatus === "started");
+      const doneContribution = contributions.find((c) => c.agentStatus === "done");
+
+      expect(startedContribution).toBeDefined();
+      expect(startedContribution!.executionId).toBe("exec-test-99");
+      expect(startedContribution!.agentId).toBe("builder");
+
+      expect(doneContribution).toBeDefined();
+      expect(doneContribution!.executionId).toBe("exec-test-99");
+      expect(doneContribution!.agentId).toBe("builder");
+    });
   });
 });

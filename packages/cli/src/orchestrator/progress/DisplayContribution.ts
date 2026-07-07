@@ -9,6 +9,8 @@
  * for rendering.
  */
 export interface DisplayContribution {
+  /** Unique execution identifier from the agent step that produced this event. */
+  executionId?: string;
   /** Agent instruction id, set when the event is agent-scoped. */
   agentId?: string;
   /** Agent lifecycle status ("started" | "done" | "error"). */

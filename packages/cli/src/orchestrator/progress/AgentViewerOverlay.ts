@@ -278,6 +278,8 @@ export class AgentViewerOverlay implements Component {
         // Silently ignore.
       }
     }
+    this.streamFiles.clear();
+    this.lastLines.clear();
     this.clearMemory();
   }
 
@@ -450,10 +452,10 @@ export class AgentViewerOverlay implements Component {
       theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
     );
 
-    // Apply scroll offset — clamp and slice the lines array so that
-    // pressing ↑/↓ in detail view visibly shifts the rendered content.
-    const clampedOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
-    const visibleLines = lines.slice(clampedOffset);
+    // Apply scroll offset — clamp and write back so handleDetailInput
+    // never accumulates excess offset above the visible line count.
+    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, lines.length - 1));
+    const visibleLines = lines.slice(this.scrollOffset);
 
     return visibleLines.flatMap((line) => wrapTextWithAnsi(line, width));
   }

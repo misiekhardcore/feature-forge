@@ -484,6 +484,9 @@ describe("AgentStepExecutor", () => {
           expect.objectContaining({
             phase: "agent-started",
             message: expect.stringContaining("builder") as string,
+            details: expect.objectContaining({
+              executionId: expect.any(String) as string,
+            }),
           }),
         );
         expect(eventBus.emit).toHaveBeenNthCalledWith(
@@ -492,6 +495,9 @@ describe("AgentStepExecutor", () => {
           expect.objectContaining({
             phase: "agent-done",
             message: expect.stringContaining("builder") as string,
+            details: expect.objectContaining({
+              executionId: expect.any(String) as string,
+            }),
           }),
         );
       });
@@ -587,6 +593,7 @@ describe("AgentStepExecutor", () => {
           expect.objectContaining({
             phase: "agent-stream",
             details: expect.objectContaining({
+              executionId: expect.any(String) as string,
               agentId: "builder",
               label: "test",
               event: expect.objectContaining({ type: "tool_use" }),
@@ -872,6 +879,52 @@ describe("AgentStepExecutor", () => {
 
       expect(contrib).toBeDefined();
       expect(contrib!.streamEvent).toBeUndefined();
+    });
+
+    it("extracts executionId from event details for agent-started phase", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: 'Agent "builder" (build) started',
+        details: { executionId: "exec-abc-123" },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.executionId).toBe("exec-abc-123");
+      expect(contrib!.agentId).toBe("builder");
+    });
+
+    it("extracts executionId and summary from agent-done event details", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-done",
+        message: 'Agent "reviewer" completed',
+        details: { executionId: "exec-xyz-789", summary: "All tests passed" },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.executionId).toBe("exec-xyz-789");
+      expect(contrib!.agentId).toBe("reviewer");
+      expect(contrib!.agentStatus).toBe("done");
+      expect(contrib!.agentSummary).toBe("All tests passed");
+    });
+
+    it("extracts executionId from agent-stream event details", () => {
+      const executor = makeExecutor();
+      const streamPayload = { type: "tool_use", tool: "read" };
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          executionId: "exec-stream-1",
+          agentId: "builder",
+          event: streamPayload,
+        },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.executionId).toBe("exec-stream-1");
+      expect(contrib!.streamEvent).toBe(streamPayload);
     });
   });
 });

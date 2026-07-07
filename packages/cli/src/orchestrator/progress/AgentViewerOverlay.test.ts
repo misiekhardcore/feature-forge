@@ -528,6 +528,22 @@ describe("AgentViewerOverlay", () => {
         expect(stillTopRender).toBe(initialRender);
         expect(overlay.scrollOffset).toBe(0);
       });
+
+      it("clamps scrollOffset to visible line count on render", () => {
+        const tui = makeTui();
+        const overlay = makeOverlay(tui);
+        overlay.update(makeEntry("builder", "done", { raw: "one\ntwo\nthree" }));
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+        // Set scrollOffset well beyond the total line count.
+        overlay.scrollOffset = 500;
+
+        overlay.render(80);
+
+        // After render, scrollOffset must be clamped to at most lines.length - 1.
+        expect(overlay.scrollOffset).toBeLessThan(10);
+        expect(overlay.scrollOffset).toBeGreaterThanOrEqual(0);
+      });
     });
   });
 
@@ -929,6 +945,22 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
 
       expect(() => overlay.dispose()).not.toThrow();
+    });
+
+    it("clears lastLines and streamFiles maps on dispose", () => {
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      overlay.pushStreamEvent("reviewer", { type: "tool_use", tool: "lint" });
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+      expect(overlay.getStreamTail("builder")).toContain("tool_use: read");
+
+      overlay.dispose();
+
+      // Both in-memory maps are cleared.
+      expect(overlay.getLastStreamLine("builder")).toBeUndefined();
+      expect(overlay.getStreamTail("builder")).toBe("");
     });
   });
 
