@@ -52,6 +52,7 @@ class ParseJsonExecutor extends StepExecutor {
       parsed: {
         kind: "review" as const,
         passed,
+        summary: passed ? "no findings" : `1 critical`,
         findings: {
           critical: passed ? [] : [`issue round ${iteration}`],
           warnings: [],
@@ -141,6 +142,7 @@ describe("LoopStepExecutor", () => {
               parsed: {
                 kind: "review" as const,
                 passed: false,
+                summary: "1 critical",
                 findings: { critical: ["always fails"], warnings: [], info: [] },
               },
             });

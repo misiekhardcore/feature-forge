@@ -28,14 +28,18 @@ function parseOrUndefined(json: string): ParsedResult | undefined {
 
     // Normalize review findings if present.
     if ("findings" in parsed) {
+      const critical = parsed.findings.critical ?? [];
+      const warnings = parsed.findings.warnings ?? [];
+      const info = parsed.findings.info ?? [];
+      const summaryParts: string[] = [];
+      if (critical.length > 0) summaryParts.push(`${critical.length} critical`);
+      if (warnings.length > 0) summaryParts.push(`${warnings.length} warnings`);
+      if (info.length > 0) summaryParts.push(`${info.length} info`);
       return {
         kind: "review",
         passed: parsed.passed ?? false,
-        findings: {
-          critical: parsed.findings.critical ?? [],
-          warnings: parsed.findings.warnings ?? [],
-          info: parsed.findings.info ?? [],
-        },
+        summary: summaryParts.length > 0 ? summaryParts.join(", ") : "no findings",
+        findings: { critical, warnings, info },
       };
     }
 

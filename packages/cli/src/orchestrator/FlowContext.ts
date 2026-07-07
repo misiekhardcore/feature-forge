@@ -224,6 +224,7 @@ export class FlowContext {
 export interface ReviewFindings {
   kind: "review";
   passed: boolean;
+  summary: string;
   findings: {
     critical: string[];
     warnings: string[];
