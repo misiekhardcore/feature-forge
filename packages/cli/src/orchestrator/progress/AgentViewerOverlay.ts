@@ -101,6 +101,13 @@ export class AgentViewerOverlay implements Component {
     return this.renderList(width);
   }
 
+  handleInput(_data: string): void {
+    // Widget is not closable — absorb all input to prevent
+    // the TUI global Escape handler from dismissing it during
+    // routine execution. The widget is only removed by the
+    // owning RoutineTool when the routine completes.
+  }
+
   invalidate(): void {
     /* Stateless render — no cached state to clear. */
   }
