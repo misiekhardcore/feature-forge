@@ -101,6 +101,10 @@ export class AgentViewerOverlay implements Component {
     return this.renderList(width);
   }
 
+  invalidate(): void {
+    /* Stateless render — no cached state to clear. */
+  }
+
   // ── Public data methods ───────────────────────────────────
 
   /**
