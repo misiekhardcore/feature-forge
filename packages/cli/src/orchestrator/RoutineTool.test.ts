@@ -751,6 +751,30 @@ describe("RoutineTool", () => {
       // setWidget should have been called for "agent-viewer" with a factory function.
       expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", expect.any(Function));
 
+      // Invoke the factory to verify it produces a valid Component.
+      const factoryCalls = mockSetWidget.mock.calls.filter(
+        (c: unknown[]) => c[0] === "agent-viewer" && typeof c[1] === "function",
+      );
+      expect(factoryCalls.length).toBeGreaterThanOrEqual(1);
+      const factory = factoryCalls[0][1] as (
+        tui: Record<string, unknown>,
+        theme: Record<string, unknown>,
+      ) => Record<string, unknown>;
+
+      const mockTui = { requestRender: vi.fn() };
+      const mockTheme = { fg: vi.fn((_c: string, t: string) => t) };
+      const component = factory(mockTui, mockTheme);
+
+      expect(component).toBeDefined();
+      expect(typeof component.render).toBe("function");
+      expect(typeof component.invalidate).toBe("function");
+
+      const rendered = component.render(80);
+      expect(Array.isArray(rendered)).toBe(true);
+      expect(rendered.length).toBeGreaterThan(0);
+      const joined = rendered.join("\n");
+      expect(joined).toContain("Agent Viewer");
+
       // Cleanup should have cleared the widget.
       expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", undefined);
     });

@@ -282,6 +282,9 @@ export class RoutineTool
           // Silently ignore cleanup errors.
         }
       }
+      // Reset references to prevent stale state between executions.
+      this.agentViewer = undefined;
+      this.streamDir = undefined;
       for (const unsub of unsubscribers) unsub();
     }
   }

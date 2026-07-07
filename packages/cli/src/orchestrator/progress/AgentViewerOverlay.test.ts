@@ -61,6 +61,23 @@ describe("AgentViewerOverlay", () => {
       expect(lines).toBeInstanceOf(Array);
       expect(lines.length).toBeGreaterThan(0);
     });
+
+    it("produces the same output after invalidate as before", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const before = overlay.render(80);
+      overlay.invalidate();
+      const after = overlay.render(80);
+
+      expect(after).toEqual(before);
+    });
+
+    it("invalidate does not throw on a fresh overlay with no state", () => {
+      const overlay = makeOverlay();
+
+      expect(() => overlay.invalidate()).not.toThrow();
+    });
   });
 
   describe("render", () => {
