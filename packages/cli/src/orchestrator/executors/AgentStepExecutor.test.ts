@@ -306,6 +306,32 @@ describe("AgentStepExecutor", () => {
       expect(supervisor.destroyAgent).not.toHaveBeenCalled();
     });
 
+    it("re-throws AbortError instead of returning a failure result", async () => {
+      const abortError = new DOMException("The operation was aborted", "AbortError");
+      const agent = makeMockAgentThatThrows(abortError);
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+      ).rejects.toThrow("The operation was aborted");
+
+      // destroyAgent is still called in the finally block.
+      expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
+    });
+
     it("always calls destroyAgent even when executeTask throws", async () => {
       const error = new Error("crash");
       const agent = makeMockAgentThatThrows(error);

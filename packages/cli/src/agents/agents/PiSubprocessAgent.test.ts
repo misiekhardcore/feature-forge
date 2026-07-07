@@ -9,6 +9,7 @@ const { MockRpcClient, getRpcMock, resetRpcMock } = vi.hoisted(() => {
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined),
       promptAndWait: vi.fn().mockResolvedValue([]),
+      abort: vi.fn().mockResolvedValue(undefined),
     };
   }
   reset();
@@ -200,6 +201,23 @@ describe("PiSubprocessAgent", () => {
         agent.executeTask("should-abort", { signal: controller.signal }),
       ).rejects.toThrow(DOMException);
       expect(getRpcMock().promptAndWait).not.toHaveBeenCalled();
+    });
+
+    it("calls rpcClient.abort when signal fires mid-execution", async () => {
+      await agent.start();
+      const controller = new AbortController();
+
+      // promptAndWait rejects when abort fires, simulating the RPC terminating.
+      getRpcMock().promptAndWait.mockImplementationOnce(() => {
+        controller.abort();
+        throw new DOMException("The operation was aborted", "AbortError");
+      });
+
+      await expect(agent.executeTask("long-task", { signal: controller.signal })).rejects.toThrow(
+        "The operation was aborted",
+      );
+      expect(getRpcMock().abort).toHaveBeenCalledTimes(1);
+      expect(agent.status).toBe(AgentStatus.Failed);
     });
 
     it("transitions to Failed when task throws", async () => {

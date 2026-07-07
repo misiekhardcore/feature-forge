@@ -4,6 +4,7 @@ import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
+import { isAbortError } from "./isAbortError";
 
 /**
  * Executes a `parallel` instruction by running all child steps concurrently
@@ -52,6 +53,14 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
     const settled = await Promise.allSettled(
       childInstructions.map(async (child) => executeStep(child, context, signal)),
     );
+
+    // Propagate abort signals immediately so the routine can be cancelled
+    // without waiting for the current parallel block to finish.
+    for (const result of settled) {
+      if (result.status === "rejected" && isAbortError(result.reason)) {
+        throw result.reason;
+      }
+    }
 
     // Collect errors and successes.
     const successes: FlowContext[] = [];

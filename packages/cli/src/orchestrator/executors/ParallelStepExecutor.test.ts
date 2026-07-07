@@ -53,6 +53,14 @@ class DelayedExecutor extends StepExecutor {
   }
 }
 
+class AbortingExecutor extends StepExecutor {
+  readonly type = "aborting";
+
+  async execute(_instruction: FlowInstruction, _context: FlowContext): Promise<FlowContext> {
+    throw new DOMException("The operation was aborted", "AbortError");
+  }
+}
+
 class FailingExecutor extends StepExecutor {
   readonly type = "failing";
 
@@ -144,6 +152,29 @@ describe("ParallelStepExecutor", () => {
     await expect(
       executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
     ).rejects.toThrow("step b failed");
+  });
+
+  it("re-throws AbortError from allSettled instead of swallowing it", async () => {
+    const registry = new StepExecutorRegistry();
+    registry.register(() => new DelayedExecutor(10));
+    registry.register(() => new AbortingExecutor());
+
+    const executor = new ParallelStepExecutor();
+
+    const instruction: ParallelInstruction = {
+      type: "parallel",
+      id: "block",
+      steps: [
+        { type: "delayed", id: "a" } as unknown as FlowInstruction,
+        { type: "aborting", id: "b" } as unknown as FlowInstruction,
+      ],
+    };
+
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+    await expect(
+      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
+    ).rejects.toThrow("The operation was aborted");
   });
 
   it("throws for an unknown step type in children", async () => {
