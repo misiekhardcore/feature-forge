@@ -25,4 +25,3 @@ export {
 export type { SpecResolutionParams } from "./SpecManager";
 export { SpecManager } from "./SpecManager";
 export { AgentSupervisor, InMemoryAgentSupervisor } from "./supervisors";
-export { AgentStatus } from "@feature-forge/shared";
