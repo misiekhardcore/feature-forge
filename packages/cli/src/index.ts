@@ -14,6 +14,7 @@ import {
   AgentListCommand,
   FlowExitCommand,
   ResearchCommand,
+  ToggleAgentViewerCommand,
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
@@ -96,6 +97,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     AgentDestroyAllCommand,
     FlowExitCommand,
     ResearchCommand,
+    ToggleAgentViewerCommand,
     WorktreeListCommand,
     WorktreeDestroyCommand,
   );
