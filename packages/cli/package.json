@@ -16,8 +16,8 @@
   "scripts": {
     "build": "echo 'cli: nothing to build'",
     "test": "echo 'cli: tests via vitest workspace'",
-    "lint": "echo 'cli: linted via root'",
-    "format": "echo 'cli: formatted via root'",
+    "lint": "eslint .",
+    "format": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test:watch": "vitest",
     "test:e2e": "vitest run --project cli-e2e",

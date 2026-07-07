@@ -12,8 +12,8 @@
   "scripts": {
     "build": "echo 'shared: nothing to build'",
     "test": "vitest run",
-    "lint": "echo 'shared: linted via root'",
-    "format": "echo 'shared: formatted via root'",
+    "lint": "eslint .",
+    "format": "prettier --check .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
