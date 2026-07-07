@@ -507,11 +507,38 @@ export class AgentViewerOverlay implements Component {
 
   /**
    * Extract a short detail string from a known stream event shape.
+   *
+   * Prefers common text-bearing fields ({@code text_delta},
+   * {@code text}, {@code delta.text}) regardless of event type, so
+   * content-bearing events (message_delta, content_block_delta,
+   * message_update, message_end) show their actual text instead of a
+   * bare type label. Falls back to event-type-specific extraction for
+   * tool use, tool result, and message start events.
    */
   private static extractStreamDetail(eventType: string, event: Record<string, unknown>): string {
+    // Prefer generic text-bearing fields — works for message_delta,
+    // content_block_delta, message_update, message_end, and others.
+    const textDelta = event["text_delta"];
+    if (typeof textDelta === "string" && textDelta.trim()) {
+      return textDelta.slice(0, 80);
+    }
+
+    const text = event["text"];
+    if (typeof text === "string" && text.trim()) {
+      return text.slice(0, 80);
+    }
+
+    const delta = event["delta"];
+    if (typeof delta === "object" && delta !== null) {
+      const deltaText = (delta as Record<string, unknown>)["text"];
+      if (typeof deltaText === "string" && deltaText.trim()) {
+        return deltaText.slice(0, 80);
+      }
+    }
+
     switch (eventType) {
       case "tool_use": {
-        const tool = event["tool"];
+        const tool = event["tool"] ?? event["name"];
         return typeof tool === "string" ? tool : "";
       }
       case "tool_result": {
@@ -528,9 +555,12 @@ export class AgentViewerOverlay implements Component {
         const role = event["role"];
         return typeof role === "string" ? role : "";
       }
-      case "assistant": {
-        const text = event["text"];
-        if (typeof text === "string") return text.slice(0, 80);
+      case "content_block_start": {
+        const block = event["content_block"];
+        if (typeof block === "object" && block !== null) {
+          const blockType = (block as Record<string, unknown>)["type"];
+          return typeof blockType === "string" ? blockType : "";
+        }
         return "";
       }
       default:
