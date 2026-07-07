@@ -1,3 +1,3 @@
-import { createBaseConfig } from "../../eslint.base.config.js";
+import { baseConfig } from "@feature-forge/eslint-config";
 
-export default createBaseConfig(import.meta.dirname);
+export default baseConfig;

@@ -1,6 +1,3 @@
-import { createBaseConfig } from "../../eslint.base.config.js";
+import { baseConfig } from "@feature-forge/eslint-config";
 
-export default createBaseConfig(import.meta.dirname, {
-  sourceFiles: ["src/**/*.ts"],
-  testFiles: ["src/**/*.test.ts"],
-});
+export default baseConfig;
