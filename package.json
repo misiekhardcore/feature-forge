@@ -26,6 +26,11 @@
       "prettier --write"
     ]
   },
+  "pi": {
+    "extensions": [
+      "./packages/cli/src/index.ts"
+    ]
+  },
   "dependencies": {},
   "devDependencies": {
     "@types/node": "26.0.0",
