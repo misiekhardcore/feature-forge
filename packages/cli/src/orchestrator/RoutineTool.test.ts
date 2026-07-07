@@ -401,12 +401,20 @@ describe("RoutineTool", () => {
       const executor = new RoutineExecutor(flow, registry, eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
-      await expect(
-        tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext),
-      ).rejects.toThrow();
+      const mockSetWidget = vi.fn();
+      const mockSetStatus = vi.fn();
+      const mockCtx = {
+        ui: { setWidget: mockSetWidget, setStatus: mockSetStatus },
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await expect(tool.execute("call-1", {}, undefined, undefined, mockCtx)).rejects.toThrow();
+
+      // Verify that cleanup happened in the finally block.
+      expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", undefined);
     });
 
-    it("cleans up UI in finally even when the executor throws", async () => {
+    it("cleans up UI in finally even when a step fails", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(
         () =>
@@ -763,7 +771,10 @@ describe("RoutineTool", () => {
 
       const mockTui = { requestRender: vi.fn() };
       const mockTheme = { fg: vi.fn((_c: string, t: string) => t) };
-      const component = factory(mockTui, mockTheme);
+      const component = factory(mockTui, mockTheme) as {
+        render: (width: number) => string[];
+        invalidate: () => void;
+      };
 
       expect(component).toBeDefined();
       expect(typeof component.render).toBe("function");

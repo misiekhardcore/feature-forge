@@ -269,21 +269,23 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      this.agentViewer?.dispose();
+      // Capture and null out before calling dispose, so event handlers
+      // fired by unsub() callbacks never reference a disposed viewer.
+      const capturedViewer = this.agentViewer;
+      this.agentViewer = undefined;
+      capturedViewer?.dispose();
       if (hasAgentWidget && ctx.ui) {
         ctx.ui.setWidget("agent-viewer", undefined);
       }
       // Clean up stream directory when widget creation failed before
       // AgentViewerOverlay was instantiated (and therefore dispose() never ran).
-      if (!this.agentViewer && this.streamDir) {
+      if (!capturedViewer && this.streamDir) {
         try {
           rmSync(this.streamDir, { recursive: true, force: true });
         } catch {
           // Silently ignore cleanup errors.
         }
       }
-      // Reset references to prevent stale state between executions.
-      this.agentViewer = undefined;
       this.streamDir = undefined;
       for (const unsub of unsubscribers) unsub();
     }

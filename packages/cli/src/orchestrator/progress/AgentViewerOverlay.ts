@@ -122,9 +122,9 @@ export class AgentViewerOverlay implements Component {
   /**
    * Remove all in-memory agent entries.
    *
-   * Does NOT clean up filesystem stream files — use {@link dispose}
-   * for full cleanup when stream file persistence was configured via
-   * {@link setAgentExecutionId}.
+   * Preserves lastLines in-memory; use {@link dispose} for full cleanup
+   * including stream files and lastLines when stream file persistence was
+   * configured via {@link setAgentExecutionId}.
    */
   clearMemory(): void {
     this.agents.clear();
