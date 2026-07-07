@@ -4,10 +4,17 @@ import { join } from "node:path";
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
+import { Key } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentViewerEntry } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
+
+// ── ANSI key sequences ──────────────────────────────────────
+const UP = "\x1b[A";
+const DOWN = "\x1b[B";
+const ESCAPE = "\x1b";
+const ENTER = "\r";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -80,7 +87,7 @@ describe("AgentViewerOverlay", () => {
 
     it("implements handleInput", () => {
       const overlay = makeOverlay();
-      expect(() => overlay.handleInput("up")).not.toThrow();
+      expect(() => overlay.handleInput(UP)).not.toThrow();
     });
 
     it("implements invalidate", () => {
@@ -287,6 +294,125 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("Last event");
       expect(joined).toContain("tool_use: read");
     });
+
+    it("truncates long last stream line to fit width in list view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      const longLine = "x".repeat(100);
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: longLine });
+
+      const lines = overlay.render(40);
+      const joined = lines.join("\n");
+
+      // Should be truncated to fit within width 40 minus 4-space indent.
+      expect(joined).toContain("tool_use: xxx");
+      expect(joined).toContain("...");
+      // The full long line should not appear.
+      expect(joined).not.toContain(longLine);
+    });
+
+    it("truncates long last stream line to fit width in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      const longLine = "y".repeat(100);
+      overlay.pushStreamEvent("builder", { type: "message_start", role: longLine });
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(50);
+      const joined = lines.join("\n");
+
+      // Should show truncated line with ellipsis.
+      expect(joined).toContain("Last event");
+      expect(joined).toContain("...");
+      // The full long line should not appear.
+      expect(joined).not.toContain(longLine);
+    });
+
+    it("does not truncate short last stream lines", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      const shortLine = "tool_use: read";
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain(shortLine);
+      expect(joined).not.toContain("...");
+    });
+  });
+
+  describe("Key constants", () => {
+    it("defines expected navigation key identifiers", () => {
+      expect(Key.up).toBe("up");
+      expect(Key.down).toBe("down");
+      expect(Key.escape).toBe("escape");
+      expect(Key.enter).toBe("enter");
+    });
+  });
+
+  describe("ANSI sequence input handling", () => {
+    it("handles alternative ANSI up arrow sequence \\x1bOA", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("a", "started"));
+      overlay.update(makeEntry("b", "started"));
+
+      overlay.handleInput("\x1bOA");
+
+      expect(overlay.selectedIndex).toBe(1);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("handles alternative ANSI down arrow sequence \\x1bOB", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("a", "started"));
+      overlay.update(makeEntry("b", "started"));
+
+      overlay.handleInput("\x1bOB");
+
+      expect(overlay.selectedIndex).toBe(1);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("handles Kitty protocol escape sequence", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Kitty CSI-u escape: \x1b[27u (codepoint 27, modifier 1)
+      overlay.handleInput("\x1b[27u");
+
+      expect(overlay.viewMode).toBe("list");
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("handles carriage return as enter in list view", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("builder", "started"));
+
+      overlay.handleInput(ENTER);
+
+      expect(overlay.viewMode).toBe("detail");
+      expect(overlay.selectedAgentId).toBe("builder");
+    });
+
+    it("handles numpad enter sequence in list view", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("builder", "started"));
+
+      // SS3 M (numpad enter)
+      overlay.handleInput("\x1bOM");
+
+      expect(overlay.viewMode).toBe("detail");
+      expect(overlay.selectedAgentId).toBe("builder");
+    });
   });
 
   describe("handleInput", () => {
@@ -295,18 +421,20 @@ describe("AgentViewerOverlay", () => {
         const done = vi.fn();
         const overlay = makeOverlay(undefined, undefined, done);
 
-        overlay.handleInput("escape");
+        overlay.handleInput(ESCAPE);
 
         expect(done).toHaveBeenCalledOnce();
       });
 
-      it("calls onDone when esc is pressed", () => {
+      it("ignores non-navigation input in list view", () => {
         const done = vi.fn();
         const overlay = makeOverlay(undefined, undefined, done);
+        overlay.update(makeEntry("a", "started"));
 
-        overlay.handleInput("esc");
+        overlay.handleInput("x");
 
-        expect(done).toHaveBeenCalledOnce();
+        expect(done).not.toHaveBeenCalled();
+        expect(overlay.viewMode).toBe("list");
       });
 
       it("navigates down with down key", () => {
@@ -318,14 +446,14 @@ describe("AgentViewerOverlay", () => {
 
         expect(overlay.selectedIndex).toBe(0);
 
-        overlay.handleInput("down");
+        overlay.handleInput(DOWN);
         expect(overlay.selectedIndex).toBe(1);
         expect(tui.requestRender).toHaveBeenCalled();
 
-        overlay.handleInput("down");
+        overlay.handleInput(DOWN);
         expect(overlay.selectedIndex).toBe(2);
 
-        overlay.handleInput("down");
+        overlay.handleInput(DOWN);
         expect(overlay.selectedIndex).toBe(0);
       });
 
@@ -338,7 +466,7 @@ describe("AgentViewerOverlay", () => {
 
         expect(overlay.selectedIndex).toBe(0);
 
-        overlay.handleInput("up");
+        overlay.handleInput(UP);
         expect(overlay.selectedIndex).toBe(2);
         expect(tui.requestRender).toHaveBeenCalled();
       });
@@ -347,8 +475,8 @@ describe("AgentViewerOverlay", () => {
         const tui = makeTui();
         const overlay = makeOverlay(tui);
 
-        overlay.handleInput("up");
-        overlay.handleInput("down");
+        overlay.handleInput(UP);
+        overlay.handleInput(DOWN);
 
         expect(overlay.selectedIndex).toBe(0);
         // requestRender should not be called when there are no agents
@@ -362,7 +490,7 @@ describe("AgentViewerOverlay", () => {
         overlay.update(makeEntry("reviewer", "done"));
 
         overlay.selectedIndex = 1;
-        overlay.handleInput("enter");
+        overlay.handleInput(ENTER);
 
         expect(overlay.viewMode).toBe("detail");
         expect(overlay.selectedAgentId).toBe("reviewer");
@@ -370,22 +498,11 @@ describe("AgentViewerOverlay", () => {
         expect(tui.requestRender).toHaveBeenCalled();
       });
 
-      it("switches to detail view on return key", () => {
-        const tui = makeTui();
-        const overlay = makeOverlay(tui);
-        overlay.update(makeEntry("builder", "started"));
-
-        overlay.handleInput("return");
-
-        expect(overlay.viewMode).toBe("detail");
-        expect(overlay.selectedAgentId).toBe("builder");
-      });
-
       it("does nothing on enter when no agents exist", () => {
         const tui = makeTui();
         const overlay = makeOverlay(tui);
 
-        overlay.handleInput("enter");
+        overlay.handleInput(ENTER);
 
         expect(overlay.viewMode).toBe("list");
         expect(tui.requestRender).not.toHaveBeenCalled();
@@ -401,7 +518,7 @@ describe("AgentViewerOverlay", () => {
         overlay.viewMode = "detail";
         overlay.selectedAgentId = "builder";
 
-        overlay.handleInput("escape");
+        overlay.handleInput(ESCAPE);
 
         expect(overlay.viewMode).toBe("list");
         expect(overlay.selectedAgentId).toBeUndefined();
@@ -418,7 +535,7 @@ describe("AgentViewerOverlay", () => {
         overlay.selectedAgentId = "builder";
         overlay.scrollOffset = 5;
 
-        overlay.handleInput("up");
+        overlay.handleInput(UP);
 
         expect(overlay.scrollOffset).toBe(4);
         expect(tui.requestRender).toHaveBeenCalled();
@@ -432,7 +549,7 @@ describe("AgentViewerOverlay", () => {
         overlay.selectedAgentId = "builder";
         overlay.scrollOffset = 0;
 
-        overlay.handleInput("up");
+        overlay.handleInput(UP);
 
         expect(overlay.scrollOffset).toBe(0);
       });
@@ -445,7 +562,7 @@ describe("AgentViewerOverlay", () => {
         overlay.selectedAgentId = "builder";
         overlay.scrollOffset = 0;
 
-        overlay.handleInput("down");
+        overlay.handleInput(DOWN);
 
         expect(overlay.scrollOffset).toBe(1);
         expect(tui.requestRender).toHaveBeenCalled();
@@ -469,7 +586,7 @@ describe("AgentViewerOverlay", () => {
 
         // Scroll down 6 times: skip header + separator + "Raw output:" +
         // raw line 0 + raw line 1 + raw line 2 → first visible = raw line 3.
-        for (let i = 0; i < 6; i++) overlay.handleInput("down");
+        for (let i = 0; i < 6; i++) overlay.handleInput(DOWN);
 
         const scrolledRender = overlay.render(80).join("\n");
 
@@ -496,7 +613,7 @@ describe("AgentViewerOverlay", () => {
         expect(offsetRender).not.toContain("raw line 0");
 
         // Scroll up 4 times → offset 4, first visible = index 4 = "raw line 1".
-        for (let i = 0; i < 4; i++) overlay.handleInput("up");
+        for (let i = 0; i < 4; i++) overlay.handleInput(UP);
 
         const scrolledUpRender = overlay.render(80).join("\n");
 
@@ -520,7 +637,7 @@ describe("AgentViewerOverlay", () => {
         const initialRender = overlay.render(80).join("\n");
 
         // Try to scroll up past the top.
-        overlay.handleInput("up");
+        overlay.handleInput(UP);
 
         const stillTopRender = overlay.render(80).join("\n");
 

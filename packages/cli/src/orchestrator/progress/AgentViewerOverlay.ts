@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
-import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -130,7 +130,7 @@ export class AgentViewerOverlay implements Component {
   }
 
   handleInput(data: string): void {
-    if (data === "escape" || data === "esc") {
+    if (matchesKey(data, Key.escape)) {
       if (this.viewMode === "detail") {
         this.viewMode = "list";
         this.selectedAgentId = undefined;
@@ -351,10 +351,15 @@ export class AgentViewerOverlay implements Component {
       const idStyled = isSelected ? theme.fg("accent", id) : id;
       lines.push(`${cursor} ${icon} ${idStyled} ${theme.fg("muted", statusLabel)}`);
 
-      // Show last stream line for started agents.
+      // Show last stream line for started agents (truncated to fit width).
       const lastLine = this.lastLines.get(id);
       if (lastLine && entry.status === "started") {
-        lines.push(`    ${theme.fg("muted", lastLine)}`);
+        const maxLastLineWidth = Math.max(10, width - 4);
+        const truncatedLastLine =
+          lastLine.length > maxLastLineWidth
+            ? lastLine.slice(0, maxLastLineWidth - 3) + "..."
+            : lastLine;
+        lines.push(`    ${theme.fg("muted", truncatedLastLine)}`);
       }
 
       if (entry.summary) {
@@ -426,11 +431,16 @@ export class AgentViewerOverlay implements Component {
       }
     }
 
-    // Last stream line (in-memory fallback)
+    // Last stream line (in-memory fallback, truncated to fit width)
     const lastLine = this.lastLines.get(entry.id);
     if (lastLine) {
+      const maxLastLineWidth = Math.max(10, width - 2);
+      const truncatedLastLine =
+        lastLine.length > maxLastLineWidth
+          ? lastLine.slice(0, maxLastLineWidth - 3) + "..."
+          : lastLine;
       lines.push(theme.fg("accent", "Last event:"));
-      lines.push(`  ${theme.fg("muted", lastLine)}`);
+      lines.push(`  ${theme.fg("muted", truncatedLastLine)}`);
       lines.push("");
     }
 
@@ -465,15 +475,15 @@ export class AgentViewerOverlay implements Component {
   private handleListInput(data: string): void {
     const entries = Array.from(this.agents.keys());
 
-    if (data === "up") {
+    if (matchesKey(data, Key.up)) {
       if (entries.length === 0) return;
       this.selectedIndex = this.selectedIndex > 0 ? this.selectedIndex - 1 : entries.length - 1;
       this.tui.requestRender();
-    } else if (data === "down") {
+    } else if (matchesKey(data, Key.down)) {
       if (entries.length === 0) return;
       this.selectedIndex = this.selectedIndex < entries.length - 1 ? this.selectedIndex + 1 : 0;
       this.tui.requestRender();
-    } else if (data === "enter" || data === "return") {
+    } else if (matchesKey(data, Key.enter)) {
       if (entries.length === 0) return;
       const agentId = entries[this.selectedIndex];
       if (agentId) {
@@ -486,10 +496,10 @@ export class AgentViewerOverlay implements Component {
   }
 
   private handleDetailInput(data: string): void {
-    if (data === "up") {
+    if (matchesKey(data, Key.up)) {
       this.scrollOffset = Math.max(0, this.scrollOffset - 1);
       this.tui.requestRender();
-    } else if (data === "down") {
+    } else if (matchesKey(data, Key.down)) {
       this.scrollOffset = this.scrollOffset + 1;
       this.tui.requestRender();
     }
