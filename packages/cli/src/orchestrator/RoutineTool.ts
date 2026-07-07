@@ -204,10 +204,16 @@ export class RoutineTool
       logger.debug("RoutineTool progress", { ...event });
 
       // Accumulate display contributions from all executors.
+      // Stream-only events (agent-stream chunks with no state transition)
+      // are high-frequency and carry no structural information — skip them
+      // to avoid bloating the contributions array.
       for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
-        this._contributions.push(contrib);
+        const isStreamOnly = contrib.streamEvent !== undefined && contrib.agentStatus === undefined;
+        if (!isStreamOnly) {
+          this._contributions.push(contrib);
+        }
 
         // Wire the execution id for stream file persistence on the first
         // agent-scoped contribution that carries one.

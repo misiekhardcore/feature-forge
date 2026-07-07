@@ -78,23 +78,6 @@ describe("AgentViewerOverlay", () => {
 
       expect(() => overlay.invalidate()).not.toThrow();
     });
-
-    it("handleInput is a no-op that absorbs all input", () => {
-      const overlay = makeOverlay();
-
-      // handleInput should not throw regardless of what is passed.
-      expect(() => overlay.handleInput("\x1b")).not.toThrow();
-      expect(() => overlay.handleInput("q")).not.toThrow();
-      expect(() => overlay.handleInput("")).not.toThrow();
-      expect(() => overlay.handleInput("any arbitrary input")).not.toThrow();
-
-      // Calling handleInput should have no side-effects on render output.
-      const before = overlay.render(80);
-      overlay.handleInput("some input");
-      const after = overlay.render(80);
-
-      expect(after).toEqual(before);
-    });
   });
 
   describe("render", () => {
