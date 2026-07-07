@@ -174,12 +174,22 @@ export class RoutineTool
       : new NoOpProgressReporter();
 
     // Agent viewer overlay — a separate widget panel showing live agent details.
-    this.agentViewer = new AgentViewerOverlay();
     const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
     if (hasUI && ctx.ui) {
-      ctx.ui.setWidget("forge-agent-viewer", this.agentViewer.buildWidgetFactory(), {
-        placement: "belowEditor",
-      });
+      ctx.ui.setWidget(
+        "forge-agent-viewer",
+        (tui, theme) => {
+          const viewer = new AgentViewerOverlay(tui, theme, () => {
+            ctx.ui.setWidget("forge-agent-viewer", undefined);
+            this.agentViewer = undefined;
+          });
+          this.agentViewer = viewer;
+          return viewer;
+        },
+        {
+          placement: "belowEditor",
+        },
+      );
     }
 
     const handler = (data: unknown): void => {
@@ -187,7 +197,6 @@ export class RoutineTool
       logger.debug("RoutineTool progress", { ...event });
 
       // Accumulate display contributions from all executors.
-      let agentViewerDirty = false;
       for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
@@ -200,16 +209,13 @@ export class RoutineTool
             status: contrib.agentStatus,
             summary: contrib.agentSummary,
           });
-          agentViewerDirty = true;
         }
 
         // Forward streaming events to the overlay's per-agent stream buffer.
         if (contrib.agentId && contrib.streamEvent !== undefined && this.agentViewer) {
           this.agentViewer.pushStreamEvent(contrib.agentId, contrib.streamEvent);
-          agentViewerDirty = true;
         }
       }
-      if (agentViewerDirty) this.renderAgentViewer(ctx);
 
       this.renderProgress(widget, ctx);
 
@@ -256,7 +262,7 @@ export class RoutineTool
       if (hasUI && ctx.ui) {
         ctx.ui.setWidget("forge-agent-viewer", undefined);
       }
-      this.agentViewer?.clear();
+      this.agentViewer?.dispose();
       for (const unsub of unsubscribers) unsub();
     }
   }
@@ -272,16 +278,6 @@ export class RoutineTool
   private renderProgress(widget: ProgressWidget, ctx: ExtensionContext): void {
     const theme = ctx.ui?.theme ?? { fg: (_c: string, t: string) => t };
     this.renderer.renderToWidget(widget, theme);
-  }
-
-  /** Re-render the agent viewer overlay widget. */
-  private renderAgentViewer(ctx: ExtensionContext): void {
-    if (!ctx.ui || ctx.mode !== "tui" || !this.agentViewer) return;
-    // Re-set the widget with the factory to force a re-render.
-    // The factory reads live state from the AgentViewerOverlay instance.
-    ctx.ui.setWidget("forge-agent-viewer", this.agentViewer.buildWidgetFactory(), {
-      placement: "belowEditor",
-    });
   }
 
   private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {
