@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -992,6 +992,55 @@ describe("AgentViewerOverlay", () => {
 
       overlay.dispose();
     });
+
+    it("overwrites previous executionId and streamDir when called again", () => {
+      const tmpDir1 = mkdtempSync(join(tmpdir(), "forge-overwrite-1-"));
+      const tmpDir2 = mkdtempSync(join(tmpdir(), "forge-overwrite-2-"));
+
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("exec-first", tmpDir1);
+      overlay.setAgentExecutionId("exec-second", tmpDir2);
+
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      // File should be written using the second (overwritten) executionId in tmpDir2.
+      const expectedPath = join(tmpDir2, "exec-second-builder.stream");
+      expect(existsSync(expectedPath)).toBe(true);
+
+      // File should NOT be in tmpDir1.
+      const oldPath = join(tmpDir1, "exec-first-builder.stream");
+      expect(existsSync(oldPath)).toBe(false);
+
+      overlay.dispose();
+    });
+
+    it("sets executionId without streamDir", () => {
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("exec-no-dir");
+
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      // In-memory should work.
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+      // No disk file.
+      expect(overlay.getStreamTail("builder")).toBe("");
+    });
+
+    it("does not write to disk when executionId is empty string", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-empty-exec-"));
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("", tmpDir);
+
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      // In-memory line should still be recorded.
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+      // No disk file because executionId is empty.
+      const files = existsSync(tmpDir) ? readdirSync(tmpDir) : [];
+      expect(files.filter((f: string) => f.endsWith(".stream"))).toHaveLength(0);
+
+      overlay.dispose();
+    });
   });
 
   describe("dispose", () => {
@@ -1078,6 +1127,268 @@ describe("AgentViewerOverlay", () => {
       // Both in-memory maps are cleared.
       expect(overlay.getLastStreamLine("builder")).toBeUndefined();
       expect(overlay.getStreamTail("builder")).toBe("");
+    });
+  });
+
+  describe("handleInput edge cases", () => {
+    describe("detail view unrecognized input", () => {
+      it("ignores non-mapped keys in detail view", () => {
+        const tui = makeTui();
+        const overlay = makeOverlay(tui);
+        overlay.update(makeEntry("builder", "started"));
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+        overlay.scrollOffset = 3;
+
+        // Reset mock after update() which calls requestRender.
+        vi.mocked(tui.requestRender).mockClear();
+
+        overlay.handleInput("x");
+
+        // Scroll offset should not change, and no render should be requested.
+        expect(overlay.scrollOffset).toBe(3);
+        expect(tui.requestRender).not.toHaveBeenCalled();
+      });
+
+      it("ignores empty string in detail view", () => {
+        const tui = makeTui();
+        const overlay = makeOverlay(tui);
+        overlay.update(makeEntry("builder", "started"));
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+
+        // Reset mock after update() which calls requestRender.
+        vi.mocked(tui.requestRender).mockClear();
+
+        overlay.handleInput("");
+
+        expect(tui.requestRender).not.toHaveBeenCalled();
+        expect(overlay.viewMode).toBe("detail");
+      });
+    });
+
+    describe("list view unrecognized input", () => {
+      it("ignores empty string in list view", () => {
+        const tui = makeTui();
+        const done = vi.fn();
+        const overlay = makeOverlay(tui, undefined, done);
+        overlay.update(makeEntry("builder", "started"));
+
+        // Reset mock after update() which calls requestRender.
+        vi.mocked(tui.requestRender).mockClear();
+
+        overlay.handleInput("");
+
+        expect(done).not.toHaveBeenCalled();
+        expect(tui.requestRender).not.toHaveBeenCalled();
+        expect(overlay.viewMode).toBe("list");
+      });
+
+      it("handles escape with no agents present", () => {
+        const done = vi.fn();
+        const overlay = makeOverlay(undefined, undefined, done);
+
+        overlay.handleInput(ESCAPE);
+
+        expect(done).toHaveBeenCalledOnce();
+      });
+    });
+  });
+
+  describe("render edge cases", () => {
+    it("handles selectedIndex set beyond entries length in list view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.selectedIndex = 5;
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      // Should still render without errors — no ▶ cursor anywhere.
+      expect(joined).toContain("builder");
+      expect(joined).not.toContain("▶");
+    });
+
+    it("falls through to list view when viewMode is detail but selectedAgentId is undefined", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("reviewer", "done"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = undefined;
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      // Renders list view, not detail view.
+      expect(joined).toContain("Agent Viewer");
+      expect(joined).toContain("reviewer");
+      expect(joined).not.toContain("Agent Detail");
+    });
+
+    it("shows both summary and raw output together in list view", () => {
+      const overlay = makeOverlay();
+      overlay.update(
+        makeEntry("builder", "done", { summary: "Build passed", raw: "Full output here" }),
+      );
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("Build passed");
+      expect(joined).toContain("Full output here");
+    });
+
+    it("handles zero width gracefully", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const lines = overlay.render(0);
+
+      expect(lines).toBeInstanceOf(Array);
+      // Should not throw.
+    });
+
+    it("handles detail view with empty-string selectedAgentId as list view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      // Falls through to list view because empty string is falsy.
+      expect(joined).toContain("Agent Viewer");
+      expect(joined).not.toContain("Agent Detail");
+    });
+
+    it("clamps selectedIndex when it exceeds entries length during list render", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "done"));
+      overlay.selectedIndex = 999;
+
+      // Render should still work and show both agents.
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("agent-a");
+      expect(joined).toContain("agent-b");
+      // No ▶ since selectedIndex is out of range.
+      expect(joined).not.toContain("▶");
+    });
+  });
+
+  describe("clearMemory", () => {
+    it("clears agents but preserves lastLines after pushStreamEvent", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      overlay.clearMemory();
+
+      expect(overlay.entryCount).toBe(0);
+      // lastLines are NOT cleared by clearMemory — they persist.
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+      expect(overlay.lastStreamLine).toBe("tool_use: read");
+    });
+  });
+
+  describe("pushStreamEvent", () => {
+    it("pushes event for an agent not yet added via update", () => {
+      const overlay = makeOverlay();
+
+      overlay.pushStreamEvent("unknown-agent", { type: "tool_use", tool: "read" });
+
+      expect(overlay.getLastStreamLine("unknown-agent")).toBe("tool_use: read");
+      expect(overlay.lastStreamLine).toBe("tool_use: read");
+    });
+
+    it("requests render even when no disk write happens", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("handles pushStreamEvent with streamDir set but empty executionId gracefully", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-empty-exec-stream-"));
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("", tmpDir);
+
+      // Should not throw.
+      expect(() => {
+        overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      }).not.toThrow();
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+
+      overlay.dispose();
+    });
+  });
+
+  describe("formatStreamEvent edge cases", () => {
+    it("formats tool_result with array content where first element lacks text", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "tool_result",
+        content: [{ notText: true }],
+      });
+      expect(line).toBe("tool_result");
+    });
+
+    it("formats tool_result with empty array content", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "tool_result",
+        content: [],
+      });
+      expect(line).toBe("tool_result");
+    });
+
+    it("formats tool_result with text block array content", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "tool_result",
+        content: [{ text: "File content here", type: "text" }],
+      });
+      expect(line).toBe("tool_result: File content here");
+    });
+
+    it("formats events with non-string type field", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({ type: 123 });
+      expect(line).toBe("unknown");
+    });
+
+    it("formats tool_use with missing tool field", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({ type: "tool_use" });
+      expect(line).toBe("tool_use");
+    });
+
+    it("formats message_start with missing role field", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({ type: "message_start" });
+      expect(line).toBe("message_start");
+    });
+
+    it("formats assistant with missing text field", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({ type: "assistant" });
+      expect(line).toBe("assistant");
+    });
+  });
+
+  describe("getStreamTail edge cases", () => {
+    it("handles read errors gracefully", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      // Remove the stream file to force a read error.
+      const filePath = join(tmpDir, "exec-1-builder.stream");
+      rmSync(filePath);
+
+      const tail = overlay.getStreamTail("builder");
+      expect(tail).toBe("");
+
+      overlay.dispose();
     });
   });
 

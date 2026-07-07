@@ -754,5 +754,126 @@ describe("RoutineTool", () => {
       expect(doneContribution!.executionId).toBe("exec-test-99");
       expect(doneContribution!.agentId).toBe("builder");
     });
+
+    it("passes overlay options to ctx.ui.custom", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      const mockCustom = vi.fn().mockResolvedValue(undefined);
+      const mockUi = {
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+        custom: mockCustom,
+      };
+      const ctx = {
+        ui: mockUi,
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      expect(mockCustom).toHaveBeenCalledTimes(1);
+      const customOptions = mockCustom.mock.calls[0][1];
+      expect(customOptions.overlay).toBe(true);
+      expect(customOptions.overlayOptions).toEqual({
+        anchor: "bottom-center",
+        width: 80,
+        maxHeight: 15,
+        margin: { bottom: 1 },
+      });
+    });
+
+    it("invokes onHandle callback when custom resolves", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      // Capture the onHandle callback and invoke it synchronously before resolve.
+      let capturedOnHandle: ((handle: unknown) => void) | undefined;
+      const mockHandle = { hide: vi.fn() };
+      const mockCustom = vi.fn().mockImplementation((_factory, options) => {
+        capturedOnHandle = options.onHandle;
+        return Promise.resolve();
+      });
+
+      const mockUi = {
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+        custom: mockCustom,
+      };
+      const ctx = {
+        ui: mockUi,
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      const execPromise = tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // Simulate the TUI framework calling onHandle after the overlay is created.
+      expect(capturedOnHandle).toBeDefined();
+      capturedOnHandle!(mockHandle);
+
+      await execPromise;
+
+      // viewerHandle.hide() should have been called during cleanup.
+      expect(mockHandle.hide).toHaveBeenCalled();
+    });
+
+    it("AgentViewerOverlay onDone callback dismisses the overlay", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+
+      // Capture the AgentViewerOverlay's onDone and the dismiss + onHandle.
+      let capturedOnHandle: ((handle: unknown) => void) | undefined;
+      const mockHandle = { hide: vi.fn() };
+
+      const mockCustom = vi.fn().mockImplementation((factory, options) => {
+        // Simulate the TUI framework invoking the factory.
+        const tuiMock = { requestRender: vi.fn() };
+        const themeMock = { fg: vi.fn((_c: string, t: string) => t) };
+        factory(tuiMock, themeMock, undefined, (_reason?: unknown) => {
+          // When done is called, store the dismiss for our assertion.
+        });
+        // The factory's done parameter IS the viewerDismiss.
+        // Let's re-derive: we need to know what the factory binds.
+        capturedOnHandle = options.onHandle;
+        return Promise.resolve(undefined);
+      });
+
+      const mockUi = {
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+        custom: mockCustom,
+      };
+      const ctx = {
+        ui: mockUi,
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      const execPromise = tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // The factory should have been called by now (custom mock invoked it synchronously).
+      expect(mockCustom).toHaveBeenCalled();
+      const factoryFn = mockCustom.mock.calls[0][0];
+
+      // Create a real mock environment and re-invoke the factory to capture onDone.
+      const tuiMock = { requestRender: vi.fn() };
+      const themeMock = { fg: vi.fn((_c: string, t: string) => t) };
+      const doneMock = vi.fn();
+
+      const view = factoryFn(tuiMock, themeMock, undefined, doneMock);
+
+      // Simulate the user pressing Escape in list view → should trigger onDone → which calls doneMock.
+      view.handleInput("\x1b");
+
+      expect(doneMock).toHaveBeenCalledOnce();
+
+      capturedOnHandle?.(mockHandle);
+      await execPromise;
+    });
   });
 });
