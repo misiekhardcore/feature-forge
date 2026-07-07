@@ -28,9 +28,16 @@ export const TOOL_PRESETS = {
     BUILT_IN_TOOLS.LS,
   ] as const,
 
-  /** read, grep — for code review agents that should not modify anything. */
-  reviewOnly: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.GREP] as const,
-  verify: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.BASH, BUILT_IN_TOOLS.GREP] as const,
+  /** read, grep, ls — for code review agents that inspect code quality, architecture, and standards. */
+  reviewOnly: [BUILT_IN_TOOLS.READ, BUILT_IN_TOOLS.GREP, BUILT_IN_TOOLS.LS] as const,
+
+  /** read, bash, grep, ls — for verification agents that check acceptance criteria and run e2e tests. */
+  verify: [
+    BUILT_IN_TOOLS.READ,
+    BUILT_IN_TOOLS.BASH,
+    BUILT_IN_TOOLS.GREP,
+    BUILT_IN_TOOLS.LS,
+  ] as const,
 } as const;
 
 export type ToolPresetName = keyof typeof TOOL_PRESETS;

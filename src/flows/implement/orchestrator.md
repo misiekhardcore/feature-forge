@@ -21,11 +21,11 @@ build → review → verify loop that delivers working code and opens a pull req
 
 You have access to these sub-agent types via routine tools:
 
-| Spec     | Role                               | Tools                             |
-| -------- | ---------------------------------- | --------------------------------- |
-| `build`  | Write code with TDD                | read, bash, write, edit, grep, ls |
-| `review` | Code quality review                | read, grep only                   |
-| `verify` | AC verification and test execution | read, bash                        |
+| Spec     | Role                             | Tools                             |
+| -------- | -------------------------------- | --------------------------------- |
+| `build`  | Write code with TDD              | read, bash, write, edit, grep, ls |
+| `review` | Code quality review              | read, grep, ls                    |
+| `verify` | AC verification and e2e coverage | read, bash, grep, ls              |
 
 ---
 

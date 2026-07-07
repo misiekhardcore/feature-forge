@@ -72,7 +72,7 @@
                     "path": "{{workspace}}"
                   },
                   "parseJson": true,
-                  "prompt": "Review the code changes against:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
+                  "prompt": "Review the code for quality: correctness, architecture, standards compliance, error handling, type safety, SOLID principles, and test quality.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
                 },
                 {
                   "type": "agent",
@@ -82,7 +82,7 @@
                     "path": "{{workspace}}"
                   },
                   "parseJson": true,
-                  "prompt": "Verify acceptance criteria:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
+                  "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
                 }
               ]
             }

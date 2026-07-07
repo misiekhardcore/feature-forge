@@ -108,7 +108,7 @@ ephemeral: true
       expect(registry.specNames()).toContain("review");
 
       expect(registry.create("build").tools).toContain("bash");
-      expect(registry.create("review").tools).toEqual(["read", "grep"]);
+      expect(registry.create("review").tools).toEqual(["read", "grep", "ls"]);
     });
 
     it("throws when required metadata (id/role) is missing", async () => {
@@ -184,8 +184,8 @@ role: "neither"
           expected: ["read", "bash", "write", "edit", "grep", "ls"],
         },
         { name: "read", preset: "readOnly", expected: ["read", "grep", "ls"] },
-        { name: "review", preset: "reviewOnly", expected: ["read", "grep"] },
-        { name: "verify", preset: "verify", expected: ["read", "bash", "grep"] },
+        { name: "review", preset: "reviewOnly", expected: ["read", "grep", "ls"] },
+        { name: "verify", preset: "verify", expected: ["read", "bash", "grep", "ls"] },
       ];
 
       for (const { name, preset } of presets) {
