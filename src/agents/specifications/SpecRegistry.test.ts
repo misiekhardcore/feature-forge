@@ -44,7 +44,7 @@ describe("SpecRegistry", () => {
     const spec = registry.create("review");
     expect(spec.role).toBe("review");
     expect(spec.systemPrompt).toBe("# Review Agent\n\nReview the output.");
-    expect(spec.tools).toEqual(["read", "grep"]);
+    expect(spec.tools).toEqual(["read", "grep", "ls"]);
     expect(spec.ephemeral).toBe(true);
   });
 
