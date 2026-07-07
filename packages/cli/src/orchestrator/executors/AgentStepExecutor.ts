@@ -89,10 +89,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const result = this.buildResult(raw, instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
 
+      const agentPassed = result.parsed?.passed;
+      const agentSummary = AgentStepExecutor.buildAgentSummary(result);
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
         message: `Agent "${instructionId}" completed`,
-        details: {},
+        details: { summary: agentSummary, passed: agentPassed },
       });
 
       return updatedContext;
@@ -140,6 +142,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       agentId,
       agentStatus,
       agentSummary: event.details.summary,
+      agentPassed: event.details.passed,
       phase: event.phase,
       message: event.message,
     };
@@ -194,6 +197,25 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       return workspacePath;
     }
     return context.resolve(workingDir.path);
+  }
+
+  /**
+   * Build a one-line summary from a parsed instruction result.
+   *
+   * - "build" results use the summary field.
+   * - "review" results build a summary from findings counts.
+   */
+  private static buildAgentSummary(result: InstructionResult): string | undefined {
+    if (!result.parsed) return undefined;
+    if (result.parsed.kind === "build") {
+      return result.parsed.summary || undefined;
+    }
+    const { critical, warnings, info } = result.parsed.findings;
+    const parts: string[] = [];
+    if (critical.length > 0) parts.push(`${critical.length} critical`);
+    if (warnings.length > 0) parts.push(`${warnings.length} warnings`);
+    if (info.length > 0) parts.push(`${info.length} info`);
+    return parts.length > 0 ? parts.join(", ") : undefined;
   }
 
   private buildResult(raw: string, parseJson?: boolean): InstructionResult {
