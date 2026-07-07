@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
-import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -20,6 +20,14 @@ export interface AgentViewerEntry {
   /** Optional raw output from the agent (truncated for display). */
   raw?: string;
 }
+
+/**
+ * View mode for the overlay.
+ *
+ * - `"list"`: shows all agent entries and their statuses.
+ * - `"detail"`: shows detailed information for a single selected agent.
+ */
+export type ViewMode = "list" | "detail";
 
 /**
  * Type guard for an object with a `text` string property, used by
@@ -40,10 +48,10 @@ function isToolResultTextBlock(value: unknown): value is { text: string } {
 const DEFAULT_MAX_RAW_LENGTH = 500;
 
 /**
- * TUI component that renders agent execution details in a widget.
+ * TUI component that renders agent execution details in an overlay widget.
  *
  * Implements the {@link Component} interface for direct use with
- * {@code ctx.ui.setWidget}.
+ * {@code ctx.ui.custom} overlay APIs.
  *
  * The owning tool (typically {@link import("../RoutineTool").RoutineTool})
  * calls {@link update} as agent events arrive, {@link pushStreamEvent} to
@@ -65,19 +73,36 @@ export class AgentViewerOverlay implements Component {
   /** Theme for colouring UI elements. */
   private readonly theme: Theme;
 
+  /** Called when the user presses Escape in list view. */
+  private readonly onDone: () => void;
+
   /** Execution-scoped identifier used as a prefix for stream filenames. */
   private executionId?: string;
 
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
 
+  /** Current view mode. */
+  viewMode: ViewMode = "list";
+
+  /** Index of the currently selected agent in the agent list. */
+  selectedIndex = 0;
+
+  /** Agent id of the agent shown in detail view. */
+  selectedAgentId?: string;
+
+  /** Scroll offset for detail view content. */
+  scrollOffset = 0;
+
   /**
    * @param tui — TUI instance used to request re-renders.
    * @param theme — Theme for colouring UI elements.
+   * @param onDone — Callback invoked when the user presses Escape in list view.
    */
-  constructor(tui: TUI, theme: Theme) {
+  constructor(tui: TUI, theme: Theme, onDone: () => void) {
     this.tui = tui;
     this.theme = theme;
+    this.onDone = onDone;
   }
 
   /**
@@ -98,7 +123,31 @@ export class AgentViewerOverlay implements Component {
   // ── Component interface ───────────────────────────────────
 
   render(width: number): string[] {
+    if (this.viewMode === "detail" && this.selectedAgentId) {
+      return this.renderDetail(width);
+    }
     return this.renderList(width);
+  }
+
+  handleInput(data: string): void {
+    if (matchesKey(data, Key.escape)) {
+      if (this.viewMode === "detail") {
+        this.viewMode = "list";
+        this.selectedAgentId = undefined;
+        this.scrollOffset = 0;
+        this.tui.requestRender();
+        return;
+      }
+      this.onDone();
+      return;
+    }
+
+    if (this.viewMode === "detail") {
+      this.handleDetailInput(data);
+      return;
+    }
+
+    this.handleListInput(data);
   }
 
   invalidate(): void {
@@ -120,14 +169,18 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Remove all in-memory agent entries.
+   * Remove all in-memory agent entries and reset view state.
    *
-   * Preserves lastLines in-memory; use {@link dispose} for full cleanup
-   * including stream files and lastLines when stream file persistence was
-   * configured via {@link setAgentExecutionId}.
+   * Does NOT clean up filesystem stream files — use {@link dispose}
+   * for full cleanup when stream file persistence was configured via
+   * {@link setAgentExecutionId}.
    */
   clearMemory(): void {
     this.agents.clear();
+    this.viewMode = "list";
+    this.selectedIndex = 0;
+    this.selectedAgentId = undefined;
+    this.scrollOffset = 0;
   }
 
   /** Number of agent entries currently tracked. */
@@ -288,11 +341,15 @@ export class AgentViewerOverlay implements Component {
     }
 
     const entries = Array.from(this.agents.entries());
-    for (const [, [id, entry]] of entries.entries()) {
+    for (let index = 0; index < entries.length; index++) {
+      const [id, entry] = entries[index];
+      const isSelected = index === this.selectedIndex;
       const icon = AgentViewerOverlay.statusIcon(entry.status);
       const statusLabel = `[${entry.status}]`;
 
-      lines.push(`  ${icon} ${id} ${theme.fg("muted", statusLabel)}`);
+      const cursor = isSelected ? "▶" : " ";
+      const idStyled = isSelected ? theme.fg("accent", id) : id;
+      lines.push(`${cursor} ${icon} ${idStyled} ${theme.fg("muted", statusLabel)}`);
 
       // Show last stream line for started agents (truncated to fit width).
       const lastLine = this.lastLines.get(id);
@@ -320,7 +377,132 @@ export class AgentViewerOverlay implements Component {
       }
     }
 
+    // Help text
+    lines.push("");
+    lines.push(
+      theme.fg(
+        "muted",
+        `${theme.fg("accent", "↑↓")} navigate  ${theme.fg("accent", "Enter")} view  ${theme.fg("accent", "Esc")} close`,
+      ),
+    );
+
     return lines.flatMap((line) => wrapTextWithAnsi(line, width));
+  }
+
+  private renderDetail(width: number): string[] {
+    const { theme } = this;
+    const lines: string[] = [];
+
+    const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
+    if (!entry) {
+      lines.push(theme.fg("accent", "⟳ Agent Detail"));
+      lines.push(theme.fg("muted", "─".repeat(Math.min(width, 60))));
+      lines.push(`  ${theme.fg("muted", "agent not found")}`);
+      lines.push("");
+      lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
+      return lines.flatMap((line) => wrapTextWithAnsi(line, width));
+    }
+
+    const icon = AgentViewerOverlay.statusIcon(entry.status);
+
+    // Header
+    lines.push(
+      `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${entry.status}`)}`,
+    );
+    const separatorWidth = Math.min(width, 60);
+    lines.push(theme.fg("muted", "─".repeat(separatorWidth)));
+
+    // Summary
+    if (entry.summary) {
+      lines.push(theme.fg("accent", "Summary:"));
+      lines.push(`  ${entry.summary}`);
+      lines.push("");
+    }
+
+    // Stream tail from disk when available
+    if (this.streamDir && this.selectedAgentId) {
+      const tail = this.getStreamTail(this.selectedAgentId, 50);
+      if (tail.length > 0) {
+        lines.push(theme.fg("accent", "Stream log:"));
+        for (const tailLine of tail.split("\n")) {
+          lines.push(`  ${theme.fg("muted", tailLine)}`);
+        }
+        lines.push("");
+      }
+    }
+
+    // Last stream line (in-memory fallback, truncated to fit width)
+    const lastLine = this.lastLines.get(entry.id);
+    if (lastLine) {
+      const maxLastLineWidth = Math.max(10, width - 2);
+      const truncatedLastLine =
+        lastLine.length > maxLastLineWidth
+          ? lastLine.slice(0, maxLastLineWidth - 3) + "..."
+          : lastLine;
+      lines.push(theme.fg("accent", "Last event:"));
+      lines.push(`  ${theme.fg("muted", truncatedLastLine)}`);
+      lines.push("");
+    }
+
+    // Raw output
+    if (entry.raw !== undefined) {
+      lines.push(theme.fg("accent", "Raw output:"));
+      const truncated =
+        entry.raw.length > DEFAULT_MAX_RAW_LENGTH
+          ? entry.raw.slice(0, DEFAULT_MAX_RAW_LENGTH) + "..."
+          : entry.raw;
+      for (const rawLine of truncated.split("\n")) {
+        lines.push(`  ${theme.fg("muted", rawLine)}`);
+      }
+      lines.push("");
+    }
+
+    // Help text
+    lines.push(
+      theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
+    );
+
+    // Apply scroll offset — clamp and write back so handleDetailInput
+    // never accumulates excess offset above the visible line count.
+    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, lines.length - 1));
+    const visibleLines = lines.slice(this.scrollOffset);
+
+    return visibleLines.flatMap((line) => wrapTextWithAnsi(line, width));
+  }
+
+  // ── Private input handling ────────────────────────────────
+
+  private handleListInput(data: string): void {
+    const entries = Array.from(this.agents.keys());
+
+    if (matchesKey(data, Key.up)) {
+      if (entries.length === 0) return;
+      this.selectedIndex = this.selectedIndex > 0 ? this.selectedIndex - 1 : entries.length - 1;
+      this.tui.requestRender();
+    } else if (matchesKey(data, Key.down)) {
+      if (entries.length === 0) return;
+      this.selectedIndex = this.selectedIndex < entries.length - 1 ? this.selectedIndex + 1 : 0;
+      this.tui.requestRender();
+    } else if (matchesKey(data, Key.enter)) {
+      if (entries.length === 0) return;
+      const agentId = entries[this.selectedIndex];
+      if (agentId) {
+        this.viewMode = "detail";
+        this.selectedAgentId = agentId;
+        this.scrollOffset = 0;
+        this.tui.requestRender();
+      }
+    }
+  }
+
+  private handleDetailInput(data: string): void {
+    if (matchesKey(data, Key.up)) {
+      this.scrollOffset = Math.max(0, this.scrollOffset - 1);
+      this.tui.requestRender();
+    } else if (matchesKey(data, Key.down)) {
+      this.scrollOffset = this.scrollOffset + 1;
+      this.tui.requestRender();
+    }
   }
 
   /**

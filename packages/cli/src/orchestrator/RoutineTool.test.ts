@@ -401,17 +401,17 @@ describe("RoutineTool", () => {
       const executor = new RoutineExecutor(flow, registry, eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
-      const mockSetWidget = vi.fn();
+      const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockSetStatus = vi.fn();
       const mockCtx = {
-        ui: { setWidget: mockSetWidget, setStatus: mockSetStatus },
+        ui: { custom: mockCustom, setStatus: mockSetStatus },
         mode: "tui",
       } as unknown as ExtensionContext;
 
       await expect(tool.execute("call-1", {}, undefined, undefined, mockCtx)).rejects.toThrow();
 
-      // Verify that cleanup happened in the finally block.
-      expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", undefined);
+      // Verify that custom was called to create the overlay.
+      expect(mockCustom).toHaveBeenCalled();
     });
 
     it("cleans up UI in finally even when a step fails", async () => {
@@ -738,15 +738,16 @@ describe("RoutineTool", () => {
       expect(doneContribution!.agentId).toBe("builder");
     });
 
-    it("creates agent viewer widget via setWidget in TUI mode", async () => {
+    it("creates agent viewer overlay via ctx.ui.custom in TUI mode", async () => {
       const flow = makeFlow();
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
       const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
 
-      const mockSetWidget = vi.fn();
+      const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockUi = {
-        setWidget: mockSetWidget,
+        custom: mockCustom,
+        setWidget: vi.fn(),
         setStatus: vi.fn(),
       };
       const ctx = {
@@ -756,40 +757,50 @@ describe("RoutineTool", () => {
 
       await tool.execute("call-1", {}, undefined, undefined, ctx);
 
-      // setWidget should have been called for "agent-viewer" with a factory function.
-      expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", expect.any(Function), {
-        placement: "aboveEditor",
-      });
+      // custom should have been called with a factory function and overlay options.
+      expect(mockCustom).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          overlay: true,
+          overlayOptions: expect.objectContaining({
+            anchor: "bottom-center",
+            width: 80,
+            maxHeight: 15,
+            margin: { bottom: 1 },
+          }),
+          onHandle: expect.any(Function),
+        }),
+      );
 
       // Invoke the factory to verify it produces a valid Component.
-      const factoryCalls = mockSetWidget.mock.calls.filter(
-        (c: unknown[]) => c[0] === "agent-viewer" && typeof c[1] === "function",
-      );
-      expect(factoryCalls.length).toBeGreaterThanOrEqual(1);
-      const factory = factoryCalls[0][1] as (
+      const factoryCall = mockCustom.mock.calls.find((c: unknown[]) => typeof c[0] === "function");
+      expect(factoryCall).toBeDefined();
+      const factory = factoryCall![0] as (
         tui: Record<string, unknown>,
         theme: Record<string, unknown>,
+        _kb: Record<string, unknown>,
+        done: () => void,
       ) => Record<string, unknown>;
 
       const mockTui = { requestRender: vi.fn() };
       const mockTheme = { fg: vi.fn((_c: string, t: string) => t) };
-      const component = factory(mockTui, mockTheme) as {
+      const mockDoneCallback = vi.fn();
+      const component = factory(mockTui, mockTheme, mockDoneCallback, mockDoneCallback) as {
         render: (width: number) => string[];
         invalidate: () => void;
+        handleInput?: (data: string) => void;
       };
 
       expect(component).toBeDefined();
       expect(typeof component.render).toBe("function");
       expect(typeof component.invalidate).toBe("function");
+      expect(typeof component.handleInput).toBe("function");
 
       const rendered = component.render(80);
       expect(Array.isArray(rendered)).toBe(true);
       expect(rendered.length).toBeGreaterThan(0);
       const joined = rendered.join("\n");
       expect(joined).toContain("Agent Viewer");
-
-      // Cleanup should have cleared the widget.
-      expect(mockSetWidget).toHaveBeenCalledWith("agent-viewer", undefined);
     });
   });
 });

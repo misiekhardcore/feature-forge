@@ -31,8 +31,8 @@ function makeEntry(
   return { id, status, ...overrides };
 }
 
-function makeOverlay(tui?: TUI, theme?: Theme): AgentViewerOverlay {
-  return new AgentViewerOverlay(tui ?? makeTui(), theme ?? makeTheme());
+function makeOverlay(tui?: TUI, theme?: Theme, onDone?: () => void): AgentViewerOverlay {
+  return new AgentViewerOverlay(tui ?? makeTui(), theme ?? makeTheme(), onDone ?? vi.fn());
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -44,12 +44,21 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(0);
     });
 
-    it("accepts tui and theme", () => {
+    it("accepts tui, theme, and onDone", () => {
       const tui = makeTui();
       const theme = makeTheme();
-      const overlay = new AgentViewerOverlay(tui, theme);
+      const onDone = vi.fn();
+      const overlay = new AgentViewerOverlay(tui, theme, onDone);
 
       expect(overlay.entryCount).toBe(0);
+    });
+
+    it("starts in list view mode with no selection", () => {
+      const overlay = makeOverlay();
+
+      expect(overlay.viewMode).toBe("list");
+      expect(overlay.selectedIndex).toBe(0);
+      expect(overlay.selectedAgentId).toBeUndefined();
     });
   });
 
@@ -761,6 +770,339 @@ describe("AgentViewerOverlay", () => {
       // Both in-memory maps are cleared.
       expect(overlay.getLastStreamLine("builder")).toBeUndefined();
       expect(overlay.getStreamTail("builder")).toBe("");
+    });
+  });
+
+  describe("handleInput", () => {
+    it("calls onDone when Escape is pressed in list view", () => {
+      const tui = makeTui();
+      const onDone = vi.fn();
+      const overlay = makeOverlay(tui, undefined, onDone);
+
+      overlay.handleInput("\x1b");
+
+      expect(onDone).toHaveBeenCalledTimes(1);
+      expect(tui.requestRender).not.toHaveBeenCalled();
+    });
+
+    it("returns to list view when Escape is pressed in detail view", () => {
+      const tui = makeTui();
+      const onDone = vi.fn();
+      const overlay = makeOverlay(tui, undefined, onDone);
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.scrollOffset = 5;
+
+      overlay.handleInput("\x1b");
+
+      expect(overlay.viewMode).toBe("list");
+      expect(overlay.selectedAgentId).toBeUndefined();
+      expect(overlay.scrollOffset).toBe(0);
+      expect(tui.requestRender).toHaveBeenCalled();
+      expect(onDone).not.toHaveBeenCalled();
+    });
+
+    it("navigates down with ArrowDown in list view", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+      overlay.update(makeEntry("agent-c", "started"));
+
+      // Simulate ArrowDown
+      overlay.handleInput("\x1b[B");
+
+      expect(overlay.selectedIndex).toBe(1);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("wraps around at the bottom with ArrowDown", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+      overlay.selectedIndex = 1;
+
+      // Simulate ArrowDown at last item
+      overlay.handleInput("\x1b[B");
+
+      expect(overlay.selectedIndex).toBe(0);
+    });
+
+    it("navigates up with ArrowUp in list view", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+      overlay.selectedIndex = 1;
+
+      // Simulate ArrowUp
+      overlay.handleInput("\x1b[A");
+
+      expect(overlay.selectedIndex).toBe(0);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("wraps around at the top with ArrowUp", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+
+      // Simulate ArrowUp at first item
+      overlay.handleInput("\x1b[A");
+
+      expect(overlay.selectedIndex).toBe(1);
+    });
+
+    it("enters detail view on Enter", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+      overlay.selectedIndex = 1;
+
+      // Simulate Enter
+      overlay.handleInput("\r");
+
+      expect(overlay.viewMode).toBe("detail");
+      expect(overlay.selectedAgentId).toBe("agent-b");
+      expect(overlay.scrollOffset).toBe(0);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("ignores arrow keys when agent list is empty", () => {
+      const overlay = makeOverlay();
+
+      overlay.handleInput("\x1b[A");
+      overlay.handleInput("\x1b[B");
+
+      expect(overlay.selectedIndex).toBe(0);
+    });
+
+    it("ignores Enter when agent list is empty", () => {
+      const overlay = makeOverlay();
+
+      overlay.handleInput("\r");
+
+      expect(overlay.viewMode).toBe("list");
+      expect(overlay.selectedAgentId).toBeUndefined();
+    });
+
+    it("scrolls up in detail view with ArrowUp", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("builder", "done"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.scrollOffset = 3;
+
+      overlay.handleInput("\x1b[A");
+
+      expect(overlay.scrollOffset).toBe(2);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+
+    it("does not scroll above zero in detail view", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("builder", "done"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.scrollOffset = 0;
+
+      overlay.handleInput("\x1b[A");
+
+      expect(overlay.scrollOffset).toBe(0);
+    });
+
+    it("scrolls down in detail view with ArrowDown", () => {
+      const tui = makeTui();
+      const overlay = makeOverlay(tui);
+      overlay.update(makeEntry("builder", "done"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.scrollOffset = 0;
+
+      overlay.handleInput("\x1b[B");
+
+      expect(overlay.scrollOffset).toBe(1);
+      expect(tui.requestRender).toHaveBeenCalled();
+    });
+  });
+
+  describe("renderList with selection", () => {
+    it("shows selection cursor on selected agent", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+      overlay.selectedIndex = 1;
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("▶");
+      // Only one ▶ should appear (one selected item).
+      const cursorCount = (joined.match(/▶/g) || []).length;
+      expect(cursorCount).toBe(1);
+    });
+
+    it("shows navigation help legend at bottom", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("agent-a", "started"));
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("navigate");
+      expect(joined).toContain("view");
+      expect(joined).toContain("close");
+    });
+
+    it("highlights selected agent id with accent colour", () => {
+      const theme = makeTheme();
+      const overlay = makeOverlay(undefined, theme);
+      overlay.update(makeEntry("agent-a", "started"));
+      overlay.update(makeEntry("agent-b", "started"));
+      overlay.selectedIndex = 0;
+
+      overlay.render(80);
+
+      // Selected agent id should have been styled with accent.
+      expect(theme.fg).toHaveBeenCalledWith("accent", "agent-a");
+    });
+  });
+
+  describe("renderDetail", () => {
+    it("shows agent not found when selectedAgentId is invalid", () => {
+      const overlay = makeOverlay();
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "nonexistent";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("agent not found");
+    });
+
+    it("shows agent header with status icon in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✓");
+      expect(joined).toContain("builder");
+      expect(joined).toContain("done");
+    });
+
+    it("shows summary section when present", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("Summary:");
+      expect(joined).toContain("Build passed");
+    });
+
+    it("shows stream log when streamDir is configured", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-detail-stream-"));
+      const overlay = makeOverlay();
+      overlay.setAgentExecutionId("exec-detail", tmpDir);
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "write" });
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("Stream log:");
+      expect(joined).toContain("tool_use: read");
+      expect(joined).toContain("tool_use: write");
+
+      overlay.dispose();
+    });
+
+    it("shows last event line when present", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done"));
+      overlay.pushStreamEvent("builder", { type: "assistant", text: "Done." });
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("Last event:");
+      expect(joined).toContain("assistant: Done.");
+    });
+
+    it("shows raw output section when present", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done", { raw: "Full output here" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("Raw output:");
+      expect(joined).toContain("Full output here");
+    });
+
+    it("shows scroll help legend", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("back");
+      expect(joined).toContain("scroll");
+    });
+
+    it("dispatches render to renderDetail when viewMode is detail", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      // Should contain detail-specific content, not list legend.
+      expect(joined).toContain("Summary:");
+      expect(joined).not.toContain("navigate");
+    });
+  });
+
+  describe("clearMemory with view state", () => {
+    it("resets viewMode, selectedIndex, and selectedAgentId", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.selectedIndex = 3;
+      overlay.scrollOffset = 5;
+
+      overlay.clearMemory();
+
+      expect(overlay.viewMode).toBe("list");
+      expect(overlay.selectedIndex).toBe(0);
+      expect(overlay.selectedAgentId).toBeUndefined();
+      expect(overlay.scrollOffset).toBe(0);
     });
   });
 
