@@ -15,6 +15,9 @@
     "lint": "eslint .",
     "format": "prettier --check .",
     "typecheck": "turbo run typecheck",
+    "flow:generate-schema": "npm -w @feature-forge/cli run flow:generate-schema",
+    "flow:validate": "npm -w @feature-forge/cli run flow:validate",
+    "flow:validate-json": "npm -w @feature-forge/cli run flow:validate-json",
     "check": "npm run lint && npm run format && npm run test",
     "prepare": "husky"
   },

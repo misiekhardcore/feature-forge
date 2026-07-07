@@ -20,7 +20,7 @@
     "format": "echo 'cli: formatted via root'",
     "typecheck": "tsc --noEmit",
     "test:watch": "vitest",
-    "test:e2e": "cd ../.. && vitest run --project cli-e2e",
+    "test:e2e": "vitest run --project cli-e2e",
     "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts",
     "flow:validate": "npx tsx scripts/validate-flow.ts",
     "flow:validate-json": "npx tsx scripts/validate-flow-json.ts",

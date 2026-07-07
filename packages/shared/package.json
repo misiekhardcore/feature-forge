@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "echo 'shared: nothing to build'",
-    "test": "echo 'shared: no tests yet'",
+    "test": "vitest run",
     "lint": "echo 'shared: linted via root'",
     "format": "echo 'shared: formatted via root'",
     "typecheck": "tsc --noEmit"
@@ -20,7 +20,6 @@
     "@earendil-works/pi-coding-agent": "0.79.8"
   },
   "devDependencies": {
-    "typebox": "1.3.0",
-    "vitest": "^3.2.4"
+    "typebox": "1.3.0"
   }
 }
