@@ -83,6 +83,15 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
     options?.signal?.throwIfAborted();
 
+    options?.signal?.throwIfAborted();
+
+    // Wire the abort signal so pressing Esc immediately stops the underlying
+    // RPC process rather than waiting for the agent to finish naturally.
+    const onAbort = (): void => {
+      void this.rpcClient.abort();
+    };
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
+
     try {
       const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
       const events = await this.rpcClient.promptAndWait(prompt, options?.images, timeout);
@@ -94,6 +103,8 @@ export class PiSubprocessAgent extends SubprocessAgent {
       this._status = AgentStatus.Failed;
       this.error = error instanceof Error ? error : new Error(String(error));
       throw this.error;
+    } finally {
+      options?.signal?.removeEventListener("abort", onAbort);
     }
   }
 

@@ -97,6 +97,11 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
 
       return updatedContext;
     } catch (error) {
+      // Propagate abort signals immediately so the routine can be cancelled
+      // without waiting for the current step to finish.
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error("Agent execution failed", { instructionId, error: err });
 

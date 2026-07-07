@@ -53,6 +53,18 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
       childInstructions.map(async (child) => executeStep(child, context, signal)),
     );
 
+    // Propagate abort signals immediately so the routine can be cancelled
+    // without waiting for the current parallel block to finish.
+    for (const result of settled) {
+      if (
+        result.status === "rejected" &&
+        result.reason instanceof DOMException &&
+        result.reason.name === "AbortError"
+      ) {
+        throw result.reason;
+      }
+    }
+
     // Collect errors and successes.
     const successes: FlowContext[] = [];
     const failures: Map<string, string> = new Map();
