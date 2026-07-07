@@ -69,7 +69,7 @@ export class SpecLoader {
       );
     }
 
-    const tools = this.resolveTools(frontmatter, absolutePath);
+    const { tools, bashAllowlist } = this.resolveTools(frontmatter, absolutePath);
     const id = frontmatter.id ?? DynamicAgentSpecification.generateId(frontmatter);
 
     const factory: SpecFactory = () => {
@@ -78,6 +78,7 @@ export class SpecLoader {
         id,
         systemPrompt: body.trim(),
         tools,
+        bashAllowlist,
       });
     };
 
@@ -85,23 +86,63 @@ export class SpecLoader {
   }
 
   /**
-   * Resolve the tool list from either a named preset or an explicit array.
+   * Resolve the tool list from either a named preset or an explicit array,
+   * also extracting any bash allowlist patterns from `bash:<pattern>` entries.
    *
    * Exactly one of `toolPreset` / `tools` must be present; an error is thrown
    * if both or neither are declared.
    */
-  private resolveTools(metadata: DeclarativeSpecMetadata, absolutePath: string): string[] {
+  private resolveTools(
+    metadata: DeclarativeSpecMetadata,
+    absolutePath: string,
+  ): { tools: string[]; bashAllowlist: string[] } {
     const label = path.basename(absolutePath);
     if (metadata.toolPreset && metadata.tools) {
       throw new Error(`Invalid spec metadata in ${label}: declare only one of toolPreset or tools`);
     }
     if (metadata.toolPreset) {
-      return this.resolveToolPreset(metadata.toolPreset, label);
+      return { tools: this.resolveToolPreset(metadata.toolPreset, label), bashAllowlist: [] };
     }
     if (metadata.tools) {
-      return [...metadata.tools];
+      return this.resolveExplicitTools(metadata.tools);
     }
     throw new Error(`Invalid spec metadata in ${label}: toolPreset or tools is required`);
+  }
+
+  /**
+   * Parse an explicit tool list, extracting `bash:<pattern>` entries into
+   * the bash allowlist while keeping a single `"bash"` entry in the tools
+   * array regardless of how many patterns are declared or whether a plain
+   * `bash` entry also appears.
+   */
+  private resolveExplicitTools(tools: string[]): { tools: string[]; bashAllowlist: string[] } {
+    const resolvedTools: string[] = [];
+    const bashAllowlist: string[] = [];
+    let hasBash = false;
+
+    for (const tool of tools) {
+      if (tool.startsWith("bash:")) {
+        if (!hasBash) {
+          resolvedTools.push("bash");
+          hasBash = true;
+        }
+        const pattern = tool.slice(5).trim();
+        if (pattern.length > 0) {
+          bashAllowlist.push(pattern);
+        }
+      } else {
+        if (tool === "bash") {
+          if (!hasBash) {
+            resolvedTools.push("bash");
+            hasBash = true;
+          }
+        } else {
+          resolvedTools.push(tool);
+        }
+      }
+    }
+
+    return { tools: resolvedTools, bashAllowlist };
   }
 
   private resolveToolPreset(presetName: ToolPresetName, label: string): string[] {

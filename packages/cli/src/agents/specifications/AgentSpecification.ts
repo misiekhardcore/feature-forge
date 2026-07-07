@@ -16,6 +16,8 @@ export type AgentSpecificationParams = {
   ephemeral?: boolean;
   /** Working directory for the agent process (defaults to process.cwd()). */
   cwd?: string;
+  /** Allowlist of bash command patterns (paired with the bash tool). */
+  bashAllowlist?: readonly string[];
 };
 
 /**
@@ -51,6 +53,8 @@ export abstract class AgentSpecification {
   public readonly ephemeral: boolean = false;
   /** Working directory for the agent process. */
   public readonly cwd?: string | undefined;
+  /** Allowlist of bash command patterns (paired with the bash tool). */
+  public readonly bashAllowlist: readonly string[] = [];
 
   constructor(params: AgentSpecificationParams) {
     if (!params.id || params.id.trim().length === 0) {
@@ -70,5 +74,6 @@ export abstract class AgentSpecification {
     this.disableContextFiles = params.disableContextFiles ?? false;
     this.ephemeral = params.ephemeral ?? false;
     this.cwd = params.cwd;
+    this.bashAllowlist = params.bashAllowlist ?? [];
   }
 }

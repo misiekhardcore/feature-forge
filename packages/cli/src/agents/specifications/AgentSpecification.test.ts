@@ -95,6 +95,18 @@ describe("AgentSpecification", () => {
       expect(spec.thinkingLevel).toBe("high");
     });
 
+    it("bashAllowlist defaults to empty array", () => {
+      const spec = new TestSpecification();
+      expect(spec.bashAllowlist).toEqual([]);
+    });
+
+    it("accepts bashAllowlist override", () => {
+      const spec = new TestSpecification({
+        bashAllowlist: ["npm run test", "npx vitest run"],
+      });
+      expect(spec.bashAllowlist).toEqual(["npm run test", "npx vitest run"]);
+    });
+
     it("accepts boolean overrides", () => {
       const spec = new TestSpecification({
         disableBuiltinTools: true,

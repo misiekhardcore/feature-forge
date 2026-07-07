@@ -252,5 +252,146 @@ toolPreset: "fullAccess"
 
       await expect(loader.load(filepath)).rejects.toThrow(/broken\.md/);
     });
+
+    it("parses bash:pattern entries into bashAllowlist and strips to bash", async () => {
+      const filepath = join(tempDir, "verify-restricted.md");
+      await fs.writeFile(
+        filepath,
+        `---
+id: "verify"
+role: "verify"
+tools:
+  - read
+  - "bash:npm run test:e2e"
+  - "bash:npx vitest run"
+  - grep
+  - ls
+---
+# Verify Agent
+`,
+      );
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("verify");
+      expect(spec.tools).toEqual(["read", "bash", "grep", "ls"]);
+      expect(spec.bashAllowlist).toEqual(["npm run test:e2e", "npx vitest run"]);
+    });
+
+    it("deduplicates bash when both plain bash and bash:pattern are present", async () => {
+      const filepath = join(tempDir, "mixed-bash.md");
+      await fs.writeFile(
+        filepath,
+        `---
+id: "mixed"
+role: "mixed"
+tools:
+  - bash
+  - "bash:npm test"
+---
+# Mixed Agent
+`,
+      );
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("mixed");
+      expect(spec.tools).toEqual(["bash"]);
+      expect(spec.bashAllowlist).toEqual(["npm test"]);
+    });
+
+    it("specs without bash:pattern have empty bashAllowlist", async () => {
+      const filepath = join(tempDir, "plain-tools.md");
+      await fs.writeFile(
+        filepath,
+        `---
+id: "plain"
+role: "plain"
+tools:
+  - read
+  - bash
+  - grep
+---
+# Plain Agent
+`,
+      );
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("plain");
+      expect(spec.tools).toEqual(["read", "bash", "grep"]);
+      expect(spec.bashAllowlist).toEqual([]);
+    });
+
+    it("toolPreset specs have empty bashAllowlist", async () => {
+      const filepath = join(tempDir, "preset-spec.md");
+      await fs.writeFile(
+        filepath,
+        `---
+id: "preset"
+role: "preset"
+toolPreset: "verify"
+---
+# Preset Agent
+`,
+      );
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("preset");
+      expect(spec.tools).toContain("bash");
+      expect(spec.bashAllowlist).toEqual([]);
+    });
+
+    it("ignores empty bash: pattern", async () => {
+      const filepath = join(tempDir, "empty-bash-pattern.md");
+      await fs.writeFile(
+        filepath,
+        `---
+id: "empty"
+role: "empty"
+tools:
+  - "bash:"
+  - read
+---
+# Empty Bash Pattern Agent
+`,
+      );
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("empty");
+      expect(spec.tools).toEqual(["bash", "read"]);
+      expect(spec.bashAllowlist).toEqual([]);
+    });
+
+    it("multiple bash: patterns share single bash entry in tools", async () => {
+      const filepath = join(tempDir, "multi-bash.md");
+      await fs.writeFile(
+        filepath,
+        `---
+id: "multi"
+role: "multi"
+tools:
+  - "bash:git status"
+  - "bash:git diff"
+  - "bash:git log"
+---
+# Multi Bash Agent
+`,
+      );
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("multi");
+      expect(spec.tools).toEqual(["bash"]);
+      expect(spec.bashAllowlist).toEqual(["git status", "git diff", "git log"]);
+    });
   });
 });

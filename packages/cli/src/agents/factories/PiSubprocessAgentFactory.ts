@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
 
+import { FORGE_BASH_ALLOWLIST } from "../../extensions/constants";
 import { logger } from "../../logging";
 import { PiSubprocessAgent, SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
@@ -42,14 +43,17 @@ export class PiSubprocessAgentFactory extends AgentFactory {
   private buildRpcClient(specification: AgentSpecification): RpcClient {
     const args = [...(this.options.args ?? []), ...buildPiCliArguments(specification)];
 
+    const env: Record<string, string> = { ...this.options.env };
+    if (specification.bashAllowlist.length > 0) {
+      env[FORGE_BASH_ALLOWLIST] = specification.bashAllowlist.join(",");
+    }
+
     return new RpcClient({
       cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),
       cwd: specification.cwd ?? this.options.cwd ?? process.cwd(),
       model: specification.model ?? this.options.model,
       args,
-      env: {
-        ...this.options.env,
-      },
+      env,
     });
   }
 }

@@ -16,6 +16,8 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
+import { FORGE_BASH_ALLOWLIST } from "./extensions/constants";
+import { activate as activateRestrictedBash } from "./extensions/restricted-bash";
 import { ChildSocketClient } from "./ipc/ChildSocketClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
@@ -75,6 +77,16 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
   const socketPath = await ipcServer.start();
   childEnv.FORGE_PARENT_SOCKET = socketPath;
+
+  // ── Bash allowlist enforcement for child agents ─────────────────────
+  const forgeBashAllowlist = process.env[FORGE_BASH_ALLOWLIST];
+  if (forgeBashAllowlist && forgeBashAllowlist.length > 0) {
+    const patterns = forgeBashAllowlist.split(",").filter((p) => p.length > 0);
+    pi.on("session_start", () => {
+      activateRestrictedBash(pi, patterns);
+    });
+  }
+
   const targetSocketPath = process.env.FORGE_PARENT_SOCKET ?? socketPath;
   // Every session runs as a client.
   // Child sessions: FORGE_PARENT_SOCKET points to the parent's server.
