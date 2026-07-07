@@ -29,4 +29,6 @@ export interface DisplayContribution {
   message?: string;
   /** The `continueWhile` expression from the loop instruction, if any. */
   continueWhile?: string;
+  /** Raw stream event payload from an agent-stream event. */
+  streamEvent?: unknown;
 }

@@ -156,11 +156,14 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
           : event.phase === "agent-error"
             ? "error"
             : undefined;
+    const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
     return {
       agentId,
       agentStatus,
       agentSummary: event.details.summary,
       agentPassed: event.details.passed,
+      streamEvent,
+      executionId: event.details.executionId,
       phase: event.phase,
       message: event.message,
     };

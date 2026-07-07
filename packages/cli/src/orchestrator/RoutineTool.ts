@@ -202,6 +202,12 @@ export class RoutineTool
           });
           agentViewerDirty = true;
         }
+
+        // Forward streaming events to the overlay's per-agent stream buffer.
+        if (contrib.agentId && contrib.streamEvent !== undefined && this.agentViewer) {
+          this.agentViewer.pushStreamEvent(contrib.agentId, contrib.streamEvent);
+          agentViewerDirty = true;
+        }
       }
       if (agentViewerDirty) this.renderAgentViewer(ctx);
 

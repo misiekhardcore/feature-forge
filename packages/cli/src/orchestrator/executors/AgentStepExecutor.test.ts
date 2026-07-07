@@ -845,5 +845,33 @@ describe("AgentStepExecutor", () => {
 
       expect(contrib).toBeUndefined();
     });
+
+    it("includes streamEvent from event details for agent-stream phase", () => {
+      const executor = makeExecutor();
+      const streamPayload = { type: "tool_use", tool: "read" };
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: { agentId: "builder", event: streamPayload },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.agentId).toBe("builder");
+      expect(contrib!.agentStatus).toBeUndefined();
+      expect(contrib!.streamEvent).toBe(streamPayload);
+      expect(contrib!.phase).toBe("agent-stream");
+    });
+
+    it("returns streamEvent undefined for non-stream agent events", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: 'Agent "builder" (build) started',
+        details: { event: { ignored: true } },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.streamEvent).toBeUndefined();
+    });
   });
 });

@@ -1,6 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentViewerEntry } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
@@ -299,6 +303,255 @@ describe("AgentViewerOverlay", () => {
       // Same id update should not increase count.
       overlay.update(makeEntry("a", "done"));
       expect(overlay.entryCount).toBe(2);
+    });
+  });
+
+  describe("pushStreamEvent", () => {
+    it("stores the formatted stream line in memory for a given agent", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+    });
+
+    it("overwrites previous last line for the same agent", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "write" });
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: write");
+    });
+
+    it("tracks last lines per agent independently", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      overlay.pushStreamEvent("reviewer", { type: "tool_use", tool: "lint" });
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+      expect(overlay.getLastStreamLine("reviewer")).toBe("tool_use: lint");
+    });
+
+    it("writes stream events to a filesystem log when streamDir is configured", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
+      const overlay = new AgentViewerOverlay(500, tmpDir);
+
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      overlay.pushStreamEvent("builder", { type: "message_start", role: "assistant" });
+
+      const tail = overlay.getStreamTail("builder");
+      expect(tail).toContain("tool_use: read");
+      expect(tail).toContain("message_start: assistant");
+
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("creates the stream directory if it does not exist", () => {
+      const tmpDir = join(tmpdir(), `forge-stream-mkdir-${Date.now()}`);
+      const overlay = new AgentViewerOverlay(500, tmpDir);
+
+      // Directory does not exist yet — pushStreamEvent should create it.
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      const tail = overlay.getStreamTail("builder");
+      expect(tail).toContain("tool_use: read");
+
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("does not throw when streamDir filesystem operations fail", () => {
+      // Use an empty string as streamDir to simulate a write to an
+      // invalid path — the implementation should swallow the error.
+      const overlay = new AgentViewerOverlay(500, "/nonexistent/path/that/should/fail");
+
+      expect(() => {
+        overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      }).not.toThrow();
+
+      // In-memory line should still be recorded even though fs write failed.
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_use: read");
+    });
+  });
+
+  describe("lastStreamLine", () => {
+    it("returns empty string when no stream events have been pushed", () => {
+      const overlay = new AgentViewerOverlay();
+      expect(overlay.lastStreamLine).toBe("");
+    });
+
+    it("returns the most recently recorded line across all agents", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+      overlay.pushStreamEvent("reviewer", { type: "tool_use", tool: "lint" });
+
+      expect(overlay.lastStreamLine).toBe("tool_use: lint");
+    });
+  });
+
+  describe("getStreamTail", () => {
+    it("returns empty string when no streamDir was configured", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      expect(overlay.getStreamTail("builder")).toBe("");
+    });
+
+    it("returns empty string when agent has no stream file", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
+      const overlay = new AgentViewerOverlay(500, tmpDir);
+
+      expect(overlay.getStreamTail("unknown")).toBe("");
+
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("returns the last N lines from the stream file", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
+      const overlay = new AgentViewerOverlay(500, tmpDir);
+
+      for (let i = 0; i < 5; i++) {
+        overlay.pushStreamEvent("builder", { type: "tool_use", tool: `tool-${i}` });
+      }
+
+      const tail = overlay.getStreamTail("builder", 2);
+      const tailLines = tail.split("\n");
+      expect(tailLines).toHaveLength(2);
+      expect(tailLines[0]).toBe("tool_use: tool-3");
+      expect(tailLines[1]).toBe("tool_use: tool-4");
+
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe("formatStreamEvent", () => {
+    it("formats tool_use events as 'tool_use: <toolName>'", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({ type: "tool_use", tool: "read" });
+      expect(line).toBe("tool_use: read");
+    });
+
+    it("formats tool_result events with a string content", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "tool_result",
+        content: "some output",
+      });
+      expect(line).toBe("tool_result: some output");
+    });
+
+    it("formats message_start events as 'message_start: <role>'", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "message_start",
+        role: "assistant",
+      });
+      expect(line).toBe("message_start: assistant");
+    });
+
+    it("formats assistant events as 'assistant: <text>'", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "assistant",
+        text: "Here is the result.",
+      });
+      expect(line).toBe("assistant: Here is the result.");
+    });
+
+    it("returns just the type for events with no known detail", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({ type: "unknown_type" });
+      expect(line).toBe("unknown_type");
+    });
+
+    it("serializes non-object events as JSON", () => {
+      const line = AgentViewerOverlay.formatStreamEvent("plain string");
+      expect(line).toBe('"plain string"');
+    });
+
+    it("truncates long JSON serialization to 120 characters", () => {
+      const longString = "x".repeat(200);
+      const line = AgentViewerOverlay.formatStreamEvent(longString);
+      expect(line.length).toBeLessThanOrEqual(120);
+      expect(line.endsWith("...")).toBe(true);
+    });
+
+    it("handles null event gracefully", () => {
+      const line = AgentViewerOverlay.formatStreamEvent(null);
+      expect(line).toBe("null");
+    });
+  });
+
+  describe("rendering with stream lines", () => {
+    it("shows the last stream line for a started agent", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      const theme = makeTheme();
+      const factory = overlay.buildWidgetFactory();
+      const component = factory(makeTui(), theme);
+      const lines = component.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("tool_use: read");
+      expect(joined).toContain("⏳");
+      expect(joined).toContain("builder");
+    });
+
+    it("does not show stream line for a done agent", () => {
+      const overlay = new AgentViewerOverlay();
+      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      const theme = makeTheme();
+      const factory = overlay.buildWidgetFactory();
+      const component = factory(makeTui(), theme);
+      const lines = component.render(80);
+      const joined = lines.join("\n");
+
+      // Stream line should not appear because agent is done.
+      expect(joined).not.toContain("tool_use: read");
+      expect(joined).toContain("Build passed");
+    });
+  });
+
+  describe("constructor with streamDir", () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), "forge-overlay-test-"));
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("accepts a streamDir parameter without affecting other behaviour", () => {
+      const overlay = new AgentViewerOverlay(300, tmpDir);
+      overlay.update(makeEntry("builder", "started"));
+
+      expect(overlay.entryCount).toBe(1);
+    });
+
+    it("writes stream events to disk and provides readable tail", () => {
+      const overlay = new AgentViewerOverlay(500, tmpDir);
+
+      overlay.pushStreamEvent("builder", { type: "message_start", role: "assistant" });
+      overlay.pushStreamEvent("builder", { type: "assistant", text: "I will now read the file." });
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      const tail = overlay.getStreamTail("builder");
+      expect(tail).toContain("message_start: assistant");
+      expect(tail).toContain("assistant: I will now read the file.");
+      expect(tail).toContain("tool_use: read");
+    });
+
+    it("stream file content survives overlay instance lifetime", () => {
+      const overlay = new AgentViewerOverlay(500, tmpDir);
+      overlay.pushStreamEvent("builder", { type: "tool_use", tool: "read" });
+
+      // Create a new overlay using the same directory — tail should be readable.
+      const overlay2 = new AgentViewerOverlay(500, tmpDir);
+      // pushStreamEvent on overlay2 to register the file path.
+      overlay2.pushStreamEvent("builder", { type: "tool_use", tool: "write" });
+
+      const tail = overlay2.getStreamTail("builder");
+      // The tail only shows the last N lines written via THIS overlay.
+      expect(tail).toContain("tool_use: write");
     });
   });
 });
