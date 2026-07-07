@@ -58,6 +58,53 @@ describe("SessionStepExecutor", () => {
     expect(result.store.get("branch")).toBe("feature/x");
   });
 
+  it("resolves template placeholders in key and value against the context", async () => {
+    const executor = new SessionStepExecutor();
+    const store = new FlowStateStore();
+
+    const instruction: SessionInstruction = {
+      type: "session",
+      id: "s1",
+      key: "{{paramKey}}",
+      value: "{{paramValue}}",
+    };
+    const context = new FlowContext({
+      results: new Map(),
+      prompt: "task",
+      store,
+      params: new Map([
+        ["paramKey", "base"],
+        ["paramValue", "main"],
+      ]),
+    });
+
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+    expect(result.store.get("base")).toBe("main");
+  });
+
+  it("resolves session. prefix in value so routines can read persisted state", async () => {
+    const executor = new SessionStepExecutor();
+    const store = new FlowStateStore();
+    store.set("ws", "/tmp/existing");
+
+    const instruction: SessionInstruction = {
+      type: "session",
+      id: "s1",
+      key: "copied",
+      value: "{{session.ws}}",
+    };
+    const context = new FlowContext({
+      results: new Map(),
+      prompt: "task",
+      store,
+    });
+
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+    expect(result.store.get("copied")).toBe("/tmp/existing");
+  });
+
   it("writes to the shared store so subsequent reads see the value", async () => {
     const executor = new SessionStepExecutor();
     const store = new FlowStateStore();
