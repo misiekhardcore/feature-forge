@@ -10,7 +10,7 @@ import type {
   ToolDefinition,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { Component, OverlayHandle } from "@earendil-works/pi-tui";
+import type { Component, TUI } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
@@ -183,36 +183,16 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
-    // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
-    let viewerDismiss: (() => void) | undefined;
-    let viewerHandle: OverlayHandle | undefined;
-    const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
-    if (hasUI && ctx.ui) {
+    // Agent viewer widget — shown via ctx.ui.setWidget.
+    let hasAgentWidget = false;
+    if (ctx.ui && ctx.mode === "tui") {
       this.streamDir = mkdtempSync(join(tmpdir(), "forge-stream-"));
-      ctx.ui
-        .custom<void>(
-          (tui, theme, _kb, done) => {
-            viewerDismiss = done;
-            const viewer = new AgentViewerOverlay(tui, theme, () => done());
-            this.agentViewer = viewer;
-            return viewer;
-          },
-          {
-            overlay: true,
-            overlayOptions: {
-              anchor: "bottom-center",
-              width: 80,
-              maxHeight: 15,
-              margin: { bottom: 1 },
-            },
-            onHandle: (handle) => {
-              viewerHandle = handle;
-            },
-          },
-        )
-        .catch(() => {
-          logger.warn("Agent viewer overlay creation failed");
-        });
+      ctx.ui.setWidget("agent-viewer", (tui: TUI, theme: Theme) => {
+        const viewer = new AgentViewerOverlay(tui, theme);
+        this.agentViewer = viewer;
+        return viewer;
+      });
+      hasAgentWidget = true;
     }
 
     const handler = (data: unknown): void => {
@@ -289,10 +269,11 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      viewerHandle?.hide();
-      viewerDismiss?.();
       this.agentViewer?.dispose();
-      // Clean up stream directory when overlay creation failed before
+      if (hasAgentWidget && ctx.ui) {
+        ctx.ui.setWidget("agent-viewer", undefined);
+      }
+      // Clean up stream directory when widget creation failed before
       // AgentViewerOverlay was instantiated (and therefore dispose() never ran).
       if (!this.agentViewer && this.streamDir) {
         try {

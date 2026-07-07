@@ -1,4 +1,4 @@
-export type { AgentViewerEntry, ViewMode } from "./AgentViewerOverlay";
+export type { AgentViewerEntry } from "./AgentViewerOverlay";
 export { AgentViewerOverlay } from "./AgentViewerOverlay";
 export type { DisplayContribution } from "./DisplayContribution";
 export { NoOpProgressReporter } from "./NoOpProgressReporter";
