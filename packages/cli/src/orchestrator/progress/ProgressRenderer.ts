@@ -71,15 +71,27 @@ export class ProgressRenderer {
    * - anything else → muted grey ○
    */
   static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
+    const icon = (() => {
+      switch (status) {
+        case "done":
+          return passed === false ? "✗" : "✓";
+        case "started":
+          return "⏳";
+        case "error":
+          return "✗";
+        default:
+          return "○";
+      }
+    })();
     switch (status) {
       case "done":
-        return passed === false ? theme.fg("error", "✗") : theme.fg("success", "✓");
+        return theme.fg(passed === false ? "error" : "success", icon);
       case "started":
-        return theme.fg("warning", "⏳");
+        return theme.fg("warning", icon);
       case "error":
-        return theme.fg("error", "✗");
+        return theme.fg("error", icon);
       default:
-        return theme.fg("muted", "○");
+        return theme.fg("muted", icon);
     }
   }
 
@@ -280,7 +292,7 @@ export class ProgressRenderer {
     }
 
     const passed = result.details?.passed ?? false;
-    const icon = passed ? theme.fg("success", "✓") : theme.fg("error", "✗");
+    const icon = ProgressRenderer.statusIcon("done", theme, passed);
 
     return {
       render: () => [`${icon} ${routine} · ${passed ? "passed" : "failed"}`],
