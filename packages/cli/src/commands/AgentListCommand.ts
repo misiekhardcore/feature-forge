@@ -28,7 +28,21 @@ export class AgentListCommand extends Command {
 
     await ctx.ui?.custom<void>(
       (tui, theme, _kb, done) => {
-        const viewer = new AgentViewerOverlay(tui, theme, () => {
+        // Mutable holder so the event subscription (declared before
+        // the viewer) can forward to a viewer that hasn't been created yet.
+        // let required because the subscription closure above captures viewer
+        // before it is created.
+        // eslint-disable-next-line prefer-const
+        let viewer: AgentViewerOverlay | undefined;
+
+        const unsub = this.pi.events.on("feature-forge:agent-stream", (data) => {
+          const event = data as { details?: { agentId?: string; event?: unknown } };
+          if (event.details?.agentId && event.details?.event) {
+            viewer?.pushStreamEvent(event.details.agentId, event.details.event);
+          }
+        });
+
+        viewer = new AgentViewerOverlay(tui, theme, () => {
           unsub();
           try {
             rmSync(streamDir, { recursive: true, force: true });
@@ -37,24 +51,6 @@ export class AgentListCommand extends Command {
           }
           done();
         });
-
-        // Subscribe to agent stream events so the detail view shows
-        // live tool calls, thinking, and results in real time.
-        const unsub = this.pi.events.on("feature-forge:agent-stream", (data) => {
-          const event = data as { details?: { agentId?: string; event?: unknown } };
-          if (event.details?.agentId && event.details?.event) {
-            viewer.pushStreamEvent(event.details.agentId, event.details.event);
-          }
-        });
-
-        // Patch onDone to also unsubscribe from stream events.
-        const originalDone = (viewer as unknown as Record<string, unknown>)["onDone"] as
-          | (() => void)
-          | undefined;
-        (viewer as unknown as Record<string, unknown>)["onDone"] = () => {
-          unsub();
-          originalDone?.();
-        };
 
         viewer.setAgentExecutionId("agent-list", streamDir);
 
