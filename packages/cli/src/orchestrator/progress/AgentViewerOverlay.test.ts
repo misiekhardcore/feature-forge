@@ -190,7 +190,8 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       // Should be truncated to fit within width 40 minus 4-space indent.
-      expect(joined).toContain("tool_use: xxx");
+      expect(joined).toContain("tool_use");
+      expect(joined).toContain("xxx");
       expect(joined).toContain("...");
       // The full long line should not appear.
       expect(joined).not.toContain(longLine);

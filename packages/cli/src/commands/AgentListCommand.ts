@@ -55,8 +55,9 @@ export class AgentListCommand extends Command {
         overlay: true,
         overlayOptions: {
           anchor: "center",
-          width: 80,
-          maxHeight: 20,
+          width: "100%",
+          height: "95%",
+          margin: 1,
         },
       },
     );

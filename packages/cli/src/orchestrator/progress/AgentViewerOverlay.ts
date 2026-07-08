@@ -330,6 +330,22 @@ export class AgentViewerOverlay implements Component {
 
   // ── Private rendering ─────────────────────────────────────
 
+  private addBorder(lines: string[], contentWidth: number): string[] {
+    const { theme } = this;
+    const inner = Math.max(contentWidth - 2, 10);
+    const top = theme.fg("border", "┌" + "─".repeat(inner) + "┐");
+    const bot = theme.fg("border", "└" + "─".repeat(inner) + "┘");
+    const result: string[] = [top];
+    for (const raw of lines) {
+      // Strip ANSI to measure visible length, then pad.
+      const visible = raw.replace(/\[[0-9;]*m/g, "");
+      const pad = visible.length < inner ? " ".repeat(inner - visible.length) : "";
+      result.push(theme.fg("border", "│") + raw + pad + theme.fg("border", "│"));
+    }
+    result.push(bot);
+    return result;
+  }
+
   private renderList(width: number): string[] {
     const { theme } = this;
     const lines: string[] = [];
@@ -341,7 +357,8 @@ export class AgentViewerOverlay implements Component {
 
     if (this.agents.size === 0) {
       lines.push(`  ${theme.fg("muted", "no agents running")}`);
-      return lines.flatMap((line) => wrapTextWithAnsi(line, width));
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+      return this.addBorder(wrapped, width);
     }
 
     const entries = Array.from(this.agents.entries());
@@ -399,7 +416,8 @@ export class AgentViewerOverlay implements Component {
       ),
     );
 
-    return lines.flatMap((line) => wrapTextWithAnsi(line, width));
+    const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+    return this.addBorder(wrapped, width);
   }
 
   private renderDetail(width: number): string[] {
@@ -413,7 +431,8 @@ export class AgentViewerOverlay implements Component {
       lines.push(`  ${theme.fg("muted", "agent not found")}`);
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
-      return lines.flatMap((line) => wrapTextWithAnsi(line, width));
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+      return this.addBorder(wrapped, width);
     }
 
     const icon = AgentViewerOverlay.statusIcon(entry.status);
@@ -480,7 +499,8 @@ export class AgentViewerOverlay implements Component {
     this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, lines.length - 1));
     const visibleLines = lines.slice(this.scrollOffset);
 
-    return visibleLines.flatMap((line) => wrapTextWithAnsi(line, width));
+    const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+    return this.addBorder(wrapped, width);
   }
 
   // ── Private input handling ────────────────────────────────
