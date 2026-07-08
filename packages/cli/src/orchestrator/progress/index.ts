@@ -1,3 +1,5 @@
+export type { AgentViewerEntry } from "./AgentViewerOverlay";
+export { AgentViewerOverlay } from "./AgentViewerOverlay";
 export type { DisplayContribution } from "./DisplayContribution";
 export { NoOpProgressReporter } from "./NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./ProgressEvent";

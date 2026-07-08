@@ -8,7 +8,9 @@ const { MockRpcClient, getRpcMock, resetRpcMock } = vi.hoisted(() => {
     instance = {
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined),
-      promptAndWait: vi.fn().mockResolvedValue([]),
+      prompt: vi.fn().mockResolvedValue(undefined),
+      onEvent: vi.fn().mockReturnValue(vi.fn()),
+      collectEvents: vi.fn().mockResolvedValue([]),
       abort: vi.fn().mockResolvedValue(undefined),
     };
   }
@@ -89,7 +91,7 @@ describe("PiSubprocessAgent", () => {
 
     it("executes task successfully and extracts assistant text", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([makeMessageEvent("Here are the results.")]);
+      getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("Here are the results.")]);
       const result = await agent.executeTask("research topic");
       expect(result).toBe("Here are the results.");
       expect(agent.status).toBe(AgentStatus.Completed);
@@ -97,7 +99,7 @@ describe("PiSubprocessAgent", () => {
 
     it("extracts text from multiple assistant messages", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([
+      getRpcMock().collectEvents.mockResolvedValueOnce([
         {
           type: "message_end",
           message: {
@@ -122,7 +124,7 @@ describe("PiSubprocessAgent", () => {
 
     it("skips non-text content blocks", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([
+      getRpcMock().collectEvents.mockResolvedValueOnce([
         {
           type: "message_end",
           message: {
@@ -140,14 +142,14 @@ describe("PiSubprocessAgent", () => {
 
     it("handles empty content gracefully", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([]);
+      getRpcMock().collectEvents.mockResolvedValueOnce([]);
       const result = await agent.executeTask("empty");
       expect(result).toBe("");
     });
 
     it("skips text blocks with empty text", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([
+      getRpcMock().collectEvents.mockResolvedValueOnce([
         {
           type: "message_end",
           message: {
@@ -166,7 +168,7 @@ describe("PiSubprocessAgent", () => {
 
     it("filters events by type and role and content presence", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([
+      getRpcMock().collectEvents.mockResolvedValueOnce([
         {
           type: "message_start",
           message: { role: "assistant", content: [{ type: "text", text: "should skip" }] },
@@ -187,7 +189,7 @@ describe("PiSubprocessAgent", () => {
 
     it("transitions to Failed when task throws with non-Error", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockRejectedValueOnce("string error");
+      getRpcMock().collectEvents.mockRejectedValueOnce("string error");
       await expect(agent.executeTask("fail-str")).rejects.toThrow("string error");
       expect(agent.status).toBe(AgentStatus.Failed);
     });
@@ -200,15 +202,15 @@ describe("PiSubprocessAgent", () => {
       await expect(
         agent.executeTask("should-abort", { signal: controller.signal }),
       ).rejects.toThrow(DOMException);
-      expect(getRpcMock().promptAndWait).not.toHaveBeenCalled();
+      expect(getRpcMock().prompt).not.toHaveBeenCalled();
     });
 
     it("calls rpcClient.abort when signal fires mid-execution", async () => {
       await agent.start();
       const controller = new AbortController();
 
-      // promptAndWait rejects when abort fires, simulating the RPC terminating.
-      getRpcMock().promptAndWait.mockImplementationOnce(() => {
+      // prompt rejects when abort fires, simulating the RPC terminating.
+      getRpcMock().prompt.mockImplementationOnce(() => {
         controller.abort();
         throw new DOMException("The operation was aborted", "AbortError");
       });
@@ -222,9 +224,129 @@ describe("PiSubprocessAgent", () => {
 
     it("transitions to Failed when task throws", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockRejectedValueOnce(new Error("Task error"));
+      getRpcMock().collectEvents.mockRejectedValueOnce(new Error("Task error"));
       await expect(agent.executeTask("fail")).rejects.toThrow("Task error");
       expect(agent.status).toBe(AgentStatus.Failed);
+    });
+
+    describe("streaming (prompt + onEvent + collectEvents)", () => {
+      it("subscribes to onEvent when options.onEvent is provided", async () => {
+        await agent.start();
+        const callback = vi.fn();
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        await agent.executeTask("stream", { onEvent: callback });
+
+        expect(getRpcMock().onEvent).toHaveBeenCalledWith(callback);
+      });
+
+      it("does not subscribe to onEvent when no callback provided", async () => {
+        await agent.start();
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        await agent.executeTask("no-callback");
+
+        // Skip onEvent subscription when no callback is provided.
+        expect(getRpcMock().onEvent).not.toHaveBeenCalled();
+        expect(getRpcMock().collectEvents).toHaveBeenCalledTimes(1);
+        expect(getRpcMock().prompt).toHaveBeenCalledWith("no-callback", undefined);
+      });
+
+      it("subscribes external callback before calling prompt", async () => {
+        await agent.start();
+        const callback = vi.fn();
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        const onEventSpy = getRpcMock().onEvent;
+        const promptSpy = getRpcMock().prompt;
+
+        await agent.executeTask("order", { onEvent: callback });
+
+        // onEvent must be called before prompt
+        const onEventCallIndex = onEventSpy.mock.invocationCallOrder[0];
+        const promptCallIndex = promptSpy.mock.invocationCallOrder[0];
+        expect(onEventCallIndex).toBeLessThan(promptCallIndex);
+      });
+
+      it("calls prompt with the message and images", async () => {
+        await agent.start();
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        const imageContent = { type: "image" as const, data: "abc", mimeType: "image/png" };
+
+        await agent.executeTask("hello", {
+          images: [imageContent],
+        });
+
+        expect(getRpcMock().prompt).toHaveBeenCalledWith("hello", [imageContent]);
+      });
+
+      it("passes timeout to collectEvents", async () => {
+        await agent.start();
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        await agent.executeTask("timed", { timeout: 42_000 });
+
+        expect(getRpcMock().collectEvents).toHaveBeenCalledWith(42_000);
+      });
+
+      it("unsubscribes after successful execution", async () => {
+        await agent.start();
+        const callback = vi.fn();
+        const unsubscribe = vi.fn();
+        getRpcMock().onEvent.mockReturnValueOnce(unsubscribe);
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        await agent.executeTask("stream", { onEvent: callback });
+
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+      });
+
+      it("unsubscribes after failed execution", async () => {
+        await agent.start();
+        const callback = vi.fn();
+        const unsubscribe = vi.fn();
+        getRpcMock().onEvent.mockReturnValueOnce(unsubscribe);
+        getRpcMock().collectEvents.mockRejectedValueOnce(new Error("boom"));
+
+        await expect(agent.executeTask("fail-stream", { onEvent: callback })).rejects.toThrow(
+          "boom",
+        );
+
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+      });
+
+      it("unsubscribes when prompt rejects after collectEvents is already active", async () => {
+        await agent.start();
+        const callback = vi.fn();
+        const unsubscribe = vi.fn();
+        getRpcMock().onEvent.mockReturnValueOnce(unsubscribe);
+        // collectEvents returns a pending promise (stays active), prompt rejects
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("late")]);
+        getRpcMock().prompt.mockRejectedValueOnce(new Error("prompt failed"));
+
+        await expect(agent.executeTask("prompt-fail", { onEvent: callback })).rejects.toThrow(
+          "prompt failed",
+        );
+
+        expect(agent.status).toBe(AgentStatus.Failed);
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+      });
+
+      it("collectEvents is started before prompt is sent", async () => {
+        await agent.start();
+        getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("ok")]);
+
+        const collectSpy = getRpcMock().collectEvents;
+        const promptSpy = getRpcMock().prompt;
+
+        await agent.executeTask("order-check");
+
+        // collectEvents must be called before prompt
+        const collectCallIndex = collectSpy.mock.invocationCallOrder[0];
+        const promptCallIndex = promptSpy.mock.invocationCallOrder[0];
+        expect(collectCallIndex).toBeLessThan(promptCallIndex);
+      });
     });
   });
 
@@ -246,7 +368,7 @@ describe("PiSubprocessAgent", () => {
   describe("getResult", () => {
     it("returns result when Completed", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockResolvedValueOnce([makeMessageEvent("Success!")]);
+      getRpcMock().collectEvents.mockResolvedValueOnce([makeMessageEvent("Success!")]);
       await agent.executeTask("test");
       expect(agent.getResult()).toBe("Success!");
     });
@@ -265,7 +387,7 @@ describe("PiSubprocessAgent", () => {
 
     it("returns error when Failed", async () => {
       await agent.start();
-      getRpcMock().promptAndWait.mockRejectedValueOnce(new Error("boom"));
+      getRpcMock().collectEvents.mockRejectedValueOnce(new Error("boom"));
       try {
         await agent.executeTask("fail");
       } catch {

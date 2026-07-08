@@ -6,6 +6,7 @@ import type {
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../test-utils";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
@@ -41,13 +42,27 @@ function makeFlow(routineParamNames: string[] = []): FlowDefinition {
 
 // ── Tests ────────────────────────────────────────────────────
 
+function makeMockSupervisor(): AgentSupervisor {
+  return {
+    getAgent: vi.fn().mockReturnValue(undefined),
+    getAllAgents: vi.fn().mockReturnValue([]),
+  } as unknown as AgentSupervisor;
+}
+
 describe("RoutineTool", () => {
+  const mockSupervisor = makeMockSupervisor();
   describe("constructor", () => {
     it("sets name to routineName", () => {
       const flow = makeFlow();
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       expect(tool.name).toBe("build");
     });
@@ -56,7 +71,13 @@ describe("RoutineTool", () => {
       const flow = makeFlow();
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       expect(tool.label).toContain("myflow/build");
     });
@@ -65,7 +86,13 @@ describe("RoutineTool", () => {
       const flow = makeFlow();
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       expect(tool.description).not.toContain("Parameters:");
     });
@@ -74,7 +101,13 @@ describe("RoutineTool", () => {
       const flow = makeFlow(["task", "plan"]);
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       expect(tool.description).toContain("task, plan");
     });
@@ -83,7 +116,13 @@ describe("RoutineTool", () => {
       const flow = makeFlow(["task", "plan"]);
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       expect(tool.parameters).toBeDefined();
       // The schema is built dynamically — verify it has the expected structure.
@@ -110,7 +149,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const result = await tool.execute(
         "call-1",
@@ -171,7 +216,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const result = await tool.execute(
         "call-1",
@@ -199,7 +250,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const result = await tool.execute(
         "call-1",
@@ -230,7 +287,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const result = await tool.execute(
         "call-1",
@@ -283,7 +346,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const onUpdateCalls: AgentToolResult<RoutineResult>[] = [];
       const onUpdate: AgentToolUpdateCallback<RoutineResult> = (result) => {
@@ -312,7 +381,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       // Should not throw even though no _onUpdate is provided.
       const result = await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
@@ -338,7 +413,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
       const controller = new AbortController();
 
       const result = await tool.execute(
@@ -399,14 +480,29 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
-      await expect(
-        tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext),
-      ).rejects.toThrow();
+      const mockCustom = vi.fn().mockResolvedValue(undefined);
+      const mockSetStatus = vi.fn();
+      const mockCtx = {
+        hasUI: true,
+        ui: { custom: mockCustom, setStatus: mockSetStatus },
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await expect(tool.execute("call-1", {}, undefined, undefined, mockCtx)).rejects.toThrow();
+
+      // Verify that custom was called to create the overlay.
+      expect(mockCustom).toHaveBeenCalled();
     });
 
-    it("cleans up UI in finally even when the executor throws", async () => {
+    it("cleans up UI in finally even when a step fails", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(
         () =>
@@ -450,7 +546,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const mockUi = {
         setWidget: vi.fn(),
@@ -546,7 +648,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       await tool.execute("call-1", {}, undefined, undefined, ctx);
 
@@ -605,7 +713,13 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockEventBus();
       const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
-      const tool = new RoutineTool("myflow", "build", executor, flow.routines["build"]);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
 
       const result = await tool.execute(
         "call-1",
@@ -618,6 +732,199 @@ describe("RoutineTool", () => {
       const parsed = JSON.parse((result.content[0] as { text: string }).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
+    });
+
+    it("registers eventBus listeners for all feature-forge channels on execute", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
+
+      // Execute with no UI to isolate listener registration testing.
+      await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+      // At least one channel should have been registered.
+      expect(eventBus.on).toHaveBeenCalled();
+    });
+
+    it("extracts executionId from display contributions and accumulates them", async () => {
+      // Register a fake agent executor that emits events with executionId
+      // and provides getDisplayContribution that returns executionId.
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+
+            override getDisplayContribution(
+              event: RoutineProgressEvent,
+            ): DisplayContribution | undefined {
+              if (!event.phase.startsWith("agent-")) return undefined;
+              const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
+              if (!agentId) return undefined;
+              return {
+                executionId: event.details.executionId,
+                agentId,
+                agentStatus:
+                  event.phase === "agent-started"
+                    ? "started"
+                    : event.phase === "agent-done"
+                      ? "done"
+                      : undefined,
+                streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
+                phase: event.phase,
+                message: event.message,
+              };
+            }
+
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+                signal?: AbortSignal,
+              ) => Promise<FlowContext>,
+              eventBus: EventBus,
+              _signal?: AbortSignal,
+            ): Promise<FlowContext> {
+              const execId = "exec-test-99";
+              eventBus.emit("feature-forge:agent-started", {
+                phase: "agent-started",
+                message: `Agent "${instruction.id}" (build) started`,
+                details: { executionId: execId },
+              });
+              eventBus.emit("feature-forge:agent-done", {
+                phase: "agent-done",
+                message: `Agent "${instruction.id}" completed`,
+                details: { executionId: execId, summary: "All OK" },
+              });
+              return context;
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          build: {
+            params: [],
+            steps: [
+              {
+                type: "agent",
+                id: "builder",
+                systemPrompt: "build",
+                prompt: "do stuff",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
+
+      await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+      // Contributions should include executionId from the emitted events.
+      const contributions = tool.contributions;
+      const startedContribution = contributions.find((c) => c.agentStatus === "started");
+      const doneContribution = contributions.find((c) => c.agentStatus === "done");
+
+      expect(startedContribution).toBeDefined();
+      expect(startedContribution!.executionId).toBe("exec-test-99");
+      expect(startedContribution!.agentId).toBe("builder");
+
+      expect(doneContribution).toBeDefined();
+      expect(doneContribution!.executionId).toBe("exec-test-99");
+      expect(doneContribution!.agentId).toBe("builder");
+    });
+
+    it("creates agent viewer overlay via ctx.ui.custom in TUI mode", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const tool = new RoutineTool(
+        "myflow",
+        "build",
+        executor,
+        flow.routines["build"],
+        mockSupervisor,
+      );
+
+      const mockCustom = vi.fn().mockResolvedValue(undefined);
+      const mockUi = {
+        custom: mockCustom,
+        setWidget: vi.fn(),
+        setStatus: vi.fn(),
+      };
+      const ctx = {
+        hasUI: true,
+        ui: mockUi,
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // custom should have been called with a factory function and overlay options.
+      expect(mockCustom).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          overlay: true,
+          overlayOptions: expect.objectContaining({
+            anchor: "center",
+            width: "100%",
+            maxHeight: "95%",
+            margin: 1,
+          }),
+        }),
+      );
+
+      // Invoke the factory to verify it produces a valid Component.
+      const factoryCall = mockCustom.mock.calls.find((c: unknown[]) => typeof c[0] === "function");
+      expect(factoryCall).toBeDefined();
+      const factory = factoryCall![0] as (
+        tui: Record<string, unknown>,
+        theme: Record<string, unknown>,
+        _kb: Record<string, unknown>,
+        done: () => void,
+      ) => Record<string, unknown>;
+
+      const mockTui = { requestRender: vi.fn() };
+      const mockTheme = { fg: vi.fn((_c: string, t: string) => t) };
+      const mockDoneCallback = vi.fn();
+      const component = factory(mockTui, mockTheme, {}, mockDoneCallback) as {
+        render: (width: number) => string[];
+        invalidate: () => void;
+        handleInput?: (data: string) => void;
+      };
+
+      expect(component).toBeDefined();
+      expect(typeof component.render).toBe("function");
+      expect(typeof component.invalidate).toBe("function");
+      expect(typeof component.handleInput).toBe("function");
+
+      const rendered = component.render(80);
+      expect(Array.isArray(rendered)).toBe(true);
+      expect(rendered.length).toBeGreaterThan(0);
+      const joined = rendered.join("\n");
+      expect(joined).toContain("Agent Viewer");
     });
   });
 });

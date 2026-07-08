@@ -28,7 +28,22 @@ function makeMockSpecManager(): SpecManager {
 function makeMockAgent(result: string): SubprocessAgent {
   return {
     id: "test-agent",
-    executeTask: vi.fn().mockResolvedValue(result),
+    executeTask: vi
+      .fn()
+      .mockImplementation(
+        (
+          _prompt: string,
+          options?: { signal?: AbortSignal; onEvent?: (event: object) => void },
+        ) => {
+          // Simulate streaming: fire a few events through the callback
+          options?.onEvent?.({ type: "tool_use", tool: "read" });
+          options?.onEvent?.({
+            type: "message_end",
+            message: { role: "assistant", content: [{ type: "text", text: result }] },
+          });
+          return Promise.resolve(result);
+        },
+      ),
     getResult: vi.fn().mockReturnValue(result),
     destroy: vi.fn().mockResolvedValue(undefined),
   } as unknown as SubprocessAgent;
@@ -74,7 +89,10 @@ describe("AgentStepExecutor", () => {
 
       expect(specManager.resolve).toHaveBeenCalled();
       expect(supervisor.spawnGuest).toHaveBeenCalled();
-      expect(agent.executeTask).toHaveBeenCalledWith("do the thing", { signal: undefined });
+      expect(agent.executeTask).toHaveBeenCalledWith(
+        "do the thing",
+        expect.objectContaining({ signal: undefined }),
+      );
       expect(agent.getResult).toHaveBeenCalled();
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
 
@@ -100,7 +118,10 @@ describe("AgentStepExecutor", () => {
 
       await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(agent.executeTask).toHaveBeenCalledWith("do add auth", { signal: undefined });
+      expect(agent.executeTask).toHaveBeenCalledWith(
+        "do add auth",
+        expect.objectContaining({ signal: undefined }),
+      );
     });
 
     it("parses JSON output when parseJson is true", async () => {
@@ -456,21 +477,27 @@ describe("AgentStepExecutor", () => {
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.emit).toHaveBeenCalledTimes(4);
         expect(eventBus.emit).toHaveBeenNthCalledWith(
           1,
           "feature-forge:agent-started",
           expect.objectContaining({
             phase: "agent-started",
             message: expect.stringContaining("builder") as string,
+            details: expect.objectContaining({
+              executionId: expect.any(String) as string,
+            }),
           }),
         );
         expect(eventBus.emit).toHaveBeenNthCalledWith(
-          2,
+          4,
           "feature-forge:agent-done",
           expect.objectContaining({
             phase: "agent-done",
             message: expect.stringContaining("builder") as string,
+            details: expect.objectContaining({
+              executionId: expect.any(String) as string,
+            }),
           }),
         );
       });
@@ -536,6 +563,42 @@ describe("AgentStepExecutor", () => {
         expect(eventBus.emit).toHaveBeenCalledWith(
           "feature-forge:agent-started",
           expect.anything(),
+        );
+      });
+
+      it("emits agent-stream events during agent execution", async () => {
+        const agent = makeMockAgent("build output");
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "do the thing",
+        };
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
+
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
+
+        // agent-started, 2x agent-stream, agent-done = 4 emits
+        expect(eventBus.emit).toHaveBeenCalledTimes(4);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+          "feature-forge:agent-stream",
+          expect.objectContaining({
+            phase: "agent-stream",
+            details: expect.objectContaining({
+              executionId: expect.any(String) as string,
+              agentId: "builder",
+              label: "test",
+              event: expect.objectContaining({ type: "tool_use" }),
+            }),
+          }),
         );
       });
 
@@ -788,6 +851,90 @@ describe("AgentStepExecutor", () => {
       });
 
       expect(contrib).toBeUndefined();
+    });
+
+    it("includes streamEvent from event details for agent-stream phase", () => {
+      const executor = makeExecutor();
+      const streamPayload = {
+        type: "tool_execution_start" as const,
+        toolCallId: "t1",
+        toolName: "read",
+        args: {},
+      };
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: { agentId: "builder", event: streamPayload },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.agentId).toBe("builder");
+      expect(contrib!.agentStatus).toBeUndefined();
+      expect(contrib!.streamEvent).toBe(streamPayload);
+      expect(contrib!.phase).toBe("agent-stream");
+    });
+
+    it("returns streamEvent undefined for non-stream agent events", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: 'Agent "builder" (build) started',
+        details: { agentId: "builder" },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.streamEvent).toBeUndefined();
+    });
+
+    it("extracts executionId from event details for agent-started phase", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-started",
+        message: 'Agent "builder" (build) started',
+        details: { executionId: "exec-abc-123" },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.executionId).toBe("exec-abc-123");
+      expect(contrib!.agentId).toBe("builder");
+    });
+
+    it("extracts executionId and summary from agent-done event details", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-done",
+        message: 'Agent "reviewer" completed',
+        details: { executionId: "exec-xyz-789", summary: "All tests passed" },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.executionId).toBe("exec-xyz-789");
+      expect(contrib!.agentId).toBe("reviewer");
+      expect(contrib!.agentStatus).toBe("done");
+      expect(contrib!.agentSummary).toBe("All tests passed");
+    });
+
+    it("extracts executionId from agent-stream event details", () => {
+      const executor = makeExecutor();
+      const streamPayload = {
+        type: "tool_execution_start" as const,
+        toolCallId: "t2",
+        toolName: "read",
+        args: {},
+      };
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          executionId: "exec-stream-1",
+          agentId: "builder",
+          event: streamPayload,
+        },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.executionId).toBe("exec-stream-1");
+      expect(contrib!.streamEvent).toBe(streamPayload);
     });
   });
 });

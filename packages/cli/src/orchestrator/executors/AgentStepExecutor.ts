@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
@@ -47,6 +49,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     const instructionId = instruction.id;
+    const executionId = randomUUID();
 
     // Check abort signal before spawning an agent.
     signal?.throwIfAborted();
@@ -78,11 +81,25 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     eventBus.emit("feature-forge:agent-started", {
       phase: "agent-started",
       message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
-      details: {},
+      details: { executionId },
     });
 
     try {
-      await agent.executeTask(resolvedTask, { signal });
+      await agent.executeTask(resolvedTask, {
+        signal,
+        onEvent: (event) => {
+          eventBus.emit("feature-forge:agent-stream", {
+            phase: "agent-stream",
+            message: `Agent "${instructionId}" stream event`,
+            details: {
+              executionId,
+              agentId: instructionId,
+              label: specification.role,
+              event,
+            },
+          });
+        },
+      });
 
       const raw = agent.getResult();
       logger.info("Agent completed", { instructionId, resultLength: raw.length });
@@ -95,7 +112,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
         message: `Agent "${instructionId}" completed`,
-        details: { summary: agentSummary, passed: agentPassed },
+        details: { executionId, summary: agentSummary, passed: agentPassed },
       });
 
       return updatedContext;
@@ -143,11 +160,15 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
           : event.phase === "agent-error"
             ? "error"
             : undefined;
+    const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
+    const executionId = event.details.executionId;
     return {
+      executionId,
       agentId,
       agentStatus,
       agentSummary: event.details.summary,
       agentPassed: event.details.passed,
+      streamEvent,
       phase: event.phase,
       message: event.message,
     };

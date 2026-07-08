@@ -74,6 +74,11 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
   /**
    * Send a prompt (task) to the subagent and wait for completion.
+   *
+   * Uses streaming pattern: subscribes to events via {@link onEvent},
+   * collects all events via {@link collectEvents}, and unsubscribes
+   * in a `finally` block to avoid memory leaks.
+   *
    * Returns the extracted assistant text response.
    */
   public override async executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
@@ -95,9 +100,18 @@ export class PiSubprocessAgent extends SubprocessAgent {
     };
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
+    const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
+    let unsubscribe: (() => void) | undefined;
+
+    if (options?.onEvent) {
+      unsubscribe = this.rpcClient.onEvent(options.onEvent);
+    }
+
     try {
-      const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
-      const events = await this.rpcClient.promptAndWait(prompt, options?.images, timeout);
+      const eventsPromise = this.rpcClient.collectEvents(timeout);
+      await this.rpcClient.prompt(prompt, options?.images);
+      const events = await eventsPromise;
+
       this.result = extractAssistantText(events);
       this._status = AgentStatus.Completed;
       return this.result;
@@ -108,6 +122,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
       throw this.error;
     } finally {
       options?.signal?.removeEventListener("abort", onAbort);
+      unsubscribe?.();
     }
   }
 

@@ -153,7 +153,8 @@ export function makeMockPi(): ExtensionAPI {
 
 export function makeMockCtx(): ExtensionCommandContext {
   return {
-    ui: { notify: vi.fn() },
+    hasUI: true,
+    ui: { notify: vi.fn(), custom: vi.fn().mockResolvedValue(undefined) },
   } as unknown as ExtensionCommandContext;
 }
 

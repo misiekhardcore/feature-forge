@@ -1,3 +1,5 @@
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+
 import type { InstructionResult } from "./FlowContext";
 import type { FlowParams } from "./FlowStateStore";
 
@@ -22,4 +24,20 @@ export interface RoutineResult {
   summary: string;
   /** Flow-global session state at routine completion. */
   session: FlowParams;
+  /**
+   * Unique execution identifier generated per agent step invocation.
+   *
+   * Populated only in {@link import("./RoutineProgress").RoutineProgressEvent.details}
+   * for structural compatibility with progress-event transport. When reading
+   * a {@link RoutineResult} returned by {@link import("./RoutineExecutor").RoutineExecutor.run},
+   * this field is always `undefined` — the final result does not carry
+   * per-step execution identifiers.
+   */
+  executionId?: string;
+  /** Agent instruction id carried by agent-stream events. */
+  agentId?: string;
+  /** Agent role label carried by agent-stream events. */
+  label?: string;
+  /** Raw agent event payload carried by agent-stream events. */
+  event?: AgentEvent;
 }

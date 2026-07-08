@@ -1,3 +1,4 @@
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 /**
  * A DTO returned by {@link import("../StepExecutor").StepExecutor.getDisplayContribution}
  * carrying display-relevant fields extracted from a
@@ -9,6 +10,8 @@
  * for rendering.
  */
 export interface DisplayContribution {
+  /** Unique execution identifier from the agent step that produced this event. */
+  executionId?: string;
   /** Agent instruction id, set when the event is agent-scoped. */
   agentId?: string;
   /** Agent lifecycle status ("started" | "done" | "error"). */
@@ -29,4 +32,6 @@ export interface DisplayContribution {
   message?: string;
   /** The `continueWhile` expression from the loop instruction, if any. */
   continueWhile?: string;
+  /** Raw stream event payload from an agent-stream event. */
+  streamEvent?: AgentEvent;
 }

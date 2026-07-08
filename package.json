@@ -23,6 +23,7 @@
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,md,yml,yaml}": [
+      "eslint --fix",
       "prettier --write"
     ]
   },

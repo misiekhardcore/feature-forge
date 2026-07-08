@@ -19,10 +19,11 @@
  */
 import * as path from "node:path";
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { SpecRegistry } from "../agents/specifications/SpecRegistry";
 import { SpecManager } from "../agents/SpecManager";
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { SpecLoader } from "../loaders/SpecLoader";
 import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
 import { FlowContext } from "../orchestrator/FlowContext";
@@ -273,7 +274,10 @@ describe("flow round-trip", () => {
       const routineToolNames = new Set<string>();
 
       for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-        const tool = new RoutineTool(flow.name, routineName, executor, routineDef);
+        const tool = new RoutineTool(flow.name, routineName, executor, routineDef, {
+          getAgent: vi.fn().mockReturnValue(undefined),
+          getAllAgents: vi.fn().mockReturnValue([]),
+        } as unknown as AgentSupervisor);
         routineToolNames.add(tool.name);
       }
 

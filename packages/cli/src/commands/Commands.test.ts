@@ -93,14 +93,16 @@ describe("AgentListCommand", () => {
     expect(ctx.ui.notify).toHaveBeenCalledWith("No agents currently tracked.", "info");
   });
 
-  it("lists tracked agents with their status", async () => {
+  it("opens overlay via ctx.ui.custom when agents are tracked", async () => {
     await supervisor.spawnGuest(makeSpec("a1", { role: "worker" }));
     await cmd.handler("", ctx);
-    expect(ctx.ui.notify).toHaveBeenCalledWith(
-      expect.stringContaining("Tracked agents (1)"),
-      "info",
+    expect(ctx.ui.custom).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        overlay: true,
+        overlayOptions: expect.objectContaining({ anchor: "center" }),
+      }),
     );
-    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("a1"), "info");
   });
 });
 

@@ -10,21 +10,31 @@ import type { Component } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
+import { AgentViewerOverlay } from "./progress";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
 import type { ProgressWidget } from "./progress/ProgressReporter";
 import type { RoutineProgressState } from "./progress/RoutineProgressState";
+import { SharedStreamDir } from "./progress/sharedStreamDir";
 import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
 
-const FEATURE_FORGE_CHANNELS = [
+/**
+ * Channels the handler subscribes to for contribution accumulation and
+ * progress widget rendering. Agent channels are included so the widget
+ * shows agent lifecycle status — the overlay is driven separately via
+ * {@link AgentViewerOverlay.wireOverlayEvents}.
+ */
+const PROGRESS_CHANNELS = [
   "feature-forge:workspace-ready",
   "feature-forge:agent-started",
+  "feature-forge:agent-stream",
   "feature-forge:agent-done",
   "feature-forge:loop-round-start",
   "feature-forge:loop-round-complete",
@@ -89,6 +99,7 @@ export class RoutineTool
     routineName: string,
     private readonly executor: RoutineExecutor,
     private readonly routineDef: RoutineDefinition,
+    private readonly supervisor: AgentSupervisor,
   ) {
     this._routineName = routineName;
     this.name = routineName;
@@ -168,15 +179,65 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
+    // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
+    let viewerDismiss: (() => void) | undefined;
+    let overlayCleanup: (() => void) | undefined;
+    if (ctx.hasUI) {
+      const streamDir = SharedStreamDir.get();
+      ctx.ui
+        .custom<void>(
+          (tui, theme, _kb, done) => {
+            viewerDismiss = done;
+
+            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+              eventBus: this.executor.eventBus,
+              supervisor: this.supervisor,
+            });
+
+            const viewer = new AgentViewerOverlay(tui, theme, () => {
+              unsubs.forEach((u) => u());
+              viewer.dispose();
+              done();
+            });
+
+            connect(viewer, streamDir);
+
+            overlayCleanup = () => {
+              unsubs.forEach((u) => u());
+              viewer.dispose();
+            };
+
+            return viewer;
+          },
+          {
+            overlay: true,
+            overlayOptions: AgentViewerOverlay.overlayOptions,
+          },
+        )
+        .catch(() => {
+          logger.warn("Agent viewer overlay creation failed");
+        })
+        .finally(() => {
+          overlayCleanup?.();
+          viewerDismiss?.();
+        });
+    }
+
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
       logger.debug("RoutineTool progress", { ...event });
 
       // Accumulate display contributions from all executors.
+      // Stream-only events (agent-stream chunks with no state transition)
+      // are high-frequency and carry no structural information — skip them
+      // to avoid bloating the contributions array.
       for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
-        this._contributions.push(contrib);
+        const isStreamOnly = contrib.streamEvent !== undefined && contrib.agentStatus === undefined;
+        if (!isStreamOnly) {
+          this._contributions.push(contrib);
+        }
       }
 
       this.renderProgress(widget, ctx);
@@ -203,7 +264,7 @@ export class RoutineTool
       }
     };
 
-    const unsubscribers = FEATURE_FORGE_CHANNELS.map((channel) =>
+    const unsubscribers = PROGRESS_CHANNELS.map((channel) =>
       this.executor.eventBus.on(channel, handler),
     );
 
@@ -221,7 +282,9 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      for (const unsub of unsubscribers) unsub();
+      viewerDismiss?.();
+      overlayCleanup?.();
+      unsubscribers.forEach((u) => u());
     }
   }
 

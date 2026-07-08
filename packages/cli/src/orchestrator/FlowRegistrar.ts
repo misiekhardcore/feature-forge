@@ -174,7 +174,13 @@ export class FlowRegistrar {
     // Register routine tools for this flow.
     const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus, store);
     for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-      const routineTool = new RoutineTool(flowName, routineName, routineExecutor, routineDef);
+      const routineTool = new RoutineTool(
+        flowName,
+        routineName,
+        routineExecutor,
+        routineDef,
+        supervisor,
+      );
       try {
         toolRegistry.registerInstance(routineTool);
       } catch (error) {
@@ -186,7 +192,7 @@ export class FlowRegistrar {
 
     // Builtin routines — available in every flow, not declared in flow.json.
     try {
-      toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor));
+      toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor, supervisor));
     } catch (error) {
       logger.warn("[feature-forge] Failed to register set_flow_param", { error });
     }

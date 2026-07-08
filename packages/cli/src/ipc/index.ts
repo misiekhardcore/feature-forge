@@ -1,4 +1,5 @@
 export { ChildSocketClient } from "./ChildSocketClient";
+export { connectChildClient } from "./connectChildClient";
 export { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 export type {
   AgentUpdateEvent,
