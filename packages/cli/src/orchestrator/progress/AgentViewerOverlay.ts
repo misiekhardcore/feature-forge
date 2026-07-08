@@ -19,6 +19,10 @@ export interface AgentViewerEntry {
   summary?: string;
   /** Optional raw output from the agent (truncated for display). */
   raw?: string;
+  /** Optional elapsed time string (e.g. "2m 14s"). */
+  elapsed?: string;
+  /** Whether the agent's parsed result passed (undefined when not available). */
+  passed?: boolean;
 }
 
 /**
@@ -344,12 +348,26 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
+<<<<<<< HEAD
       const icon = AgentViewerOverlay.statusIcon(entry.status);
       const statusLabel = `[${entry.status}]`;
+=======
+      const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
+      const iconColor =
+        entry.status === "done"
+          ? "success"
+          : entry.status === "started"
+            ? "warning"
+            : entry.status === "error"
+              ? "error"
+              : "muted";
+>>>>>>> 7232f2e (fix: add elapsed time and role display, remove [status] labels from overlay)
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
-      lines.push(`${cursor} ${icon} ${idStyled} ${theme.fg("muted", statusLabel)}`);
+      const roleSuffix = entry.role ? ` ${theme.fg("muted", `(${entry.role})`)}` : "";
+      const elapsedSuffix = entry.elapsed ? ` ${theme.fg("muted", entry.elapsed)}` : "";
+      lines.push(`${cursor} ${theme.fg(iconColor, icon)} ${idStyled}${roleSuffix}${elapsedSuffix}`);
 
       // Show last stream line for started agents (truncated to fit width).
       const lastLine = this.lastLines.get(id);

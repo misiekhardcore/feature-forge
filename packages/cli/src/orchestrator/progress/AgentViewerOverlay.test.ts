@@ -115,7 +115,7 @@ describe("AgentViewerOverlay", () => {
 
       expect(joined).toContain("✓");
       expect(joined).toContain("builder");
-      expect(joined).toContain("[done]");
+      expect(joined).toContain("✓");
       expect(joined).toContain("Built successfully");
     });
 
@@ -251,7 +251,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("[done]");
+      expect(joined).toContain("✓");
       expect(joined).toContain("Build passed");
     });
 
