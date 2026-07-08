@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 
@@ -42,7 +43,7 @@ export class AgentListCommand extends Command {
         (tui, theme, _kb, done) => {
           // Buffer events delivered between subscription and viewer creation
           // so none are dropped during the synchronous construction gap.
-          const eventBuffer: Array<{ agentId: string; event: unknown }> = [];
+          const eventBuffer: Array<{ agentId: string; event: AgentEvent }> = [];
 
           // let required because the subscription closure references viewer
           // before it is assigned to the constructor result.
@@ -53,11 +54,14 @@ export class AgentListCommand extends Command {
             const payload = data as { details?: { agentId?: string; event?: unknown } };
             if (payload.details?.agentId && payload.details?.event) {
               if (viewer) {
-                viewer.pushStreamEvent(payload.details.agentId, payload.details.event);
+                viewer.pushStreamEvent(
+                  payload.details.agentId,
+                  payload.details.event as AgentEvent,
+                );
               } else {
                 eventBuffer.push({
                   agentId: payload.details.agentId,
-                  event: payload.details.event,
+                  event: payload.details.event as AgentEvent,
                 });
               }
             }

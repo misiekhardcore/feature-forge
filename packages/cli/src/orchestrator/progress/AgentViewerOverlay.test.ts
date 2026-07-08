@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -159,7 +160,10 @@ describe("AgentViewerOverlay", () => {
     it("shows last stream line for started agents", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -171,7 +175,10 @@ describe("AgentViewerOverlay", () => {
     it("shows stream line for done agents", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -184,7 +191,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       const longLine = "x".repeat(100);
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: longLine });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: longLine,
+      } as AgentEvent);
 
       const lines = overlay.render(40);
       const joined = lines.join("\n");
@@ -201,7 +211,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       const shortLine = "tool_execution_start: read";
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -300,7 +313,10 @@ describe("AgentViewerOverlay", () => {
     it("clears agents but preserves lastLines after pushStreamEvent", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       overlay.clearMemory();
 
@@ -475,23 +491,38 @@ describe("AgentViewerOverlay", () => {
   describe("pushStreamEvent", () => {
     it("stores the formatted stream line in memory for a given agent", () => {
       const overlay = makeOverlay();
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
     });
 
     it("overwrites previous last line for the same agent", () => {
       const overlay = makeOverlay();
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "write" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "write",
+      } as AgentEvent);
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: write");
     });
 
     it("tracks last lines per agent independently", () => {
       const overlay = makeOverlay();
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
-      overlay.pushStreamEvent("reviewer", { type: "tool_execution_start", toolName: "lint" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      overlay.pushStreamEvent("reviewer", {
+        type: "tool_execution_start",
+        toolName: "lint",
+      } as AgentEvent);
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
       expect(overlay.getLastStreamLine("reviewer")).toBe("tool_execution_start: lint");
@@ -502,8 +533,14 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
-      overlay.pushStreamEvent("builder", { type: "message_start", message: { role: "assistant" } });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as AgentEvent);
 
       const tail = overlay.getStreamTail("builder");
       expect(tail).toContain("tool_execution_start: read");
@@ -517,7 +554,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-42", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       // The file should be named with the executionId prefix.
       const expectedPath = join(tmpDir, "exec-42-builder.stream");
@@ -535,7 +575,10 @@ describe("AgentViewerOverlay", () => {
       // streamDir set but no executionId
       overlay.setAgentExecutionId("", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       // In-memory line should still be recorded.
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
@@ -548,7 +591,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const tail = overlay.getStreamTail("builder");
       expect(tail).toContain("tool_execution_start: read");
@@ -561,7 +607,10 @@ describe("AgentViewerOverlay", () => {
       overlay.setAgentExecutionId("exec-1", "/nonexistent/path/that/should/fail");
 
       expect(() => {
-        overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: "read",
+        } as AgentEvent);
       }).not.toThrow();
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
@@ -572,7 +621,10 @@ describe("AgentViewerOverlay", () => {
     it("pushes event for an agent not yet added via update", () => {
       const overlay = makeOverlay();
 
-      overlay.pushStreamEvent("unknown-agent", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("unknown-agent", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       expect(overlay.getLastStreamLine("unknown-agent")).toBe("tool_execution_start: read");
       expect(overlay.lastStreamLine).toBe("tool_execution_start: read");
@@ -582,7 +634,10 @@ describe("AgentViewerOverlay", () => {
       const tui = makeTui();
       const overlay = makeOverlay(tui);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       expect(tui.requestRender).toHaveBeenCalled();
     });
@@ -594,7 +649,10 @@ describe("AgentViewerOverlay", () => {
 
       // Should not throw.
       expect(() => {
-        overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: "read",
+        } as AgentEvent);
       }).not.toThrow();
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
@@ -611,8 +669,14 @@ describe("AgentViewerOverlay", () => {
 
     it("returns the most recently recorded line across all agents", () => {
       const overlay = makeOverlay();
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
-      overlay.pushStreamEvent("reviewer", { type: "tool_execution_start", toolName: "lint" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      overlay.pushStreamEvent("reviewer", {
+        type: "tool_execution_start",
+        toolName: "lint",
+      } as AgentEvent);
 
       expect(overlay.lastStreamLine).toBe("tool_execution_start: lint");
     });
@@ -621,7 +685,10 @@ describe("AgentViewerOverlay", () => {
   describe("getStreamTail", () => {
     it("returns empty string when no streamDir was configured", () => {
       const overlay = makeOverlay();
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       expect(overlay.getStreamTail("builder")).toBe("");
     });
@@ -642,7 +709,10 @@ describe("AgentViewerOverlay", () => {
       overlay.setAgentExecutionId("exec-1", tmpDir);
 
       for (let i = 0; i < 5; i++) {
-        overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: `tool-${i}` });
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: `tool-${i}`,
+        } as AgentEvent);
       }
 
       const tail = overlay.getStreamTail("builder", 2);
@@ -658,7 +728,10 @@ describe("AgentViewerOverlay", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       // Remove the stream file to force a read error.
       const filePath = join(tmpDir, "exec-1-builder.stream");
@@ -677,7 +750,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("my-exec", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
       expect(overlay.getStreamTail("builder")).toContain("tool_execution_start: read");
 
       overlay.dispose();
@@ -691,7 +767,10 @@ describe("AgentViewerOverlay", () => {
       overlay.setAgentExecutionId("exec-first", tmpDir1);
       overlay.setAgentExecutionId("exec-second", tmpDir2);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       // File should be written using the second (overwritten) executionId in tmpDir2.
       const expectedPath = join(tmpDir2, "exec-second-builder.stream");
@@ -708,7 +787,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-no-dir");
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       // In-memory should work.
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
@@ -721,7 +803,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       // In-memory line should still be recorded.
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
@@ -752,7 +837,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const filePath = join(tmpDir, "exec-1-builder.stream");
       expect(existsSync(filePath)).toBe(true);
@@ -775,7 +863,10 @@ describe("AgentViewerOverlay", () => {
     it("is safe to call multiple times", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       overlay.dispose();
       expect(() => overlay.dispose()).not.toThrow();
@@ -790,8 +881,14 @@ describe("AgentViewerOverlay", () => {
     it("clears lastLines and streamFiles maps on dispose", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
-      overlay.pushStreamEvent("reviewer", { type: "tool_execution_start", toolName: "lint" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      overlay.pushStreamEvent("reviewer", {
+        type: "tool_execution_start",
+        toolName: "lint",
+      } as AgentEvent);
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
       expect(overlay.getStreamTail("builder")).toContain("tool_execution_start: read");
@@ -1049,8 +1146,14 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-detail", tmpDir);
       overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "write" });
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "write",
+      } as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
@@ -1070,7 +1173,7 @@ describe("AgentViewerOverlay", () => {
       overlay.pushStreamEvent("builder", {
         type: "message_end",
         message: { role: "assistant", content: [{ type: "text", text: "Done." }] },
-      });
+      } as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
@@ -1155,9 +1258,21 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.setAgentExecutionId("exec-1", tmpDir);
 
-      overlay.pushStreamEvent("builder", { type: "message_start", message: { role: "assistant" } });
-      overlay.pushStreamEvent("builder", { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "I will now read the file." }] } });
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "I will now read the file." }],
+        },
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const tail = overlay.getStreamTail("builder");
       expect(tail).toContain("message_start: assistant");
@@ -1170,11 +1285,17 @@ describe("AgentViewerOverlay", () => {
     it("stream file content survives overlay instance lifetime", () => {
       const overlay1 = makeOverlay();
       overlay1.setAgentExecutionId("exec-1", tmpDir);
-      overlay1.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "read" });
+      overlay1.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
 
       const overlay2 = makeOverlay();
       overlay2.setAgentExecutionId("exec-1", tmpDir);
-      overlay2.pushStreamEvent("builder", { type: "tool_execution_start", toolName: "write" });
+      overlay2.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "write",
+      } as AgentEvent);
 
       const tail = overlay2.getStreamTail("builder");
       // The tail shows lines written via overlay2.

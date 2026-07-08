@@ -855,7 +855,12 @@ describe("AgentStepExecutor", () => {
 
     it("includes streamEvent from event details for agent-stream phase", () => {
       const executor = makeExecutor();
-      const streamPayload = { type: "tool_use", tool: "read" };
+      const streamPayload = {
+        type: "tool_execution_start" as const,
+        toolCallId: "t1",
+        toolName: "read",
+        args: {},
+      };
       const contrib = executor.getDisplayContribution({
         phase: "agent-stream",
         message: 'Agent "builder" stream event',
@@ -874,7 +879,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { event: { ignored: true } },
+        details: { agentId: "builder" },
       });
 
       expect(contrib).toBeDefined();
@@ -911,7 +916,12 @@ describe("AgentStepExecutor", () => {
 
     it("extracts executionId from agent-stream event details", () => {
       const executor = makeExecutor();
-      const streamPayload = { type: "tool_use", tool: "read" };
+      const streamPayload = {
+        type: "tool_execution_start" as const,
+        toolCallId: "t2",
+        toolName: "read",
+        args: {},
+      };
       const contrib = executor.getDisplayContribution({
         phase: "agent-stream",
         message: 'Agent "builder" stream event',

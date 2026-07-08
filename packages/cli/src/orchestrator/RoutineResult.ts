@@ -1,3 +1,5 @@
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+
 import type { InstructionResult } from "./FlowContext";
 import type { FlowParams } from "./FlowStateStore";
 
@@ -37,5 +39,5 @@ export interface RoutineResult {
   /** Agent role label carried by agent-stream events. */
   label?: string;
   /** Raw agent event payload carried by agent-stream events. */
-  event?: unknown;
+  event?: AgentEvent;
 }

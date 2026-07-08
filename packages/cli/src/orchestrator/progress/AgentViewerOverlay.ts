@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync, rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -189,7 +190,7 @@ export class AgentViewerOverlay implements Component {
    * {@link executionId} are configured, appends it to a per-agent log
    * file on disk.
    */
-  pushStreamEvent(agentId: string, event: unknown): void {
+  pushStreamEvent(agentId: string, event: AgentEvent): void {
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
@@ -300,17 +301,18 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Format a raw stream event into a single-line human-readable description.
+   * Format a stream event into a single-line human-readable description.
    *
-   * - When the event is an object with a `type` field, formats as `type: value`.
-   * - Otherwise serializes the event as JSON and truncates to one line.
+   * Uses the {@link AgentEvent} discriminated union for type-safe
+   * detail extraction via {@link extractStreamDetail}. Falls back to
+   * JSON serialization for non-AgentEvent payloads.
    */
   static formatStreamEvent(event: unknown): string {
     if (event !== null && typeof event === "object" && "type" in event) {
       const typed = event as Record<string, unknown>;
       const rawType = typed["type"];
       const eventType = typeof rawType === "string" ? rawType : "unknown";
-      const detail = AgentViewerOverlay.extractStreamDetail(eventType, typed);
+      const detail = AgentViewerOverlay.formatDetail(typed as AgentEvent, eventType);
       return detail ? `${eventType}: ${detail}` : eventType;
     }
     const serialized = JSON.stringify(event);
@@ -533,27 +535,16 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Extract a short detail string from a known stream event shape.
+   * Format a detail string from an {@link AgentEvent} using the
+   * discriminated union for type-safe field access.
    *
-   * Prefers common text-bearing fields ({@code text_delta},
-   * {@code text}, {@code delta.text}) regardless of event type, so
-   * content-bearing events (message_delta, content_block_delta,
-   * message_update, message_end) show their actual text instead of a
-   * bare type label. Falls back to event-type-specific extraction for
-   * tool use, tool result, and message start events.
+   * The {@code eventType} parameter is preserved for the fallback path
+   * in {@link formatStreamEvent} where the event shape is unknown.
    */
-  /**
-   * Extract a human-readable detail from an {@link AgentEvent}.
-   *
-   * Handles the actual event shapes emitted by the pi agent-core loop:
-   *
-   * - Lifecycle (agent_start / agent_end / turn_start / turn_end): brief label.
-   * - Message events: extracts role from message_start, text content from
-   *   message_update and message_end.
-   * - Tool events: tool name + brief result summary.
-   */
-  private static extractStreamDetail(eventType: string, event: Record<string, unknown>): string {
-    switch (eventType) {
+  private static formatDetail(event: AgentEvent, _eventType: string): string {
+    // Defensive: `as AgentEvent` casts at runtime may produce object
+    // shapes with missing fields. Use guards for all property access.
+    switch (event.type) {
       case "agent_start":
         return "started";
       case "agent_end":
@@ -570,32 +561,28 @@ export class AgentViewerOverlay implements Component {
 
       case "message_update":
       case "message_end": {
-        const text = AgentViewerOverlay.extractMessageText(event["message"]);
+        const text = AgentViewerOverlay.extractMessageText(event.message);
         return text.slice(0, 80);
       }
 
       case "tool_execution_start": {
-        const toolName = event["toolName"];
-        return typeof toolName === "string" ? toolName.slice(0, 80) : "";
+        const name = event.toolName;
+        return typeof name === "string" ? name.slice(0, 80) : "";
       }
 
       case "tool_execution_end": {
-        const toolName = event["toolName"];
-        const name = typeof toolName === "string" ? toolName : "";
-        const isErr = event["isError"] === true;
-        const status = isErr ? " (error)" : " (ok)";
+        const name = typeof event.toolName === "string" ? event.toolName : "";
+        const status = event.isError ? " (error)" : " (ok)";
         return (name + status).slice(0, 80);
       }
 
       case "tool_execution_update": {
-        const toolName = event["toolName"];
-        const name = typeof toolName === "string" ? toolName : "";
-        const partialRaw = event["partialResult"];
-        const partial =
-          typeof partialRaw === "string"
-            ? partialRaw
-            : typeof partialRaw === "object" && partialRaw !== null
-              ? JSON.stringify(partialRaw)
+        const name = typeof event.toolName === "string" ? event.toolName : "";
+        const partial: string =
+          typeof event.partialResult === "string"
+            ? event.partialResult
+            : typeof event.partialResult === "object" && event.partialResult !== null
+              ? JSON.stringify(event.partialResult)
               : "";
         const truncated = partial.length > 60 ? partial.slice(0, 57) + "..." : partial;
         return (name + ": " + truncated).slice(0, 80);
