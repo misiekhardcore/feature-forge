@@ -105,7 +105,7 @@ export class RoutineTool
     routineName: string,
     private readonly executor: RoutineExecutor,
     private readonly routineDef: RoutineDefinition,
-    private readonly supervisor?: AgentSupervisor,
+    private readonly supervisor: AgentSupervisor,
   ) {
     this._routineName = routineName;
     this.name = routineName;
@@ -196,22 +196,18 @@ export class RoutineTool
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
-            const wireOpts = this.supervisor
-              ? AgentViewerOverlay.wireOverlayEvents({
-                  eventBus: this.executor.eventBus,
-                  supervisor: this.supervisor,
-                })
-              : undefined;
+            const wireOpts = AgentViewerOverlay.wireOverlayEvents({
+              eventBus: this.executor.eventBus,
+              supervisor: this.supervisor,
+            });
 
             const viewer = new AgentViewerOverlay(tui, theme, () => {
-              wireOpts?.unsubs.forEach((u) => u());
+              wireOpts.unsubs.forEach((u) => u());
               viewer.dispose();
               done();
             });
 
-            if (wireOpts) {
-              wireOpts.connect(viewer, this.streamDir!);
-            }
+            wireOpts.connect(viewer, this.streamDir!);
 
             overlayCleanup = () => {
               wireOpts?.unsubs.forEach((u) => u());

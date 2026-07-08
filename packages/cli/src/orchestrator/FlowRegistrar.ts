@@ -192,7 +192,7 @@ export class FlowRegistrar {
 
     // Builtin routines — available in every flow, not declared in flow.json.
     try {
-      toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor));
+      toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor, supervisor));
     } catch (error) {
       logger.warn("[feature-forge] Failed to register set_flow_param", { error });
     }

@@ -273,7 +273,7 @@ describe("flow round-trip", () => {
       const routineToolNames = new Set<string>();
 
       for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-        const tool = new RoutineTool(flow.name, routineName, executor, routineDef);
+        const tool = new RoutineTool(flow.name, routineName, executor, routineDef, {} as any);
         routineToolNames.add(tool.name);
       }
 

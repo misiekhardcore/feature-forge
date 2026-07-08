@@ -1,5 +1,6 @@
 import type { FlowInstruction } from "../FlowInstruction";
 import type { RoutineExecutor } from "../RoutineExecutor";
+import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { RoutineTool } from "../RoutineTool";
 
 /**
@@ -12,7 +13,7 @@ import { RoutineTool } from "../RoutineTool";
  * Defined here (not in flow.json) because it is flow-independent
  * infrastructure — every flow needs it, no flow author should declare it.
  */
-export function createSetFlowParamTool(flowName: string, executor: RoutineExecutor): RoutineTool {
+export function createSetFlowParamTool(flowName: string, executor: RoutineExecutor, supervisor: AgentSupervisor): RoutineTool {
   const definition = {
     params: [
       { name: "key", description: "Session key to set" },
@@ -28,5 +29,5 @@ export function createSetFlowParamTool(flowName: string, executor: RoutineExecut
     ],
   };
 
-  return new RoutineTool(flowName, "set_flow_param", executor, definition);
+  return new RoutineTool(flowName, "set_flow_param", executor, definition, supervisor);
 }
