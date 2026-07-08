@@ -19,6 +19,7 @@ const hoisted = vi.hoisted(() => {
     systemPrompt: "# persona",
     tools: [],
     excludedTools: [],
+    toolRestrictions: {},
     disableBuiltinTools: false,
     disableContextFiles: false,
     disableExtensions: false,

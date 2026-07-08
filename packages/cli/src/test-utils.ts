@@ -288,6 +288,7 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
+        toolRestrictions: {},
         model: undefined,
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
@@ -307,6 +308,7 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
+        toolRestrictions: {},
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),

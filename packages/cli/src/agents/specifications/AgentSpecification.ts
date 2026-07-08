@@ -6,6 +6,7 @@ export type AgentSpecificationParams = {
   systemPrompt: string;
   tools?: readonly string[];
   excludedTools?: readonly string[];
+  toolRestrictions?: Record<string, readonly string[]>;
   model?: string;
   thinkingLevel?: ThinkingLevel;
   disableBuiltinTools?: boolean;
@@ -33,6 +34,24 @@ export abstract class AgentSpecification {
   public readonly tools: readonly string[];
   /** Denylist of tool names to disable even if they'd otherwise be active. */
   public readonly excludedTools: readonly string[] = [];
+  /**
+   * Per-tool pattern restrictions that limit what an agent can do with
+   * granted tools.
+   *
+   * Unlike {@link excludedTools} (which removes a tool entirely from the
+   * active set), `toolRestrictions` keeps the tool available but limits
+   * its inputs. For example `{ bash: ["git *", "npm *"] }` keeps bash
+   * available but only allows git and npm commands.
+   *
+   * Keys are tool names and values are arrays of glob patterns. A tool
+   * call passes when its input value matches at least one positive
+   * pattern and no negation (`!`) pattern.
+   *
+   * Tools not listed in the map are unrestricted. Tools listed in the
+   * map but not recognised by the restriction interceptor are always
+   * blocked.
+   */
+  public readonly toolRestrictions: Record<string, readonly string[]> = {};
   /** Model pattern (e.g. "claude-sonnet-4-5"). Undefined = use default. */
   public readonly model?: string | undefined;
   /** Thinking/reasoning level. Undefined = use default. */
@@ -61,6 +80,7 @@ export abstract class AgentSpecification {
     this.systemPrompt = params.systemPrompt;
     this.tools = params.tools ?? [];
     this.excludedTools = params.excludedTools ?? [];
+    this.toolRestrictions = params.toolRestrictions ?? {};
     this.model = params.model;
     this.thinkingLevel = params.thinkingLevel;
     this.disableBuiltinTools = params.disableBuiltinTools ?? false;

@@ -3,27 +3,16 @@ import { AgentSpecification } from "../specifications";
 /**
  * Converts an AgentSpecification into pi CLI arguments.
  *
- * Every specification field that maps to a CLI flag is translated here.
- * Callers (factories, tests, direct spawns) use this single helper instead
- * of duplicating the mapping logic.
+ * Only fields that have no runtime ExtensionAPI equivalent are passed
+ * via CLI flags. Fields handled through FORGE_SPEC child-side resolution
+ * (tools, excludedTools, toolRestrictions, thinkingLevel, systemPrompt)
+ * are intentionally excluded — they are applied in activateSpecResolution().
  */
 export function buildPiCliArguments(specification: AgentSpecification): string[] {
   const args: string[] = [];
 
-  // --- Tools ---
-  if (specification.tools.length > 0) {
-    args.push("--tools", specification.tools.join(","));
-  }
-  if (specification.excludedTools.length > 0) {
-    args.push("--exclude-tools", specification.excludedTools.join(","));
-  }
   if (specification.disableBuiltinTools) {
     args.push("--no-builtin-tools");
-  }
-
-  // --- Reasoning ---
-  if (specification.thinkingLevel) {
-    args.push("--thinking", specification.thinkingLevel);
   }
 
   // --- Resource loading ---
@@ -38,11 +27,6 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
   }
   if (specification.disableContextFiles) {
     args.push("--no-context-files");
-  }
-
-  // --- System prompt ---
-  if (specification.systemPrompt) {
-    args.push("--system-prompt", specification.systemPrompt);
   }
 
   // --- Session ---

@@ -17,6 +17,7 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
+import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
@@ -64,22 +65,31 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // children receive FORGE_PARENT_SOCKET in their process environment.
   const childEnv: Record<string, string> = {};
 
-  const factory = new PiSubprocessAgentFactory({
-    env: childEnv,
-    cwd: process.cwd(),
-  });
   const specRegistry = new SpecRegistry();
   const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
   await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
+
+  const factory = new PiSubprocessAgentFactory({
+    env: childEnv,
+    cwd: process.cwd(),
+  });
   const supervisor = new InMemoryAgentSupervisor(factory);
   const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
   const socketPath = await ipcServer.start();
   childEnv.FORGE_PARENT_SOCKET = socketPath;
   const targetSocketPath = process.env.FORGE_PARENT_SOCKET ?? socketPath;
+
+  // ── Child-side spec resolution ────────────────────────────────────
+  // When FORGE_SPEC is set (child process receives full spec as JSON),
+  // resolve and apply tools, system prompt, tool restrictions, and
+  // thinking level from the spec locally.
+  activateSpecResolution(pi);
+
   // Every session runs as a client.
   // Child sessions: FORGE_PARENT_SOCKET points to the parent's server.
   // Root parent: no env var, so connect to our own server (loopback).
+  // connectChildClient also forwards agent_update push events to the user.
   const client = await connectChildClient(targetSocketPath, pi);
 
   // Set up worktree infrastructure
