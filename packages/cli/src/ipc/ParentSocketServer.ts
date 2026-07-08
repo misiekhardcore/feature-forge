@@ -216,7 +216,14 @@ export class ParentSocketServer {
 
       try {
         // Block until the agent completes
-        const result = await agent.executeTask(params.prompt, { timeout: params.timeout });
+        const result = await agent.executeTask(params.prompt, {
+          timeout: params.timeout,
+          onEvent: (event) => {
+            this.pi.events.emit("feature-forge:agent-stream", {
+              details: { agentId: agent.id, event },
+            });
+          },
+        });
         this.sendResponse(socket, correlationId, { result });
       } catch (error) {
         if (socketClosed) {
@@ -233,15 +240,24 @@ export class ParentSocketServer {
       this.sendResponse(socket, correlationId, { status: "dispatched" });
 
       // Execute in background and push result when done
-      agent.executeTask(params.prompt, { timeout: params.timeout }).then(
-        (result) => {
-          this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
-        },
-        (error) => {
-          const message = error instanceof Error ? error.message : String(error);
-          this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
-        },
-      );
+      agent
+        .executeTask(params.prompt, {
+          timeout: params.timeout,
+          onEvent: (event) => {
+            this.pi.events.emit("feature-forge:agent-stream", {
+              details: { agentId: agent.id, event },
+            });
+          },
+        })
+        .then(
+          (result) => {
+            this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
+          },
+          (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+          },
+        );
     }
   }
 
