@@ -50,12 +50,14 @@ class ParseJsonExecutor extends StepExecutor {
     return context.withResult(instruction.id, {
       raw: JSON.stringify({ passed, summary: `iteration ${iteration}` }),
       parsed: {
-        kind: "review" as const,
         passed,
-        findings: {
-          critical: passed ? [] : [`issue round ${iteration}`],
-          warnings: [],
-          info: [],
+        summary: passed ? "no findings" : `1 critical`,
+        details: {
+          findings: {
+            critical: passed ? [] : [`issue round ${iteration}`],
+            warnings: [],
+            info: [],
+          },
         },
       },
     });
@@ -139,9 +141,9 @@ describe("LoopStepExecutor", () => {
             return context.withResult(instruction.id, {
               raw: JSON.stringify({ passed: false, summary: "fail" }),
               parsed: {
-                kind: "review" as const,
                 passed: false,
-                findings: { critical: ["always fails"], warnings: [], info: [] },
+                summary: "1 critical",
+                details: { findings: { critical: ["always fails"], warnings: [], info: [] } },
               },
             });
           }

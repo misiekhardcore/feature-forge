@@ -220,7 +220,7 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
 
@@ -475,6 +475,41 @@ describe("AgentStepExecutor", () => {
         );
       });
 
+      it("carries passed and summary in agent-done event for review agents", async () => {
+        const agent = makeMockAgent(
+          '```json\n{"passed": false, "findings": {"critical": ["bug"], "warnings": ["style"], "info": []}}\n```',
+        );
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "reviewer",
+          systemPrompt: "review",
+          prompt: "review",
+          parseJson: true,
+        };
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
+
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
+
+        expect(eventBus.emit).toHaveBeenCalledWith(
+          "feature-forge:agent-done",
+          expect.objectContaining({
+            phase: "agent-done",
+            details: expect.objectContaining({
+              passed: false,
+              summary: "1 critical, 1 warnings",
+            }),
+          }),
+        );
+      });
+
       it("does not emit agent-done when agent execution fails", async () => {
         const error = new Error("build failed");
         const agent = makeMockAgentThatThrows(error);
@@ -574,7 +609,7 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
-      expect(result.results.get("builder")!.parsed!.kind).toBe("build");
+      expect(result.results.get("builder")!.parsed!.details).toBeUndefined();
     });
 
     it("defaults passed to false when missing in build JSON", async () => {
@@ -598,7 +633,7 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
-      expect(result.results.get("builder")!.parsed!.kind).toBe("build");
+      expect(result.results.get("builder")!.parsed!.details).toBeUndefined();
     });
 
     it("defaults summary to empty string when missing in build JSON", async () => {
@@ -644,7 +679,7 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
 
@@ -668,7 +703,7 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
   });
@@ -706,6 +741,20 @@ describe("AgentStepExecutor", () => {
       expect(contrib!.agentId).toBe("reviewer");
       expect(contrib!.agentStatus).toBe("done");
       expect(contrib!.agentSummary).toBe("All good");
+    });
+
+    it("extracts agentPassed from agent-done event details", () => {
+      const executor = makeExecutor();
+      const contrib = executor.getDisplayContribution({
+        phase: "agent-done",
+        message: 'Agent "reviewer" completed',
+        details: { summary: "3 critical", passed: false },
+      });
+
+      expect(contrib).toBeDefined();
+      expect(contrib!.agentStatus).toBe("done");
+      expect(contrib!.agentPassed).toBe(false);
+      expect(contrib!.agentSummary).toBe("3 critical");
     });
 
     it("returns agentStatus 'error' for agent-error phase", () => {

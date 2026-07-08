@@ -65,7 +65,6 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       const result: InstructionResult = {
         raw: output,
         parsed: {
-          kind: "build",
           passed: true,
           summary: `Shell command completed: ${resolvedCommand}`,
         },
@@ -98,7 +97,6 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       const failureResult: InstructionResult = {
         raw: raw,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `Shell command failed: ${resolvedCommand}`,
         },

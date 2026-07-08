@@ -64,21 +64,34 @@ export class ProgressRenderer {
   /**
    * Map an agent status to a theme-coloured icon character.
    *
-   * - `"done"` → success green ✓
+   * - `"done"` + passed → success green ✓
+   * - `"done"` + !passed → error red ✗
    * - `"started"` → warning yellow ⏳
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
-  static statusIcon(status: string | undefined, theme: ThemeLike): string {
+  static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
+    const icon = (() => {
+      switch (status) {
+        case "done":
+          return passed === false ? "✗" : "✓";
+        case "started":
+          return "⏳";
+        case "error":
+          return "✗";
+        default:
+          return "○";
+      }
+    })();
     switch (status) {
       case "done":
-        return theme.fg("success", "✓");
+        return theme.fg(passed === false ? "error" : "success", icon);
       case "started":
-        return theme.fg("warning", "⏳");
+        return theme.fg("warning", icon);
       case "error":
-        return theme.fg("error", "✗");
+        return theme.fg("error", icon);
       default:
-        return theme.fg("muted", "○");
+        return theme.fg("muted", icon);
     }
   }
 
@@ -155,18 +168,22 @@ export class ProgressRenderer {
   }
 
   /**
-   * Build a {@link Map} of agent id → {status, summary} from accumulated contributions.
+   * Build a {@link Map} of agent id → {status, summary, passed} from accumulated contributions.
    *
    * Later contributions for the same agent id overwrite earlier ones,
    * so the map always reflects the most recent status for each agent.
    */
   static buildAgentMap(
     contributions: readonly DisplayContribution[],
-  ): Map<string, { status: string; summary?: string }> {
-    const map = new Map<string, { status: string; summary?: string }>();
+  ): Map<string, { status: string; summary?: string; passed?: boolean }> {
+    const map = new Map<string, { status: string; summary?: string; passed?: boolean }>();
     for (const c of contributions) {
       if (c.agentId && c.agentStatus) {
-        map.set(c.agentId, { status: c.agentStatus, summary: c.agentSummary });
+        map.set(c.agentId, {
+          status: c.agentStatus,
+          summary: c.agentSummary,
+          passed: c.agentPassed,
+        });
       }
     }
     return map;
@@ -275,7 +292,7 @@ export class ProgressRenderer {
     }
 
     const passed = result.details?.passed ?? false;
-    const icon = passed ? theme.fg("success", "✓") : theme.fg("error", "✗");
+    const icon = ProgressRenderer.statusIcon("done", theme, passed);
 
     return {
       render: () => [`${icon} ${routine} · ${passed ? "passed" : "failed"}`],
@@ -301,7 +318,7 @@ export class ProgressRenderer {
 
     const rows: string[] = [];
     for (const [label, agent] of agentMap) {
-      const icon = ProgressRenderer.statusIcon(agent.status, theme);
+      const icon = ProgressRenderer.statusIcon(agent.status, theme, agent.passed);
       rows.push(ProgressRenderer.formatAgentRow(icon, label, agent.summary));
     }
 
@@ -323,7 +340,7 @@ export class ProgressRenderer {
 
     const tags: string[] = [];
     for (const [label, agent] of agentMap) {
-      tags.push(`${ProgressRenderer.statusIcon(agent.status, theme)} ${label}`);
+      tags.push(`${ProgressRenderer.statusIcon(agent.status, theme, agent.passed)} ${label}`);
     }
 
     const statusText = ProgressRenderer.buildStatusLine({

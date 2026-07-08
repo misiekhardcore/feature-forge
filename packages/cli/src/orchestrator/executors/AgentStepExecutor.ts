@@ -90,10 +90,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const result = this.buildResult(raw, instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
 
+      const agentPassed = result.parsed?.passed;
+      const agentSummary = result.parsed?.summary;
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
         message: `Agent "${instructionId}" completed`,
-        details: {},
+        details: { summary: agentSummary, passed: agentPassed },
       });
 
       return updatedContext;
@@ -109,7 +111,6 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const failureResult: InstructionResult = {
         raw: err.message,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `Agent "${instructionId}" failed: ${err.message}`,
         },
@@ -146,6 +147,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       agentId,
       agentStatus,
       agentSummary: event.details.summary,
+      agentPassed: event.details.passed,
       phase: event.phase,
       message: event.message,
     };

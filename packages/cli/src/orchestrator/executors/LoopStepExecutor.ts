@@ -134,7 +134,6 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     const loopResult: InstructionResult = {
       raw: JSON.stringify({ iterations: current.iteration + 1, maxIterations }),
       parsed: {
-        kind: "build",
         passed: true,
         summary: `Loop completed ${current.iteration + 1} iteration(s)`,
       },

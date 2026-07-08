@@ -15,6 +15,8 @@ export interface DisplayContribution {
   agentStatus?: string;
   /** Summary text from a completed agent step. */
   agentSummary?: string;
+  /** Whether the agent's parsed result passed (undefined when not available). */
+  agentPassed?: boolean;
   /** Current iteration index (0-based). */
   iteration?: number;
   /** Maximum number of loop iterations. */

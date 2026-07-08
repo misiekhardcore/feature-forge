@@ -221,25 +221,20 @@ export class FlowContext {
 
 // ── Types ────────────────────────────────────────────────────
 
-export interface ReviewFindings {
-  kind: "review";
-  passed: boolean;
-  findings: {
-    critical: string[];
-    warnings: string[];
-    info: string[];
-  };
-}
-
-export interface BuildOutcome {
-  kind: "build";
+/**
+ * Universal agent output shape.
+ *
+ * Every agent must produce `passed` and `summary`. All other fields
+ * are agent-defined and passed through opaquely in `details` — the
+ * codebase never inspects agent-specific internals.
+ */
+export interface AgentOutput {
   passed: boolean;
   summary: string;
+  details?: Record<string, unknown>;
 }
-
-export type ParsedResult = ReviewFindings | BuildOutcome;
 
 export interface InstructionResult {
   raw: string;
-  parsed?: ParsedResult;
+  parsed?: AgentOutput;
 }

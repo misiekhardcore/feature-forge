@@ -64,7 +64,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
 
     return context.withWorkspace("ws", handle).withResult("ws", {
       raw: JSON.stringify({ path }),
-      parsed: { kind: "build", passed: true, summary: `Workspace created at ${path}` },
+      parsed: { passed: true, summary: `Workspace created at ${path}` },
     });
   }
 
