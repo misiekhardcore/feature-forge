@@ -209,8 +209,8 @@ describe("PiSubprocessAgent", () => {
       await agent.start();
       const controller = new AbortController();
 
-      // promptAndWait rejects when abort fires, simulating the RPC terminating.
-      getRpcMock().promptAndWait.mockImplementationOnce(() => {
+      // prompt rejects when abort fires, simulating the RPC terminating.
+      getRpcMock().prompt.mockImplementationOnce(() => {
         controller.abort();
         throw new DOMException("The operation was aborted", "AbortError");
       });
