@@ -194,7 +194,11 @@ export class AgentViewerOverlay implements Component {
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
-    if (this.streamDir && this.executionId) {
+    // Skip writing message_update deltas to the stream file — each
+    // carries only a few chars of incremental text and produces a
+    // flood of near-identical lines.  The fully assembled message
+    // arrives as message_end.
+    if (this.streamDir && this.executionId && event.type !== "message_update") {
       try {
         mkdirSync(this.streamDir, { recursive: true });
         const filePath =
