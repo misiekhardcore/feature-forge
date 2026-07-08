@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,6 +9,15 @@ import { AgentStatus } from "@feature-forge/shared";
 import { logger } from "../logging";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { Command } from "./Command";
+
+/**
+ * Events buffered before the viewer is ready. Replayed once construction completes.
+ */
+interface BufferedEvent {
+  agentId: string;
+  executionId: string | undefined;
+  event: unknown;
+}
 
 /**
  * Opens the AgentViewerOverlay showing all tracked agents from the
@@ -25,59 +35,73 @@ export class AgentListCommand extends Command {
       return;
     }
 
-    const streamDir = mkdtempSync(join(tmpdir(), "forge-streams-"));
-    process.once("exit", () => {
+    let streamDir: string | undefined;
+    try {
+      streamDir = await mkdtemp(join(tmpdir(), "forge-streams-"));
+    } catch (err) {
+      logger.error("Failed to create stream temp directory", { err });
+      ctx.ui?.notify("Failed to open agent viewer.", "error");
+      return;
+    }
+
+    // Register cleanup hooks so temp files don't accumulate on crash.
+    const cleanup = (): void => {
       try {
         rmSync(streamDir, { recursive: true, force: true });
-      } catch {
-        /* best-effort */
+      } catch (err) {
+        logger.warn("Agent viewer temp cleanup failed", { streamDir, err });
       }
-    });
-
-    // Holder so finally block can unsubscribe even if ctx.ui.custom throws.
-    let unsub: (() => void) | undefined;
+    };
+    process.once("exit", cleanup);
+    const uncaughtHandler = (): void => cleanup();
+    process.once("uncaughtException", uncaughtHandler);
 
     try {
       await ctx.ui?.custom<void>(
         (tui, theme, _kb, done) => {
-          // Buffer events delivered between subscription and viewer creation
-          // so none are dropped during the synchronous construction gap.
-          const eventBuffer: Array<{ agentId: string; event: unknown }> = [];
+          // Buffer events that arrive before the viewer is fully constructed.
+          const eventBuffer: BufferedEvent[] = [];
 
-          // let required because the subscription closure references viewer
-          // before it is assigned to the constructor result.
-          // eslint-disable-next-line prefer-const
-          let viewer: AgentViewerOverlay;
-
-          unsub = this.pi.events.on("feature-forge:agent-stream", (data) => {
-            const payload = data as { details?: { agentId?: string; event?: unknown } };
+          const unsub = this.pi.events.on("feature-forge:agent-stream", (data) => {
+            const payload = data as {
+              details?: { agentId?: string; executionId?: string; event?: unknown };
+            };
             if (payload.details?.agentId && payload.details?.event) {
               if (viewer) {
-                viewer.pushStreamEvent(payload.details.agentId, payload.details.event);
+                viewer.pushStreamEvent(
+                  payload.details.agentId,
+                  payload.details.event,
+                  payload.details.executionId,
+                );
               } else {
                 eventBuffer.push({
                   agentId: payload.details.agentId,
+                  executionId: payload.details.executionId,
                   event: payload.details.event,
                 });
               }
             }
           });
 
+          // eslint-disable-next-line prefer-const
+          let viewer: AgentViewerOverlay;
           viewer = new AgentViewerOverlay(tui, theme, () => {
-            unsub?.();
-            unsub = undefined;
+            unsub();
             try {
               rmSync(streamDir, { recursive: true, force: true });
             } catch (err) {
-              logger.debug("Agent viewer stream cleanup failed", { streamDir, err });
+              logger.warn("Agent viewer stream cleanup failed", { streamDir, err });
             }
+            process.removeListener("exit", cleanup);
+            process.removeListener("uncaughtException", uncaughtHandler);
             done();
           });
 
-          // Replay buffered events into the now-ready viewer.
-          for (const { agentId, event } of eventBuffer) {
-            viewer.pushStreamEvent(agentId, event);
+          // Replay buffered events into the viewer.
+          for (const buffered of eventBuffer) {
+            viewer.pushStreamEvent(buffered.agentId, buffered.event, buffered.executionId);
           }
+          eventBuffer.length = 0;
 
           viewer.setAgentExecutionId("agent-list", streamDir);
 
@@ -104,11 +128,14 @@ export class AgentListCommand extends Command {
         },
       );
     } finally {
-      unsub?.();
+      // If ctx.ui.custom throws before the onDone callback runs, clean up.
+      process.removeListener("exit", cleanup);
+      process.removeListener("uncaughtException", uncaughtHandler);
+      // Leave streamDir for onDone to clean up (it calls rmSync).
     }
   };
 
-  private formatElapsed(createdAt: Date): string {
+  private formatElapsed(createdAt: Date | undefined): string {
     if (!createdAt) return "—";
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
