@@ -70,9 +70,6 @@ export class AgentViewerOverlay implements Component {
   /** Called when the user presses Escape in list view. */
   private readonly onDone: () => void;
 
-  /** Execution-scoped identifier used as a prefix for stream filenames. */
-  private executionId?: string;
-
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
 
@@ -100,18 +97,24 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Configure execution-scoped stream file behaviour.
+   * Configure the stream file directory.
    *
    * When set, every {@link pushStreamEvent} call persists the formatted
    * event line to an append-only log file named
-   * `{executionId}-{agentId}.stream` under the given directory.
+   * `{agentId}.stream` under the given directory.
    *
-   * @param executionId — Unique execution identifier used as a filename prefix.
    * @param streamDir — Directory for filesystem-backed stream buffers.
    */
-  setAgentExecutionId(executionId: string, streamDir?: string): void {
-    this.executionId = executionId;
+  setStreamDir(streamDir: string): void {
     this.streamDir = streamDir;
+  }
+
+  /**
+   * @deprecated Use {@link setStreamDir} — the executionId prefix is no
+   * longer part of the file path.
+   */
+  setAgentExecutionId(_executionId: string, streamDir?: string): void {
+    if (streamDir) this.setStreamDir(streamDir);
   }
 
   // ── Component interface ───────────────────────────────────
@@ -194,16 +197,19 @@ export class AgentViewerOverlay implements Component {
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
-    // Skip writing message_update deltas to the stream file — each
-    // carries only a few chars of incremental text and produces a
-    // flood of near-identical lines.  The fully assembled message
-    // arrives as message_end.
-    if (this.streamDir && this.executionId && event.type !== "message_update") {
+    // Skip noisy events from the stream file:
+    // - message_update: tiny incremental deltas; full text arrives as message_end
+    // - turn_start / turn_end: lifecycle noise with no actionable content
+    // - message_end with no extracted text: nothing to show
+    const shouldWrite =
+      event.type !== "message_update" &&
+      event.type !== "turn_start" &&
+      event.type !== "turn_end" &&
+      !(event.type === "message_end" && line === "message_end");
+    if (this.streamDir && shouldWrite) {
       try {
         mkdirSync(this.streamDir, { recursive: true });
-        const filePath =
-          this.streamFiles.get(agentId) ??
-          join(this.streamDir, `${this.executionId}-${agentId}.stream`);
+        const filePath = this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
         if (!this.streamFiles.has(agentId)) {
           this.streamFiles.set(agentId, filePath);
         }
@@ -261,21 +267,8 @@ export class AgentViewerOverlay implements Component {
    * configured. Idempotent — safe to call multiple times.
    */
   dispose(): void {
-    if (this.streamDir) {
-      for (const filePath of this.streamFiles.values()) {
-        try {
-          unlinkSync(filePath);
-        } catch {
-          // Silently ignore — file may already be removed.
-        }
-      }
-      // Try to remove the stream directory if empty.
-      try {
-        rmSync(this.streamDir, { recursive: false, force: true });
-      } catch {
-        // Silently ignore.
-      }
-    }
+    // Stream files are shared across overlay instances — do NOT delete
+    // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
     this.lastLines.clear();
     this.clearMemory();

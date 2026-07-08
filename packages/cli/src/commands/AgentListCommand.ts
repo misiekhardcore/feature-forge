@@ -8,6 +8,7 @@ import { AgentStatus } from "@feature-forge/shared";
 
 import { logger } from "../logging";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
+import { getSharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";
 
 /**
@@ -26,7 +27,7 @@ export class AgentListCommand extends Command {
       return;
     }
 
-    const streamDir = mkdtempSync(join(tmpdir(), "forge-streams-"));
+    const streamDir = getSharedStreamDir();
     process.once("exit", () => {
       try {
         rmSync(streamDir, { recursive: true, force: true });
@@ -83,7 +84,7 @@ export class AgentListCommand extends Command {
             viewer.pushStreamEvent(agentId, event);
           }
 
-          viewer.setAgentExecutionId("agent-list", streamDir);
+          viewer.setStreamDir(streamDir);
 
           for (const agent of agents) {
             const status = this.mapStatus(agent.status);

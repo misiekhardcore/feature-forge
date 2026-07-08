@@ -560,7 +560,7 @@ describe("AgentViewerOverlay", () => {
       } as AgentEvent);
 
       // The file should be named with the executionId prefix.
-      const expectedPath = join(tmpDir, "exec-42-builder.stream");
+      const expectedPath = join(tmpDir, "builder.stream");
       expect(existsSync(expectedPath)).toBe(true);
 
       const content = readFileSync(expectedPath, "utf-8");
@@ -734,7 +734,7 @@ describe("AgentViewerOverlay", () => {
       } as AgentEvent);
 
       // Remove the stream file to force a read error.
-      const filePath = join(tmpDir, "exec-1-builder.stream");
+      const filePath = join(tmpDir, "builder.stream");
       rmSync(filePath);
 
       const tail = overlay.getStreamTail("builder");
@@ -773,11 +773,11 @@ describe("AgentViewerOverlay", () => {
       } as AgentEvent);
 
       // File should be written using the second (overwritten) executionId in tmpDir2.
-      const expectedPath = join(tmpDir2, "exec-second-builder.stream");
+      const expectedPath = join(tmpDir2, "builder.stream");
       expect(existsSync(expectedPath)).toBe(true);
 
       // File should NOT be in tmpDir1.
-      const oldPath = join(tmpDir1, "exec-first-builder.stream");
+      const oldPath = join(tmpDir1, "builder.stream");
       expect(existsSync(oldPath)).toBe(false);
 
       overlay.dispose();
@@ -810,9 +810,9 @@ describe("AgentViewerOverlay", () => {
 
       // In-memory line should still be recorded.
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
-      // No disk file because executionId is empty.
+      // Disk file IS written (executionId prefix removed).
       const files = existsSync(tmpDir) ? readdirSync(tmpDir) : [];
-      expect(files.filter((f: string) => f.endsWith(".stream"))).toHaveLength(0);
+      expect(files.filter((f: string) => f.endsWith(".stream"))).toHaveLength(1);
 
       overlay.dispose();
     });
@@ -842,12 +842,13 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
       } as AgentEvent);
 
-      const filePath = join(tmpDir, "exec-1-builder.stream");
+      const filePath = join(tmpDir, "builder.stream");
       expect(existsSync(filePath)).toBe(true);
 
       overlay.dispose();
 
-      expect(existsSync(filePath)).toBe(false);
+      // Files persist in shared dir.
+      expect(existsSync(filePath)).toBe(true);
     });
 
     it("resets agent entries on dispose", () => {

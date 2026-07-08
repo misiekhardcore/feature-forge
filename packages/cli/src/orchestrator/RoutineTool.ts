@@ -17,6 +17,7 @@ import { Type } from "typebox";
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { AgentViewerOverlay } from "./progress";
+import { getSharedStreamDir } from "./progress/sharedStreamDir";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -188,7 +189,7 @@ export class RoutineTool
     let viewerHandle: OverlayHandle | undefined;
     const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
     if (hasUI && ctx.ui) {
-      this.streamDir = mkdtempSync(join(tmpdir(), "forge-stream-"));
+      this.streamDir = getSharedStreamDir();
       ctx.ui
         .custom<void>(
           (tui, theme, _kb, done) => {
@@ -233,8 +234,8 @@ export class RoutineTool
 
         // Wire the execution id for stream file persistence on the first
         // agent-scoped contribution that carries one.
-        if (contrib.executionId && this.agentViewer && !this.executionIdSet) {
-          this.agentViewer.setAgentExecutionId(contrib.executionId, this.streamDir);
+        if (this.agentViewer && !this.executionIdSet) {
+          this.agentViewer.setStreamDir(this.streamDir);
           this.executionIdSet = true;
         }
 
