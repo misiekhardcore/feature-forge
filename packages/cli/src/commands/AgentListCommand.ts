@@ -1,6 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";

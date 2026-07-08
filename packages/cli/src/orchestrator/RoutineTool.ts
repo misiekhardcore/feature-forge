@@ -1,6 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 
 import type {
   AgentToolResult,
@@ -17,12 +15,12 @@ import { Type } from "typebox";
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { AgentViewerOverlay } from "./progress";
-import { getSharedStreamDir } from "./progress/sharedStreamDir";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
 import type { ProgressWidget } from "./progress/ProgressReporter";
 import type { RoutineProgressState } from "./progress/RoutineProgressState";
+import { getSharedStreamDir } from "./progress/sharedStreamDir";
 import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
