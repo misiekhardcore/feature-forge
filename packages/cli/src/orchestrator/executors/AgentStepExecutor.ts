@@ -169,7 +169,6 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       agentSummary: event.details.summary,
       agentPassed: event.details.passed,
       streamEvent,
-      executionId: event.details.executionId,
       phase: event.phase,
       message: event.message,
     };

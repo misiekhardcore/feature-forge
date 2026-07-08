@@ -19,6 +19,8 @@ export interface AgentViewerEntry {
   summary?: string;
   /** Optional raw output from the agent (truncated for display). */
   raw?: string;
+  /** Optional display role (e.g. "builder", "reviewer"). */
+  role?: string;
   /** Optional elapsed time string (e.g. "2m 14s"). */
   elapsed?: string;
   /** Whether the agent's parsed result passed (undefined when not available). */
@@ -297,7 +299,7 @@ export class AgentViewerOverlay implements Component {
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
-  static statusIcon(status: string): string {
+  static statusIcon(status: string, passed?: boolean): string {
     switch (status) {
       case "done":
         return "✓";

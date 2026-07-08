@@ -29,6 +29,7 @@ export class AgentListCommand extends Command {
     await ctx.ui?.custom<void>(
       (tui, theme, _kb, done) => {
         const viewer = new AgentViewerOverlay(tui, theme, () => {
+          unsub();
           try {
             rmSync(streamDir, { recursive: true, force: true });
           } catch {
@@ -36,6 +37,24 @@ export class AgentListCommand extends Command {
           }
           done();
         });
+
+        // Subscribe to agent stream events so the detail view shows
+        // live tool calls, thinking, and results in real time.
+        const unsub = this.pi.events.on("feature-forge:agent-stream", (data) => {
+          const event = data as { details?: { agentId?: string; event?: unknown } };
+          if (event.details?.agentId && event.details?.event) {
+            viewer.pushStreamEvent(event.details.agentId, event.details.event);
+          }
+        });
+
+        // Patch onDone to also unsubscribe from stream events.
+        const originalDone = (viewer as unknown as Record<string, unknown>)["onDone"] as
+          | (() => void)
+          | undefined;
+        (viewer as unknown as Record<string, unknown>)["onDone"] = () => {
+          unsub();
+          originalDone?.();
+        };
 
         viewer.setAgentExecutionId("agent-list", streamDir);
 
@@ -56,7 +75,7 @@ export class AgentListCommand extends Command {
         overlayOptions: {
           anchor: "center",
           width: "100%",
-          height: "95%",
+          maxHeight: "95%",
           margin: 1,
         },
       },
