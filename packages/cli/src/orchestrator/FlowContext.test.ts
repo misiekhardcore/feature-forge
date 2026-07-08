@@ -18,10 +18,9 @@ function makePassedResult(): InstructionResult {
   return {
     raw: "all good",
     parsed: {
-      kind: "review" as const,
       passed: true,
       summary: "no findings",
-      findings: { critical: [], warnings: [], info: [] },
+      details: { findings: { critical: [], warnings: [], info: [] } },
     },
   };
 }
@@ -30,10 +29,9 @@ function makeFailedResult(critical: string[]): InstructionResult {
   return {
     raw: "issues found",
     parsed: {
-      kind: "review" as const,
       passed: false,
       summary: `${critical.length} critical`,
-      findings: { critical, warnings: [], info: [] },
+      details: { findings: { critical, warnings: [], info: [] } },
     },
   };
 }

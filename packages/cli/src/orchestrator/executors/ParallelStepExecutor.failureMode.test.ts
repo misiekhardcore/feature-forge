@@ -168,7 +168,6 @@ describe("ParallelStepExecutor — failureMode", () => {
       expect(result.results.has("b")).toBe(false);
 
       const blockResult = result.results.get("block")!;
-      expect(blockResult.parsed?.kind).toBe("build");
       expect(blockResult.parsed?.passed).toBe(true);
 
       const parsedRaw = JSON.parse(blockResult.raw);

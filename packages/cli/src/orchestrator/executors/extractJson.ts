@@ -1,4 +1,4 @@
-import type { ParsedResult } from "../FlowContext";
+import type { AgentOutput } from "../FlowContext";
 
 /**
  * Extract a JSON block from an agent's raw output.
@@ -6,11 +6,14 @@ import type { ParsedResult } from "../FlowContext";
  * Looks for a ```json ... ``` fenced code block in the output.
  * Returns the parsed object if found and valid, or undefined.
  *
- * Used by {@link AgentStepExecutor} to extract structured findings
+ * Used by {@link AgentStepExecutor} to extract structured results
  * from agent responses when `parseJson: true` is configured on the
  * instruction.
+ *
+ * Only `passed` (boolean) and `summary` (string) are required.
+ * All other fields pass through opaquely in `details`.
  */
-export function extractJson(raw: string): ParsedResult | undefined {
+export function extractJson(raw: string): AgentOutput | undefined {
   const match = raw.match(/```json\s*\n([\s\S]*?)```/);
   if (!match || !match[1]) {
     // Fall back: look for a bare { … } block.
@@ -22,34 +25,49 @@ export function extractJson(raw: string): ParsedResult | undefined {
   return parseOrUndefined(match[1]);
 }
 
-function parseOrUndefined(json: string): ParsedResult | undefined {
+function parseOrUndefined(json: string): AgentOutput | undefined {
   try {
-    const parsed = JSON.parse(json) as ParsedResult;
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const passed = typeof parsed.passed === "boolean" ? parsed.passed : false;
 
-    // Normalize review findings if present.
-    if ("findings" in parsed) {
-      const critical = parsed.findings.critical ?? [];
-      const warnings = parsed.findings.warnings ?? [];
-      const info = parsed.findings.info ?? [];
-      const summaryParts: string[] = [];
-      if (critical.length > 0) summaryParts.push(`${critical.length} critical`);
-      if (warnings.length > 0) summaryParts.push(`${warnings.length} warnings`);
-      if (info.length > 0) summaryParts.push(`${info.length} info`);
-      return {
-        kind: "review",
-        passed: parsed.passed ?? false,
-        summary: summaryParts.length > 0 ? summaryParts.join(", ") : "no findings",
-        findings: { critical, warnings, info },
-      };
+    let summary = typeof parsed.summary === "string" ? parsed.summary : "";
+    if (!summary) {
+      summary = buildSummaryFromDetails(parsed);
     }
 
-    // Default: build outcome.
+    const { passed: _, summary: __, ...rest } = parsed;
     return {
-      kind: "build",
-      passed: parsed.passed ?? false,
-      summary: parsed.summary ?? "",
+      passed,
+      summary,
+      details: Object.keys(rest).length > 0 ? rest : undefined,
     };
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Build a summary from common agent output patterns without knowing
+ * agent-specific field names.
+ *
+ * Walks the parsed object and collects array-length annotations for
+ * any top-level key whose value is an object with array fields.
+ */
+function buildSummaryFromDetails(parsed: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key === "passed" || key === "summary") continue;
+    if (isRecord(value)) {
+      for (const [subKey, subValue] of Object.entries(value)) {
+        if (Array.isArray(subValue) && subValue.length > 0) {
+          parts.push(`${subValue.length} ${subKey}`);
+        }
+      }
+    }
+  }
+  return parts.length > 0 ? parts.join(", ") : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -105,7 +105,6 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const failureResult: InstructionResult = {
         raw: err.message,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `Agent "${instructionId}" failed: ${err.message}`,
         },

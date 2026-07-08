@@ -93,7 +93,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       const result: InstructionResult = {
         raw,
         parsed: {
-          kind: "build",
           passed: true,
           summary: `Git ${instruction.action} completed in ${resolvedCwd}`,
         },
@@ -141,7 +140,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       const result: InstructionResult = {
         raw: err.message,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `Git ${instruction.action} failed: ${err.message}`,
         },

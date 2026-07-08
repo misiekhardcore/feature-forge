@@ -89,7 +89,6 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     const result: InstructionResult = {
       raw: JSON.stringify({ cleaned }),
       parsed: {
-        kind: "build",
         passed: true,
         summary: `Cleanup completed: ${cleaned.length} workspace(s)`,
       },

@@ -220,7 +220,7 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
 
@@ -583,7 +583,7 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
-      expect(result.results.get("builder")!.parsed!.kind).toBe("build");
+      expect(result.results.get("builder")!.parsed!.details).toBeUndefined();
     });
 
     it("defaults passed to false when missing in build JSON", async () => {
@@ -607,7 +607,7 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
-      expect(result.results.get("builder")!.parsed!.kind).toBe("build");
+      expect(result.results.get("builder")!.parsed!.details).toBeUndefined();
     });
 
     it("defaults summary to empty string when missing in build JSON", async () => {
@@ -653,7 +653,7 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
 
@@ -677,7 +677,7 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
-      expect(result.results.get("reviewer")!.parsed!.kind).toBe("review");
+      expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
     });
   });

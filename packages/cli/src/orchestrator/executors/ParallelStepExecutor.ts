@@ -101,7 +101,6 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
       const blockResult: InstructionResult = {
         raw: JSON.stringify({ passed: true, children: childIds }),
         parsed: {
-          kind: "build",
           passed: true,
           summary: `All ${childInstructions.length} parallel steps completed`,
         },
@@ -133,7 +132,6 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
           ? JSON.stringify({ passed, children: childIds, failures: failuresObj })
           : JSON.stringify({ passed, children: childIds }),
       parsed: {
-        kind: "build",
         passed,
         summary: allSucceeded
           ? `All ${childInstructions.length} parallel steps completed`
