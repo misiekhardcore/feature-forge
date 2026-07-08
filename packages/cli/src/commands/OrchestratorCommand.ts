@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 import type { AgentSupervisor } from "../agents";
 import type { InSessionAgent } from "../agents/agents/InSessionAgent";
+import { SessionAgent } from "../agents/agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
@@ -65,6 +66,29 @@ export class OrchestratorCommand extends Command {
     this.agent.mount(this.pi, this.resolveTask(userTask));
 
     ctx.ui.notify(`${this.flow.name} orchestrator loaded.`, "info");
+  }
+
+  /** Whether the flow's session agent is currently mounted and active. */
+  public get isFlowActive(): boolean {
+    return this.agent instanceof SessionAgent && this.agent.isMounted;
+  }
+
+  /**
+   * Unmount the active session agent, restore default tools, and send an
+   * exit message to return the session to default operating mode.
+   */
+  public unmountFlow(): void {
+    if (this.agent instanceof SessionAgent) {
+      this.agent.unmount();
+      this.pi.sendUserMessage(
+        "All flow and role modes have been exited. " +
+          "Return to standard default operation. " +
+          "Forget all previous orchestrator, flow, skill, and role instructions. " +
+          "Use only the default tools and the base system prompt. " +
+          "Do not continue or reference any previous flow tasks. " +
+          'Acknowledge with "Flow exited. Ready."',
+      );
+    }
   }
 
   /**

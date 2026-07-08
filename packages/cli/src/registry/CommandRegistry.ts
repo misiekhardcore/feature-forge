@@ -3,7 +3,7 @@ import { Registry } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
-import { Command } from "../commands";
+import { Command, OrchestratorCommand } from "../commands";
 import type { WorkspaceManager } from "../workspace";
 
 /**
@@ -77,5 +77,15 @@ export class CommandRegistry extends Registry<Command> {
 
   registerAll(...constructors: CommandConstructor[]): Command[] {
     return constructors.map((constructor) => this.register(constructor));
+  }
+
+  /** Find and return the first active orchestrator command, or null. */
+  findActiveOrchestrator(): OrchestratorCommand | null {
+    for (const command of this.items.values()) {
+      if (command instanceof OrchestratorCommand && command.isFlowActive) {
+        return command;
+      }
+    }
+    return null;
   }
 }

@@ -38,6 +38,23 @@ describe("SessionAgent", () => {
       expect(agent.status).toBe(AgentStatus.Running);
     });
 
+    it("saves default tools before overriding them", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash", "edit"]);
+      agent.mount(pi, "task");
+
+      expect(pi.getActiveTools).toHaveBeenCalled();
+      // Default tools are captured internally and restored on unmount.
+    });
+
+    it("isMounted returns true after mount", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+      expect(agent.isMounted).toBe(true);
+    });
+
     it("registers a before_agent_start hook appending the persona system prompt", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
@@ -46,10 +63,10 @@ describe("SessionAgent", () => {
       expect(pi.on).toHaveBeenCalledWith("before_agent_start", expect.any(Function));
       const handler = (pi.on as ReturnType<typeof vi.fn>).mock.calls[0][1] as (event: {
         systemPrompt: string;
-      }) => { systemPrompt: string };
+      }) => { systemPrompt: string } | undefined;
 
       const result = handler({ systemPrompt: "base prompt" });
-      expect(result.systemPrompt).toBe(
+      expect(result!.systemPrompt).toBe(
         "base prompt\n\n---\n\n## Custom system prompt\n\n# You are the orchestrator.",
       );
     });
@@ -83,6 +100,57 @@ describe("SessionAgent", () => {
     });
   });
 
+  describe("unmount", () => {
+    it("transitions to Cancelled", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+      agent.unmount();
+      expect(agent.status).toBe(AgentStatus.Cancelled);
+    });
+
+    it("isMounted returns false after unmount", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+      agent.unmount();
+      expect(agent.isMounted).toBe(false);
+    });
+
+    it("restores default tools that were captured at mount time", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash", "edit", "write"]);
+      agent.mount(pi, "task");
+
+      // mount() calls setActiveTools with the spec tools
+      expect(pi.setActiveTools).toHaveBeenCalledWith(["run_build_loop", "bash"]);
+
+      agent.unmount();
+
+      // unmount should restore what getActiveTools returned at mount time
+      expect(pi.setActiveTools).toHaveBeenLastCalledWith(["read", "bash", "edit", "write"]);
+    });
+
+    it("handler returns undefined after unmount, suppressing the persona", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+
+      const handler = (pi.on as ReturnType<typeof vi.fn>).mock.calls[0][1] as (event: {
+        systemPrompt: string;
+      }) => { systemPrompt: string } | undefined;
+
+      // Before unmount: handler appends persona
+      expect(handler({ systemPrompt: "base" })).toBeDefined();
+
+      agent.unmount();
+
+      // After unmount: handler returns undefined (skips persona injection)
+      expect(handler({ systemPrompt: "base" })).toBeUndefined();
+    });
+  });
+
   describe("destroy", () => {
     it("transitions to Cancelled", async () => {
       const agent = new SessionAgent(spec);
@@ -90,6 +158,14 @@ describe("SessionAgent", () => {
       agent.mount(pi, "task");
       await expect(agent.destroy()).resolves.toBeUndefined();
       expect(agent.status).toBe(AgentStatus.Cancelled);
+    });
+
+    it("isMounted returns false after destroy", async () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+      await agent.destroy();
+      expect(agent.isMounted).toBe(false);
     });
   });
 });

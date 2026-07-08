@@ -1,12 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SessionAgent } from "../agents/agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
-import { makeMockCtx, makeMockPi } from "../test-utils";
+import { makeMockCtx, makeMockPi, makeSpec } from "../test-utils";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -147,5 +148,64 @@ describe("OrchestratorCommand", () => {
     expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(1, pi, "first");
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(2, pi, "second");
+  });
+
+  describe("isFlowActive", () => {
+    it("returns false when agent is not a SessionAgent (plain mock)", () => {
+      const cmd = makeCmd(makeSupervisor(), baseFlow);
+      expect(cmd.isFlowActive).toBe(false);
+    });
+
+    it("returns true when a SessionAgent is mounted", async () => {
+      const specForAgent = makeSpec("flow-agent", {
+        systemPrompt: "persona",
+        role: "orchestrator",
+      });
+      const agent = new SessionAgent(specForAgent);
+      agent.mount(pi, "task");
+      const supervisor = {
+        mountInSession: vi.fn().mockResolvedValue(agent),
+      } as unknown as AgentSupervisor;
+
+      const cmd = makeCmd(supervisor, baseFlow);
+      await cmd.handler("task", makeMockCtx());
+
+      expect(cmd.isFlowActive).toBe(true);
+    });
+  });
+
+  describe("unmountFlow", () => {
+    it("is a no-op when agent is not a SessionAgent", () => {
+      const cmd = makeCmd(makeSupervisor(), baseFlow);
+      cmd.unmountFlow();
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("unmounts the agent and sends an exit message", async () => {
+      vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash", "edit"]);
+
+      const specForAgent = makeSpec("flow-agent", {
+        systemPrompt: "persona",
+        role: "orchestrator",
+        tools: ["run_build_loop", "bash"],
+      });
+      const agent = new SessionAgent(specForAgent);
+      agent.mount(pi, "task");
+      const supervisor = {
+        mountInSession: vi.fn().mockResolvedValue(agent),
+      } as unknown as AgentSupervisor;
+
+      const cmd = makeCmd(supervisor, baseFlow);
+      await cmd.handler("task", makeMockCtx());
+
+      cmd.unmountFlow();
+
+      // Default tools restored
+      expect(pi.setActiveTools).toHaveBeenLastCalledWith(["read", "bash", "edit"]);
+      // Exit message sent
+      expect(pi.sendUserMessage).toHaveBeenCalledWith(expect.stringContaining("flow"));
+      // Agent is no longer mounted
+      expect(agent.isMounted).toBe(false);
+    });
   });
 });
