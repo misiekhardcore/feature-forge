@@ -768,7 +768,6 @@ describe("RoutineTool", () => {
             maxHeight: "95%",
             margin: 1,
           }),
-          onHandle: expect.any(Function),
         }),
       );
 

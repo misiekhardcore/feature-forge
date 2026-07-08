@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -16,6 +16,13 @@ export class SharedStreamDir {
   static get(): string {
     if (!SharedStreamDir.instance) {
       SharedStreamDir.instance = mkdtempSync(join(tmpdir(), "forge-streams-"));
+      process.once("exit", () => {
+        try {
+          rmSync(SharedStreamDir.instance!, { recursive: true, force: true });
+        } catch {
+          /* best-effort */
+        }
+      });
     }
     return SharedStreamDir.instance;
   }

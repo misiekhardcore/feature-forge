@@ -6,7 +6,7 @@ import type {
   ToolDefinition,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import type { Component, OverlayHandle } from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
@@ -182,7 +182,6 @@ export class RoutineTool
 
     // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
     let viewerDismiss: (() => void) | undefined;
-    let viewerHandle: OverlayHandle | undefined;
     const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
     if (hasUI && ctx.ui) {
       this.streamDir = SharedStreamDir.get();
@@ -190,16 +189,16 @@ export class RoutineTool
         .custom<void>(
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
-            const viewer = new AgentViewerOverlay(tui, theme, () => done());
+            const viewer = new AgentViewerOverlay(tui, theme, () => {
+              viewer.dispose();
+              done();
+            });
             this.agentViewer = viewer;
             return viewer;
           },
           {
             overlay: true,
             overlayOptions: AgentViewerOverlay.overlayOptions,
-            onHandle: (handle) => {
-              viewerHandle = handle;
-            },
           },
         )
         .catch(() => {
@@ -287,7 +286,6 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      viewerHandle?.hide();
       viewerDismiss?.();
       this.agentViewer?.dispose();
       this.agentViewer = undefined;

@@ -1,14 +1,11 @@
-import { appendFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
-
-import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { logger } from "../../logging";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -293,84 +290,6 @@ export class AgentViewerOverlay implements Component {
     this.streamFiles.clear();
     this.lastLines.clear();
     this.clearMemory();
-  }
-
-  // ── Static factory & lifecycle ────────────────────────────
-
-  /**
-   * Create an overlay, subscribe to agent-stream events, populate
-   * initial agent entries, and wire up cleanup.
-   *
-   * Callers only need to pass the result to {@code ctx.ui.custom}.
-   */
-  static mount(params: {
-    supervisor: AgentSupervisor;
-    eventBus: EventBus;
-    streamDir: string;
-    tui: TUI;
-    theme: Theme;
-    onDone: () => void;
-  }): { viewer: AgentViewerOverlay; unsub: () => void; cleanup: () => void } {
-    const { supervisor, eventBus, streamDir, tui, theme, onDone } = params;
-
-    const eventBuffer: Array<{ agentId: string; event: AgentEvent }> = [];
-    const agents = supervisor.getAllAgents();
-
-    // let required because the subscription closure references viewer
-    // before it is assigned to the constructor result.
-    // eslint-disable-next-line prefer-const
-    let viewer: AgentViewerOverlay;
-
-    const unsub = eventBus.on("feature-forge:agent-stream", (data) => {
-      const payload = data as { details?: { agentId?: string; event?: unknown } };
-      if (payload.details?.agentId && payload.details?.event) {
-        if (viewer) {
-          viewer.pushStreamEvent(payload.details.agentId, payload.details.event as AgentEvent);
-        } else {
-          eventBuffer.push({
-            agentId: payload.details.agentId,
-            event: payload.details.event as AgentEvent,
-          });
-        }
-      }
-    });
-
-    viewer = new AgentViewerOverlay(tui, theme, () => {
-      unsub?.();
-      try {
-        rmSync(streamDir, { recursive: true, force: true });
-      } catch (err) {
-        logger.debug("Agent viewer stream cleanup failed", { streamDir, err });
-      }
-      onDone();
-    });
-
-    // Replay buffered events into the now-ready viewer.
-    for (const { agentId, event } of eventBuffer) {
-      viewer.pushStreamEvent(agentId, event);
-    }
-
-    viewer.setStreamDir(streamDir);
-
-    for (const agent of agents) {
-      const status = AgentViewerOverlay.mapStatus(agent.status);
-      viewer.update({
-        id: agent.id,
-        status,
-        summary: `${agent.specification.role} — ${agent.status}`,
-        elapsed: AgentViewerOverlay.formatElapsed(agent.createdAt),
-      });
-    }
-
-    const cleanup = () => {
-      try {
-        rmSync(streamDir, { recursive: true, force: true });
-      } catch {
-        /* best-effort */
-      }
-    };
-
-    return { viewer, unsub: () => unsub?.(), cleanup };
   }
 
   /**
