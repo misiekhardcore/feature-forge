@@ -45,6 +45,7 @@ export class AgentListCommand extends Command {
             id: agent.id,
             status,
             summary: `${agent.specification.role} — ${agent.status}`,
+            elapsed: this.formatElapsed(agent.createdAt),
           });
         }
 
@@ -60,6 +61,16 @@ export class AgentListCommand extends Command {
       },
     );
   };
+
+  private formatElapsed(createdAt: Date): string {
+    const ms = Date.now() - createdAt.getTime();
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  }
 
   private mapStatus(status: AgentStatus): string {
     switch (status) {
