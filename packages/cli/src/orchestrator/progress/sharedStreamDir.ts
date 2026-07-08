@@ -10,11 +10,13 @@ import { join } from "node:path";
  * (manual `/agent:list`) use the same directory so stream files survive
  * overlay close/reopen cycles.
  */
-let sharedStreamDir: string | undefined;
+export class SharedStreamDir {
+  private static instance: string | undefined;
 
-export function getSharedStreamDir(): string {
-  if (!sharedStreamDir) {
-    sharedStreamDir = mkdtempSync(join(tmpdir(), "forge-streams-"));
+  static get(): string {
+    if (!SharedStreamDir.instance) {
+      SharedStreamDir.instance = mkdtempSync(join(tmpdir(), "forge-streams-"));
+    }
+    return SharedStreamDir.instance;
   }
-  return sharedStreamDir;
 }

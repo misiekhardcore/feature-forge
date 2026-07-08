@@ -1,10 +1,14 @@
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { AgentStatus } from "@feature-forge/shared";
+
+import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { logger } from "../../logging";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -40,6 +44,18 @@ export type ViewMode = "list" | "detail";
  * Maximum characters of raw agent output to display per entry.
  */
 const DEFAULT_MAX_RAW_LENGTH = 500;
+
+/**
+ * Standard overlay configuration shared by
+ * {@link import("../RoutineTool").RoutineTool} and
+ * {@link import("../../commands/AgentListCommand").AgentListCommand}.
+ */
+const OVERLAY_OPTIONS = {
+  anchor: "center" as const,
+  width: "100%" as const,
+  maxHeight: "95%" as const,
+  margin: 1,
+};
 
 /**
  * TUI component that renders agent execution details in an overlay widget.
@@ -115,6 +131,11 @@ export class AgentViewerOverlay implements Component {
    */
   setAgentExecutionId(_executionId: string, streamDir?: string): void {
     if (streamDir) this.setStreamDir(streamDir);
+  }
+
+  /** The standard overlay options for this component. */
+  static get overlayOptions() {
+    return { ...OVERLAY_OPTIONS };
   }
 
   // ── Component interface ───────────────────────────────────
@@ -272,6 +293,117 @@ export class AgentViewerOverlay implements Component {
     this.streamFiles.clear();
     this.lastLines.clear();
     this.clearMemory();
+  }
+
+  // ── Static factory & lifecycle ────────────────────────────
+
+  /**
+   * Create an overlay, subscribe to agent-stream events, populate
+   * initial agent entries, and wire up cleanup.
+   *
+   * Callers only need to pass the result to {@code ctx.ui.custom}.
+   */
+  static mount(params: {
+    supervisor: AgentSupervisor;
+    eventBus: EventBus;
+    streamDir: string;
+    tui: TUI;
+    theme: Theme;
+    onDone: () => void;
+  }): { viewer: AgentViewerOverlay; unsub: () => void; cleanup: () => void } {
+    const { supervisor, eventBus, streamDir, tui, theme, onDone } = params;
+
+    const eventBuffer: Array<{ agentId: string; event: AgentEvent }> = [];
+    const agents = supervisor.getAllAgents();
+
+    // let required because the subscription closure references viewer
+    // before it is assigned to the constructor result.
+    // eslint-disable-next-line prefer-const
+    let viewer: AgentViewerOverlay;
+
+    const unsub = eventBus.on("feature-forge:agent-stream", (data) => {
+      const payload = data as { details?: { agentId?: string; event?: unknown } };
+      if (payload.details?.agentId && payload.details?.event) {
+        if (viewer) {
+          viewer.pushStreamEvent(payload.details.agentId, payload.details.event as AgentEvent);
+        } else {
+          eventBuffer.push({
+            agentId: payload.details.agentId,
+            event: payload.details.event as AgentEvent,
+          });
+        }
+      }
+    });
+
+    viewer = new AgentViewerOverlay(tui, theme, () => {
+      unsub?.();
+      try {
+        rmSync(streamDir, { recursive: true, force: true });
+      } catch (err) {
+        logger.debug("Agent viewer stream cleanup failed", { streamDir, err });
+      }
+      onDone();
+    });
+
+    // Replay buffered events into the now-ready viewer.
+    for (const { agentId, event } of eventBuffer) {
+      viewer.pushStreamEvent(agentId, event);
+    }
+
+    viewer.setStreamDir(streamDir);
+
+    for (const agent of agents) {
+      const status = AgentViewerOverlay.mapStatus(agent.status);
+      viewer.update({
+        id: agent.id,
+        status,
+        summary: `${agent.specification.role} — ${agent.status}`,
+        elapsed: AgentViewerOverlay.formatElapsed(agent.createdAt),
+      });
+    }
+
+    const cleanup = () => {
+      try {
+        rmSync(streamDir, { recursive: true, force: true });
+      } catch {
+        /* best-effort */
+      }
+    };
+
+    return { viewer, unsub: () => unsub?.(), cleanup };
+  }
+
+  /**
+   * Map an {@link AgentStatus} enum value to a display status string
+   * used by the overlay.
+   */
+  static mapStatus(status: AgentStatus): string {
+    switch (status) {
+      case AgentStatus.Spawned:
+      case AgentStatus.Running:
+        return "started";
+      case AgentStatus.Completed:
+        return "done";
+      case AgentStatus.Failed:
+      case AgentStatus.Cancelled:
+        return "error";
+      default:
+        return "unknown";
+    }
+  }
+
+  /**
+   * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
+   */
+  static formatElapsed(createdAt: Date): string {
+    if (!createdAt) return "—";
+    const ms = Date.now() - createdAt.getTime();
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
   }
 
   // ── Static helpers ────────────────────────────────────────

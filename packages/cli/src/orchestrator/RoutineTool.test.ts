@@ -763,10 +763,10 @@ describe("RoutineTool", () => {
         expect.objectContaining({
           overlay: true,
           overlayOptions: expect.objectContaining({
-            anchor: "bottom-center",
-            width: 80,
-            maxHeight: 15,
-            margin: { bottom: 1 },
+            anchor: "center",
+            width: "100%",
+            maxHeight: "95%",
+            margin: 1,
           }),
           onHandle: expect.any(Function),
         }),

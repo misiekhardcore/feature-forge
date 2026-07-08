@@ -1,5 +1,3 @@
-import { rmSync } from "node:fs";
-
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,
@@ -20,7 +18,7 @@ import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
 import type { ProgressWidget } from "./progress/ProgressReporter";
 import type { RoutineProgressState } from "./progress/RoutineProgressState";
-import { getSharedStreamDir } from "./progress/sharedStreamDir";
+import { SharedStreamDir } from "./progress/sharedStreamDir";
 import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
@@ -187,7 +185,7 @@ export class RoutineTool
     let viewerHandle: OverlayHandle | undefined;
     const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
     if (hasUI && ctx.ui) {
-      this.streamDir = getSharedStreamDir();
+      this.streamDir = SharedStreamDir.get();
       ctx.ui
         .custom<void>(
           (tui, theme, _kb, done) => {
@@ -198,12 +196,7 @@ export class RoutineTool
           },
           {
             overlay: true,
-            overlayOptions: {
-              anchor: "bottom-center",
-              width: 80,
-              maxHeight: 15,
-              margin: { bottom: 1 },
-            },
+            overlayOptions: AgentViewerOverlay.overlayOptions,
             onHandle: (handle) => {
               viewerHandle = handle;
             },
@@ -297,15 +290,6 @@ export class RoutineTool
       viewerHandle?.hide();
       viewerDismiss?.();
       this.agentViewer?.dispose();
-      // Clean up stream directory when overlay creation failed before
-      // AgentViewerOverlay was instantiated (and therefore dispose() never ran).
-      if (!this.agentViewer && this.streamDir) {
-        try {
-          rmSync(this.streamDir, { recursive: true, force: true });
-        } catch {
-          // Silently ignore cleanup errors.
-        }
-      }
       this.agentViewer = undefined;
       this.streamDir = undefined;
       for (const unsub of unsubscribers) unsub();
