@@ -2,12 +2,8 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSupervisor } from "../agents";
-import { SessionAgent } from "../agents/agents/SessionAgent";
 import { Command } from "../commands/Command";
-import { OrchestratorCommand } from "../commands/OrchestratorCommand";
-import type { FlowDefinition } from "../orchestrator/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
-import { makeMockPi, makeMockSpecManager, makeSpec } from "../test-utils";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { CommandRegistry } from "./CommandRegistry";
 
 class TestCommand extends Command {
@@ -72,6 +68,11 @@ describe("CommandRegistry", () => {
       await handler("arg1", {});
 
       expect(executeSpy).toHaveBeenCalledWith("arg1", {});
+    });
+
+    it("passes the registry as the fifth constructor argument", () => {
+      const cmd = registry.register(TestCommand);
+      expect((cmd as TestCommand & { commandRegistry?: unknown }).commandRegistry).toBe(registry);
     });
   });
 
@@ -143,93 +144,6 @@ describe("CommandRegistry", () => {
       expect(registry.unregister("test:cmd")).toBe(true);
       expect(registry.has("test:cmd")).toBe(false);
       expect(registry.size).toBe(0);
-    });
-  });
-
-  describe("findActiveOrchestrator", () => {
-    const baseFlow: FlowDefinition = {
-      $schema: FLOW_SCHEMA_URL,
-      name: "test-flow",
-      command: "/test",
-      orchestrator: { systemPrompt: "test" },
-      routines: {},
-    };
-
-    it("returns null when no orchestrator commands are registered", () => {
-      expect(registry.findActiveOrchestrator()).toBeNull();
-    });
-
-    it("returns null when orchestrator command exists but no flow is active", () => {
-      const orchestrator = new OrchestratorCommand(
-        {} as AgentSupervisor,
-        mockPi,
-        makeMockSpecManager(),
-        undefined,
-        baseFlow,
-      );
-      registry.registerInstance(orchestrator);
-      expect(registry.findActiveOrchestrator()).toBeNull();
-    });
-
-    it("returns the active orchestrator when a flow is mounted", async () => {
-      const specForAgent = makeSpec("flow-agent", {
-        systemPrompt: "persona",
-        role: "orchestrator",
-        tools: [],
-      });
-      const agent = new SessionAgent(specForAgent);
-      agent.mount(mockPi, "task");
-
-      const supervisor = {
-        mountInSession: vi.fn().mockResolvedValue(agent),
-      } as unknown as AgentSupervisor;
-
-      const orchestrator = new OrchestratorCommand(
-        supervisor,
-        mockPi,
-        makeMockSpecManager(),
-        undefined,
-        baseFlow,
-      );
-      registry.registerInstance(orchestrator);
-
-      await orchestrator.handler("task", {
-        ui: { notify: vi.fn() },
-      } as unknown as ExtensionCommandContext);
-
-      const found = registry.findActiveOrchestrator();
-      expect(found).toBe(orchestrator);
-    });
-
-    it("returns null after the active orchestrator is unmounted", async () => {
-      const specForAgent = makeSpec("flow-agent", {
-        systemPrompt: "persona",
-        role: "orchestrator",
-        tools: [],
-      });
-      const agent = new SessionAgent(specForAgent);
-      agent.mount(mockPi, "task");
-
-      const supervisor = {
-        mountInSession: vi.fn().mockResolvedValue(agent),
-      } as unknown as AgentSupervisor;
-
-      const orchestrator = new OrchestratorCommand(
-        supervisor,
-        mockPi,
-        makeMockSpecManager(),
-        undefined,
-        baseFlow,
-      );
-      registry.registerInstance(orchestrator);
-
-      await orchestrator.handler("task", {
-        ui: { notify: vi.fn() },
-      } as unknown as ExtensionCommandContext);
-      expect(registry.findActiveOrchestrator()).toBe(orchestrator);
-
-      orchestrator.unmountFlow();
-      expect(registry.findActiveOrchestrator()).toBeNull();
     });
   });
 });

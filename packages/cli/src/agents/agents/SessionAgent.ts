@@ -34,7 +34,7 @@ export class SessionAgent extends InSessionAgent {
   private _status: AgentStatus = AgentStatus.Spawned;
   private pi: ExtensionAPI | undefined;
   private handler: BeforeAgentStartHandler | undefined;
-  private unmounted = false;
+  private unmounted = true;
   private defaultTools: string[] = [];
 
   constructor(specification: AgentSpecification) {
@@ -47,9 +47,9 @@ export class SessionAgent extends InSessionAgent {
     return this._status;
   }
 
-  /** Whether the agent is currently mounted and active. */
+  /** Whether the agent is currently mounted and injecting its persona. */
   public get isMounted(): boolean {
-    return !this.unmounted && this._status === AgentStatus.Running;
+    return !this.unmounted;
   }
 
   /**
@@ -71,6 +71,9 @@ export class SessionAgent extends InSessionAgent {
     // Save default tools before the flow overrides them.
     this.defaultTools = [...pi.getActiveTools()];
 
+    // pi SDK has no pi.off() — the handler cannot be removed once registered.
+    // Instead we use an internal flag so the handler returns undefined (no-op)
+    // after unmount() is called, suppressing persona injection.
     this.handler = (event) => {
       if (this.unmounted) return undefined;
       return {

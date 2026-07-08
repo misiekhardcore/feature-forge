@@ -3,7 +3,7 @@ import { Registry } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
-import { Command, OrchestratorCommand } from "../commands";
+import { Command } from "../commands";
 import type { WorkspaceManager } from "../workspace";
 
 /**
@@ -16,6 +16,7 @@ type CommandConstructor = new (
   pi: ExtensionAPI,
   specManager: SpecManager,
   workspaceManager?: WorkspaceManager,
+  commandRegistry?: CommandRegistry,
 ) => Command;
 
 export class CommandRegistry extends Registry<Command> {
@@ -34,6 +35,7 @@ export class CommandRegistry extends Registry<Command> {
       this.pi,
       this.specManager,
       this.workspaceManager,
+      this,
     );
     if (this.items.has(command.name)) {
       throw new Error(`Command already registered: ${command.name}`);
@@ -57,7 +59,7 @@ export class CommandRegistry extends Registry<Command> {
    *
    * Use this for commands that need constructor-injected dependencies
    * beyond the standard {@link CommandConstructor} signature, such as
-   * {@link OrchestratorCommand} which requires flow data.
+   * flow-specific commands that require flow data.
    *
    * @throws If a command with the same name is already registered.
    */
@@ -77,15 +79,5 @@ export class CommandRegistry extends Registry<Command> {
 
   registerAll(...constructors: CommandConstructor[]): Command[] {
     return constructors.map((constructor) => this.register(constructor));
-  }
-
-  /** Find and return the first active orchestrator command, or null. */
-  findActiveOrchestrator(): OrchestratorCommand | null {
-    for (const command of this.items.values()) {
-      if (command instanceof OrchestratorCommand && command.isFlowActive) {
-        return command;
-      }
-    }
-    return null;
   }
 }

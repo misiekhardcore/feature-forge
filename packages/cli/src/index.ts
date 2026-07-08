@@ -94,13 +94,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     AgentListCommand,
     AgentDestroyCommand,
     AgentDestroyAllCommand,
+    FlowExitCommand,
     ResearchCommand,
     WorktreeListCommand,
     WorktreeDestroyCommand,
-  );
-  // FlowExitCommand needs the registry to find active orchestrators.
-  cmdRegistry.registerInstance(
-    new FlowExitCommand(supervisor, pi, specManager, workspaceManager, cmdRegistry),
   );
 
   const toolRegistry = new ToolRegistry(client, pi);
