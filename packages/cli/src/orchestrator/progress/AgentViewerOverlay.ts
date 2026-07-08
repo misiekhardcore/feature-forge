@@ -612,6 +612,21 @@ export class AgentViewerOverlay implements Component {
     ] as const;
 
     const eventBuffer: Array<{ agentId: string; event: AgentEvent; status?: string }> = [];
+    let connected = false;
+
+    const deliverStatusEvent = (
+      viewer: AgentViewerOverlay,
+      agentId: string,
+      mappedStatus: string,
+    ) => {
+      const agent = supervisor.getAgent(agentId);
+      viewer.update({
+        id: agentId,
+        status: mappedStatus,
+        summary: agent ? `${agent.specification.role} — ${agent.status}` : undefined,
+        elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
+      });
+    };
 
     const unsubs = channels.map((channel) =>
       eventBus.on(channel, (data) => {
@@ -620,35 +635,44 @@ export class AgentViewerOverlay implements Component {
         if (!agentId) return;
 
         if (channel === "feature-forge:agent-stream" && payload.details?.event) {
-          eventBuffer.push({
-            agentId,
-            event: payload.details.event as AgentEvent,
-          });
+          if (connected) {
+            viewer.pushStreamEvent(agentId, payload.details.event as AgentEvent);
+          } else {
+            eventBuffer.push({
+              agentId,
+              event: payload.details.event as AgentEvent,
+            });
+          }
         } else if (
           channel === "feature-forge:agent-started" ||
           channel === "feature-forge:agent-done"
         ) {
           const status = channel === "feature-forge:agent-started" ? "started" : "done";
-          eventBuffer.push({
-            agentId,
-            event: { type: "agent_start" },
-            status,
-          });
+          const mappedStatus = AgentViewerOverlay.mapStatus(
+            supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+          );
+          if (connected) {
+            deliverStatusEvent(viewer, agentId, mappedStatus);
+          } else {
+            eventBuffer.push({
+              agentId,
+              event: { type: "agent_start" },
+              status,
+            });
+          }
         }
       }),
     );
 
-    const connect = (viewer: AgentViewerOverlay, streamDir: string) => {
+    let viewer: AgentViewerOverlay;
+
+    const connect = (v: AgentViewerOverlay, streamDir: string) => {
+      viewer = v;
+      connected = true;
+
       for (const item of eventBuffer) {
         if (item.status) {
-          const agent = supervisor.getAgent(item.agentId);
-          const status = AgentViewerOverlay.mapStatus(agent?.status ?? AgentStatus.Spawned);
-          viewer.update({
-            id: item.agentId,
-            status,
-            summary: agent ? `${agent.specification.role} — ${agent.status}` : undefined,
-            elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
-          });
+          deliverStatusEvent(viewer, item.agentId, item.status);
         } else {
           viewer.pushStreamEvent(item.agentId, item.event);
         }
