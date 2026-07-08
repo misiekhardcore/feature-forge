@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 import {
   InMemoryAgentSupervisor,
@@ -17,7 +17,7 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
-import { ChildSocketClient } from "./ipc/ChildSocketClient";
+import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
 import { FileLogger } from "./logging";
@@ -137,32 +137,5 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   });
   await flowRegistrar.registerAll();
 };
-
-/**
- * Connect to the parent's Unix socket and wire up push event forwarding.
- */
-async function connectChildClient(
-  socketPath: string,
-  pi: ExtensionAPI,
-): Promise<ChildSocketClient> {
-  const client = new ChildSocketClient(socketPath);
-  await client.connect();
-
-  // Forward async agent update events to the user
-  client.onPush((event) => {
-    if (event.type === "agent_update") {
-      const { agentId, status, result } = event.payload;
-      const message = `**Agent ${agentId}** — ${status}${result ? `:\n\n${result}` : ""}`;
-      pi.sendMessage({
-        customType: "agent_update",
-        content: [{ type: "text", text: message }],
-        display: true,
-        details: event.payload,
-      });
-    }
-  });
-
-  return client;
-}
 
 export default featureForgeExtension;
