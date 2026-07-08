@@ -998,7 +998,7 @@ describe("AgentViewerOverlay", () => {
 
       expect(joined).toContain("✓");
       expect(joined).toContain("builder");
-      expect(joined).toContain("done");
+      expect(joined).toContain("completed");
     });
 
     it("shows summary section when present", () => {

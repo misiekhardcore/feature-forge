@@ -438,8 +438,10 @@ export class AgentViewerOverlay implements Component {
     const icon = AgentViewerOverlay.statusIcon(entry.status);
 
     // Header
+    const statusLabel =
+      entry.status === "started" ? "running" : entry.status === "done" ? "completed" : entry.status;
     lines.push(
-      `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${entry.status}`)}`,
+      `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${statusLabel}`)}`,
     );
     const separatorWidth = Math.min(width, 60);
     lines.push(theme.fg("muted", "─".repeat(separatorWidth)));
@@ -459,6 +461,9 @@ export class AgentViewerOverlay implements Component {
         for (const tailLine of tail.split("\n")) {
           lines.push(`  ${theme.fg("muted", tailLine)}`);
         }
+        lines.push("");
+      } else {
+        lines.push(theme.fg("muted", "  No stream events captured."));
         lines.push("");
       }
     }
@@ -494,10 +499,9 @@ export class AgentViewerOverlay implements Component {
       theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
     );
 
-    // Apply scroll offset — clamp and write back so handleDetailInput
-    // never accumulates excess offset above the visible line count.
-    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, lines.length - 1));
-    const visibleLines = lines.slice(this.scrollOffset);
+    // Clamp scroll offset to visible range without mutating state.
+    const effectiveOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
+    const visibleLines = lines.slice(effectiveOffset);
 
     const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
     return this.addBorder(wrapped, width);
