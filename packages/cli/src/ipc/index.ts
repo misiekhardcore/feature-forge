@@ -25,3 +25,4 @@ export type {
   SpawnSocketMessage,
 } from "./messages";
 export { ParentSocketServer } from "./ParentSocketServer";
+export { connectChildClient } from "./connectChildClient";
