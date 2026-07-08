@@ -69,6 +69,11 @@ describe("CommandRegistry", () => {
 
       expect(executeSpy).toHaveBeenCalledWith("arg1", {});
     });
+
+    it("passes the registry as the fifth constructor argument", () => {
+      const cmd = registry.register(TestCommand);
+      expect((cmd as TestCommand & { commandRegistry?: unknown }).commandRegistry).toBe(registry);
+    });
   });
 
   describe("registerInstance", () => {

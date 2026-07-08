@@ -34,6 +34,8 @@ export class SessionAgent extends InSessionAgent {
   private _status: AgentStatus = AgentStatus.Spawned;
   private pi: ExtensionAPI | undefined;
   private handler: BeforeAgentStartHandler | undefined;
+  private unmounted = true;
+  private defaultTools: string[] = [];
 
   constructor(specification: AgentSpecification) {
     super();
@@ -43,6 +45,11 @@ export class SessionAgent extends InSessionAgent {
 
   public get status(): AgentStatus {
     return this._status;
+  }
+
+  /** Whether the agent is currently mounted and injecting its persona. */
+  public get isMounted(): boolean {
+    return !this.unmounted;
   }
 
   /**
@@ -59,13 +66,23 @@ export class SessionAgent extends InSessionAgent {
   public override mount(pi: ExtensionAPI, task: string): void {
     this.pi = pi;
     this._status = AgentStatus.Running;
+    this.unmounted = false;
 
-    this.handler = (event) => ({
-      systemPrompt:
-        event.systemPrompt +
-        "\n\n---\n\n## Custom system prompt\n\n" +
-        this.specification.systemPrompt,
-    });
+    // Save default tools before the flow overrides them.
+    this.defaultTools = [...pi.getActiveTools()];
+
+    // pi SDK has no pi.off() — the handler cannot be removed once registered.
+    // Instead we use an internal flag so the handler returns undefined (no-op)
+    // after unmount() is called, suppressing persona injection.
+    this.handler = (event) => {
+      if (this.unmounted) return undefined;
+      return {
+        systemPrompt:
+          event.systemPrompt +
+          "\n\n---\n\n## Custom system prompt\n\n" +
+          this.specification.systemPrompt,
+      };
+    };
     pi.on("before_agent_start", this.handler);
 
     pi.sendUserMessage(task);
@@ -76,6 +93,26 @@ export class SessionAgent extends InSessionAgent {
   }
 
   /**
+   * Stop injecting the persona into the system prompt and restore the
+   * default tools that were active before {@link mount}.
+   *
+   * Because the pi SDK does not yet support `pi.off()`, the
+   * `before_agent_start` handler is disabled via an internal flag
+   * instead of being removed.
+   *
+   * Transitions {@link status} from {@link AgentStatus.Running} to
+   * {@link AgentStatus.Cancelled}.
+   */
+  public unmount(): void {
+    this.unmounted = true;
+    if (this.pi) {
+      this.pi.setActiveTools(this.defaultTools);
+    }
+    this._status = AgentStatus.Cancelled;
+    logger.info(`Agent ${this.specification.id} unmounted`);
+  }
+
+  /**
    * Deregister the `before_agent_start` hook (when the SDK supports it) and
    * end this agent's participation in the live session.
    *
@@ -83,14 +120,7 @@ export class SessionAgent extends InSessionAgent {
    * {@link AgentStatus.Cancelled}.
    */
   public override async destroy(): Promise<void> {
-    if (this.pi && this.handler) {
-      // TODO: call pi.off("before_agent_start", handler) when SDK supports it
-      this.handler = undefined;
-    }
-    if (this.pi) {
-      this.pi.setActiveTools([]);
-    }
-    this._status = AgentStatus.Cancelled;
+    this.unmount();
     logger.info(`Agent ${this.specification.id} destroyed`);
   }
 }
