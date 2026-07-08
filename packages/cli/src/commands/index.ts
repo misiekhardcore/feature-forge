@@ -7,4 +7,3 @@ export { OrchestratorCommand } from "./OrchestratorCommand";
 export { ResearchCommand } from "./ResearchCommand";
 export { WorktreeDestroyCommand } from "./WorktreeDestroyCommand";
 export { WorktreeListCommand } from "./WorktreeListCommand";
-export { ToggleAgentViewerCommand } from "./ToggleAgentViewerCommand";
