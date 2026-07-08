@@ -10,6 +10,7 @@ import type { Component } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { logger } from "../logging";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { AgentViewerOverlay } from "./progress";
@@ -24,7 +25,13 @@ import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
 
-const FEATURE_FORGE_CHANNELS = [
+/**
+ * Channels the handler subscribes to for contribution accumulation and
+ * progress widget rendering. Agent channels are included so the widget
+ * shows agent lifecycle status — the overlay is driven separately via
+ * {@link AgentViewerOverlay.wireOverlayEvents}.
+ */
+const PROGRESS_CHANNELS = [
   "feature-forge:workspace-ready",
   "feature-forge:agent-started",
   "feature-forge:agent-stream",
@@ -93,14 +100,12 @@ export class RoutineTool
   /** Temp directory for per-agent stream log files, created fresh per execution. */
   private streamDir: string | undefined;
 
-  /** Whether setAgentExecutionId has been called this execution cycle. */
-  private executionIdSet = false;
-
   constructor(
     flowName: string,
     routineName: string,
     private readonly executor: RoutineExecutor,
     private readonly routineDef: RoutineDefinition,
+    private readonly supervisor?: AgentSupervisor,
   ) {
     this._routineName = routineName;
     this.name = routineName;
@@ -182,6 +187,7 @@ export class RoutineTool
 
     // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
     let viewerDismiss: (() => void) | undefined;
+    let overlayCleanup: (() => void) | undefined;
     const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
     if (hasUI && ctx.ui) {
       this.streamDir = SharedStreamDir.get();
@@ -189,10 +195,29 @@ export class RoutineTool
         .custom<void>(
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
+
+            const wireOpts = this.supervisor
+              ? AgentViewerOverlay.wireOverlayEvents({
+                  eventBus: this.executor.eventBus,
+                  supervisor: this.supervisor,
+                })
+              : undefined;
+
             const viewer = new AgentViewerOverlay(tui, theme, () => {
+              wireOpts?.unsubs.forEach((u) => u());
               viewer.dispose();
               done();
             });
+
+            if (wireOpts) {
+              wireOpts.connect(viewer, this.streamDir!);
+            }
+
+            overlayCleanup = () => {
+              wireOpts?.unsubs.forEach((u) => u());
+              viewer.dispose();
+            };
+
             this.agentViewer = viewer;
             return viewer;
           },
@@ -221,27 +246,6 @@ export class RoutineTool
         if (!isStreamOnly) {
           this._contributions.push(contrib);
         }
-
-        // Wire the execution id for stream file persistence on the first
-        // agent-scoped contribution that carries one.
-        if (this.agentViewer && !this.executionIdSet) {
-          this.agentViewer.setStreamDir(this.streamDir!);
-          this.executionIdSet = true;
-        }
-
-        // Update the agent viewer overlay when the event is agent-scoped.
-        if (contrib.agentId && contrib.agentStatus && this.agentViewer) {
-          this.agentViewer.update({
-            id: contrib.agentId,
-            status: contrib.agentStatus,
-            summary: contrib.agentSummary,
-          });
-        }
-
-        // Forward streaming events to the overlay's per-agent stream buffer.
-        if (contrib.agentId && contrib.streamEvent !== undefined && this.agentViewer) {
-          this.agentViewer.pushStreamEvent(contrib.agentId, contrib.streamEvent);
-        }
       }
 
       this.renderProgress(widget, ctx);
@@ -268,7 +272,7 @@ export class RoutineTool
       }
     };
 
-    const unsubscribers = FEATURE_FORGE_CHANNELS.map((channel) =>
+    const unsubscribers = PROGRESS_CHANNELS.map((channel) =>
       this.executor.eventBus.on(channel, handler),
     );
 
@@ -287,7 +291,7 @@ export class RoutineTool
     } finally {
       widget.clear();
       viewerDismiss?.();
-      this.agentViewer?.dispose();
+      overlayCleanup?.();
       this.agentViewer = undefined;
       this.streamDir = undefined;
       for (const unsub of unsubscribers) unsub();
@@ -299,7 +303,6 @@ export class RoutineTool
   /** Reset accumulated display state before each execution. */
   private resetState(): void {
     this._contributions.length = 0;
-    this.executionIdSet = false;
   }
 
   /** Build and render progress surfaces via the renderer. */

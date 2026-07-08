@@ -2,10 +2,12 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
+
+import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -589,6 +591,86 @@ export class AgentViewerOverlay implements Component {
    * The {@code eventType} parameter is preserved for the fallback path
    * in {@link formatStreamEvent} where the event shape is unknown.
    */
+  /**
+   * Create event subscriptions that feed an overlay with live agent data.
+   *
+   * Returns subscriptions and a {@code connect} callback.  Callers construct the
+   * overlay after subscriptions are established and then call {@code connect}
+   * to replay buffered events, set the stream directory, and populate initial
+   * agent entries from the supervisor.
+   */
+  static wireOverlayEvents(params: { eventBus: EventBus; supervisor: AgentSupervisor }): {
+    connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
+    unsubs: Array<() => void>;
+  } {
+    const { eventBus, supervisor } = params;
+
+    const channels = [
+      "feature-forge:agent-stream",
+      "feature-forge:agent-started",
+      "feature-forge:agent-done",
+    ] as const;
+
+    const eventBuffer: Array<{ agentId: string; event: AgentEvent; status?: string }> = [];
+
+    const unsubs = channels.map((channel) =>
+      eventBus.on(channel, (data) => {
+        const payload = data as { details?: { agentId?: string; event?: unknown } };
+        const agentId = payload.details?.agentId;
+        if (!agentId) return;
+
+        if (channel === "feature-forge:agent-stream" && payload.details?.event) {
+          eventBuffer.push({
+            agentId,
+            event: payload.details.event as AgentEvent,
+          });
+        } else if (
+          channel === "feature-forge:agent-started" ||
+          channel === "feature-forge:agent-done"
+        ) {
+          const status = channel === "feature-forge:agent-started" ? "started" : "done";
+          eventBuffer.push({
+            agentId,
+            event: { type: "agent_start" },
+            status,
+          });
+        }
+      }),
+    );
+
+    const connect = (viewer: AgentViewerOverlay, streamDir: string) => {
+      for (const item of eventBuffer) {
+        if (item.status) {
+          const agent = supervisor.getAgent(item.agentId);
+          const status = AgentViewerOverlay.mapStatus(agent?.status ?? AgentStatus.Spawned);
+          viewer.update({
+            id: item.agentId,
+            status,
+            summary: agent ? `${agent.specification.role} — ${agent.status}` : undefined,
+            elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
+          });
+        } else {
+          viewer.pushStreamEvent(item.agentId, item.event);
+        }
+      }
+      eventBuffer.length = 0;
+
+      viewer.setStreamDir(streamDir);
+
+      for (const agent of supervisor.getAllAgents()) {
+        const status = AgentViewerOverlay.mapStatus(agent.status);
+        viewer.update({
+          id: agent.id,
+          status,
+          summary: `${agent.specification.role} — ${agent.status}`,
+          elapsed: AgentViewerOverlay.formatElapsed(agent.createdAt),
+        });
+      }
+    };
+
+    return { connect, unsubs };
+  }
+
   private static formatDetail(event: AgentEvent, _eventType: string): string {
     // Defensive: `as AgentEvent` casts at runtime may produce object
     // shapes with missing fields. Use guards for all property access.
