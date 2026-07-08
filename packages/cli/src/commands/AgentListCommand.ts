@@ -21,40 +21,47 @@ export class AgentListCommand extends Command {
       return;
     }
 
-    const streamDir = SharedStreamDir.get();
-    let cleanup: (() => void) | undefined;
+    if (ctx.hasUI) {
+      let overlayCleanup: (() => void) | undefined;
+      let viewerDismiss: (() => void) | undefined;
+      const streamDir = SharedStreamDir.get();
+      await ctx.ui
+        .custom<void>(
+          (tui, theme, _kb, done) => {
+            viewerDismiss = done;
 
-    try {
-      await ctx.ui?.custom<void>(
-        (tui, theme, _kb, done) => {
-          const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-            eventBus: this.pi.events,
-            supervisor: this.supervisor,
-          });
+            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+              eventBus: this.pi.events,
+              supervisor: this.supervisor,
+            });
 
-          const viewer = new AgentViewerOverlay(tui, theme, () => {
-            for (const unsub of unsubs) unsub();
-            viewer.dispose();
-            done();
-          });
+            const viewer = new AgentViewerOverlay(tui, theme, () => {
+              unsubs.forEach((u) => u());
+              viewer.dispose();
+              done();
+            });
 
-          connect(viewer, streamDir);
+            connect(viewer, streamDir);
 
-          cleanup = () => {
-            for (const unsub of unsubs) unsub();
-            viewer.dispose();
-          };
-          return viewer;
-        },
-        {
-          overlay: true,
-          overlayOptions: AgentViewerOverlay.overlayOptions,
-        },
-      );
-    } catch (err) {
-      logger.debug("Agent viewer overlay creation failed", { err });
-    } finally {
-      cleanup?.();
+            overlayCleanup = () => {
+              unsubs.forEach((u) => u());
+              viewer.dispose();
+            };
+
+            return viewer;
+          },
+          {
+            overlay: true,
+            overlayOptions: AgentViewerOverlay.overlayOptions,
+          },
+        )
+        .catch((err) => {
+          logger.debug("Agent viewer overlay creation failed", { err });
+        })
+        .finally(() => {
+          overlayCleanup?.();
+          viewerDismiss?.();
+        });
     }
   };
 }

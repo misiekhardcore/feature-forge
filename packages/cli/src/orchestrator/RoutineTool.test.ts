@@ -491,6 +491,7 @@ describe("RoutineTool", () => {
       const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockSetStatus = vi.fn();
       const mockCtx = {
+        hasUI: true,
         ui: { custom: mockCustom, setStatus: mockSetStatus },
         mode: "tui",
       } as unknown as ExtensionContext;
@@ -874,6 +875,7 @@ describe("RoutineTool", () => {
         setStatus: vi.fn(),
       };
       const ctx = {
+        hasUI: true,
         ui: mockUi,
         mode: "tui",
       } as unknown as ExtensionContext;
@@ -907,7 +909,7 @@ describe("RoutineTool", () => {
       const mockTui = { requestRender: vi.fn() };
       const mockTheme = { fg: vi.fn((_c: string, t: string) => t) };
       const mockDoneCallback = vi.fn();
-      const component = factory(mockTui, mockTheme, mockDoneCallback, mockDoneCallback) as {
+      const component = factory(mockTui, mockTheme, {}, mockDoneCallback) as {
         render: (width: number) => string[];
         invalidate: () => void;
         handleInput?: (data: string) => void;

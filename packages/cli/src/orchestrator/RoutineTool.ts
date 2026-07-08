@@ -94,12 +94,6 @@ export class RoutineTool
   /** Rendering delegate — builds TUI components and widget content from live state. */
   private readonly renderer: ProgressRenderer;
 
-  /** Agent viewer overlay instance — created fresh per execution. */
-  private agentViewer: AgentViewerOverlay | undefined;
-
-  /** Temp directory for per-agent stream log files, created fresh per execution. */
-  private streamDir: string | undefined;
-
   constructor(
     flowName: string,
     routineName: string,
@@ -188,33 +182,31 @@ export class RoutineTool
     // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
     let viewerDismiss: (() => void) | undefined;
     let overlayCleanup: (() => void) | undefined;
-    const hasUI = Boolean(ctx.ui && ctx.mode === "tui");
-    if (hasUI && ctx.ui) {
-      this.streamDir = SharedStreamDir.get();
+    if (ctx.hasUI) {
+      const streamDir = SharedStreamDir.get();
       ctx.ui
         .custom<void>(
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
-            const wireOpts = AgentViewerOverlay.wireOverlayEvents({
+            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
               eventBus: this.executor.eventBus,
               supervisor: this.supervisor,
             });
 
             const viewer = new AgentViewerOverlay(tui, theme, () => {
-              wireOpts.unsubs.forEach((u) => u());
+              unsubs.forEach((u) => u());
               viewer.dispose();
               done();
             });
 
-            wireOpts.connect(viewer, this.streamDir!);
+            connect(viewer, streamDir);
 
             overlayCleanup = () => {
-              wireOpts?.unsubs.forEach((u) => u());
+              unsubs.forEach((u) => u());
               viewer.dispose();
             };
 
-            this.agentViewer = viewer;
             return viewer;
           },
           {
@@ -224,6 +216,10 @@ export class RoutineTool
         )
         .catch(() => {
           logger.warn("Agent viewer overlay creation failed");
+        })
+        .finally(() => {
+          overlayCleanup?.();
+          viewerDismiss?.();
         });
     }
 
@@ -288,9 +284,7 @@ export class RoutineTool
       widget.clear();
       viewerDismiss?.();
       overlayCleanup?.();
-      this.agentViewer = undefined;
-      this.streamDir = undefined;
-      for (const unsub of unsubscribers) unsub();
+      unsubscribers.forEach((u) => u());
     }
   }
 
