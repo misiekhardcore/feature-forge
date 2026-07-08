@@ -233,7 +233,7 @@ export class RoutineTool
         // Wire the execution id for stream file persistence on the first
         // agent-scoped contribution that carries one.
         if (this.agentViewer && !this.executionIdSet) {
-          this.agentViewer.setStreamDir(this.streamDir);
+          this.agentViewer.setStreamDir(this.streamDir!);
           this.executionIdSet = true;
         }
 
