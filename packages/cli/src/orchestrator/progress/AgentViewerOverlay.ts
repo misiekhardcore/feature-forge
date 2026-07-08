@@ -299,7 +299,7 @@ export class AgentViewerOverlay implements Component {
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
-  static statusIcon(status: string, passed?: boolean): string {
+  static statusIcon(status: string, _passed?: boolean): string {
     switch (status) {
       case "done":
         return "✓";
@@ -340,6 +340,7 @@ export class AgentViewerOverlay implements Component {
     const result: string[] = [top];
     for (const raw of lines) {
       // Strip ANSI to measure visible length, then pad.
+      // eslint-disable-next-line no-control-regex
       const visible = raw.replace(/\[[0-9;]*m/g, "");
       const pad = visible.length < inner ? " ".repeat(inner - visible.length) : "";
       result.push(theme.fg("border", "│") + raw + pad + theme.fg("border", "│"));
