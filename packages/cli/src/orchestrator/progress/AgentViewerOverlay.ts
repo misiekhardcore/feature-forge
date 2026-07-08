@@ -36,19 +36,6 @@ export interface AgentViewerEntry {
 export type ViewMode = "list" | "detail";
 
 /**
- * Type guard for an object with a `text` string property, used by
- * {@link AgentViewerOverlay.formatStreamEvent} when extracting a detail
- * from a `tool_result` content array.
- */
-function isToolResultTextBlock(value: unknown): value is { text: string } {
-  if (typeof value !== "object" || value === null || !("text" in value)) {
-    return false;
-  }
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate["text"] === "string";
-}
-
-/**
  * Maximum characters of raw agent output to display per entry.
  */
 const DEFAULT_MAX_RAW_LENGTH = 500;
@@ -386,7 +373,7 @@ export class AgentViewerOverlay implements Component {
 
       // Show last stream line for started agents (truncated to fit width).
       const lastLine = this.lastLines.get(id);
-      if (lastLine && entry.status === "started") {
+      if (lastLine) {
         const maxLastLineWidth = Math.max(10, width - 4);
         const truncatedLastLine =
           lastLine.length > maxLastLineWidth
@@ -555,56 +542,105 @@ export class AgentViewerOverlay implements Component {
    * bare type label. Falls back to event-type-specific extraction for
    * tool use, tool result, and message start events.
    */
+  /**
+   * Extract a human-readable detail from an {@link AgentEvent}.
+   *
+   * Handles the actual event shapes emitted by the pi agent-core loop:
+   *
+   * - Lifecycle (agent_start / agent_end / turn_start / turn_end): brief label.
+   * - Message events: extracts role from message_start, text content from
+   *   message_update and message_end.
+   * - Tool events: tool name + brief result summary.
+   */
   private static extractStreamDetail(eventType: string, event: Record<string, unknown>): string {
-    // Prefer generic text-bearing fields — works for message_delta,
-    // content_block_delta, message_update, message_end, and others.
-    const textDelta = event["text_delta"];
-    if (typeof textDelta === "string" && textDelta.trim()) {
-      return textDelta.slice(0, 80);
-    }
-
-    const text = event["text"];
-    if (typeof text === "string" && text.trim()) {
-      return text.slice(0, 80);
-    }
-
-    const delta = event["delta"];
-    if (typeof delta === "object" && delta !== null) {
-      const deltaText = (delta as Record<string, unknown>)["text"];
-      if (typeof deltaText === "string" && deltaText.trim()) {
-        return deltaText.slice(0, 80);
-      }
-    }
-
     switch (eventType) {
-      case "tool_use": {
-        const tool = event["tool"] ?? event["name"];
-        return typeof tool === "string" ? tool : "";
-      }
-      case "tool_result": {
-        const content = event["content"];
-        if (typeof content === "string") return content.slice(0, 80);
-        if (Array.isArray(content) && content.length > 0) {
-          if (isToolResultTextBlock(content[0])) {
-            return content[0].text.slice(0, 80);
-          }
-        }
-        return "";
-      }
+      case "agent_start":
+        return "started";
+      case "agent_end":
+        return "completed";
+      case "turn_start":
+        return "turn start";
+      case "turn_end":
+        return "turn end";
+
       case "message_start": {
-        const role = event["role"];
-        return typeof role === "string" ? role : "";
+        const role = AgentViewerOverlay.getNestedString(event, "message", "role");
+        return role.slice(0, 80);
       }
-      case "content_block_start": {
-        const block = event["content_block"];
-        if (typeof block === "object" && block !== null) {
-          const blockType = (block as Record<string, unknown>)["type"];
-          return typeof blockType === "string" ? blockType : "";
-        }
-        return "";
+
+      case "message_update":
+      case "message_end": {
+        const text = AgentViewerOverlay.extractMessageText(event["message"]);
+        return text.slice(0, 80);
       }
+
+      case "tool_execution_start": {
+        const toolName = event["toolName"];
+        return typeof toolName === "string" ? toolName.slice(0, 80) : "";
+      }
+
+      case "tool_execution_end": {
+        const toolName = event["toolName"];
+        const name = typeof toolName === "string" ? toolName : "";
+        const isErr = event["isError"] === true;
+        const status = isErr ? " (error)" : " (ok)";
+        return (name + status).slice(0, 80);
+      }
+
+      case "tool_execution_update": {
+        const toolName = event["toolName"];
+        const name = typeof toolName === "string" ? toolName : "";
+        const partialRaw = event["partialResult"];
+        const partial =
+          typeof partialRaw === "string"
+            ? partialRaw
+            : typeof partialRaw === "object" && partialRaw !== null
+              ? JSON.stringify(partialRaw)
+              : "";
+        const truncated = partial.length > 60 ? partial.slice(0, 57) + "..." : partial;
+        return (name + ": " + truncated).slice(0, 80);
+      }
+
       default:
         return "";
     }
+  }
+
+  /**
+   * Walk a dotted key path into a nested object and return a string value,
+   * or {@code ""} when any intermediate key is missing.
+   */
+  private static getNestedString(root: unknown, ...keys: string[]): string {
+    let current: unknown = root;
+    for (const key of keys) {
+      if (typeof current !== "object" || current === null) return "";
+      current = (current as Record<string, unknown>)[key];
+    }
+    return typeof current === "string" ? current : "";
+  }
+
+  /**
+   * Extract concatenated text from a message object"s content blocks.
+   *
+   * Handles both arrays of {@code { type: "text", text: "..." }} blocks
+   * and plain string content.
+   */
+  private static extractMessageText(message: unknown): string {
+    if (typeof message === "string") return message;
+    if (typeof message !== "object" || message === null) return "";
+    const msg = message as Record<string, unknown>;
+    const content = msg["content"];
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    const parts: string[] = [];
+    for (const block of content) {
+      if (typeof block === "object" && block !== null) {
+        const b = block as Record<string, unknown>;
+        if (b["type"] === "text" && typeof b["text"] === "string") {
+          parts.push(b["text"]);
+        }
+      }
+    }
+    return parts.join(" ");
   }
 }
