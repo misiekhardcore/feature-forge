@@ -348,10 +348,6 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-<<<<<<< HEAD
-      const icon = AgentViewerOverlay.statusIcon(entry.status);
-      const statusLabel = `[${entry.status}]`;
-=======
       const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
       const iconColor =
         entry.status === "done"
@@ -361,7 +357,6 @@ export class AgentViewerOverlay implements Component {
             : entry.status === "error"
               ? "error"
               : "muted";
->>>>>>> 7232f2e (fix: add elapsed time and role display, remove [status] labels from overlay)
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
