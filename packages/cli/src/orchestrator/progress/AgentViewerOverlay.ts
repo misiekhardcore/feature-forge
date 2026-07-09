@@ -347,11 +347,8 @@ export class AgentViewerOverlay implements Component {
 
   /**
    * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
-   *
-   * Returns {@code "—"} when {@code createdAt} is {@code undefined}.
    */
-  static formatElapsed(createdAt: Date | undefined): string {
-    if (!createdAt) return "—";
+  static formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
     if (seconds < 60) return `${seconds}s`;
@@ -387,9 +384,10 @@ export class AgentViewerOverlay implements Component {
   /**
    * Format a stream event into a single-line human-readable description.
    *
-   * Uses the {@link AgentEvent} discriminated union for type-safe
-   * detail extraction via {@link extractStreamDetail}. Falls back to
-   * JSON serialization for non-AgentEvent payloads.
+   * Accepts any object payload and dispatches based on {@code event.type}
+   * to {@link formatDetail}, which handles {@code Record<string, unknown>}
+   * payloads with guarded property access. Falls back to JSON
+   * serialization for non-object payloads.
    */
   static formatStreamEvent(event: unknown): string {
     if (event !== null && typeof event === "object" && "type" in event) {
