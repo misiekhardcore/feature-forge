@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json",
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
   "name": "verify",
   "command": "/verify",
   "orchestrator": {
@@ -37,7 +37,16 @@
           "parseJson": true,
           "prompt": "Verify acceptance criteria:\n{{task}}\n\nBuild output:\n{{build_output}}"
         }
-      ]
+      ],
+      "input_schema": {
+        "workspace": "string",
+        "task": "string",
+        "build_output": "string"
+      },
+      "output_schema": {
+        "passed": "boolean",
+        "summary": "string"
+      }
     }
   }
 }

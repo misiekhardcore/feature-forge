@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
-import { FlowContext, type InstructionResult } from "./FlowContext";
+import { FeedbackPendingError, FlowContext, type InstructionResult } from "./FlowContext";
 
 function makeHandle(filePath: string): WorkspaceHandle {
   return new WorkspaceHandle(filePath, new Date("2025-01-01"));
@@ -606,6 +606,41 @@ describe("FlowContext", () => {
   // -----------------------------------------------------------------------
   // Immutability — chaining
   // -----------------------------------------------------------------------
+
+  describe("feedbackProvider", () => {
+    it("throws FeedbackPendingError when {{feedback}} is unresolved and provider exists", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        feedbackProvider: async () => {
+          return "user reply";
+        },
+      });
+
+      expect(() => ctx.resolve("{{feedback}}")).toThrow(FeedbackPendingError);
+      expect(() => ctx.resolve("{{feedback}}")).toThrow("Feedback is pending");
+    });
+
+    it("returns feedback when set even if provider exists", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        feedback: "cached feedback",
+        feedbackProvider: async () => "should not be called",
+      });
+
+      expect(ctx.resolve("{{feedback}}")).toBe("cached feedback");
+    });
+
+    it("returns default when no feedback and no provider", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      expect(ctx.resolve("{{feedback}}")).toBe("(no prior findings)");
+    });
+  });
 
   describe("immutability", () => {
     it("supports fluent chaining without mutating intermediates", () => {

@@ -17,6 +17,8 @@ type FlowContextParams = {
   readonly iteration?: number;
   /** Flow-global session that persists across routine calls. */
   readonly store?: FlowStateStore;
+  /** Async provider that resolves feedback at runtime (used by child routines for event routing). */
+  readonly feedbackProvider?: () => Promise<string>;
   /** Current nested routine call depth (0 = top-level routine). */
   readonly depth?: number;
 };
@@ -42,6 +44,8 @@ export class FlowContext {
   readonly iteration: number;
   /** Flow-global session that persists across routine calls. */
   readonly store: FlowStateStore;
+  /** Async provider that resolves feedback at runtime (used by child routines for event routing). */
+  readonly feedbackProvider?: () => Promise<string>;
   /** Current nested routine call depth (0 = top-level routine). */
   readonly depth: number;
 
@@ -51,6 +55,7 @@ export class FlowContext {
     this.workspaces = params.workspaces ?? new Map();
     this.params = params.params ?? new Map();
     this.feedback = params.feedback;
+    this.feedbackProvider = params.feedbackProvider;
     this.iteration = params.iteration ?? 0;
     this.store = params.store ?? new FlowStateStore();
     this.depth = params.depth ?? 0;
@@ -67,6 +72,7 @@ export class FlowContext {
       workspaces: this.workspaces,
       params: this.params,
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: this.depth,
@@ -82,6 +88,7 @@ export class FlowContext {
       workspaces: next,
       params: this.params,
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: this.depth,
@@ -97,6 +104,7 @@ export class FlowContext {
       workspaces: next,
       params: this.params,
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: this.depth,
@@ -110,6 +118,7 @@ export class FlowContext {
       workspaces: this.workspaces,
       params: new Map(Object.entries(params)),
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: this.depth,
@@ -123,6 +132,7 @@ export class FlowContext {
       workspaces: this.workspaces,
       params: this.params,
       feedback: feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: this.depth,
@@ -136,6 +146,7 @@ export class FlowContext {
       workspaces: this.workspaces,
       params: this.params,
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: n,
       store: this.store,
       depth: this.depth,
@@ -153,6 +164,7 @@ export class FlowContext {
       workspaces: this.workspaces,
       params: this.params,
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: this.depth,
@@ -170,6 +182,7 @@ export class FlowContext {
       workspaces: this.workspaces,
       params: this.params,
       feedback: this.feedback,
+      feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
       depth: n,
@@ -198,7 +211,9 @@ export class FlowContext {
       case "prompt":
         return this.prompt;
       case "feedback":
-        return this.feedback ?? "(no prior findings)";
+        if (this.feedback) return this.feedback;
+        if (this.feedbackProvider) throw new FeedbackPendingError();
+        return "(no prior findings)";
       default: {
         const paramValue = this.params.get(key);
         if (paramValue !== undefined) return paramValue;
@@ -266,4 +281,18 @@ export interface AgentOutput {
 export interface InstructionResult {
   raw: string;
   parsed?: AgentOutput;
+}
+
+/**
+ * Thrown when a {{feedback}} placeholder is resolved in a context
+ * that has a feedbackProvider but no cached feedback value yet.
+ *
+ * The calling executor should catch this, await the provider, and
+ * retry resolution with the returned feedback value.
+ */
+export class FeedbackPendingError extends Error {
+  constructor() {
+    super("Feedback is pending — await the provider and retry");
+    this.name = "FeedbackPendingError";
+  }
 }

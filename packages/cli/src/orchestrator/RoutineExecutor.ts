@@ -2,7 +2,7 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 
 import { logger } from "../logging";
 import type { InstructionResult } from "./FlowContext";
-import { FlowContext } from "./FlowContext";
+import { FeedbackPendingError, FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
 import type { RoutineResult } from "./RoutineResult";
@@ -124,6 +124,20 @@ export class RoutineExecutor {
         // AbortError propagates uncaught — do not convert to a failure result.
         if (error instanceof DOMException && error.name === "AbortError") {
           throw error;
+        }
+        // FeedbackPendingError: await the provider, set feedback, and retry the step.
+        if (error instanceof FeedbackPendingError) {
+          if (!context.feedbackProvider) {
+            return this.buildFailureResult(
+              routineName,
+              context,
+              new Error("Feedback pending but no provider configured"),
+            );
+          }
+          const feedback = await context.feedbackProvider();
+          context = context.withFeedback(feedback);
+          context = await executeStep(step, context, signal);
+          continue;
         }
         const err = error instanceof Error ? error : new Error(String(error));
         logger.error("Step execution failed", {

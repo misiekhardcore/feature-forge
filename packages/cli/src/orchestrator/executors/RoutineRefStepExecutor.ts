@@ -45,7 +45,6 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       const failureResult: InstructionResult = {
         raw: `Target flow "${instruction.target}" not found`,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `RoutineRef "${instruction.id}": target flow "${instruction.target}" not found in registry`,
         },
@@ -65,7 +64,6 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       const failureResult: InstructionResult = {
         raw: `Routine "${instruction.routine}" not found in flow "${instruction.target}`,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `RoutineRef "${instruction.id}": routine "${instruction.routine}" not found. Available: ${available}`,
         },
@@ -101,13 +99,38 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
 
     // Validate depth nesting limit and compute the child depth before
     // proceeding (throws MaxDepthExceededError if the limit is exceeded).
-    const childContext = createChildExecutionContext(context);
+    const channelPrefix = `routine-ref:${instruction.id}:`;
+    const childEventBus = this.createNamespacedEventBus(eventBus, channelPrefix);
 
-    // Build a RoutineExecutor for the target flow using our step executor registry.
+    // Create a feedback provider so the child routine can request user input.
+    // When the child hits {{feedback}} and there is no cached value, it throws
+    // FeedbackPendingError. RoutineExecutor catches this, calls the provider,
+    // and retries the step with the returned feedback value.
+    const feedbackProvider = (): Promise<string> => {
+      return new Promise<string>((resolve) => {
+        eventBus.emit(`${channelPrefix}feedback-request`, {
+          phase: "routine-ref-feedback-request",
+          message: `RoutineRef "${instruction.id}" requesting user input`,
+          details: { instructionId: instruction.id, target: instruction.target },
+        });
+
+        // Listen for a response on the namespaced response channel.
+        const unsubscribe = eventBus.on(`${channelPrefix}feedback-response`, (data: unknown) => {
+          unsubscribe();
+          const msg = data as { feedback: string } | undefined;
+          resolve(msg?.feedback ?? "");
+        });
+      });
+    };
+
+    const childContext = createChildExecutionContext(context, feedbackProvider);
+
+    // Build a RoutineExecutor for the target flow using our step executor registry
+    // and the namespaced event bus so child events stay scoped.
     const childExecutor = new RoutineExecutor(
       targetFlow,
       this.capabilities.stepExecutorRegistry,
-      this.capabilities.eventBus,
+      childEventBus,
     );
 
     try {
@@ -133,7 +156,6 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       const resultValue: InstructionResult = {
         raw: JSON.stringify(result),
         parsed: {
-          kind: "build",
           passed: result.passed,
           summary: `Cross-flow routine "${instruction.routine}" from "${instruction.target}" completed`,
         },
@@ -163,7 +185,6 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       const failureResult: InstructionResult = {
         raw: err.message,
         parsed: {
-          kind: "build",
           passed: false,
           summary: `RoutineRef "${instruction.id}" failed: ${err.message}`,
         },
@@ -180,6 +201,26 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
 
       throw err;
     }
+  }
+
+  /**
+   * Create a namespaced EventBus that prefixes all emitted events with the
+   * given channel prefix, scoping child routine events to avoid collisions
+   * with parent events.
+   *
+   * Listens on both the namespaced and unnamespaced versions of channels
+   * so the child can receive events from the parent when appropriate.
+   */
+  private createNamespacedEventBus(parent: EventBus, prefix: string): EventBus {
+    return {
+      emit: (channel: string, data: unknown): void => {
+        parent.emit(`${prefix}${channel}`, data);
+      },
+      on: (channel: string, handler: (data: unknown) => void): (() => void) => {
+        const unsub1 = parent.on(`${prefix}${channel}`, handler);
+        return unsub1;
+      },
+    };
   }
 
   /**

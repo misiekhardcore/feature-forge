@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json",
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
   "name": "implement",
   "command": "/implement",
   "orchestrator": {
@@ -94,13 +94,22 @@
     },
     "open_pr": {
       "params": [
-        { "name": "workspace", "description": "Worktree path from run_build_loop result" },
-        { "name": "title", "description": "PR title" },
+        {
+          "name": "workspace",
+          "description": "Worktree path from run_build_loop result"
+        },
+        {
+          "name": "title",
+          "description": "PR title"
+        },
         {
           "name": "commit_message",
           "description": "Commit message in conventional commits format"
         },
-        { "name": "body", "description": "Markdown PR description summarizing the changes" }
+        {
+          "name": "body",
+          "description": "Markdown PR description summarizing the changes"
+        }
       ],
       "steps": [
         {
@@ -110,7 +119,12 @@
           "cwd": "{{workspace}}",
           "message": "{{commit_message}}"
         },
-        { "type": "git", "id": "branch", "action": "push-current", "cwd": "{{workspace}}" },
+        {
+          "type": "git",
+          "id": "branch",
+          "action": "push-current",
+          "cwd": "{{workspace}}"
+        },
         {
           "type": "shell",
           "id": "pr",

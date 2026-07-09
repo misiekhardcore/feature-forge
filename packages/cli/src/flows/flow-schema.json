@@ -32,6 +32,12 @@
               "$ref": "#/$defs/RoutineParam"
             }
           },
+          "input_schema": {
+            "$ref": "#/$defs/RoutineInputSchema"
+          },
+          "output_schema": {
+            "$ref": "#/$defs/RoutineOutputSchema"
+          },
           "steps": {
             "type": "array",
             "items": {
@@ -78,6 +84,18 @@
         "default": {
           "type": "string"
         }
+      }
+    },
+    "RoutineInputSchema": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "RoutineOutputSchema": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
       }
     },
     "WorkspaceInstruction": {

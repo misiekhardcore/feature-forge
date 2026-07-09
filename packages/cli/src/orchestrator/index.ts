@@ -14,7 +14,7 @@ export {
 export type { ExpressionEvaluator, FlowContextLike } from "./ExpressionEvaluator";
 export { BinaryOp, Expr, ExpressionParser, ParseError, UnaryOp } from "./ExpressionParser";
 export type { InstructionResult } from "./FlowContext";
-export { FlowContext } from "./FlowContext";
+export { FeedbackPendingError, FlowContext } from "./FlowContext";
 export type {
   AgentInstruction,
   CleanupInstruction,

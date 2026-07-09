@@ -38,6 +38,14 @@ const META_SCHEMA_URL = "https://json-schema.org/draft/2020-12/schema";
 const defs: Record<string, unknown> = {
   OrchestratorConfig: OrchestratorConfigSchema,
   RoutineParam: RoutineParamSchema,
+  RoutineInputSchema: {
+    type: "object",
+    additionalProperties: { type: "string" },
+  },
+  RoutineOutputSchema: {
+    type: "object",
+    additionalProperties: { type: "string" },
+  },
   WorkspaceInstruction: WorkspaceInstructionSchema,
   AgentInstruction: AgentInstructionSchema,
   ParallelInstruction: replaceStepsRef(ParallelInstructionSchema),
@@ -85,6 +93,8 @@ const schema = {
         required: ["params", "steps"],
         properties: {
           params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
+          input_schema: { $ref: "#/$defs/RoutineInputSchema" },
+          output_schema: { $ref: "#/$defs/RoutineOutputSchema" },
           steps: {
             type: "array",
             items: { $ref: "#/$defs/FlowInstruction" },

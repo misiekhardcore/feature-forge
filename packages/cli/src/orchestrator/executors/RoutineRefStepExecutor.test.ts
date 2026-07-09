@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockEventBus } from "../../test-utils";
-import type { BuildOutcome } from "../FlowContext";
 import { FlowContext } from "../FlowContext";
 import type { FlowDefinition, RoutineRefInstruction } from "../FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../FlowInstruction";
@@ -176,8 +175,7 @@ describe("RoutineRefStepExecutor", () => {
       const storedResult = result.results.get("ref1");
       expect(storedResult).toBeDefined();
       expect(storedResult!.parsed!.passed).toBe(true);
-      const parsed = storedResult!.parsed as BuildOutcome;
-      expect(parsed.summary).toContain('"build"');
+      expect(storedResult!.parsed!.summary).toContain('"build"');
     });
 
     it("resolves input params through the parent context template engine", async () => {
@@ -469,8 +467,8 @@ describe("RoutineRefStepExecutor", () => {
       const refResult = result.results.get("ref1");
       expect(refResult?.parsed?.passed).toBe(true);
       // The summary should mention the target flow.
-      const buildOutcome = refResult?.parsed as BuildOutcome | undefined;
-      expect(buildOutcome?.summary).toContain("/a");
+      expect(refResult?.parsed?.summary).toContain("/a");
+      expect(refResult?.parsed?.summary).toContain("/a");
     });
 
     it("throws MaxDepthExceededError when chain reaches MAX_NESTING_DEPTH", async () => {
@@ -497,6 +495,39 @@ describe("RoutineRefStepExecutor", () => {
       await expect(
         executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
       ).rejects.toThrow(MaxDepthExceededError);
+    });
+  });
+
+  describe("event routing", () => {
+    it("namespaces child routine-ref-start event on parent bus", async () => {
+      const bus = makeMockEventBus();
+      const eventSpy = vi.spyOn(bus, "emit");
+      const flow = makeTargetFlow();
+      const flows = new Map<string, FlowDefinition>();
+      flows.set("/a", flow);
+      const caps = new RuntimeCapabilities(bus, new StepExecutorRegistry(), flows);
+      const executor = new RoutineRefStepExecutor(caps);
+
+      const instruction = makeRoutineRefInstruction({
+        id: "ns-test",
+        target: "/a",
+        routine: "build",
+        input: {},
+      });
+
+      await executor.execute(
+        instruction,
+        new FlowContext({ results: new Map(), prompt: "task" }),
+        vi.fn(),
+        bus,
+      );
+
+      // The start event (emitted on parent bus before child executor runs)
+      // is emitted at the parent level — verify it exists
+      const startEvents = eventSpy.mock.calls.filter(
+        ([channel]) => channel === "feature-forge:routine-ref-start",
+      );
+      expect(startEvents.length).toBe(1);
     });
   });
 });

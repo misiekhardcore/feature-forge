@@ -16,7 +16,10 @@ import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededErro
  *
  * @throws {MaxDepthExceededError} when the resulting depth would exceed the limit.
  */
-export function createChildExecutionContext(parent: FlowContext): FlowContext {
+export function createChildExecutionContext(
+  parent: FlowContext,
+  feedbackProvider?: () => Promise<string>,
+): FlowContext {
   const nextDepth = parent.depth + 1;
 
   if (nextDepth > MAX_NESTING_DEPTH) {
@@ -34,6 +37,7 @@ export function createChildExecutionContext(parent: FlowContext): FlowContext {
     workspaces: parent.workspaces,
     params: new Map(),
     feedback: undefined,
+    feedbackProvider,
     iteration: 0,
     depth: nextDepth,
   });

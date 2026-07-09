@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json",
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
   "name": "review",
   "command": "/review",
   "orchestrator": {
@@ -37,7 +37,16 @@
           "parseJson": true,
           "prompt": "Review the code changes against:\n{{task}}\n\nBuild output:\n{{build_output}}"
         }
-      ]
+      ],
+      "input_schema": {
+        "workspace": "string",
+        "task": "string",
+        "build_output": "string"
+      },
+      "output_schema": {
+        "passed": "boolean",
+        "summary": "string"
+      }
     }
   }
 }

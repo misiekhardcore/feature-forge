@@ -177,7 +177,7 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 // ── Runtime validation schema ────────────────────────────────
 
 export const FLOW_SCHEMA_URL =
-  "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json";
+  "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json";
 
 export const FlowInstructionSchema = FlowInstructionUnion;
 
@@ -195,6 +195,8 @@ export const RoutineParamSchema = Type.Object({
 
 const RoutineDefinitionSchema = Type.Object({
   params: Type.Array(RoutineParamSchema),
+  input_schema: Type.Optional(Type.Record(Type.String(), Type.String())),
+  output_schema: Type.Optional(Type.Record(Type.String(), Type.String())),
   // steps placeholder — Type.Any() avoids the circular FlowInstructionUnion reference
   // during Type.Record's internal Clone. The real validator is patched onto the
   // cloned copy stored inside the TRecord below.
@@ -281,6 +283,8 @@ export type RoutineParam = Type.Static<typeof RoutineParamSchema>;
 export type RoutineDefinition = {
   params: RoutineParam[];
   steps: FlowInstruction[];
+  input_schema?: Record<string, string>;
+  output_schema?: Record<string, string>;
 };
 
 export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {
