@@ -126,8 +126,8 @@ describe("routine progress display (e2e)", () => {
     expect(result.workspace).toBeDefined();
     expect(existsSync(result.workspace!)).toBe(true);
 
-    expect(agentState.has("builder")).toBe(true);
-    expect(agentState.get("builder")!.status).toBe("done");
+    expect(agentState.has("build")).toBe(true);
+    expect(agentState.get("build")!.status).toBe("done");
     expect(capturedIteration).toBe(0);
     expect(capturedMaxIterations).toBe(1);
 
@@ -144,7 +144,7 @@ describe("routine progress display (e2e)", () => {
     });
     expect(lines.length).toBeGreaterThan(0);
     expect(lines.some((l) => l.includes("run_build_loop"))).toBe(true);
-    expect(lines.some((l) => l.includes("builder"))).toBe(true);
+    expect(lines.some((l) => l.includes("build"))).toBe(true);
 
     const status = ProgressRenderer.buildStatusLine({
       theme: mockTheme,
@@ -153,6 +153,6 @@ describe("routine progress display (e2e)", () => {
       tags: [...agentState].map(([l, a]) => `${a.status === "done" ? "✓" : "⏳"} ${l}`),
     });
     expect(status).toContain("run_build_loop");
-    expect(status).toContain("builder");
+    expect(status).toContain("build");
   });
 });
