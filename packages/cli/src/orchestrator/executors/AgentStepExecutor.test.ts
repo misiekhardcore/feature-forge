@@ -489,6 +489,7 @@ describe("AgentStepExecutor", () => {
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
+              agentId: "builder",
             }),
           }),
         );
@@ -500,6 +501,7 @@ describe("AgentStepExecutor", () => {
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
+              agentId: "builder",
             }),
           }),
         );
@@ -533,6 +535,7 @@ describe("AgentStepExecutor", () => {
           expect.objectContaining({
             phase: "agent-done",
             details: expect.objectContaining({
+              agentId: "reviewer",
               passed: false,
               summary: "1 critical, 1 warnings",
             }),
@@ -540,7 +543,7 @@ describe("AgentStepExecutor", () => {
         );
       });
 
-      it("does not emit agent-done when agent execution fails", async () => {
+      it("emits agent-done with passed: false when agent execution fails", async () => {
         const error = new Error("build failed");
         const agent = makeMockAgentThatThrows(error);
         const supervisor = makeMockSupervisor(agent);
@@ -561,11 +564,25 @@ describe("AgentStepExecutor", () => {
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        // Only agent-started is fired; agent-done is NOT fired on failure.
-        expect(eventBus.emit).toHaveBeenCalledTimes(1);
-        expect(eventBus.emit).toHaveBeenCalledWith(
+        // Both agent-started and agent-done are fired.
+        expect(eventBus.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          1,
           "feature-forge:agent-started",
           expect.anything(),
+        );
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          2,
+          "feature-forge:agent-done",
+          expect.objectContaining({
+            phase: "agent-done",
+            message: expect.stringContaining("builder") as string,
+            details: expect.objectContaining({
+              agentId: "builder",
+              passed: false,
+              summary: `Agent "builder" failed: build failed`,
+            }),
+          }),
         );
       });
 

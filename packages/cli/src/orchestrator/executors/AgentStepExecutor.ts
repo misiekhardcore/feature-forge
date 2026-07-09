@@ -81,7 +81,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     eventBus.emit("feature-forge:agent-started", {
       phase: "agent-started",
       message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
-      details: { executionId },
+      details: { executionId, agentId: instructionId },
     });
 
     try {
@@ -112,7 +112,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
         message: `Agent "${instructionId}" completed`,
-        details: { executionId, summary: agentSummary, passed: agentPassed },
+        details: {
+          executionId,
+          agentId: instructionId,
+          summary: agentSummary,
+          passed: agentPassed,
+        },
       });
 
       return updatedContext;
@@ -125,11 +130,23 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error("Agent execution failed", { instructionId, error: err });
 
+      const failureSummary = `Agent "${instructionId}" failed: ${err.message}`;
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: `Agent "${instructionId}" failed`,
+        details: {
+          executionId,
+          agentId: instructionId,
+          passed: false,
+          summary: failureSummary,
+        },
+      });
+
       const failureResult: InstructionResult = {
         raw: err.message,
         parsed: {
           passed: false,
-          summary: `Agent "${instructionId}" failed: ${err.message}`,
+          summary: failureSummary,
         },
       };
       return context.withResult(instructionId, failureResult);
