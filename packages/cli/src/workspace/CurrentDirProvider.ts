@@ -1,3 +1,4 @@
+import type { CreateWorkspaceOptions } from "./WorkspaceProvider";
 import { WorkspaceProvider } from "./WorkspaceProvider";
 
 /**
@@ -9,7 +10,7 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
 export class CurrentDirProvider extends WorkspaceProvider {
   public override async createWorkspace(
     _workspaceId: string,
-    _options?: import("./WorkspaceProvider").CreateWorkspaceOptions,
+    _options?: CreateWorkspaceOptions,
   ): Promise<string> {
     return process.cwd();
   }

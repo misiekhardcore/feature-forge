@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../test-utils";
+import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
@@ -313,7 +314,7 @@ describe("RoutineTool", () => {
       class FakeProvider extends WorkspaceProvider {
         override async createWorkspace(
           _id: string,
-          _options?: import("../workspace/WorkspaceProvider").CreateWorkspaceOptions,
+          _options?: CreateWorkspaceOptions,
         ): Promise<string> {
           return "/tmp/ws";
         }

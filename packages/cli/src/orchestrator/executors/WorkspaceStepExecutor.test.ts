@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockEventBus } from "../../test-utils";
+import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
@@ -28,7 +29,7 @@ class CountingProvider extends WorkspaceProvider {
 
   override async createWorkspace(
     workspaceId: string,
-    _options?: import("../../workspace/WorkspaceProvider").CreateWorkspaceOptions,
+    _options?: CreateWorkspaceOptions,
   ): Promise<string> {
     const path = `/test/${workspaceId}`;
     this.created.push(path);

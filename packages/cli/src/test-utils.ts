@@ -22,6 +22,7 @@ import {
   AgentSpecificationParams,
 } from "./agents/specifications/AgentSpecification";
 import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
+import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
 import { WorktreeRegistry } from "./workspace/WorktreeRegistry";
 
@@ -224,7 +225,7 @@ export class MockWorkspaceProvider extends WorkspaceProvider {
 
   override async createWorkspace(
     workspaceId: string,
-    _options?: import("./workspace/WorkspaceProvider").CreateWorkspaceOptions,
+    _options?: CreateWorkspaceOptions,
   ): Promise<string> {
     if (this.shouldFailCreation) {
       throw new Error(this.failureMessage);
