@@ -132,7 +132,13 @@ export class AgentViewerOverlay implements Component {
     if (streamDir) this.setStreamDir(streamDir);
   }
 
-  /** The standard overlay options for this component. */
+  /**
+   * Standard overlay configuration consumed by
+   * {@link import("../RoutineTool").RoutineTool} and
+   * {@link import("../../commands/AgentListCommand").AgentListCommand}.
+   *
+   * Returns a fresh copy so callers can mutate without affecting shared state.
+   */
   static get overlayOptions() {
     return { ...OVERLAY_OPTIONS };
   }
@@ -285,6 +291,28 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
+   * Scan the stream directory for existing {@code *.stream} files and
+   * pre-populate the internal {@link streamFiles} map so that
+   * {@link getStreamTail} works across overlay instances.
+   *
+   * Silently ignores missing or inaccessible directories — the map
+   * will be populated lazily by {@link pushStreamEvent} calls instead.
+   */
+  prepopulateStreamFiles(streamDir: string): void {
+    try {
+      for (const entry of readdirSync(streamDir)) {
+        if (entry.endsWith(".stream")) {
+          const agentId = entry.slice(0, -7);
+          const filePath = join(streamDir, entry);
+          this.streamFiles.set(agentId, filePath);
+        }
+      }
+    } catch {
+      // Directory may not exist or be inaccessible.
+    }
+  }
+
+  /**
    * Clean up stream files written to disk and reset view state.
    *
    * Removes each per-agent stream file when {@link streamDir} was
@@ -319,8 +347,10 @@ export class AgentViewerOverlay implements Component {
 
   /**
    * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
+   *
+   * Returns {@code "—"} when {@code createdAt} is {@code undefined}.
    */
-  static formatElapsed(createdAt: Date): string {
+  static formatElapsed(createdAt: Date | undefined): string {
     if (!createdAt) return "—";
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
@@ -366,7 +396,7 @@ export class AgentViewerOverlay implements Component {
       const typed = event as Record<string, unknown>;
       const rawType = typed["type"];
       const eventType = typeof rawType === "string" ? rawType : "unknown";
-      const detail = AgentViewerOverlay.formatDetail(typed as AgentEvent, eventType);
+      const detail = AgentViewerOverlay.formatDetail(typed, eventType);
       return detail ? `${eventType}: ${detail}` : eventType;
     }
     const serialized = JSON.stringify(event);
@@ -708,20 +738,7 @@ export class AgentViewerOverlay implements Component {
 
       viewer.setStreamDir(streamDir);
 
-      // Pre-populate streamFiles map from existing *.stream files so
-      // getStreamTail works for files written by prior overlay instances.
-      try {
-        for (const entry of readdirSync(streamDir)) {
-          if (entry.endsWith(".stream")) {
-            const agentId = entry.slice(0, -7);
-            const filePath = join(streamDir, entry);
-            viewer.streamFiles.set(agentId, filePath);
-          }
-        }
-      } catch {
-        // Directory may not exist or be inaccessible — streamFiles will
-        // be populated lazily by pushStreamEvent calls.
-      }
+      viewer.prepopulateStreamFiles(streamDir);
 
       for (const agent of supervisor.getAllAgents()) {
         const status = AgentViewerOverlay.mapStatus(agent.status);
@@ -739,16 +756,14 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Format a detail string from an {@link AgentEvent} using the
-   * discriminated union for type-safe field access.
+   * Format a detail string from an event object using the pre-extracted
+   * {@code eventType} for type-safe dispatch.
    *
-   * The {@code eventType} parameter is preserved for the fallback path
-   * in {@link formatStreamEvent} where the event shape is unknown.
+   * Accepts a generic record so that callers do not need unsafe
+   * {@code as AgentEvent} casts. All property access is guarded.
    */
-  private static formatDetail(event: AgentEvent, _eventType: string): string {
-    // Defensive: `as AgentEvent` casts at runtime may produce object
-    // shapes with missing fields. Use guards for all property access.
-    switch (event.type) {
+  private static formatDetail(event: Record<string, unknown>, eventType: string): string {
+    switch (eventType) {
       case "agent_start":
         return "started";
       case "agent_end":
