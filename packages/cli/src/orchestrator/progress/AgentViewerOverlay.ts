@@ -597,13 +597,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Format a detail string from an {@link AgentEvent} using the
-   * discriminated union for type-safe field access.
-   *
-   * The {@code eventType} parameter is preserved for the fallback path
-   * in {@link formatStreamEvent} where the event shape is unknown.
-   */
-  /**
    * Create event subscriptions that feed an overlay with live agent data.
    *
    * Returns subscriptions and a {@code connect} callback.  Callers construct the
@@ -745,6 +738,13 @@ export class AgentViewerOverlay implements Component {
     return { connect, unsubs };
   }
 
+  /**
+   * Format a detail string from an {@link AgentEvent} using the
+   * discriminated union for type-safe field access.
+   *
+   * The {@code eventType} parameter is preserved for the fallback path
+   * in {@link formatStreamEvent} where the event shape is unknown.
+   */
   private static formatDetail(event: AgentEvent, _eventType: string): string {
     // Defensive: `as AgentEvent` casts at runtime may produce object
     // shapes with missing fields. Use guards for all property access.
