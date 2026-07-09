@@ -20,7 +20,10 @@ function makeMockSpecManager(): SpecManager {
       id: "test-agent",
       role: "test",
       systemPrompt: "prompt",
-      tools: [],
+      toolRestrictions: {},
+      get tools() {
+        return [];
+      },
     }),
   } as unknown as SpecManager;
 }

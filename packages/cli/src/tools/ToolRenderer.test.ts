@@ -22,7 +22,7 @@ describe("ToolRenderer", () => {
     it("renders a Box with label and no model", () => {
       const ctx = makeCtx();
       const box = ToolRenderer.spawnAgentCall(
-        { role: "reviewer", systemPrompt: "", tools: [] },
+        { role: "reviewer", systemPrompt: "", toolRestrictions: {} },
         theme,
         ctx,
       );
@@ -34,7 +34,7 @@ describe("ToolRenderer", () => {
     it("renders a Box with role and model override", () => {
       const ctx = makeCtx();
       const box = ToolRenderer.spawnAgentCall(
-        { role: "reviewer", systemPrompt: "", tools: [], model: "claude-sonnet-4-5" },
+        { role: "reviewer", systemPrompt: "", toolRestrictions: {}, model: "claude-sonnet-4-5" },
         theme,
         ctx,
       );
@@ -159,12 +159,12 @@ describe("ToolRenderer", () => {
       const ctx = makeCtx();
 
       const first = ToolRenderer.spawnAgentCall(
-        { role: "reviewer", systemPrompt: "", tools: [] },
+        { role: "reviewer", systemPrompt: "", toolRestrictions: {} },
         theme,
         ctx,
       );
       const second = ToolRenderer.spawnAgentCall(
-        { role: "writer", systemPrompt: "", tools: ["read"] },
+        { role: "writer", systemPrompt: "", toolRestrictions: { read: [] } },
         theme,
         ctx,
       );

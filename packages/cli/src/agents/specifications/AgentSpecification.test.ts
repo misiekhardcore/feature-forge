@@ -75,8 +75,8 @@ describe("AgentSpecification", () => {
   });
 
   describe("overrides", () => {
-    it("accepts tools override", () => {
-      const spec = new TestSpecification({ tools: ["read", "grep"] });
+    it("accepts toolRestrictions override", () => {
+      const spec = new TestSpecification({ toolRestrictions: { read: [], grep: [] } });
       expect(spec.tools).toEqual(["read", "grep"]);
     });
 

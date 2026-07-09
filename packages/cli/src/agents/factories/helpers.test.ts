@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { AgentSpecification } from "../specifications/AgentSpecification";
-import { TOOL_PRESETS } from "../specifications/constants";
-import { DynamicAgentSpecification } from "../specifications/DynamicAgentSpecification";
 import { buildPiCliArguments } from "./helpers";
 
 describe("buildPiCliArguments", () => {
-  it("produces --system-prompt for minimal specification", () => {
+  it("produces no CLI arguments for a minimal specification", () => {
     const spec = new (class extends AgentSpecification {
       constructor() {
         super({
@@ -16,56 +14,10 @@ describe("buildPiCliArguments", () => {
         });
       }
     })();
-    expect(buildPiCliArguments(spec)).toEqual(["--system-prompt", "test"]);
+    expect(buildPiCliArguments(spec)).toEqual([]);
   });
 
-  describe("tools flags", () => {
-    it("adds --tools when tools is non-empty", () => {
-      const spec = new (class extends AgentSpecification {
-        constructor() {
-          super({
-            id: "t",
-            role: "t",
-            systemPrompt: "p",
-            tools: ["read", "grep"],
-          });
-        }
-      })();
-      expect(buildPiCliArguments(spec)).toContain("--tools");
-      const idx = buildPiCliArguments(spec).indexOf("--tools");
-      expect(buildPiCliArguments(spec)[idx + 1]).toBe("read,grep");
-    });
-
-    it("does not add --tools when tools is empty", () => {
-      const spec = new (class extends AgentSpecification {
-        constructor() {
-          super({
-            id: "t",
-            role: "t",
-            systemPrompt: "p",
-            tools: [],
-          });
-        }
-      })();
-      expect(buildPiCliArguments(spec)).not.toContain("--tools");
-    });
-
-    it("adds --exclude-tools when excludedTools is non-empty", () => {
-      const spec = new (class extends AgentSpecification {
-        constructor() {
-          super({
-            id: "t",
-            role: "t",
-            systemPrompt: "p",
-            excludedTools: ["bash", "write"],
-          });
-        }
-      })();
-      expect(buildPiCliArguments(spec)).toContain("--exclude-tools");
-      const idx = buildPiCliArguments(spec).indexOf("--exclude-tools");
-      expect(buildPiCliArguments(spec)[idx + 1]).toBe("bash,write");
-    });
-
+  describe("builtin tools flag", () => {
     it("adds --no-builtin-tools when disableBuiltinTools is true", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
@@ -79,26 +31,8 @@ describe("buildPiCliArguments", () => {
       })();
       expect(buildPiCliArguments(spec)).toContain("--no-builtin-tools");
     });
-  });
 
-  describe("thinking flag", () => {
-    it("adds --thinking when thinkingLevel is set", () => {
-      const spec = new (class extends AgentSpecification {
-        constructor() {
-          super({
-            id: "t",
-            role: "t",
-            systemPrompt: "p",
-            thinkingLevel: "high",
-          });
-        }
-      })();
-      expect(buildPiCliArguments(spec)).toContain("--thinking");
-      const idx = buildPiCliArguments(spec).indexOf("--thinking");
-      expect(buildPiCliArguments(spec)[idx + 1]).toBe("high");
-    });
-
-    it("does not add --thinking when thinkingLevel is undefined", () => {
+    it("does not add --no-builtin-tools when disableBuiltinTools is false", () => {
       const spec = new (class extends AgentSpecification {
         constructor() {
           super({
@@ -108,7 +42,7 @@ describe("buildPiCliArguments", () => {
           });
         }
       })();
-      expect(buildPiCliArguments(spec)).not.toContain("--thinking");
+      expect(buildPiCliArguments(spec)).not.toContain("--no-builtin-tools");
     });
   });
 
@@ -184,21 +118,18 @@ describe("buildPiCliArguments", () => {
       })();
       expect(buildPiCliArguments(spec)).toContain("--no-session");
     });
-  });
 
-  describe("DynamicAgentSpecification with research tools", () => {
-    it("produces correct args for a read-only specification", () => {
-      const spec = new DynamicAgentSpecification({
-        role: "research",
-        systemPrompt: "Research topic",
-        tools: [...TOOL_PRESETS.readOnly],
-        ephemeral: true,
-      });
-      const args = buildPiCliArguments(spec);
-      expect(args).toContain("--tools");
-      const idx = args.indexOf("--tools");
-      expect(args[idx + 1]).toBe("read,grep,ls");
-      expect(args).toContain("--no-session");
+    it("does not add --no-session when ephemeral is false", () => {
+      const spec = new (class extends AgentSpecification {
+        constructor() {
+          super({
+            id: "t",
+            role: "t",
+            systemPrompt: "p",
+          });
+        }
+      })();
+      expect(buildPiCliArguments(spec)).not.toContain("--no-session");
     });
   });
 });

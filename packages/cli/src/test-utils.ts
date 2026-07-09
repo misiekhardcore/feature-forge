@@ -30,6 +30,22 @@ export type { RpcClientMock } from "@feature-forge/shared";
 export { createRpcClientMock } from "@feature-forge/shared";
 
 // ---------------------------------------------------------------------------
+// Tool restriction helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Converts a flat tool list to a {@link AgentSpecificationParams.toolRestrictions} map
+ * where each tool has an empty allowed-path list (no path restrictions).
+ */
+export function toolListToRestrictions(
+  tools: readonly string[],
+): Record<string, readonly string[]> {
+  const restrictions: Record<string, readonly string[]> = {};
+  for (const tool of tools) restrictions[tool] = [];
+  return restrictions;
+}
+
+// ---------------------------------------------------------------------------
 // AgentSpecification builder
 // ---------------------------------------------------------------------------
 
@@ -38,7 +54,7 @@ export function makeSpec(
   overrides: Partial<{
     role: string;
     systemPrompt: string;
-    tools: readonly string[];
+    toolRestrictions: Record<string, readonly string[]>;
     model: string;
     ephemeral: boolean;
   }> = {},
@@ -49,7 +65,7 @@ export function makeSpec(
         id,
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
-        tools: overrides.tools,
+        toolRestrictions: overrides.toolRestrictions,
         model: overrides.model,
         ephemeral: overrides.ephemeral,
       });
@@ -145,6 +161,26 @@ export function makeMockPi(): ExtensionAPI {
     registerTool: vi.fn(),
     on: vi.fn(),
   } as unknown as ExtensionAPI;
+}
+
+export function makeMockPiWithHandlers(defaultTools: string[] = []) {
+  const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const activeTools: string[] = [...defaultTools];
+
+  return {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
+      handlers.set(event, handler);
+    }),
+    setActiveTools: vi.fn((tools: string[]) => {
+      activeTools.length = 0;
+      activeTools.push(...tools);
+    }),
+    getActiveTools: vi.fn(() => [...activeTools]),
+    setThinkingLevel: vi.fn(),
+    getHandler: (event: string) => handlers.get(event),
+  } as unknown as ExtensionAPI & {
+    getHandler: (event: string) => ((...args: unknown[]) => unknown) | undefined;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +315,9 @@ export function makeMockSpecManager() {
         id: params.spec ?? params.role ?? "mock",
         role: params.role ?? "mock",
         systemPrompt: params.systemPrompt ?? "Mock system prompt",
-        tools: params.tools ?? [],
+        get tools() {
+          return Object.keys(params.toolRestrictions ?? {});
+        },
         cwd: params.cwd,
         disableBuiltinTools: false,
         disableExtensions: false,
@@ -288,6 +326,7 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
+        toolRestrictions: params.toolRestrictions ?? {},
         model: undefined,
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
@@ -297,7 +336,9 @@ export function makeMockSpecManager() {
         id: params.role,
         role: params.role,
         systemPrompt: params.systemPrompt,
-        tools: params.tools ?? [],
+        get tools() {
+          return Object.keys(params.toolRestrictions ?? {});
+        },
         model: params.model,
         cwd: params.cwd,
         disableBuiltinTools: false,
@@ -307,6 +348,7 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
+        toolRestrictions: params.toolRestrictions ?? {},
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),

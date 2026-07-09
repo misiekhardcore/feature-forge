@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { SpecLoader } from "../loaders/SpecLoader";
+import { toolListToRestrictions } from "../test-utils";
 import { TOOL_PRESETS } from "./specifications/constants";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import { SpecRegistry } from "./specifications/SpecRegistry";
@@ -15,7 +16,6 @@ describe("SpecManager", () => {
     it("returns true when params have a spec field", () => {
       const result = SpecManager.isSpecParams({
         spec: "build",
-        tools: ["read"],
       });
       expect(result).toBe(true);
     });
@@ -24,7 +24,6 @@ describe("SpecManager", () => {
       const result = SpecManager.isSpecParams({
         role: "custom",
         systemPrompt: "You are helpful",
-        tools: ["read"],
       });
       expect(result).toBe(false);
     });
@@ -32,7 +31,6 @@ describe("SpecManager", () => {
     it("returns false when spec is not a string", () => {
       const result = SpecManager.isSpecParams({
         spec: undefined,
-        tools: ["read"],
       });
       expect(result).toBe(false);
     });
@@ -42,11 +40,13 @@ describe("SpecManager", () => {
     it("resolves a named spec from the registry", () => {
       const registry = new SpecRegistry();
       registry.register("build", () => {
+        const restrictions: Record<string, readonly string[]> = {};
+        for (const tool of TOOL_PRESETS.fullAccess) restrictions[tool] = [];
         return new DynamicAgentSpecification({
           id: "build",
           role: "build",
           systemPrompt: "Task: build",
-          tools: [...TOOL_PRESETS.fullAccess],
+          toolRestrictions: restrictions,
           ephemeral: true,
         });
       });
@@ -176,7 +176,7 @@ Build
             id: "build",
             role: "build",
             systemPrompt: "Task: build",
-            tools: [...TOOL_PRESETS.fullAccess],
+            toolRestrictions: toolListToRestrictions(TOOL_PRESETS.fullAccess),
             ephemeral: true,
           }),
       );

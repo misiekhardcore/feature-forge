@@ -17,7 +17,7 @@ const hoisted = vi.hoisted(() => {
     id: "implement",
     role: "orchestrator",
     systemPrompt: "# persona",
-    tools: [],
+    toolRestrictions: {},
     excludedTools: [],
     disableBuiltinTools: false,
     disableContextFiles: false,
@@ -25,6 +25,9 @@ const hoisted = vi.hoisted(() => {
     disablePromptTemplates: false,
     disableSkills: false,
     ephemeral: false,
+    get tools() {
+      return [];
+    },
   } as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),

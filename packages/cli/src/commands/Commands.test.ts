@@ -12,6 +12,7 @@ import {
   makeMockPi,
   makeMockSpecManager,
   makeSpec,
+  toolListToRestrictions,
 } from "../test-utils";
 import { AgentDestroyAllCommand } from "./AgentDestroyAllCommand";
 import { AgentDestroyCommand } from "./AgentDestroyCommand";
@@ -35,7 +36,7 @@ describe("ResearchCommand", () => {
           id: "research",
           role: "researcher",
           systemPrompt: `Research: ${params.CONTEXT ?? ""}`,
-          tools: [...TOOL_PRESETS.readOnly],
+          toolRestrictions: toolListToRestrictions(TOOL_PRESETS.readOnly),
           ephemeral: true,
         }),
     );

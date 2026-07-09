@@ -4,8 +4,8 @@ export type AgentSpecificationParams = {
   id: string;
   role: string;
   systemPrompt: string;
-  tools?: readonly string[];
   excludedTools?: readonly string[];
+  toolRestrictions?: Record<string, readonly string[]>;
   model?: string;
   thinkingLevel?: ThinkingLevel;
   disableBuiltinTools?: boolean;
@@ -19,6 +19,19 @@ export type AgentSpecificationParams = {
 };
 
 /**
+ * Build the toolRestrictions map from params.toolRestrictions.
+ *
+ * Returns a shallow copy of params.toolRestrictions, or an empty object
+ * if none are provided. Every allowed tool is a key in this map —
+ * unrestricted tools have an empty array (`[]`).
+ */
+export function buildToolRestrictions(
+  params: Pick<AgentSpecificationParams, "toolRestrictions">,
+): Record<string, readonly string[]> {
+  return { ...params.toolRestrictions };
+}
+
+/**
  * Immutable specification that defines what an agent is and how it should behave.
  *
  * Maps to pi CLI flags and `createAgentSession` options. Every field has a
@@ -29,10 +42,28 @@ export abstract class AgentSpecification {
   public readonly role: string;
   public readonly systemPrompt: string;
 
-  /** Allowlist of tool names. Empty = use default tools. */
-  public readonly tools: readonly string[];
   /** Denylist of tool names to disable even if they'd otherwise be active. */
   public readonly excludedTools: readonly string[] = [];
+  /**
+   * Per-tool pattern restrictions that limit what an agent can do with
+   * granted tools.
+   *
+   * This is the single source of truth for tool configuration. Every
+   * allowed tool is a key in this map:
+   * - Unrestricted tools have an empty array (`[]`).
+   * - Restricted tools have an array of glob patterns (e.g.
+   *   `["git *", "npm *"]`).
+   *
+   * A tool call passes when its input value matches at least one
+   * positive pattern and no negation (`!`) pattern. Tools listed in the
+   * map but not recognised by the restriction interceptor are always
+   * blocked.
+   *
+   * Unlike {@link excludedTools} (which removes a tool entirely from the
+   * active set), `toolRestrictions` keeps the tool available but limits
+   * its inputs.
+   */
+  public readonly toolRestrictions: Record<string, readonly string[]> = {};
   /** Model pattern (e.g. "claude-sonnet-4-5"). Undefined = use default. */
   public readonly model?: string | undefined;
   /** Thinking/reasoning level. Undefined = use default. */
@@ -52,6 +83,16 @@ export abstract class AgentSpecification {
   /** Working directory for the agent process. */
   public readonly cwd?: string | undefined;
 
+  /**
+   * Allowlist of tool names. Empty = use default tools.
+   *
+   * Derived from {@link toolRestrictions}: every key in the map
+   * represents an allowed tool.
+   */
+  public get tools(): readonly string[] {
+    return Object.keys(this.toolRestrictions);
+  }
+
   constructor(params: AgentSpecificationParams) {
     if (!params.id || params.id.trim().length === 0) {
       throw new Error("AgentSpecification id must not be empty");
@@ -59,8 +100,8 @@ export abstract class AgentSpecification {
     this.id = params.id;
     this.role = params.role;
     this.systemPrompt = params.systemPrompt;
-    this.tools = params.tools ?? [];
     this.excludedTools = params.excludedTools ?? [];
+    this.toolRestrictions = buildToolRestrictions(params);
     this.model = params.model;
     this.thinkingLevel = params.thinkingLevel;
     this.disableBuiltinTools = params.disableBuiltinTools ?? false;

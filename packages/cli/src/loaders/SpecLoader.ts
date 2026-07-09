@@ -69,7 +69,7 @@ export class SpecLoader {
       );
     }
 
-    const tools = this.resolveTools(frontmatter, absolutePath);
+    const toolRestrictions = this.resolveToolRestrictions(frontmatter, absolutePath);
     const id = frontmatter.id ?? DynamicAgentSpecification.generateId(frontmatter);
 
     const factory: SpecFactory = () => {
@@ -77,7 +77,7 @@ export class SpecLoader {
         ...frontmatter,
         id,
         systemPrompt: body.trim(),
-        tools,
+        toolRestrictions,
       });
     };
 
@@ -85,12 +85,18 @@ export class SpecLoader {
   }
 
   /**
-   * Resolve the tool list from either a named preset or an explicit array.
+   * Resolve tool restrictions from either a named preset or an explicit array.
+   *
+   * Converts flat tool lists into a {@link Record<string, readonly string[]>}
+   * map where each tool is a key with an empty restrictions array (unrestricted).
    *
    * Exactly one of `toolPreset` / `tools` must be present; an error is thrown
    * if both or neither are declared.
    */
-  private resolveTools(metadata: DeclarativeSpecMetadata, absolutePath: string): string[] {
+  private resolveToolRestrictions(
+    metadata: DeclarativeSpecMetadata,
+    absolutePath: string,
+  ): Record<string, readonly string[]> {
     const label = path.basename(absolutePath);
     if (metadata.toolPreset && metadata.tools) {
       throw new Error(`Invalid spec metadata in ${label}: declare only one of toolPreset or tools`);
@@ -99,16 +105,27 @@ export class SpecLoader {
       return this.resolveToolPreset(metadata.toolPreset, label);
     }
     if (metadata.tools) {
-      return [...metadata.tools];
+      return this.toolListToRestrictions(metadata.tools);
     }
     throw new Error(`Invalid spec metadata in ${label}: toolPreset or tools is required`);
   }
 
-  private resolveToolPreset(presetName: ToolPresetName, label: string): string[] {
+  private resolveToolPreset(
+    presetName: ToolPresetName,
+    label: string,
+  ): Record<string, readonly string[]> {
     const preset = TOOL_PRESETS[presetName];
     if (!preset) {
       throw new Error(`Unknown tool preset in ${label}: ${presetName}`);
     }
-    return [...preset];
+    return this.toolListToRestrictions([...preset]);
+  }
+
+  private toolListToRestrictions(tools: string[]): Record<string, readonly string[]> {
+    const restrictions: Record<string, readonly string[]> = {};
+    for (const tool of tools) {
+      restrictions[tool] = [];
+    }
+    return restrictions;
   }
 }

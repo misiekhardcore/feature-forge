@@ -12,7 +12,7 @@ describe("SessionAgent", () => {
     spec = makeSpec("session-agent", {
       role: "orchestrator",
       systemPrompt: "# You are the orchestrator.",
-      tools: ["run_build_loop", "bash"],
+      toolRestrictions: { run_build_loop: [], bash: [] },
     });
   });
 

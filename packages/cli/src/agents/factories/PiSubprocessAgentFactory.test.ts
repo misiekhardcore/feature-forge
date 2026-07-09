@@ -83,7 +83,7 @@ describe("PiSubprocessAgentFactory", () => {
   });
 
   it("creates agents with CLI args for the spec", async () => {
-    await factory.create(makeSpec("cli-args", { tools: ["read"], ephemeral: true }));
+    await factory.create(makeSpec("cli-args", { toolRestrictions: { read: [] }, ephemeral: true }));
     expect(rpcMock.instance.start).toHaveBeenCalled();
   });
 
