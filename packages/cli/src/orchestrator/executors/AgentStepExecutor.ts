@@ -81,7 +81,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     eventBus.emit("feature-forge:agent-started", {
       phase: "agent-started",
       message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
-      details: { executionId },
+      details: { executionId, agentId: agent.id },
     });
 
     try {
@@ -93,7 +93,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
             message: `Agent "${instructionId}" stream event`,
             details: {
               executionId,
-              agentId: instructionId,
+              agentId: agent.id,
               label: specification.role,
               event,
             },
@@ -112,7 +112,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
         message: `Agent "${instructionId}" completed`,
-        details: { executionId, summary: agentSummary, passed: agentPassed },
+        details: {
+          executionId,
+          agentId: agent.id,
+          summary: agentSummary,
+          passed: agentPassed,
+        },
       });
 
       return updatedContext;
@@ -125,11 +130,23 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error("Agent execution failed", { instructionId, error: err });
 
+      const failureSummary = `Agent "${instructionId}" failed: ${err.message}`;
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: `Agent "${instructionId}" failed`,
+        details: {
+          executionId,
+          agentId: agent.id,
+          passed: false,
+          summary: failureSummary,
+        },
+      });
+
       const failureResult: InstructionResult = {
         raw: err.message,
         parsed: {
           passed: false,
-          summary: `Agent "${instructionId}" failed: ${err.message}`,
+          summary: failureSummary,
         },
       };
       return context.withResult(instructionId, failureResult);
@@ -148,7 +165,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     if (!event.phase.startsWith("agent-")) {
       return undefined;
     }
-    const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
+    const agentId = event.details.agentId;
     if (!agentId) {
       return undefined;
     }
@@ -157,9 +174,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
         ? "started"
         : event.phase === "agent-done"
           ? "done"
-          : event.phase === "agent-error"
-            ? "error"
-            : undefined;
+          : undefined;
     const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
     const executionId = event.details.executionId;
     return {

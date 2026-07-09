@@ -1,5 +1,7 @@
 import { connect, type Socket } from "node:net";
 
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -106,11 +108,13 @@ function readResponse(socket: Socket, timeout = 2000): Promise<unknown> {
 describe("ParentSocketServer", () => {
   let server: ParentSocketServer;
   let supervisor: AgentSupervisor;
+  let pi: ExtensionAPI;
   let socketPath: string;
 
   beforeEach(async () => {
     supervisor = createMockSupervisor();
-    server = new ParentSocketServer(supervisor, makeMockPi(), createMockSpecManager());
+    pi = makeMockPi();
+    server = new ParentSocketServer(supervisor, pi, createMockSpecManager());
     socketPath = await server.start();
   });
 
@@ -417,5 +421,245 @@ describe("ParentSocketServer", () => {
     expect(response).toHaveProperty("correlationId", "unknown");
 
     client.end();
+  });
+
+  describe("event bus emissions", () => {
+    it("emits feature-forge:agent-started and feature-forge:agent-done on await=true success", async () => {
+      const client = connect(socketPath);
+
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "evt-1",
+        params: { role: "event-worker", systemPrompt: "event worker", tools: ["read"] },
+      });
+      await readResponse(client);
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "evt-2",
+        params: { agentId: "event-worker", prompt: "do work", await: true },
+      });
+      await readResponse(client);
+
+      const emitSpy = pi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-started",
+        expect.objectContaining({
+          phase: "agent-started",
+          details: expect.objectContaining({ agentId: "event-worker" }),
+        }),
+      );
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-done",
+        expect.objectContaining({
+          phase: "agent-done",
+          details: expect.objectContaining({
+            agentId: "event-worker",
+            passed: true,
+            summary: "task result",
+          }),
+        }),
+      );
+
+      client.end();
+    });
+
+    it("emits feature-forge:agent-done with passed=false on await=true failure", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localPi = makeMockPi();
+      const localServer = new ParentSocketServer(localSupervisor, localPi, createMockSpecManager());
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "fail-1",
+        params: { role: "fail-worker", systemPrompt: "fail", tools: ["read"] },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("fail-worker") as SubprocessAgent;
+      vi.mocked(agent.executeTask).mockRejectedValue(new Error("task error"));
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "fail-2",
+        params: { agentId: "fail-worker", prompt: "work", await: true },
+      });
+      await readResponse(client);
+
+      const emitSpy = localPi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-started",
+        expect.objectContaining({
+          phase: "agent-started",
+          details: expect.objectContaining({ agentId: "fail-worker" }),
+        }),
+      );
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-done",
+        expect.objectContaining({
+          phase: "agent-done",
+          details: expect.objectContaining({
+            agentId: "fail-worker",
+            passed: false,
+            summary: "task error",
+          }),
+        }),
+      );
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("emits feature-forge:agent-done on await=false success", async () => {
+      const client = connect(socketPath);
+
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "ffs-1",
+        params: { role: "ff-worker", systemPrompt: "ff", tools: ["read"] },
+      });
+      await readResponse(client);
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "ffs-2",
+        params: { agentId: "ff-worker", prompt: "background work", await: false },
+      });
+      await readResponse(client);
+
+      // Flush microtasks so the .then() callback runs
+      await Promise.resolve();
+
+      const emitSpy = pi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-started",
+        expect.objectContaining({
+          phase: "agent-started",
+          details: expect.objectContaining({ agentId: "ff-worker" }),
+        }),
+      );
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-done",
+        expect.objectContaining({
+          phase: "agent-done",
+          details: expect.objectContaining({
+            agentId: "ff-worker",
+            passed: true,
+            summary: "task result",
+          }),
+        }),
+      );
+
+      client.end();
+    });
+
+    it("emits feature-forge:agent-done with passed=false on await=false failure", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localPi = makeMockPi();
+      const localServer = new ParentSocketServer(localSupervisor, localPi, createMockSpecManager());
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "fff-1",
+        params: { role: "fff-worker", systemPrompt: "fff", tools: ["read"] },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("fff-worker") as SubprocessAgent;
+      vi.mocked(agent.executeTask).mockRejectedValue(new Error("background failure"));
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "fff-2",
+        params: { agentId: "fff-worker", prompt: "bg work", await: false },
+      });
+      await readResponse(client);
+
+      // Flush microtasks so the .catch() callback runs
+      await Promise.resolve();
+
+      const emitSpy = localPi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-started",
+        expect.objectContaining({
+          phase: "agent-started",
+          details: expect.objectContaining({ agentId: "fff-worker" }),
+        }),
+      );
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-done",
+        expect.objectContaining({
+          phase: "agent-done",
+          details: expect.objectContaining({
+            agentId: "fff-worker",
+            passed: false,
+            summary: "background failure",
+          }),
+        }),
+      );
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("emits feature-forge:agent-stream events with phase, message, executionId, label, and event fields", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localPi = makeMockPi();
+      const localServer = new ParentSocketServer(localSupervisor, localPi, createMockSpecManager());
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "str-1",
+        params: { role: "stream-worker", systemPrompt: "stream", tools: ["read"] },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("stream-worker") as SubprocessAgent;
+      vi.mocked(agent.executeTask).mockImplementation(async (_prompt, options) => {
+        const streamEvent = {
+          type: "tool_execution_start",
+          toolName: "read",
+        } as AgentEvent;
+        options?.onEvent?.(streamEvent);
+        return "stream result";
+      });
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "str-2",
+        params: { agentId: "stream-worker", prompt: "stream work", await: true },
+      });
+      await readResponse(client);
+
+      const emitSpy = localPi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-stream",
+        expect.objectContaining({
+          phase: "agent-stream",
+          message: expect.stringContaining('Agent "stream-worker" stream event'),
+          details: expect.objectContaining({
+            executionId: "str-2",
+            agentId: "stream-worker",
+            label: "stream-worker",
+            event: { type: "tool_execution_start", toolName: "read" },
+          }),
+        }),
+      );
+
+      client.end();
+      await localServer.stop();
+    });
   });
 });

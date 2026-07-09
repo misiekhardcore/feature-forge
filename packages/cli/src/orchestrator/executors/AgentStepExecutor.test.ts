@@ -489,6 +489,7 @@ describe("AgentStepExecutor", () => {
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
+              agentId: "test-agent",
             }),
           }),
         );
@@ -500,6 +501,7 @@ describe("AgentStepExecutor", () => {
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
+              agentId: "test-agent",
             }),
           }),
         );
@@ -533,6 +535,7 @@ describe("AgentStepExecutor", () => {
           expect.objectContaining({
             phase: "agent-done",
             details: expect.objectContaining({
+              agentId: "test-agent",
               passed: false,
               summary: "1 critical, 1 warnings",
             }),
@@ -540,7 +543,7 @@ describe("AgentStepExecutor", () => {
         );
       });
 
-      it("does not emit agent-done when agent execution fails", async () => {
+      it("emits agent-done with passed: false when agent execution fails", async () => {
         const error = new Error("build failed");
         const agent = makeMockAgentThatThrows(error);
         const supervisor = makeMockSupervisor(agent);
@@ -561,11 +564,25 @@ describe("AgentStepExecutor", () => {
         const eventBus = makeMockEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        // Only agent-started is fired; agent-done is NOT fired on failure.
-        expect(eventBus.emit).toHaveBeenCalledTimes(1);
-        expect(eventBus.emit).toHaveBeenCalledWith(
+        // Both agent-started and agent-done are fired.
+        expect(eventBus.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          1,
           "feature-forge:agent-started",
           expect.anything(),
+        );
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          2,
+          "feature-forge:agent-done",
+          expect.objectContaining({
+            phase: "agent-done",
+            message: expect.stringContaining("builder") as string,
+            details: expect.objectContaining({
+              agentId: "test-agent",
+              passed: false,
+              summary: `Agent "builder" failed: build failed`,
+            }),
+          }),
         );
       });
 
@@ -597,7 +614,7 @@ describe("AgentStepExecutor", () => {
             phase: "agent-stream",
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
-              agentId: "builder",
+              agentId: "test-agent",
               label: "test",
               event: expect.objectContaining({ type: "tool_use" }),
             }),
@@ -787,7 +804,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: {},
+        details: { agentId: "builder" },
       });
 
       expect(contrib).toBeDefined();
@@ -800,7 +817,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { summary: "All good" },
+        details: { agentId: "reviewer", summary: "All good" },
       });
 
       expect(contrib).toBeDefined();
@@ -814,7 +831,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { summary: "3 critical", passed: false },
+        details: { agentId: "reviewer", summary: "3 critical", passed: false },
       });
 
       expect(contrib).toBeDefined();
@@ -823,15 +840,16 @@ describe("AgentStepExecutor", () => {
       expect(contrib!.agentSummary).toBe("3 critical");
     });
 
-    it("returns agentStatus 'error' for agent-error phase", () => {
+    it("returns agentStatus undefined for agent-error phase (dead code)", () => {
       const executor = makeExecutor();
       const contrib = executor.getDisplayContribution({
         phase: "agent-error",
         message: 'Agent "builder" failed: something broke',
-        details: {},
+        details: { agentId: "builder" },
       });
 
-      expect(contrib!.agentStatus).toBe("error");
+      // agent-error phase has no matching branch — agentStatus is undefined.
+      expect(contrib!.agentStatus).toBeUndefined();
     });
 
     it("returns undefined for non-agent phase events", () => {
@@ -845,7 +863,7 @@ describe("AgentStepExecutor", () => {
       expect(contrib).toBeUndefined();
     });
 
-    it("returns undefined when the message does not contain an agent id", () => {
+    it("returns undefined when event details lack agentId", () => {
       const executor = makeExecutor();
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
@@ -894,7 +912,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { executionId: "exec-abc-123" },
+        details: { executionId: "exec-abc-123", agentId: "builder" },
       });
 
       expect(contrib).toBeDefined();
@@ -907,7 +925,11 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { executionId: "exec-xyz-789", summary: "All tests passed" },
+        details: {
+          executionId: "exec-xyz-789",
+          agentId: "reviewer",
+          summary: "All tests passed",
+        },
       });
 
       expect(contrib).toBeDefined();

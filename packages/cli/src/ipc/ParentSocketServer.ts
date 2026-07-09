@@ -199,6 +199,12 @@ export class ParentSocketServer {
       return;
     }
 
+    this.pi.events.emit("feature-forge:agent-started", {
+      phase: "agent-started",
+      message: `Agent "${agent.id}" (${agent.specification.role}) started`,
+      details: { executionId: correlationId, agentId: agent.id },
+    });
+
     if (params.await) {
       let socketClosed = false;
 
@@ -219,12 +225,20 @@ export class ParentSocketServer {
         const result = await agent.executeTask(params.prompt, {
           timeout: params.timeout,
           onEvent: (event) => {
-            this.pi.events.emit("feature-forge:agent-stream", {
-              details: { agentId: agent.id, event },
-            });
+            this.emitStreamEvent(agent.id, correlationId, agent.specification.role, event);
           },
         });
         this.sendResponse(socket, correlationId, { result });
+        this.pi.events.emit("feature-forge:agent-done", {
+          phase: "agent-done",
+          message: `Agent "${agent.id}" completed`,
+          details: {
+            executionId: correlationId,
+            agentId: agent.id,
+            summary: result,
+            passed: true,
+          },
+        });
       } catch (error) {
         if (socketClosed) {
           return;
@@ -232,6 +246,16 @@ export class ParentSocketServer {
         const message = error instanceof Error ? error.message : String(error);
         this.sendError(socket, correlationId, message);
         this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+        this.pi.events.emit("feature-forge:agent-done", {
+          phase: "agent-done",
+          message: `Agent "${agent.id}" failed`,
+          details: {
+            executionId: correlationId,
+            agentId: agent.id,
+            passed: false,
+            summary: message,
+          },
+        });
       } finally {
         socket.removeListener("close", onSocketClose);
       }
@@ -244,18 +268,36 @@ export class ParentSocketServer {
         .executeTask(params.prompt, {
           timeout: params.timeout,
           onEvent: (event) => {
-            this.pi.events.emit("feature-forge:agent-stream", {
-              details: { agentId: agent.id, event },
-            });
+            this.emitStreamEvent(agent.id, correlationId, agent.specification.role, event);
           },
         })
         .then(
           (result) => {
             this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
+            this.pi.events.emit("feature-forge:agent-done", {
+              phase: "agent-done",
+              message: `Agent "${agent.id}" completed`,
+              details: {
+                executionId: correlationId,
+                agentId: agent.id,
+                passed: true,
+                summary: result,
+              },
+            });
           },
           (error) => {
             const message = error instanceof Error ? error.message : String(error);
             this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+            this.pi.events.emit("feature-forge:agent-done", {
+              phase: "agent-done",
+              message: `Agent "${agent.id}" failed`,
+              details: {
+                executionId: correlationId,
+                agentId: agent.id,
+                passed: false,
+                summary: message,
+              },
+            });
           },
         );
     }
@@ -298,6 +340,21 @@ export class ParentSocketServer {
   ): Promise<void> {
     await this.supervisor.destroyAgent(params.agentId);
     this.sendResponse(socket, correlationId, { status: "destroyed" });
+  }
+
+  // ─── Event bus emissions ──────────────────────────────────────────
+
+  private emitStreamEvent(
+    agentId: string,
+    executionId: string,
+    label: string,
+    event: unknown,
+  ): void {
+    this.pi.events.emit("feature-forge:agent-stream", {
+      phase: "agent-stream",
+      message: `Agent "${agentId}" stream event`,
+      details: { executionId, agentId, label, event },
+    });
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────

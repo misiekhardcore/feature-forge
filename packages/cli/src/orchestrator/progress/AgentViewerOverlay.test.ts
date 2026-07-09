@@ -5,8 +5,13 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
+import { AgentStatus } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Agent } from "../../agents/agents/Agent";
+import type { AgentSpecification } from "../../agents/specifications";
+import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { makeMockEventBus } from "../../test-utils";
 import type { AgentViewerEntry } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
 
@@ -118,6 +123,17 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("builder");
       expect(joined).toContain("✓");
       expect(joined).toContain("Built successfully");
+    });
+
+    it("shows ✗ instead of ✓ when passed is false", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("reviewer", "done", { passed: false, summary: "Review failed" }));
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✗");
+      expect(joined).not.toContain("✓");
     });
 
     it("shows raw output when present", () => {
@@ -344,8 +360,16 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("statusIcon", () => {
-    it("returns ✓ for done", () => {
+    it("returns ✓ for done with passed: true", () => {
+      expect(AgentViewerOverlay.statusIcon("done", true)).toBe("✓");
+    });
+
+    it("returns ✓ for done without explicit passed", () => {
       expect(AgentViewerOverlay.statusIcon("done")).toBe("✓");
+    });
+
+    it("returns ✗ for done with passed: false", () => {
+      expect(AgentViewerOverlay.statusIcon("done", false)).toBe("✗");
     });
 
     it("returns ⏳ for started", () => {
@@ -1211,6 +1235,32 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("scroll");
     });
 
+    it("shows ✓ icon and completed label when passed is true in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✓");
+      expect(joined).toContain("completed");
+    });
+
+    it("shows ✗ icon and failed label when passed is false in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("reviewer", "done", { passed: false, summary: "Review failed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "reviewer";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✗");
+      expect(joined).toContain("failed");
+    });
+
     it("dispatches render to renderDetail when viewMode is detail", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
@@ -1304,6 +1354,329 @@ describe("AgentViewerOverlay", () => {
 
       overlay1.dispose();
       overlay2.dispose();
+    });
+  });
+
+  describe("wireOverlayEvents", () => {
+    function makeMockAgent(
+      id: string,
+      role: string,
+      status: AgentStatus,
+      createdAt: Date = new Date(),
+    ): Agent {
+      return {
+        id,
+        status,
+        createdAt,
+        specification: { role } as AgentSpecification,
+        destroy: vi.fn(),
+      };
+    }
+
+    function makeMockSupervisor(agents: Agent[] = []): AgentSupervisor {
+      return {
+        getAgent: vi.fn((agentId: string) => agents.find((a) => a.id === agentId)),
+        getAllAgents: vi.fn(() => agents),
+      } as unknown as AgentSupervisor;
+    }
+
+    it("propagates passed: true from agent-done event to the entry", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "builder" completed',
+        details: {
+          agentId: "builder",
+          passed: true,
+          summary: "Build passed",
+        },
+      });
+
+      // Verify the entry was updated with passed: true
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("✓");
+      expect(joined).toContain("builder");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("propagates passed: false from agent-done event to the entry", () => {
+      const agent = makeMockAgent("reviewer", "reviewer", AgentStatus.Completed);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "reviewer" completed',
+        details: {
+          agentId: "reviewer",
+          passed: false,
+          summary: "Review failed",
+        },
+      });
+
+      // The entry should show ✗ for passed: false
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("✗");
+      expect(joined).toContain("reviewer");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("replays buffered events with passed data after connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      // Emit events BEFORE connect — they should be buffered.
+      eventBus.emit("feature-forge:agent-started", {
+        phase: "agent-started",
+        message: 'Agent "builder" started',
+        details: { agentId: "builder" },
+      });
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          agentId: "builder",
+          event: { type: "tool_execution_start", toolName: "read" },
+        },
+      });
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "builder" completed',
+        details: {
+          agentId: "builder",
+          passed: false,
+          summary: "Build failed",
+        },
+      });
+
+      const overlay = makeOverlay();
+      connect(overlay, "");
+
+      // After connect, the buffered done event should show ✗.
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("✗");
+      expect(joined).toContain("builder");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("sets passed on entries when initializing from supervisor after connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      const overlay = makeOverlay();
+      connect(overlay, "");
+
+      // The running agent should show ⏳ (no passed concept for started).
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("⏳");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("ignores events without agentId in details", () => {
+      const supervisor = makeMockSupervisor();
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      // Emit an event without agentId — should be silently ignored.
+      expect(() => {
+        eventBus.emit("feature-forge:agent-done", {
+          phase: "agent-done",
+          message: "no agent id",
+          details: {},
+        });
+      }).not.toThrow();
+
+      expect(overlay.entryCount).toBe(0);
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("calls pushStreamEvent for stream events after connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          agentId: "builder",
+          event: { type: "tool_execution_start", toolName: "write" } as AgentEvent,
+        },
+      });
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: write");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("persists stream events to disk when connect sets streamDir", () => {
+      const streamDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
+      try {
+        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+        const supervisor = makeMockSupervisor([agent]);
+        const eventBus = makeMockEventBus();
+        const overlay = makeOverlay();
+
+        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+          eventBus,
+          supervisor,
+        });
+
+        connect(overlay, streamDir);
+
+        eventBus.emit("feature-forge:agent-stream", {
+          phase: "agent-stream",
+          message: 'Agent "builder" stream event',
+          details: {
+            agentId: "builder",
+            event: { type: "tool_execution_start", toolName: "read" } as AgentEvent,
+          },
+        });
+
+        const tail = overlay.getStreamTail("builder");
+        expect(tail).toContain("tool_execution_start: read");
+
+        unsubs.forEach((u) => u());
+        overlay.dispose();
+      } finally {
+        rmSync(streamDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns three unsubs, one per subscribed channel", () => {
+      const supervisor = makeMockSupervisor();
+      const eventBus = makeMockEventBus();
+
+      const { unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      expect(unsubs).toHaveLength(3);
+      for (const unsub of unsubs) {
+        expect(unsub).toBeInstanceOf(Function);
+      }
+    });
+
+    it("unsubs stop event processing for the unsubscribed channel", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      // Call the first unsub (agent-stream channel) to unsubscribe.
+      unsubs[0]();
+
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          agentId: "builder",
+          event: { type: "tool_execution_start", toolName: "read" } as AgentEvent,
+        },
+      });
+
+      // The stream line should not have been updated after unsub.
+      expect(overlay.getLastStreamLine("builder")).toBeUndefined();
+
+      unsubs.slice(1).forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("handles agent-started event after connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-started", {
+        phase: "agent-started",
+        message: 'Agent "builder" started',
+        details: { agentId: "builder" },
+      });
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("⏳");
+      expect(joined).toContain("builder");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
     });
   });
 });

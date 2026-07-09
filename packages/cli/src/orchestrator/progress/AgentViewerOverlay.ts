@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -132,7 +132,13 @@ export class AgentViewerOverlay implements Component {
     if (streamDir) this.setStreamDir(streamDir);
   }
 
-  /** The standard overlay options for this component. */
+  /**
+   * Standard overlay configuration consumed by
+   * {@link import("../RoutineTool").RoutineTool} and
+   * {@link import("../../commands/AgentListCommand").AgentListCommand}.
+   *
+   * Returns a fresh copy so callers can mutate without affecting shared state.
+   */
   static get overlayOptions() {
     return { ...OVERLAY_OPTIONS };
   }
@@ -214,6 +220,10 @@ export class AgentViewerOverlay implements Component {
    * file on disk.
    */
   pushStreamEvent(agentId: string, event: AgentEvent): void {
+    if (!this.agents.has(agentId)) {
+      this.update({ id: agentId, status: "started" });
+    }
+
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
@@ -281,6 +291,28 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
+   * Scan the stream directory for existing {@code *.stream} files and
+   * pre-populate the internal {@link streamFiles} map so that
+   * {@link getStreamTail} works across overlay instances.
+   *
+   * Silently ignores missing or inaccessible directories — the map
+   * will be populated lazily by {@link pushStreamEvent} calls instead.
+   */
+  prepopulateStreamFiles(streamDir: string): void {
+    try {
+      for (const entry of readdirSync(streamDir)) {
+        if (entry.endsWith(".stream")) {
+          const agentId = entry.slice(0, -7);
+          const filePath = join(streamDir, entry);
+          this.streamFiles.set(agentId, filePath);
+        }
+      }
+    } catch {
+      // Directory may not exist or be inaccessible.
+    }
+  }
+
+  /**
    * Clean up stream files written to disk and reset view state.
    *
    * Removes each per-agent stream file when {@link streamDir} was
@@ -317,7 +349,6 @@ export class AgentViewerOverlay implements Component {
    * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
    */
   static formatElapsed(createdAt: Date): string {
-    if (!createdAt) return "—";
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
     if (seconds < 60) return `${seconds}s`;
@@ -337,10 +368,10 @@ export class AgentViewerOverlay implements Component {
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
-  static statusIcon(status: string, _passed?: boolean): string {
+  static statusIcon(status: string, passed?: boolean): string {
     switch (status) {
       case "done":
-        return "✓";
+        return passed === false ? "✗" : "✓";
       case "started":
         return "⏳";
       case "error":
@@ -353,16 +384,17 @@ export class AgentViewerOverlay implements Component {
   /**
    * Format a stream event into a single-line human-readable description.
    *
-   * Uses the {@link AgentEvent} discriminated union for type-safe
-   * detail extraction via {@link extractStreamDetail}. Falls back to
-   * JSON serialization for non-AgentEvent payloads.
+   * Accepts any object payload and dispatches based on {@code event.type}
+   * to {@link formatDetail}, which handles {@code Record<string, unknown>}
+   * payloads with guarded property access. Falls back to JSON
+   * serialization for non-object payloads.
    */
   static formatStreamEvent(event: unknown): string {
     if (event !== null && typeof event === "object" && "type" in event) {
       const typed = event as Record<string, unknown>;
       const rawType = typed["type"];
       const eventType = typeof rawType === "string" ? rawType : "unknown";
-      const detail = AgentViewerOverlay.formatDetail(typed as AgentEvent, eventType);
+      const detail = AgentViewerOverlay.formatDetail(typed, eventType);
       return detail ? `${eventType}: ${detail}` : eventType;
     }
     const serialized = JSON.stringify(event);
@@ -408,14 +440,21 @@ export class AgentViewerOverlay implements Component {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
       const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
-      const iconColor =
-        entry.status === "done"
-          ? "success"
-          : entry.status === "started"
-            ? "warning"
-            : entry.status === "error"
-              ? "error"
-              : "muted";
+      let iconColor: string;
+      switch (entry.status) {
+        case "done":
+          iconColor = entry.passed !== false ? "success" : "error";
+          break;
+        case "started":
+          iconColor = "warning";
+          break;
+        case "error":
+          iconColor = "error";
+          break;
+        default:
+          iconColor = "muted";
+          break;
+      }
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -477,11 +516,21 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const icon = AgentViewerOverlay.statusIcon(entry.status);
+    const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
 
     // Header
-    const statusLabel =
-      entry.status === "started" ? "running" : entry.status === "done" ? "completed" : entry.status;
+    let statusLabel: string;
+    switch (entry.status) {
+      case "started":
+        statusLabel = "running";
+        break;
+      case "done":
+        statusLabel = entry.passed === false ? "failed" : "completed";
+        break;
+      default:
+        statusLabel = entry.status;
+        break;
+    }
     lines.push(
       `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${statusLabel}`)}`,
     );
@@ -585,13 +634,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Format a detail string from an {@link AgentEvent} using the
-   * discriminated union for type-safe field access.
-   *
-   * The {@code eventType} parameter is preserved for the fallback path
-   * in {@link formatStreamEvent} where the event shape is unknown.
-   */
-  /**
    * Create event subscriptions that feed an overlay with live agent data.
    *
    * Returns subscriptions and a {@code connect} callback.  Callers construct the
@@ -611,26 +653,46 @@ export class AgentViewerOverlay implements Component {
       "feature-forge:agent-done",
     ] as const;
 
-    const eventBuffer: Array<{ agentId: string; event: AgentEvent; status?: string }> = [];
+    const eventBuffer: Array<{
+      agentId: string;
+      event?: AgentEvent;
+      status?: string;
+      passed?: boolean;
+      summary?: string;
+    }> = [];
     let connected = false;
 
     const deliverStatusEvent = (
       viewer: AgentViewerOverlay,
       agentId: string,
       mappedStatus: string,
+      passed?: boolean,
+      eventSummary?: string,
     ) => {
       const agent = supervisor.getAgent(agentId);
+      const summary =
+        eventSummary ??
+        (agent ? `${agent.specification.role} — ${agent.status}` : "Agent disconnected");
       viewer.update({
         id: agentId,
         status: mappedStatus,
-        summary: agent ? `${agent.specification.role} — ${agent.status}` : undefined,
+        passed,
+        summary,
+        role: agent?.specification.role,
         elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
       });
     };
 
     const unsubs = channels.map((channel) =>
       eventBus.on(channel, (data) => {
-        const payload = data as { details?: { agentId?: string; event?: unknown } };
+        const payload = data as {
+          details?: {
+            agentId?: string;
+            event?: unknown;
+            passed?: boolean;
+            summary?: string;
+          };
+        };
         const agentId = payload.details?.agentId;
         if (!agentId) return;
 
@@ -647,17 +709,19 @@ export class AgentViewerOverlay implements Component {
           channel === "feature-forge:agent-started" ||
           channel === "feature-forge:agent-done"
         ) {
-          const status = channel === "feature-forge:agent-started" ? "started" : "done";
           const mappedStatus = AgentViewerOverlay.mapStatus(
             supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
           );
+          const passed = payload.details?.passed;
+          const eventSummary = payload.details?.summary;
           if (connected) {
-            deliverStatusEvent(viewer, agentId, mappedStatus);
+            deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
           } else {
             eventBuffer.push({
               agentId,
-              event: { type: "agent_start" },
-              status,
+              status: mappedStatus,
+              passed,
+              summary: eventSummary,
             });
           }
         }
@@ -672,8 +736,8 @@ export class AgentViewerOverlay implements Component {
 
       for (const item of eventBuffer) {
         if (item.status) {
-          deliverStatusEvent(viewer, item.agentId, item.status);
-        } else {
+          deliverStatusEvent(viewer, item.agentId, item.status, item.passed, item.summary);
+        } else if (item.event) {
           viewer.pushStreamEvent(item.agentId, item.event);
         }
       }
@@ -681,12 +745,15 @@ export class AgentViewerOverlay implements Component {
 
       viewer.setStreamDir(streamDir);
 
+      viewer.prepopulateStreamFiles(streamDir);
+
       for (const agent of supervisor.getAllAgents()) {
         const status = AgentViewerOverlay.mapStatus(agent.status);
         viewer.update({
           id: agent.id,
           status,
           summary: `${agent.specification.role} — ${agent.status}`,
+          role: agent.specification.role,
           elapsed: AgentViewerOverlay.formatElapsed(agent.createdAt),
         });
       }
@@ -695,10 +762,15 @@ export class AgentViewerOverlay implements Component {
     return { connect, unsubs };
   }
 
-  private static formatDetail(event: AgentEvent, _eventType: string): string {
-    // Defensive: `as AgentEvent` casts at runtime may produce object
-    // shapes with missing fields. Use guards for all property access.
-    switch (event.type) {
+  /**
+   * Format a detail string from an event object using the pre-extracted
+   * {@code eventType} for type-safe dispatch.
+   *
+   * Accepts a generic record so that callers do not need unsafe
+   * {@code as AgentEvent} casts. All property access is guarded.
+   */
+  private static formatDetail(event: Record<string, unknown>, eventType: string): string {
+    switch (eventType) {
       case "agent_start":
         return "started";
       case "agent_end":

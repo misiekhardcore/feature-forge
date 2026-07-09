@@ -89,9 +89,15 @@ describe("AgentListCommand", () => {
     expect(cmd.name).toBe("agent:list");
   });
 
-  it("notifies when no agents tracked", async () => {
+  it("opens overlay even when no agents are tracked", async () => {
     await cmd.handler("", ctx);
-    expect(ctx.ui.notify).toHaveBeenCalledWith("No agents currently tracked.", "info");
+    expect(ctx.ui.custom).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        overlay: true,
+        overlayOptions: expect.objectContaining({ anchor: "center" }),
+      }),
+    );
   });
 
   it("opens overlay via ctx.ui.custom when agents are tracked", async () => {
