@@ -1,4 +1,15 @@
 /**
+ * Options passed to {@link WorkspaceProvider.createWorkspace}.
+ */
+export interface CreateWorkspaceOptions {
+  /**
+   * Additional symlink paths (relative to repo root) to create inside
+   * the workspace after provisioning.
+   */
+  symlinks?: readonly string[];
+}
+
+/**
  * Abstract workspace provider that creates and destroys isolated working
  * directories for agents.
  *
@@ -13,10 +24,11 @@ export abstract class WorkspaceProvider {
    * Create an isolated working directory for an agent.
    *
    * @param workspaceId — Unique identifier for the workspace (typically the task id).
+   * @param options — Optional configuration (e.g., symlinks to create).
    * @returns Absolute path to the created workspace.
    * @throws {WorkspaceError} subclass on failure (e.g., dirty working tree).
    */
-  abstract createWorkspace(workspaceId: string): Promise<string>;
+  abstract createWorkspace(workspaceId: string, options?: CreateWorkspaceOptions): Promise<string>;
 
   /**
    * Tear down a previously created workspace.

@@ -222,7 +222,10 @@ export class MockWorkspaceProvider extends WorkspaceProvider {
     super();
   }
 
-  override async createWorkspace(workspaceId: string): Promise<string> {
+  override async createWorkspace(
+    workspaceId: string,
+    _options?: import("./workspace/WorkspaceProvider").CreateWorkspaceOptions,
+  ): Promise<string> {
     if (this.shouldFailCreation) {
       throw new Error(this.failureMessage);
     }

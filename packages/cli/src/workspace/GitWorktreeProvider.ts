@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { logger } from "../logging";
 import {
@@ -9,6 +9,15 @@ import {
   WorktreePathExistsError,
 } from "./WorkspaceError";
 import { WorkspaceProvider } from "./WorkspaceProvider";
+
+/**
+ * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
+ *
+ * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
+ * Branch name: `forge/<workspaceId>`
+ */
+/** Platform-level symlinks created in every worktree. */
+const PLATFORM_SYMLINKS = [".pi", ".forge/logs", ".forge/worktrees.json"];
 
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
@@ -55,7 +64,10 @@ export class GitWorktreeProvider extends WorkspaceProvider {
    * repo is not checked — worktrees are created from the commit, not
    * the working tree.
    */
-  public override async createWorkspace(workspaceId: string): Promise<string> {
+  public override async createWorkspace(
+    workspaceId: string,
+    options?: import("./WorkspaceProvider").CreateWorkspaceOptions,
+  ): Promise<string> {
     const worktreePath = this.getWorktreePath(workspaceId);
     const branchName = this.getBranchName(workspaceId);
     logger.info("Creating workspace", { path: worktreePath, branch: branchName });
@@ -71,6 +83,8 @@ export class GitWorktreeProvider extends WorkspaceProvider {
       "-b",
       branchName,
     ]);
+
+    this.resolveSymlinks(worktreePath, options?.symlinks);
 
     return worktreePath;
   }
@@ -117,6 +131,40 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   private async assertNoStalePath(worktreePath: string): Promise<void> {
     if (existsSync(worktreePath)) {
       throw new WorktreePathExistsError(worktreePath);
+    }
+  }
+
+  private resolveSymlinks(worktreePath: string, stepSymlinks?: readonly string[]): void {
+    // Parse FORGE_WORKTREE_SYMLINKS env var (comma-separated, trim, filter empty)
+    const envSymlinks = (process.env.FORGE_WORKTREE_SYMLINKS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    const allSymlinks = [...PLATFORM_SYMLINKS, ...envSymlinks, ...(stepSymlinks ?? [])];
+
+    const unique = [...new Set(allSymlinks)];
+
+    for (const symlink of unique) {
+      // Guard: never symlink into .forge/worktrees/ directory (prevents recursive nesting).
+      // Use a trailing slash to avoid matching files like .forge/worktrees.json.
+      if (symlink === ".forge/worktrees" || symlink.startsWith(".forge/worktrees/")) {
+        continue;
+      }
+
+      const source = resolve(this.repoRoot, symlink);
+      if (!existsSync(source)) {
+        logger.warn("Symlink source does not exist", { symlink, source });
+        continue;
+      }
+
+      const target = resolve(worktreePath, symlink);
+      const targetParent = dirname(target);
+      if (!existsSync(targetParent)) {
+        mkdirSync(targetParent, { recursive: true });
+      }
+
+      symlinkSync(relative(dirname(target), source), target);
     }
   }
 

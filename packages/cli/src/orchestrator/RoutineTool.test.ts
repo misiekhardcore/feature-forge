@@ -311,7 +311,10 @@ describe("RoutineTool", () => {
     it("calls _onUpdate for each progress event emitted by executors", async () => {
       // Use a WorkspaceStepExecutor that fires workspace-ready events.
       class FakeProvider extends WorkspaceProvider {
-        override async createWorkspace(_id: string): Promise<string> {
+        override async createWorkspace(
+          _id: string,
+          _options?: import("../workspace/WorkspaceProvider").CreateWorkspaceOptions,
+        ): Promise<string> {
           return "/tmp/ws";
         }
         override async destroyWorkspace(_path: string): Promise<void> {

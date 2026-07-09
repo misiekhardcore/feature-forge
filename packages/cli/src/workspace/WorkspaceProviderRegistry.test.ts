@@ -13,7 +13,10 @@ class FakeProvider extends WorkspaceProvider {
     this.label = label;
   }
 
-  override async createWorkspace(_workspaceId: string): Promise<string> {
+  override async createWorkspace(
+    _workspaceId: string,
+    _options?: import("./WorkspaceProvider").CreateWorkspaceOptions,
+  ): Promise<string> {
     return `/fake/${this.label}`;
   }
 

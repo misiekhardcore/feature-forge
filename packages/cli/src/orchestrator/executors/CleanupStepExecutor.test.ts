@@ -14,7 +14,10 @@ import { CleanupStepExecutor } from "./CleanupStepExecutor";
 class TrackingProvider extends WorkspaceProvider {
   destroyedPaths: string[] = [];
 
-  override async createWorkspace(id: string): Promise<string> {
+  override async createWorkspace(
+    id: string,
+    _options?: import("../../workspace/WorkspaceProvider").CreateWorkspaceOptions,
+  ): Promise<string> {
     return `/fake/${id}`;
   }
 
@@ -124,7 +127,10 @@ describe("CleanupStepExecutor", () => {
     it("continues even if one workspace destruction fails", async () => {
       const goodProvider = new TrackingProvider();
       const failingProvider = new (class extends WorkspaceProvider {
-        override async createWorkspace(_id: string): Promise<string> {
+        override async createWorkspace(
+          _id: string,
+          _options?: import("../../workspace/WorkspaceProvider").CreateWorkspaceOptions,
+        ): Promise<string> {
           return "/fail";
         }
         override async destroyWorkspace(_path: string): Promise<void> {

@@ -26,7 +26,10 @@ class CountingProvider extends WorkspaceProvider {
   created: string[] = [];
   destroyed: string[] = [];
 
-  override async createWorkspace(workspaceId: string): Promise<string> {
+  override async createWorkspace(
+    workspaceId: string,
+    _options?: import("../../workspace/WorkspaceProvider").CreateWorkspaceOptions,
+  ): Promise<string> {
     const path = `/test/${workspaceId}`;
     this.created.push(path);
     return path;
@@ -119,6 +122,29 @@ describe("WorkspaceStepExecutor", () => {
     await expect(
       executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
     ).rejects.toThrow();
+  });
+
+  it("passes instruction.symlinks to provider.createWorkspace", async () => {
+    const provider = new CountingProvider();
+    // Spy on createWorkspace to verify the options passed
+    const createSpy = vi.spyOn(provider, "createWorkspace");
+
+    const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+    const wtRegistry = stubWorktreeRegistry();
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+    const instruction: WorkspaceInstruction = {
+      type: "workspace",
+      id: "ws1",
+      provider: "git-worktree",
+      symlinks: ["custom-dir", "another-dir"],
+    };
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
+    await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+    expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
+      symlinks: ["custom-dir", "another-dir"],
+    });
   });
 
   describe("eventBus", () => {

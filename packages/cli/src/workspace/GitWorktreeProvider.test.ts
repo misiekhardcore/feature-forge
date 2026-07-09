@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => {
   let existsSyncPaths = new Set<string>();
   const existsSync = vi.fn((path: string) => existsSyncPaths.has(path));
   const rmSync = vi.fn();
+  const symlinkSync = vi.fn();
+  const mkdirSync = vi.fn();
   /** Maps "cmd::JSON.stringify(args)" → { stdout } | { error, stderr } */
   const execResults = new Map<
     string,
@@ -20,6 +22,8 @@ const mocks = vi.hoisted(() => {
     existsSync.mockReset();
     existsSync.mockImplementation((path: string) => existsSyncPaths.has(path));
     rmSync.mockReset();
+    symlinkSync.mockReset();
+    mkdirSync.mockReset();
 
     execFile.mockImplementation(
       (
@@ -68,6 +72,12 @@ const mocks = vi.hoisted(() => {
     get rmSync() {
       return rmSync;
     },
+    get symlinkSync() {
+      return symlinkSync;
+    },
+    get mkdirSync() {
+      return mkdirSync;
+    },
     reset,
     addExistingPath,
     willSucceed,
@@ -85,6 +95,8 @@ vi.mock("node:fs", async () => {
     ...actual,
     existsSync: mocks.existsSync,
     rmSync: mocks.rmSync,
+    symlinkSync: mocks.symlinkSync,
+    mkdirSync: mocks.mkdirSync,
   };
 });
 
@@ -363,6 +375,181 @@ describe("GitWorktreeProvider", () => {
       mocks.willFail("git", ["worktree", "prune"], "prune failed");
 
       await expect(provider.destroyWorkspace(worktreePath)).resolves.toBeUndefined();
+    });
+  });
+
+  // ── Symbolic links ──────────────────────────────────────────────────
+
+  describe("createWorkspace symlinks", () => {
+    beforeEach(() => {
+      // Add platform symlink sources as existing paths
+      mocks.addExistingPath(`${repoRoot}/.pi`);
+      mocks.addExistingPath(`${repoRoot}/.forge/logs`);
+      mocks.addExistingPath(`${repoRoot}/.forge/worktrees.json`);
+    });
+
+    it("creates platform symlinks after worktree creation", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // Platform symlinks should have been created
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
+
+      // .pi lives at the root of the worktree, so parent dir exists
+      expect(mocks.symlinkSync).toHaveBeenCalledWith(
+        expect.stringContaining(".."),
+        `${worktreePath}/.pi`,
+      );
+    });
+
+    it("parses FORGE_WORKTREE_SYMLINKS env var", async () => {
+      process.env.FORGE_WORKTREE_SYMLINKS = "config,secrets";
+      mocks.addExistingPath(`${repoRoot}/config`);
+      mocks.addExistingPath(`${repoRoot}/secrets`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // 3 platform + 2 from env
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(5);
+
+      delete process.env.FORGE_WORKTREE_SYMLINKS;
+    });
+
+    it("merges all three sources with dedup", async () => {
+      process.env.FORGE_WORKTREE_SYMLINKS = ".pi"; // overlaps with PLATFORM_SYMLINKS
+      mocks.addExistingPath(`${repoRoot}/.pi`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1", { symlinks: [".pi", ".forge/logs"] });
+
+      // Dedup: .pi appears in all three sources but should only be created once
+      // .forge/logs appears in platform and stepSymlinks — once
+      // .forge/worktrees.json only in platform — once
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
+
+      delete process.env.FORGE_WORKTREE_SYMLINKS;
+    });
+
+    it("uses relative symlink paths", async () => {
+      mocks.addExistingPath(`${repoRoot}/.pi`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // The symlink target should have a relative path to the source
+      const symlinkCall = mocks.symlinkSync.mock.calls.find((call: unknown[]) =>
+        (call[1] as string).endsWith(".pi"),
+      );
+      expect(symlinkCall).toBeDefined();
+      expect(symlinkCall![0]).not.toContain(repoRoot);
+    });
+
+    it("skips missing sources with warning", async () => {
+      // The nested beforeEach adds all 3 platform paths.
+      // We must NOT add .forge/logs so the test verifies the skip behaviour.
+      // The beforeEach already added .pi and .forge/worktrees.json — good.
+      // But it also added .forge/logs — we need to override by using FORGE_WORKTREE_SYMLINKS
+      // to test the skip behaviour on a different path.
+
+      process.env.FORGE_WORKTREE_SYMLINKS = "nonexistent-dir";
+      // Do NOT add nonexistent-dir as existing
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // 3 platform + 0 env (nonexistent-dir is skipped)
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
+
+      // Verify the nonexistent env symlink was NOT created
+      const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
+      expect(symlinkTargets).not.toContain(`${worktreePath}/nonexistent-dir`);
+
+      delete process.env.FORGE_WORKTREE_SYMLINKS;
+    });
+
+    it("guards against .forge/worktrees/ symlinks", async () => {
+      process.env.FORGE_WORKTREE_SYMLINKS = ".forge/worktrees/evil";
+      mocks.addExistingPath(`${repoRoot}/.forge/worktrees/evil`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // .forge/worktrees/evil should NOT be symlinked (would cause recursive nesting)
+      const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
+      expect(symlinkTargets).not.toContain(`${worktreePath}/.forge/worktrees/evil`);
+
+      delete process.env.FORGE_WORKTREE_SYMLINKS;
+    });
+
+    it("creates parent directories for nested symlink targets", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // .forge/logs needs its parent (.forge/) to be created
+      const mkdirCalls = mocks.mkdirSync.mock.calls.map((call: unknown[]) => call[0]);
+      expect(mkdirCalls).toContain(`${worktreePath}/.forge`);
+    });
+
+    it("passes step-level symlinks from options", async () => {
+      mocks.addExistingPath(`${repoRoot}/custom-config`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1", { symlinks: ["custom-config"] });
+
+      // 3 platform + 1 step-level
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(4);
+
+      const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
+      expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
     });
   });
 });

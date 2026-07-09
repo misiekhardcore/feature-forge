@@ -19,6 +19,13 @@ describe("CurrentDirProvider", () => {
     });
   });
 
+  describe("createWorkspace with options", () => {
+    it("accepts options without breaking", async () => {
+      const path = await provider.createWorkspace("task-1", { symlinks: ["foo", "bar"] });
+      expect(path).toBe(process.cwd());
+    });
+  });
+
   describe("destroyWorkspace", () => {
     it("does nothing and does not throw", async () => {
       await expect(provider.destroyWorkspace("/any/path")).resolves.toBeUndefined();
