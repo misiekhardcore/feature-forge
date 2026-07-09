@@ -158,8 +158,8 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   /**
    * Extract agent display info from a progress event.
    *
-   * Parses the agent instruction id from the event message (format:
-   * {@code Agent "<id>" ...}) and maps the phase to a lifecycle status.
+   * Reads the agentId from {@code event.details.agentId} and maps the
+   * phase to a lifecycle status.
    */
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (!event.phase.startsWith("agent-")) {

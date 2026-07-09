@@ -10,6 +10,26 @@ import { AgentStatus } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 
 /**
+ * A single turn in a per-agent conversation built from stream events.
+ *
+ * Message turns carry role + text content. Tool-call turns carry the
+ * tool name, execution status, and optional result text.
+ */
+export interface ConversationTurn {
+  type: "message" | "tool_call";
+  /** Role for message turns (e.g. "assistant", "user"). */
+  role?: string;
+  /** Text content for message turns. */
+  content?: string;
+  /** Tool name for tool-call turns. */
+  toolName?: string;
+  /** Execution status for tool-call turns. */
+  toolStatus?: "running" | "ok" | "error";
+  /** Optional result text for tool-call turns. */
+  toolResult?: string;
+}
+
+/**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
  *
  * Updated in place as agent lifecycle events arrive from the executor.
@@ -100,6 +120,28 @@ export class AgentViewerOverlay implements Component {
   /** Scroll offset for detail view content. */
   scrollOffset = 0;
 
+  /** Last render width used to compute scroll bounds. */
+  private lastRenderWidth = 80;
+
+  /** Maps agent id → structured conversation turns built from stream events. */
+  private conversations = new Map<string, ConversationTurn[]>();
+
+  /**
+   * In-progress message turns being built from message_start/update/end
+   * events, keyed by agent id so that concurrent agent streams do not
+   * interfere with each other.
+   */
+  private pendingMessages = new Map<string, { role: string; content: string }>();
+
+  /**
+   * In-progress tool-call turns being built from tool_execution_* events,
+   * keyed by agent id.
+   */
+  private pendingToolCalls = new Map<
+    string,
+    { name: string; status: "running" | "ok" | "error"; result: string }
+  >();
+
   /**
    * @param tui — TUI instance used to request re-renders.
    * @param theme — Theme for colouring UI elements.
@@ -146,6 +188,7 @@ export class AgentViewerOverlay implements Component {
   // ── Component interface ───────────────────────────────────
 
   render(width: number): string[] {
+    this.lastRenderWidth = width;
     if (this.viewMode === "detail" && this.selectedAgentId) {
       return this.renderDetail(width);
     }
@@ -197,6 +240,9 @@ export class AgentViewerOverlay implements Component {
    * Does NOT clean up filesystem stream files — use {@link dispose}
    * for full cleanup when stream file persistence was configured via
    * {@link setAgentExecutionId}.
+   *
+   * @remarks Conversations are intentionally NOT cleared —
+   * use {@link dispose} for a full reset of all state Maps.
    */
   clearMemory(): void {
     this.agents.clear();
@@ -249,7 +295,40 @@ export class AgentViewerOverlay implements Component {
       }
     }
 
+    this.trackConversationTurn(agentId, event);
+
     this.tui.requestRender();
+  }
+
+  /**
+   * Return the structured conversation turns for an agent.
+   *
+   * Includes any in-progress message or tool-call that has not yet been
+   * finalized by a subsequent event.
+   */
+  getConversation(agentId: string): ConversationTurn[] {
+    const turns = [...(this.conversations.get(agentId) ?? [])];
+
+    const pendingMessage = this.pendingMessages.get(agentId);
+    if (pendingMessage && pendingMessage.content.length > 0) {
+      turns.push({
+        type: "message" as const,
+        role: pendingMessage.role,
+        content: pendingMessage.content,
+      });
+    }
+
+    const pendingToolCall = this.pendingToolCalls.get(agentId);
+    if (pendingToolCall) {
+      turns.push({
+        type: "tool_call" as const,
+        toolName: pendingToolCall.name,
+        toolStatus: pendingToolCall.status,
+        toolResult: pendingToolCall.result,
+      });
+    }
+
+    return turns;
   }
 
   /**
@@ -295,6 +374,12 @@ export class AgentViewerOverlay implements Component {
    * pre-populate the internal {@link streamFiles} map so that
    * {@link getStreamTail} works across overlay instances.
    *
+   * Also creates stale "done" entries for any agents that have stream
+   * files but are not tracked by {@link agents}. This ensures that
+   * {@code /agent:list} shows the same set of agents as the routine's
+   * auto-opened overlay, even after completed agents have been removed
+   * from the supervisor.
+   *
    * Silently ignores missing or inaccessible directories — the map
    * will be populated lazily by {@link pushStreamEvent} calls instead.
    */
@@ -305,6 +390,12 @@ export class AgentViewerOverlay implements Component {
           const agentId = entry.slice(0, -7);
           const filePath = join(streamDir, entry);
           this.streamFiles.set(agentId, filePath);
+          // Restore entries for agents that completed and were removed
+          // from the supervisor so /agent:list shows the same set as
+          // the routine's auto-opened overlay.
+          if (!this.agents.has(agentId)) {
+            this.update({ id: agentId, status: "done", summary: "Agent completed" });
+          }
         }
       }
     } catch {
@@ -323,6 +414,9 @@ export class AgentViewerOverlay implements Component {
     // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
     this.lastLines.clear();
+    this.conversations.clear();
+    this.pendingMessages.clear();
+    this.pendingToolCalls.clear();
     this.clearMemory();
   }
 
@@ -410,9 +504,7 @@ export class AgentViewerOverlay implements Component {
     const bot = theme.fg("border", "└" + "─".repeat(inner) + "┘");
     const result: string[] = [top];
     for (const raw of lines) {
-      // Strip ANSI to measure visible length, then pad.
-      // eslint-disable-next-line no-control-regex
-      const visible = raw.replace(/\[[0-9;]*m/g, "");
+      const visible = this.stripAnsi(raw);
       const pad = visible.length < inner ? " ".repeat(inner - visible.length) : "";
       result.push(theme.fg("border", "│") + raw + pad + theme.fg("border", "│"));
     }
@@ -544,45 +636,10 @@ export class AgentViewerOverlay implements Component {
       lines.push("");
     }
 
-    // Stream tail from disk when available
-    if (this.streamDir && this.selectedAgentId) {
-      const tail = this.getStreamTail(this.selectedAgentId, 50);
-      if (tail.length > 0) {
-        lines.push(theme.fg("accent", "Stream log:"));
-        for (const tailLine of tail.split("\n")) {
-          lines.push(`  ${theme.fg("muted", tailLine)}`);
-        }
-        lines.push("");
-      } else {
-        lines.push(theme.fg("muted", "  No stream events captured."));
-        lines.push("");
-      }
-    }
-
-    // Last stream line (in-memory fallback, truncated to fit width)
-    const lastLine = this.lastLines.get(entry.id);
-    if (lastLine) {
-      const maxLastLineWidth = Math.max(10, width - 2);
-      const truncatedLastLine =
-        lastLine.length > maxLastLineWidth
-          ? lastLine.slice(0, maxLastLineWidth - 3) + "..."
-          : lastLine;
-      lines.push(theme.fg("accent", "Last event:"));
-      lines.push(`  ${theme.fg("muted", truncatedLastLine)}`);
-      lines.push("");
-    }
-
-    // Raw output
-    if (entry.raw !== undefined) {
-      lines.push(theme.fg("accent", "Raw output:"));
-      const truncated =
-        entry.raw.length > DEFAULT_MAX_RAW_LENGTH
-          ? entry.raw.slice(0, DEFAULT_MAX_RAW_LENGTH) + "..."
-          : entry.raw;
-      for (const rawLine of truncated.split("\n")) {
-        lines.push(`  ${theme.fg("muted", rawLine)}`);
-      }
-      lines.push("");
+    // Structured conversation from stream events
+    const conversationLines = this.renderConversation(entry.id, width);
+    for (const convLine of conversationLines) {
+      lines.push(convLine);
     }
 
     // Help text
@@ -590,15 +647,279 @@ export class AgentViewerOverlay implements Component {
       theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
     );
 
-    // Clamp scroll offset to visible range without mutating state.
-    const effectiveOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
-    const visibleLines = lines.slice(effectiveOffset);
+    // Clamp scroll offset to visible range and keep state in sync.
+    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
+    const visibleLines = lines.slice(this.scrollOffset);
 
     const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
     return this.addBorder(wrapped, width);
   }
 
-  // ── Private input handling ────────────────────────────────
+  // ── Private conversation rendering ───────────────────────
+
+  /**
+   * Render the structured conversation for an agent as a list of styled lines.
+   */
+  private renderConversation(agentId: string, width: number): string[] {
+    const { theme } = this;
+    const turns = this.getConversation(agentId);
+    const lines: string[] = [];
+
+    lines.push(theme.fg("accent", "Conversation:"));
+
+    if (turns.length === 0) {
+      lines.push(`  ${theme.fg("muted", "No conversation recorded.")}`);
+      lines.push("");
+      return lines;
+    }
+
+    const turnLines = this.renderConversationTurns(turns, width);
+    for (const line of turnLines) {
+      lines.push(line);
+    }
+
+    lines.push("");
+    return lines;
+  }
+
+  /**
+   * Render conversation turn lines without header/footer for scroll-bound
+   * calculation.  Called by {@link computeScrollMax} to determine the
+   * maximum valid scroll offset.
+   */
+  private renderConversationContent(agentId: string, width: number): string[] {
+    const turns = this.getConversation(agentId);
+    if (turns.length === 0) return [];
+    return this.renderConversationTurns(turns, width);
+  }
+
+  /**
+   * Render a list of conversation turns as styled lines.
+   *
+   * Shared by {@link renderConversation} (which adds header/footer) and
+   * {@link renderConversationContent} (which returns the raw turn lines
+   * for scroll-bound calculation).
+   */
+  private renderConversationTurns(turns: ConversationTurn[], width: number): string[] {
+    const { theme } = this;
+    const lines: string[] = [];
+
+    for (const turn of turns) {
+      if (turn.type === "message") {
+        const roleText = turn.role ?? "unknown";
+        const roleColor: ThemeColor = roleText === "user" ? "userMessageText" : "accent";
+        lines.push(`  ${theme.fg(roleColor, `${roleText}:`)}`);
+        if (turn.content) {
+          const maxContentWidth = Math.max(10, width - 6);
+          const truncated =
+            turn.content.length > maxContentWidth
+              ? turn.content.slice(0, maxContentWidth - 3) + "..."
+              : turn.content;
+          for (const contentLine of truncated.split("\n")) {
+            if (contentLine.length > 0) {
+              const styled = AgentViewerOverlay.applyInlineMarkdown(theme, contentLine);
+              lines.push(`    ${styled}`);
+            }
+          }
+        }
+      } else {
+        const toolLines = this.renderToolCall(turn, width);
+        for (const toolLine of toolLines) {
+          lines.push(toolLine);
+        }
+      }
+    }
+
+    return lines;
+  }
+
+  /**
+   * Apply inline markdown styling to a single content line.
+   *
+   * Detects bold (**text**), italic (*text*), and inline code
+   * (\`text\`) patterns and wraps them with the injected theme's
+   * bold / italic / inverse styling methods.
+   */
+  private static applyInlineMarkdown(theme: Theme, line: string): string {
+    let result = line;
+
+    // Bold: **text**
+    result = result.replace(/\*\*(.+?)\*\*/g, (_match: string, text: string): string =>
+      theme.bold(text),
+    );
+    // Italic: *text* (but not **)
+    result = result.replace(
+      /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,
+      (_match: string, text: string): string => theme.italic(text),
+    );
+    // Inline code: `text`
+    result = result.replace(/`(.+?)`/g, (_match: string, text: string): string =>
+      theme.inverse(text),
+    );
+
+    return result;
+  }
+
+  /**
+   * Render a single tool-call turn as styled lines with coloured
+   * background boxes via {@link Theme.bg}.
+   */
+  private renderToolCall(turn: ConversationTurn, width: number): string[] {
+    const { theme } = this;
+    const lines: string[] = [];
+
+    let statusIcon: string;
+    let statusColor: ThemeColor;
+    switch (turn.toolStatus) {
+      case "ok":
+        statusIcon = "✓";
+        statusColor = "success";
+        break;
+      case "error":
+        statusIcon = "✗";
+        statusColor = "error";
+        break;
+      default:
+        statusIcon = "⏳";
+        statusColor = "warning";
+        break;
+    }
+
+    const toolName = turn.toolName ?? "unknown";
+    let statusLabel: string;
+    switch (turn.toolStatus) {
+      case "running":
+        statusLabel = "(running)";
+        break;
+      case "ok":
+        statusLabel = "(ok)";
+        break;
+      case "error":
+        statusLabel = "(error)";
+        break;
+      default:
+        statusLabel = "";
+        break;
+    }
+    const innerWidth = Math.max(10, width - 6);
+    const headerLine = `${theme.fg(statusColor, statusIcon)} ${theme.fg("accent", toolName)} ${theme.fg("muted", statusLabel)}`;
+    const headerPad = innerWidth - this.stripAnsi(headerLine).length;
+    const paddedHeader = headerPad > 0 ? headerLine + " ".repeat(headerPad) : headerLine;
+
+    const bgColor =
+      turn.toolStatus === "ok"
+        ? "toolSuccessBg"
+        : turn.toolStatus === "error"
+          ? "toolErrorBg"
+          : "toolPendingBg";
+    lines.push(`  ${theme.bg(bgColor, paddedHeader)}`);
+
+    if (turn.toolResult) {
+      const maxResultWidth = Math.max(10, width - 8);
+      const truncated =
+        turn.toolResult.length > maxResultWidth
+          ? turn.toolResult.slice(0, maxResultWidth - 3) + "..."
+          : turn.toolResult;
+      for (const resultLine of truncated.split("\n")) {
+        lines.push(`      ${theme.fg("toolOutput", resultLine)}`);
+      }
+    }
+
+    return lines;
+  }
+
+  /**
+   * Strip ANSI escape sequences to measure visible length.
+   */
+  private stripAnsi(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    return text.replace(/\x1b\[[0-9;]*m/g, "");
+  }
+
+  /**
+   * Build conversation turns from an incoming stream event.
+   *
+   * Maintains pending message / tool-call state so that multi-event
+   * sequences (e.g. message_start → message_update → message_end) are
+   * collapsed into a single turn when finalized.
+   */
+  private trackConversationTurn(agentId: string, event: AgentEvent): void {
+    if (event.type === "message_start") {
+      this.finalizePendingTurns(agentId);
+      const message =
+        event.message && typeof event.message === "object"
+          ? (event.message as unknown as Record<string, unknown>)
+          : null;
+      const rawRole = message ? message["role"] : undefined;
+      const role = typeof rawRole === "string" ? rawRole : "unknown";
+      this.pendingMessages.set(agentId, { role, content: "" });
+    } else if (event.type === "message_update") {
+      const text = AgentViewerOverlay.extractMessageText(event.message);
+      const pending = this.pendingMessages.get(agentId);
+      if (pending) {
+        pending.content = text;
+      }
+    } else if (event.type === "message_end") {
+      const text = AgentViewerOverlay.extractMessageText(event.message);
+      const pending = this.pendingMessages.get(agentId);
+      if (pending) {
+        pending.content = text;
+      }
+      this.finalizePendingTurns(agentId);
+    } else if (event.type === "tool_execution_start") {
+      this.finalizePendingTurns(agentId);
+      const toolName =
+        event.toolName && typeof event.toolName === "string" ? event.toolName : "unknown";
+      this.pendingToolCalls.set(agentId, { name: toolName, status: "running", result: "" });
+    } else if (event.type === "tool_execution_update") {
+      // partialResult may be object (serialized via formatDetail) or string;
+      // final tool_execution_end replaces accumulated result, so partial
+      // non-strings are intentionally skipped here.
+      const pending = this.pendingToolCalls.get(agentId);
+      if (pending && typeof event.partialResult === "string") {
+        pending.result += event.partialResult;
+      }
+    } else if (event.type === "tool_execution_end") {
+      const pending = this.pendingToolCalls.get(agentId);
+      if (pending) {
+        pending.status = event.isError === true ? "error" : "ok";
+        if (typeof event.result === "string") {
+          pending.result = event.result;
+        }
+      }
+      this.finalizePendingTurns(agentId);
+    }
+  }
+
+  /**
+   * Commit any in-progress message or tool-call into the agent's conversation.
+   */
+  private finalizePendingTurns(agentId: string): void {
+    const turns = [...(this.conversations.get(agentId) ?? [])];
+
+    const pendingMessage = this.pendingMessages.get(agentId);
+    if (pendingMessage && pendingMessage.content.length > 0) {
+      turns.push({
+        type: "message" as const,
+        role: pendingMessage.role,
+        content: pendingMessage.content,
+      });
+      this.pendingMessages.delete(agentId);
+    }
+
+    const pendingToolCall = this.pendingToolCalls.get(agentId);
+    if (pendingToolCall) {
+      turns.push({
+        type: "tool_call" as const,
+        toolName: pendingToolCall.name,
+        toolStatus: pendingToolCall.status,
+        toolResult: pendingToolCall.result,
+      });
+      this.pendingToolCalls.delete(agentId);
+    }
+
+    this.conversations.set(agentId, turns);
+  }
 
   private handleListInput(data: string): void {
     const entries = Array.from(this.agents.keys());
@@ -628,9 +949,29 @@ export class AgentViewerOverlay implements Component {
       this.scrollOffset = Math.max(0, this.scrollOffset - 1);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.down)) {
-      this.scrollOffset = this.scrollOffset + 1;
+      const maxOffset = this.computeScrollMax();
+      this.scrollOffset = Math.min(this.scrollOffset + 1, maxOffset);
       this.tui.requestRender();
     }
+  }
+
+  /**
+   * Compute the maximum valid scroll offset based on the current detail
+   * view line count so that {@link scrollOffset} never grows unbounded.
+   */
+  private computeScrollMax(): number {
+    if (!this.selectedAgentId) return 0;
+    // Render detail to get total line count.
+    const entry = this.agents.get(this.selectedAgentId);
+    if (!entry) return 0;
+    const headerLines = 4;
+    const footerLines = 1;
+    const conversationLines = this.renderConversationContent(
+      this.selectedAgentId,
+      this.lastRenderWidth,
+    ).length;
+    const totalLines = headerLines + conversationLines + footerLines;
+    return Math.max(0, totalLines - 1);
   }
 
   /**
