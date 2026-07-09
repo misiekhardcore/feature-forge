@@ -409,13 +409,15 @@ export class AgentViewerOverlay implements Component {
       const isSelected = index === this.selectedIndex;
       const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
       const iconColor =
-        entry.status === "done"
+        entry.status === "done" && entry.passed !== false
           ? "success"
-          : entry.status === "started"
-            ? "warning"
-            : entry.status === "error"
-              ? "error"
-              : "muted";
+          : entry.status === "done"
+            ? "error"
+            : entry.status === "started"
+              ? "warning"
+              : entry.status === "error"
+                ? "error"
+                : "muted";
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -477,11 +479,17 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const icon = AgentViewerOverlay.statusIcon(entry.status);
+    const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
 
     // Header
     const statusLabel =
-      entry.status === "started" ? "running" : entry.status === "done" ? "completed" : entry.status;
+      entry.status === "started"
+        ? "running"
+        : entry.status === "done" && entry.passed === false
+          ? "failed"
+          : entry.status === "done"
+            ? "completed"
+            : entry.status;
     lines.push(
       `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${statusLabel}`)}`,
     );
@@ -613,7 +621,7 @@ export class AgentViewerOverlay implements Component {
 
     const eventBuffer: Array<{
       agentId: string;
-      event: AgentEvent;
+      event?: AgentEvent;
       status?: string;
       passed?: boolean;
       summary?: string;
@@ -676,7 +684,6 @@ export class AgentViewerOverlay implements Component {
           } else {
             eventBuffer.push({
               agentId,
-              event: { type: "agent_start" },
               status,
               passed,
               summary: eventSummary,
@@ -695,7 +702,7 @@ export class AgentViewerOverlay implements Component {
       for (const item of eventBuffer) {
         if (item.status) {
           deliverStatusEvent(viewer, item.agentId, item.status, item.passed, item.summary);
-        } else {
+        } else if (item.event) {
           viewer.pushStreamEvent(item.agentId, item.event);
         }
       }

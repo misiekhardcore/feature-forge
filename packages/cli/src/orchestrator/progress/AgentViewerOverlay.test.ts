@@ -125,6 +125,17 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("Built successfully");
     });
 
+    it("shows ✗ instead of ✓ when passed is false", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("reviewer", "done", { passed: false, summary: "Review failed" }));
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✗");
+      expect(joined).not.toContain("✓");
+    });
+
     it("shows raw output when present", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done", { raw: "output line 1\noutput line 2" }));
@@ -1222,6 +1233,32 @@ describe("AgentViewerOverlay", () => {
 
       expect(joined).toContain("back");
       expect(joined).toContain("scroll");
+    });
+
+    it("shows ✓ icon and completed label when passed is true in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✓");
+      expect(joined).toContain("completed");
+    });
+
+    it("shows ✗ icon and failed label when passed is false in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("reviewer", "done", { passed: false, summary: "Review failed" }));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "reviewer";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("✗");
+      expect(joined).toContain("failed");
     });
 
     it("dispatches render to renderDetail when viewMode is detail", () => {

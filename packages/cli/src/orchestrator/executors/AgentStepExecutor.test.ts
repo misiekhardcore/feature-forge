@@ -840,7 +840,7 @@ describe("AgentStepExecutor", () => {
       expect(contrib!.agentSummary).toBe("3 critical");
     });
 
-    it("returns undefined for agent-error phase (dead code)", () => {
+    it("returns agentStatus undefined for agent-error phase (dead code)", () => {
       const executor = makeExecutor();
       const contrib = executor.getDisplayContribution({
         phase: "agent-error",
