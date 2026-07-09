@@ -165,7 +165,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     if (!event.phase.startsWith("agent-")) {
       return undefined;
     }
-    const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
+    const agentId = event.details.agentId;
     if (!agentId) {
       return undefined;
     }
@@ -174,9 +174,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
         ? "started"
         : event.phase === "agent-done"
           ? "done"
-          : event.phase === "agent-error"
-            ? "error"
-            : undefined;
+          : undefined;
     const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
     const executionId = event.details.executionId;
     return {

@@ -804,7 +804,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: {},
+        details: { agentId: "builder" },
       });
 
       expect(contrib).toBeDefined();
@@ -817,7 +817,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { summary: "All good" },
+        details: { agentId: "reviewer", summary: "All good" },
       });
 
       expect(contrib).toBeDefined();
@@ -831,7 +831,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { summary: "3 critical", passed: false },
+        details: { agentId: "reviewer", summary: "3 critical", passed: false },
       });
 
       expect(contrib).toBeDefined();
@@ -840,15 +840,16 @@ describe("AgentStepExecutor", () => {
       expect(contrib!.agentSummary).toBe("3 critical");
     });
 
-    it("returns agentStatus 'error' for agent-error phase", () => {
+    it("returns undefined for agent-error phase (dead code)", () => {
       const executor = makeExecutor();
       const contrib = executor.getDisplayContribution({
         phase: "agent-error",
         message: 'Agent "builder" failed: something broke',
-        details: {},
+        details: { agentId: "builder" },
       });
 
-      expect(contrib!.agentStatus).toBe("error");
+      // agent-error phase has no matching branch — agentStatus is undefined.
+      expect(contrib!.agentStatus).toBeUndefined();
     });
 
     it("returns undefined for non-agent phase events", () => {
@@ -862,7 +863,7 @@ describe("AgentStepExecutor", () => {
       expect(contrib).toBeUndefined();
     });
 
-    it("returns undefined when the message does not contain an agent id", () => {
+    it("returns undefined when event details lack agentId", () => {
       const executor = makeExecutor();
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
@@ -911,7 +912,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { executionId: "exec-abc-123" },
+        details: { executionId: "exec-abc-123", agentId: "builder" },
       });
 
       expect(contrib).toBeDefined();
@@ -924,7 +925,11 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { executionId: "exec-xyz-789", summary: "All tests passed" },
+        details: {
+          executionId: "exec-xyz-789",
+          agentId: "reviewer",
+          summary: "All tests passed",
+        },
       });
 
       expect(contrib).toBeDefined();

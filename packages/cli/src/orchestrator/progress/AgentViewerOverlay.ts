@@ -337,10 +337,10 @@ export class AgentViewerOverlay implements Component {
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
-  static statusIcon(status: string, _passed?: boolean): string {
+  static statusIcon(status: string, passed?: boolean): string {
     switch (status) {
       case "done":
-        return "✓";
+        return passed === false ? "✗" : "✓";
       case "started":
         return "⏳";
       case "error":
@@ -611,26 +611,44 @@ export class AgentViewerOverlay implements Component {
       "feature-forge:agent-done",
     ] as const;
 
-    const eventBuffer: Array<{ agentId: string; event: AgentEvent; status?: string }> = [];
+    const eventBuffer: Array<{
+      agentId: string;
+      event: AgentEvent;
+      status?: string;
+      passed?: boolean;
+      summary?: string;
+    }> = [];
     let connected = false;
 
     const deliverStatusEvent = (
       viewer: AgentViewerOverlay,
       agentId: string,
       mappedStatus: string,
+      passed?: boolean,
+      eventSummary?: string,
     ) => {
       const agent = supervisor.getAgent(agentId);
+      const summary =
+        eventSummary ?? (agent ? `${agent.specification.role} — ${agent.status}` : undefined);
       viewer.update({
         id: agentId,
         status: mappedStatus,
-        summary: agent ? `${agent.specification.role} — ${agent.status}` : undefined,
+        passed,
+        summary,
         elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
       });
     };
 
     const unsubs = channels.map((channel) =>
       eventBus.on(channel, (data) => {
-        const payload = data as { details?: { agentId?: string; event?: unknown } };
+        const payload = data as {
+          details?: {
+            agentId?: string;
+            event?: unknown;
+            passed?: boolean;
+            summary?: string;
+          };
+        };
         const agentId = payload.details?.agentId;
         if (!agentId) return;
 
@@ -651,13 +669,17 @@ export class AgentViewerOverlay implements Component {
           const mappedStatus = AgentViewerOverlay.mapStatus(
             supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
           );
+          const passed = payload.details?.passed;
+          const eventSummary = payload.details?.summary;
           if (connected) {
-            deliverStatusEvent(viewer, agentId, mappedStatus);
+            deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
           } else {
             eventBuffer.push({
               agentId,
               event: { type: "agent_start" },
               status,
+              passed,
+              summary: eventSummary,
             });
           }
         }
@@ -672,7 +694,7 @@ export class AgentViewerOverlay implements Component {
 
       for (const item of eventBuffer) {
         if (item.status) {
-          deliverStatusEvent(viewer, item.agentId, item.status);
+          deliverStatusEvent(viewer, item.agentId, item.status, item.passed, item.summary);
         } else {
           viewer.pushStreamEvent(item.agentId, item.event);
         }
