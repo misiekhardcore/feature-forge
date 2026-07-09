@@ -5,16 +5,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { SpecLoader } from "../loaders/SpecLoader";
+import { toolListToRestrictions } from "../test-utils";
 import { TOOL_PRESETS } from "./specifications/constants";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import { SpecRegistry } from "./specifications/SpecRegistry";
 import { SpecManager } from "./SpecManager";
-
-function toolsToRestrictions(tools: readonly string[]): Record<string, readonly string[]> {
-  const restrictions: Record<string, readonly string[]> = {};
-  for (const tool of tools) restrictions[tool] = [];
-  return restrictions;
-}
 
 describe("SpecManager", () => {
   describe("isSpecParams", () => {
@@ -181,7 +176,7 @@ Build
             id: "build",
             role: "build",
             systemPrompt: "Task: build",
-            toolRestrictions: toolsToRestrictions(TOOL_PRESETS.fullAccess),
+            toolRestrictions: toolListToRestrictions(TOOL_PRESETS.fullAccess),
             ephemeral: true,
           }),
       );

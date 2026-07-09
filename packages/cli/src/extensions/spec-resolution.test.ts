@@ -1,6 +1,6 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeMockPiWithHandlers } from "../test-utils";
 import { activateSpecResolution } from "./spec-resolution";
 
 /**
@@ -12,24 +12,6 @@ import { activateSpecResolution } from "./spec-resolution";
  * This is the code path exercised by activateSpecResolution in spec-resolution.ts
  * when a child subprocess is spawned with FORGE_SPEC set to a full spec JSON.
  */
-
-function makeMockPiWithHandlers(defaultTools: string[] = []) {
-  const handlers = new Map<string, (...args: unknown[]) => unknown>();
-  const activeTools: string[] = [...defaultTools];
-
-  return {
-    on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(event, handler);
-    }),
-    setActiveTools: vi.fn((tools: string[]) => {
-      activeTools.length = 0;
-      activeTools.push(...tools);
-    }),
-    getActiveTools: vi.fn(() => [...activeTools]),
-    setThinkingLevel: vi.fn(),
-    getHandler: (event: string) => handlers.get(event),
-  };
-}
 
 function makeBashToolCallEvent(command: string) {
   return {
@@ -60,7 +42,7 @@ describe("activateSpecResolution", () => {
   describe("hook registration", () => {
     it("registers both session_start and before_agent_start hooks", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       expect(pi.on).toHaveBeenCalledWith("before_agent_start", expect.any(Function));
       expect(pi.on).toHaveBeenCalledWith("session_start", expect.any(Function));
@@ -70,7 +52,7 @@ describe("activateSpecResolution", () => {
   describe("FORGE_SPEC resolution", () => {
     it("activates tool restrictions and sets tools when FORGE_SPEC resolves", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: { read: [], grep: [], ls: [], bash: ["git *", "npm *"] },
@@ -110,7 +92,7 @@ describe("activateSpecResolution", () => {
 
     it("does not activate tool restrictions when spec has empty toolRestrictions", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: { read: [], bash: [] },
@@ -126,7 +108,7 @@ describe("activateSpecResolution", () => {
 
     it("sets tools correctly when spec has no bash tool", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: { read: [], grep: [], ls: [] },
@@ -142,7 +124,7 @@ describe("activateSpecResolution", () => {
 
     it("returns undefined from before_agent_start when FORGE_SPEC is not set", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       // FORGE_SPEC not set → before_agent_start returns undefined
       const beforeAgentStartHandler = pi.getHandler("before_agent_start");
@@ -154,7 +136,7 @@ describe("activateSpecResolution", () => {
 
     it("returns spec systemPrompt from before_agent_start after FORGE_SPEC resolves", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         systemPrompt: "Child agent system prompt",
@@ -172,7 +154,7 @@ describe("activateSpecResolution", () => {
   describe("excludedTools", () => {
     it("filters excludedTools from explicit allowlist when both are non-empty", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: { read: [], grep: [], ls: [], bash: [], write: [] },
@@ -187,7 +169,7 @@ describe("activateSpecResolution", () => {
 
     it("filters excludedTools from default active tools when allowlist is empty", () => {
       const pi = makeMockPiWithHandlers(["read", "grep", "ls", "bash", "edit", "write"]);
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: {},
@@ -202,7 +184,7 @@ describe("activateSpecResolution", () => {
 
     it("does nothing when excludedTools is empty and tools is empty", () => {
       const pi = makeMockPiWithHandlers(["read", "bash"]);
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: {},
@@ -220,7 +202,7 @@ describe("activateSpecResolution", () => {
 
     it("excludes tools even when they are not in the default set", () => {
       const pi = makeMockPiWithHandlers(["read", "grep", "ls"]);
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: {},
@@ -236,7 +218,7 @@ describe("activateSpecResolution", () => {
 
     it("handles empty excludedTools alongside explicit allowlist", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: { read: [], grep: [], ls: [] },
@@ -252,7 +234,7 @@ describe("activateSpecResolution", () => {
 
     it("handles excludedTools that remove all tools from the allowlist", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
         toolRestrictions: { bash: [], write: [] },
@@ -269,7 +251,7 @@ describe("activateSpecResolution", () => {
   describe("thinkingLevel", () => {
     it("calls pi.setThinkingLevel with the thinkingLevel from FORGE_SPEC", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({ thinkingLevel: "high" });
       const sessionStartHandler = pi.getHandler("session_start");
@@ -280,7 +262,7 @@ describe("activateSpecResolution", () => {
 
     it("passes through each ThinkingLevel variant correctly", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 
@@ -295,7 +277,7 @@ describe("activateSpecResolution", () => {
 
     it("does not call pi.setThinkingLevel when thinkingLevel is omitted from FORGE_SPEC", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({ toolRestrictions: { read: [] } });
       const sessionStartHandler = pi.getHandler("session_start");
@@ -306,7 +288,7 @@ describe("activateSpecResolution", () => {
 
     it("does not call pi.setThinkingLevel when thinkingLevel is undefined", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({ thinkingLevel: undefined });
       const sessionStartHandler = pi.getHandler("session_start");
@@ -319,7 +301,7 @@ describe("activateSpecResolution", () => {
   describe("session_start edge cases", () => {
     it("does nothing when FORGE_SPEC env var is not set", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       const sessionStartHandler = pi.getHandler("session_start");
       sessionStartHandler!();
@@ -331,7 +313,7 @@ describe("activateSpecResolution", () => {
 
     it("does nothing when FORGE_SPEC is empty string", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = "";
       const sessionStartHandler = pi.getHandler("session_start");
@@ -342,7 +324,7 @@ describe("activateSpecResolution", () => {
 
     it("handles malformed FORGE_SPEC JSON gracefully", () => {
       const pi = makeMockPiWithHandlers();
-      activateSpecResolution(pi as unknown as ExtensionAPI);
+      activateSpecResolution(pi);
 
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 

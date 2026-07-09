@@ -1,14 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { toolListToRestrictions } from "../../test-utils";
 import { BUILT_IN_TOOLS, TOOL_PRESETS } from "./constants";
 import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 import { SpecRegistry } from "./SpecRegistry";
-
-function toolsToRestrictions(tools: readonly string[]): Record<string, readonly string[]> {
-  const restrictions: Record<string, readonly string[]> = {};
-  for (const tool of tools) restrictions[tool] = [];
-  return restrictions;
-}
 
 describe("SpecRegistry", () => {
   it("is empty on construction", () => {
@@ -23,7 +18,7 @@ describe("SpecRegistry", () => {
         id: "build",
         role: "build",
         systemPrompt: "# Build Agent\n\nReady to build.",
-        toolRestrictions: toolsToRestrictions(TOOL_PRESETS.fullAccess),
+        toolRestrictions: toolListToRestrictions(TOOL_PRESETS.fullAccess),
         ephemeral: true,
       });
     });
@@ -43,7 +38,7 @@ describe("SpecRegistry", () => {
         id: "review",
         role: "review",
         systemPrompt: "# Review Agent\n\nReview the output.",
-        toolRestrictions: toolsToRestrictions(TOOL_PRESETS.reviewOnly),
+        toolRestrictions: toolListToRestrictions(TOOL_PRESETS.reviewOnly),
         ephemeral: true,
       });
     });
@@ -61,7 +56,7 @@ describe("SpecRegistry", () => {
         id: "verify",
         role: "verify",
         systemPrompt: "# Verify Agent\n\nVerify the output.",
-        toolRestrictions: toolsToRestrictions([
+        toolRestrictions: toolListToRestrictions([
           BUILT_IN_TOOLS.READ,
           BUILT_IN_TOOLS.BASH,
           BUILT_IN_TOOLS.GREP,
@@ -85,7 +80,7 @@ describe("SpecRegistry", () => {
         id: "research",
         role: "research",
         systemPrompt: "# Research Agent\n\n",
-        toolRestrictions: toolsToRestrictions(TOOL_PRESETS.readOnly),
+        toolRestrictions: toolListToRestrictions(TOOL_PRESETS.readOnly),
         ephemeral: true,
       });
     });

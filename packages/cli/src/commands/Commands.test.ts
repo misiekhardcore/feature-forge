@@ -12,13 +12,8 @@ import {
   makeMockPi,
   makeMockSpecManager,
   makeSpec,
+  toolListToRestrictions,
 } from "../test-utils";
-
-function toolsToRestrictions(tools: readonly string[]): Record<string, readonly string[]> {
-  const restrictions: Record<string, readonly string[]> = {};
-  for (const tool of tools) restrictions[tool] = [];
-  return restrictions;
-}
 import { AgentDestroyAllCommand } from "./AgentDestroyAllCommand";
 import { AgentDestroyCommand } from "./AgentDestroyCommand";
 import { AgentListCommand } from "./AgentListCommand";
@@ -41,7 +36,7 @@ describe("ResearchCommand", () => {
           id: "research",
           role: "researcher",
           systemPrompt: `Research: ${params.CONTEXT ?? ""}`,
-          toolRestrictions: toolsToRestrictions(TOOL_PRESETS.readOnly),
+          toolRestrictions: toolListToRestrictions(TOOL_PRESETS.readOnly),
           ephemeral: true,
         }),
     );

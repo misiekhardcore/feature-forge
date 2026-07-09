@@ -25,7 +25,10 @@ const hoisted = vi.hoisted(() => {
     disablePromptTemplates: false,
     disableSkills: false,
     ephemeral: false,
-  } as unknown as AgentSpecification;
+    get tools() {
+      return [];
+    },
+  } as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),
   };

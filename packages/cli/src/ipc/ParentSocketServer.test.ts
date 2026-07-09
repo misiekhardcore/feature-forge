@@ -40,11 +40,15 @@ function createMockSpecManager() {
   const manager = makeMockSpecManager();
   manager.createDynamic = vi.fn().mockImplementation((params: AgentSpecificationParams) => {
     specManagerCall = params;
+    const toolRestrictions = params.toolRestrictions ?? {};
     return {
       id: params.role,
       role: params.role,
       systemPrompt: params.systemPrompt,
-      tools: Object.keys(params.toolRestrictions ?? {}),
+      toolRestrictions,
+      get tools() {
+        return Object.keys(toolRestrictions);
+      },
       model: params.model,
       cwd: params.cwd,
       disableBuiltinTools: false,

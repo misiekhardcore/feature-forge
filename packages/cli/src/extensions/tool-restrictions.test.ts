@@ -1,17 +1,7 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
+import { makeMockPiWithHandlers } from "../test-utils";
 import { activateToolRestrictions } from "./tool-restrictions";
-
-function makeMockPi() {
-  const handlers = new Map<string, (...args: unknown[]) => unknown>();
-  return {
-    on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
-      handlers.set(event, handler);
-    }),
-    getHandler: (event: string) => handlers.get(event),
-  };
-}
 
 function makeToolCallEvent(toolName: string, input: Record<string, unknown> | null) {
   return {
@@ -24,23 +14,23 @@ function makeToolCallEvent(toolName: string, input: Record<string, unknown> | nu
 
 describe("activateToolRestrictions", () => {
   it("registers a tool_call handler on the pi instance", () => {
-    const pi = makeMockPi();
-    activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["allowed-*"] });
+    const pi = makeMockPiWithHandlers();
+    activateToolRestrictions(pi, { bash: ["allowed-*"] });
 
     expect(pi.on).toHaveBeenCalledWith("tool_call", expect.any(Function));
   });
 
   it("does nothing when restrictions map is empty", () => {
-    const pi = makeMockPi();
-    activateToolRestrictions(pi as unknown as ExtensionAPI, {});
+    const pi = makeMockPiWithHandlers();
+    activateToolRestrictions(pi, {});
 
     expect(pi.on).not.toHaveBeenCalled();
   });
 
   describe("bash restrictions", () => {
     it("allows bash commands that match a glob pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["allowed-*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["allowed-*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("bash", { command: "allowed-command" }));
@@ -49,8 +39,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks bash commands that do not match any pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["allowed-*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["allowed-*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("bash", { command: "blocked-command" }));
@@ -62,8 +52,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("allows commands matching any of multiple patterns", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["build:*", "test:*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["build:*", "test:*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -76,8 +66,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks bash tool calls with missing command in input", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["allowed-*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["allowed-*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("bash", {}));
@@ -89,8 +79,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks bash tool calls with null input", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["allowed-*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["allowed-*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("bash", null));
@@ -102,8 +92,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks bash tool calls with a non-string command value", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { bash: ["allowed-*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["allowed-*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("bash", { command: 42 }));
@@ -115,8 +105,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("supports negation patterns", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, {
         bash: ["git *", "!git push --force"],
       });
 
@@ -132,8 +122,8 @@ describe("activateToolRestrictions", () => {
 
   describe("write restrictions", () => {
     it("restricts write tool calls by path pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { write: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { write: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -145,8 +135,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks write calls with missing path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { write: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { write: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("write", { content: "hello" }));
@@ -160,8 +150,8 @@ describe("activateToolRestrictions", () => {
 
   describe("grep restrictions", () => {
     it("restricts grep tool calls by path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { grep: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { grep: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -173,8 +163,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks grep calls with missing path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { grep: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { grep: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("grep", { pattern: "search" }));
@@ -186,8 +176,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks grep call without explicit path — intentional: search without path restriction would bypass restriction", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { grep: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { grep: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("grep", { pattern: "search", glob: "*.ts" }));
@@ -201,8 +191,8 @@ describe("activateToolRestrictions", () => {
 
   describe("read restrictions", () => {
     it("restricts read tool calls by path pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { read: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { read: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -214,8 +204,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks read calls with missing path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { read: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { read: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("read", { content: "hello" }));
@@ -227,8 +217,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks read calls with non-string path", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { read: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { read: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("read", { path: 42 }));
@@ -242,8 +232,8 @@ describe("activateToolRestrictions", () => {
 
   describe("edit restrictions", () => {
     it("restricts edit tool calls by path pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { edit: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { edit: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -255,8 +245,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks edit calls with missing path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { edit: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { edit: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("edit", { content: "hello" }));
@@ -268,8 +258,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks edit calls with non-string path", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { edit: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { edit: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("edit", { path: 42 }));
@@ -281,8 +271,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks edit calls with null input", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { edit: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { edit: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("edit", null));
@@ -296,8 +286,8 @@ describe("activateToolRestrictions", () => {
 
   describe("find restrictions", () => {
     it("restricts find tool calls by path pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { find: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { find: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -309,8 +299,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks find calls with missing path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { find: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { find: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("find", { pattern: "*.ts" }));
@@ -322,8 +312,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks find call without explicit path — intentional: search without path restriction would bypass restriction", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { find: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { find: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("find", { pattern: "*.ts", glob: "*.ts" }));
@@ -335,8 +325,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks find calls with non-string path", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { find: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { find: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("find", { path: 42 }));
@@ -348,8 +338,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks find calls with null input", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { find: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { find: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("find", null));
@@ -363,8 +353,8 @@ describe("activateToolRestrictions", () => {
 
   describe("ls restrictions", () => {
     it("restricts ls tool calls by path pattern", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { ls: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { ls: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
 
@@ -376,8 +366,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks ls calls with missing path field", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { ls: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { ls: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("ls", { limit: 50 }));
@@ -389,8 +379,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks ls call without explicit path — intentional: listing without path restriction would bypass restriction", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { ls: ["src/*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { ls: ["src/*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("ls", { limit: 10 }));
@@ -402,8 +392,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks ls calls with non-string path", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { ls: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { ls: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("ls", { path: 42 }));
@@ -415,8 +405,8 @@ describe("activateToolRestrictions", () => {
     });
 
     it("blocks ls calls with null input", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { ls: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { ls: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("ls", null));
@@ -430,8 +420,8 @@ describe("activateToolRestrictions", () => {
 
   describe("unknown tool blocking", () => {
     it("blocks calls when tool is in restrictions but has no input field mapping", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, { unknownTool: ["*"] });
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { unknownTool: ["*"] });
 
       const handler = pi.getHandler("tool_call")!;
       const result = handler(makeToolCallEvent("unknownTool", { command: "anything" }));
@@ -445,8 +435,8 @@ describe("activateToolRestrictions", () => {
 
   describe("multiple tool restrictions", () => {
     it("restricts multiple tools independently", () => {
-      const pi = makeMockPi();
-      activateToolRestrictions(pi as unknown as ExtensionAPI, {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, {
         bash: ["git *"],
         write: ["src/*"],
       });
@@ -474,18 +464,15 @@ describe("activateToolRestrictions", () => {
 
   describe("empty map handling", () => {
     it("returns early when restrictions is an empty object", () => {
-      const pi = makeMockPi();
+      const pi = makeMockPiWithHandlers();
 
       // Empty object shouldn't register a handler
-      activateToolRestrictions(pi as unknown as ExtensionAPI, {});
+      activateToolRestrictions(pi, {});
       expect(pi.on).not.toHaveBeenCalled();
 
       // Re-initialize pi for the second check
-      const pi2 = makeMockPi();
-      activateToolRestrictions(
-        pi2 as unknown as ExtensionAPI,
-        Object.create(null) as Record<string, readonly string[]>,
-      );
+      const pi2 = makeMockPiWithHandlers();
+      activateToolRestrictions(pi2, Object.create(null) as Record<string, readonly string[]>);
       expect(pi2.on).not.toHaveBeenCalled();
     });
   });
