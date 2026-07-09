@@ -81,7 +81,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     eventBus.emit("feature-forge:agent-started", {
       phase: "agent-started",
       message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
-      details: { executionId, agentId: instructionId },
+      details: { executionId, agentId: agent.id },
     });
 
     try {
@@ -93,7 +93,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
             message: `Agent "${instructionId}" stream event`,
             details: {
               executionId,
-              agentId: instructionId,
+              agentId: agent.id,
               label: specification.role,
               event,
             },
@@ -114,7 +114,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
         message: `Agent "${instructionId}" completed`,
         details: {
           executionId,
-          agentId: instructionId,
+          agentId: agent.id,
           summary: agentSummary,
           passed: agentPassed,
         },
@@ -136,7 +136,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
         message: `Agent "${instructionId}" failed`,
         details: {
           executionId,
-          agentId: instructionId,
+          agentId: agent.id,
           passed: false,
           summary: failureSummary,
         },

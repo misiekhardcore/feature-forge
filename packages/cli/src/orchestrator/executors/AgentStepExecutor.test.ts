@@ -489,7 +489,7 @@ describe("AgentStepExecutor", () => {
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
-              agentId: "builder",
+              agentId: "test-agent",
             }),
           }),
         );
@@ -501,7 +501,7 @@ describe("AgentStepExecutor", () => {
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
-              agentId: "builder",
+              agentId: "test-agent",
             }),
           }),
         );
@@ -535,7 +535,7 @@ describe("AgentStepExecutor", () => {
           expect.objectContaining({
             phase: "agent-done",
             details: expect.objectContaining({
-              agentId: "reviewer",
+              agentId: "test-agent",
               passed: false,
               summary: "1 critical, 1 warnings",
             }),
@@ -578,7 +578,7 @@ describe("AgentStepExecutor", () => {
             phase: "agent-done",
             message: expect.stringContaining("builder") as string,
             details: expect.objectContaining({
-              agentId: "builder",
+              agentId: "test-agent",
               passed: false,
               summary: `Agent "builder" failed: build failed`,
             }),
@@ -614,7 +614,7 @@ describe("AgentStepExecutor", () => {
             phase: "agent-stream",
             details: expect.objectContaining({
               executionId: expect.any(String) as string,
-              agentId: "builder",
+              agentId: "test-agent",
               label: "test",
               event: expect.objectContaining({ type: "tool_use" }),
             }),
