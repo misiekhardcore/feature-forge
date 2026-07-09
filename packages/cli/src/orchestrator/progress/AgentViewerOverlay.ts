@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -214,6 +214,10 @@ export class AgentViewerOverlay implements Component {
    * file on disk.
    */
   pushStreamEvent(agentId: string, event: AgentEvent): void {
+    if (!this.agents.has(agentId)) {
+      this.update({ id: agentId, status: "started" });
+    }
+
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
@@ -637,12 +641,14 @@ export class AgentViewerOverlay implements Component {
     ) => {
       const agent = supervisor.getAgent(agentId);
       const summary =
-        eventSummary ?? (agent ? `${agent.specification.role} — ${agent.status}` : undefined);
+        eventSummary ??
+        (agent ? `${agent.specification.role} — ${agent.status}` : "Agent disconnected");
       viewer.update({
         id: agentId,
         status: mappedStatus,
         passed,
         summary,
+        role: agent?.specification.role,
         elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
       });
     };
@@ -673,7 +679,6 @@ export class AgentViewerOverlay implements Component {
           channel === "feature-forge:agent-started" ||
           channel === "feature-forge:agent-done"
         ) {
-          const status = channel === "feature-forge:agent-started" ? "started" : "done";
           const mappedStatus = AgentViewerOverlay.mapStatus(
             supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
           );
@@ -684,7 +689,7 @@ export class AgentViewerOverlay implements Component {
           } else {
             eventBuffer.push({
               agentId,
-              status,
+              status: mappedStatus,
               passed,
               summary: eventSummary,
             });
@@ -710,12 +715,28 @@ export class AgentViewerOverlay implements Component {
 
       viewer.setStreamDir(streamDir);
 
+      // Pre-populate streamFiles map from existing *.stream files so
+      // getStreamTail works for files written by prior overlay instances.
+      try {
+        for (const entry of readdirSync(streamDir)) {
+          if (entry.endsWith(".stream")) {
+            const agentId = entry.slice(0, -7);
+            const filePath = join(streamDir, entry);
+            viewer.streamFiles.set(agentId, filePath);
+          }
+        }
+      } catch {
+        // Directory may not exist or be inaccessible — streamFiles will
+        // be populated lazily by pushStreamEvent calls.
+      }
+
       for (const agent of supervisor.getAllAgents()) {
         const status = AgentViewerOverlay.mapStatus(agent.status);
         viewer.update({
           id: agent.id,
           status,
           summary: `${agent.specification.role} — ${agent.status}`,
+          role: agent.specification.role,
           elapsed: AgentViewerOverlay.formatElapsed(agent.createdAt),
         });
       }
