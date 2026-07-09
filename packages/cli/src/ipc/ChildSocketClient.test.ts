@@ -22,7 +22,7 @@ function createMockAgent(): SubprocessAgent {
     specification: {
       role: "test",
       systemPrompt: "",
-      tools: ["read"],
+      toolRestrictions: { read: [] },
       id,
     } as never,
     status: AgentStatus.Running,
@@ -79,7 +79,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     const result = await client.request("spawn_agent", {
       role: "researcher",
       systemPrompt: "You are a researcher",
-      tools: ["read", "grep"],
+      toolRestrictions: { read: [], grep: [] },
     });
 
     expect(result).toMatchObject({
@@ -109,7 +109,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     const spawnResult = await client.request("spawn_agent", {
       role: "worker",
       systemPrompt: "You are a worker",
-      tools: ["read"],
+      toolRestrictions: { read: [] },
     });
 
     // Send a task using the actual agentId from spawn
@@ -147,7 +147,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     const spawnResult = await client.request("spawn_agent", {
       role: "temp",
       systemPrompt: "temp",
-      tools: ["read"],
+      toolRestrictions: { read: [] },
     });
 
     // Destroy using the actual agentId from spawn
@@ -174,7 +174,7 @@ describe("ChildSocketClient with real ParentSocketServer", () => {
     const spawnResult = await client.request("spawn_agent", {
       role: "pusher",
       systemPrompt: "pusher",
-      tools: ["read"],
+      toolRestrictions: { read: [] },
     });
 
     // Fire a non-awaited task (this triggers pushAgentUpdate)
@@ -232,7 +232,7 @@ describe("ChildSocketClient error handling", () => {
 
     // Request with very short timeout
     await expect(
-      client.request("spawn_agent", { role: "x", systemPrompt: "x", tools: [] }, 100),
+      client.request("spawn_agent", { role: "x", systemPrompt: "x", toolRestrictions: {} }, 100),
     ).rejects.toThrow(IpcTimeoutError);
 
     silentServer.close();
@@ -259,7 +259,7 @@ describe("ChildSocketClient error handling", () => {
     // Start a request that won't receive a response
     const requestPromise = client.request(
       "spawn_agent",
-      { role: "x", systemPrompt: "x", tools: [] },
+      { role: "x", systemPrompt: "x", toolRestrictions: {} },
       60_000,
       controller.signal,
     );

@@ -32,7 +32,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "researcher",
           systemPrompt: "test",
-          tools: ["read"],
+          toolRestrictions: { read: [] },
         },
         undefined,
       );
@@ -62,7 +62,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "researcher",
           systemPrompt: "You are a researcher",
-          tools: ["read", "bash"],
+          toolRestrictions: { read: [], bash: [] },
         },
         undefined,
       );
@@ -72,7 +72,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "researcher",
           systemPrompt: "You are a researcher",
-          tools: ["read", "bash"],
+          toolRestrictions: { read: [], bash: [] },
         },
         undefined,
         undefined,
@@ -96,7 +96,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "build",
           systemPrompt: "You are a builder",
-          tools: ["read"],
+          toolRestrictions: { read: [] },
           prompt: "Add auth feature",
         },
         undefined,
@@ -107,7 +107,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "build",
           systemPrompt: "You are a builder",
-          tools: ["read"],
+          toolRestrictions: { read: [] },
           prompt: "Add auth feature",
         },
         undefined,
@@ -123,7 +123,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "researcher",
           systemPrompt: "test",
-          tools: [],
+          toolRestrictions: {},
         },
         undefined,
       );
@@ -142,7 +142,7 @@ describe("SpawnAgentTool", () => {
         {
           role: "researcher",
           systemPrompt: "test",
-          tools: [],
+          toolRestrictions: {},
         },
         undefined,
       );
@@ -158,7 +158,11 @@ describe("SpawnAgentTool", () => {
       controller.abort();
 
       await expect(
-        tool.execute("call-1", { role: "x", systemPrompt: "x", tools: [] }, controller.signal),
+        tool.execute(
+          "call-1",
+          { role: "x", systemPrompt: "x", toolRestrictions: {} },
+          controller.signal,
+        ),
       ).rejects.toThrow(DOMException);
       expect(client.request).not.toHaveBeenCalled();
     });

@@ -20,14 +20,14 @@ describe("DefaultAgentGovernancePolicy", () => {
   const policy = new DefaultAgentGovernancePolicy();
 
   describe("resolvePermissions", () => {
-    it("returns null (unrestricted) when tools is empty", async () => {
-      const spec = makeSpec({ tools: [] });
+    it("returns null (unrestricted) when toolRestrictions is empty", async () => {
+      const spec = makeSpec({ toolRestrictions: {} });
       const perms = await policy.resolvePermissions(spec);
       expect(perms.allowedTools).toBeNull();
     });
 
-    it("returns allowedTools when tools is non-empty", async () => {
-      const spec = makeSpec({ tools: ["read", "grep"] });
+    it("returns allowedTools when toolRestrictions is non-empty", async () => {
+      const spec = makeSpec({ toolRestrictions: { read: [], grep: [] } });
       const perms = await policy.resolvePermissions(spec);
       expect(perms.allowedTools).toEqual(["read", "grep"]);
     });
@@ -46,20 +46,20 @@ describe("DefaultAgentGovernancePolicy", () => {
   });
 
   describe("isActionAllowed", () => {
-    it("allows any action when tools is empty (unrestricted)", async () => {
-      const spec = makeSpec({ tools: [] });
+    it("allows any action when toolRestrictions is empty (unrestricted)", async () => {
+      const spec = makeSpec({ toolRestrictions: {} });
       expect(await policy.isActionAllowed(spec, "bash")).toBe(true);
       expect(await policy.isActionAllowed(spec, "write")).toBe(true);
     });
 
-    it("allows action when it is in tools", async () => {
-      const spec = makeSpec({ tools: ["read", "grep"] });
+    it("allows action when it is in toolRestrictions", async () => {
+      const spec = makeSpec({ toolRestrictions: { read: [], grep: [] } });
       expect(await policy.isActionAllowed(spec, "read")).toBe(true);
       expect(await policy.isActionAllowed(spec, "grep")).toBe(true);
     });
 
-    it("denies action when it is not in tools", async () => {
-      const spec = makeSpec({ tools: ["read", "grep"] });
+    it("denies action when it is not in toolRestrictions", async () => {
+      const spec = makeSpec({ toolRestrictions: { read: [], grep: [] } });
       expect(await policy.isActionAllowed(spec, "bash")).toBe(false);
       expect(await policy.isActionAllowed(spec, "write")).toBe(false);
     });

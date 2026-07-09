@@ -14,7 +14,7 @@ describe("SocketMessage type", () => {
     const params: SpawnAgentParams = {
       role: "researcher",
       systemPrompt: "You are a researcher",
-      tools: ["read", "grep"],
+      toolRestrictions: { read: [], grep: [] },
     };
 
     const message: SocketMessage = {

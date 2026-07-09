@@ -4,6 +4,7 @@ import { AgentStatus } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
+import { AgentSpecificationParams } from "../agents";
 import type { Agent } from "../agents/agents";
 import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import type { AgentSupervisor } from "../agents/supervisors";
@@ -17,7 +18,7 @@ function createMockAgent(): SubprocessAgent {
     specification: {
       role: "test",
       systemPrompt: "",
-      tools: ["read"],
+      toolRestrictions: { read: [] },
       id,
     } as never,
     status: AgentStatus.Running,
@@ -32,18 +33,18 @@ function createMockAgent(): SubprocessAgent {
   };
 }
 
-let specManagerCall: { role: string; systemPrompt: string; tools: string[] } | null = null;
+let specManagerCall: AgentSpecificationParams | null = null;
 
 function createMockSpecManager() {
   specManagerCall = null;
   const manager = makeMockSpecManager();
-  manager.createDynamic = vi.fn().mockImplementation((params) => {
+  manager.createDynamic = vi.fn().mockImplementation((params: AgentSpecificationParams) => {
     specManagerCall = params;
     return {
       id: params.role,
       role: params.role,
       systemPrompt: params.systemPrompt,
-      tools: params.tools ?? [],
+      tools: Object.keys(params.toolRestrictions ?? {}),
       model: params.model,
       cwd: params.cwd,
       disableBuiltinTools: false,
@@ -128,7 +129,7 @@ describe("ParentSocketServer", () => {
       params: {
         role: "researcher",
         systemPrompt: "You are a researcher",
-        tools: ["read", "grep"],
+        toolRestrictions: { read: [], grep: [] },
       },
     });
 
@@ -197,7 +198,7 @@ describe("ParentSocketServer", () => {
       params: {
         role: "worker",
         systemPrompt: "You are a worker",
-        tools: ["read"],
+        toolRestrictions: { read: [] },
       },
     });
 
@@ -239,7 +240,7 @@ describe("ParentSocketServer", () => {
       params: {
         role: "fireworker",
         systemPrompt: "You are a fire-and-forget worker",
-        tools: ["read"],
+        toolRestrictions: { read: [] },
       },
     });
 
@@ -276,7 +277,7 @@ describe("ParentSocketServer", () => {
       params: {
         role: "temp",
         systemPrompt: "temp",
-        tools: ["read"],
+        toolRestrictions: { read: [] },
       },
     });
 
@@ -315,7 +316,7 @@ describe("ParentSocketServer", () => {
       params: {
         role: "build",
         systemPrompt: "You are a builder agent",
-        tools: ["read", "bash"],
+        toolRestrictions: { read: [], bash: [] },
         model: "claude-sonnet-4-5",
         cwd: "/tmp/ws",
       },
@@ -335,7 +336,7 @@ describe("ParentSocketServer", () => {
     expect(specManagerCall).toEqual({
       role: "build",
       systemPrompt: "You are a builder agent",
-      tools: ["read", "bash"],
+      toolRestrictions: { read: [], bash: [] },
       model: "claude-sonnet-4-5",
       cwd: "/tmp/ws",
     });
@@ -371,7 +372,7 @@ describe("ParentSocketServer", () => {
       params: {
         role: "failing",
         systemPrompt: "failing agent",
-        tools: ["read"],
+        toolRestrictions: { read: [] },
       },
     });
     await readResponse(client);

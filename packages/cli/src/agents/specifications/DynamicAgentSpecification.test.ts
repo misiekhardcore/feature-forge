@@ -4,26 +4,25 @@ import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 
 describe("DynamicAgentSpecification", () => {
   describe("toolRestrictions passthrough", () => {
-    it("merges tools into toolRestrictions with per-tool overrides", () => {
+    it("uses toolRestrictions directly when provided", () => {
       const spec = new DynamicAgentSpecification({
         role: "test",
         systemPrompt: "You are a test agent.",
-        tools: ["read", "bash"],
-        toolRestrictions: { bash: ["restricted/*"] },
+        toolRestrictions: { read: [], bash: ["restricted/*"] },
       });
 
       expect(spec.toolRestrictions).toEqual({ read: [], bash: ["restricted/*"] });
       expect(spec.tools).toEqual(["read", "bash"]);
     });
 
-    it("converts tools to toolRestrictions entries when no restrictions provided", () => {
+    it("uses empty toolRestrictions when none provided", () => {
       const spec = new DynamicAgentSpecification({
         role: "test",
         systemPrompt: "You are a test agent.",
-        tools: ["read", "bash"],
+        toolRestrictions: {},
       });
 
-      expect(spec.toolRestrictions).toEqual({ read: [], bash: [] });
+      expect(spec.toolRestrictions).toEqual({});
     });
   });
 
@@ -59,9 +58,8 @@ describe("DynamicAgentSpecification", () => {
         id: "json-test",
         role: "json-role",
         systemPrompt: "JSON test",
-        tools: ["read", "bash"],
         excludedTools: ["write"],
-        toolRestrictions: { bash: ["git *"] },
+        toolRestrictions: { read: [], bash: ["git *"] },
         thinkingLevel: "high",
         disableBuiltinTools: true,
         ephemeral: true,
@@ -92,9 +90,14 @@ describe("DynamicAgentSpecification", () => {
         id: "round-trip",
         role: "round-trip-role",
         systemPrompt: "Round trip test",
-        tools: ["read", "grep", "ls", "bash"],
         excludedTools: [],
-        toolRestrictions: { bash: ["git *", "npm *"], write: ["src/*"] },
+        toolRestrictions: {
+          read: [],
+          grep: [],
+          ls: [],
+          bash: ["git *", "npm *"],
+          write: ["src/*"],
+        },
         thinkingLevel: "medium",
         ephemeral: true,
       });
@@ -118,8 +121,7 @@ describe("DynamicAgentSpecification", () => {
       const json = JSON.stringify({
         role: "from-json",
         systemPrompt: "From JSON test",
-        tools: ["read", "bash"],
-        toolRestrictions: { bash: ["git *"] },
+        toolRestrictions: { read: [], bash: ["git *"] },
       });
 
       const spec = DynamicAgentSpecification.fromJSON(json);

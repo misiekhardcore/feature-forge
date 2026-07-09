@@ -18,6 +18,16 @@ import { describe, it } from "vitest";
 import { createMockSpec, spawnAndVerify } from "./helpers";
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function toolsToRestrictions(tools: readonly string[]): Record<string, readonly string[]> {
+  const restrictions: Record<string, readonly string[]> = {};
+  for (const tool of tools) restrictions[tool] = [];
+  return restrictions;
+}
+
+// ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
 
@@ -31,8 +41,7 @@ describe("FORGE_SPEC E2E", () => {
           id: `spec-${toolName}`,
           role: `spec-${toolName}`,
           systemPrompt: `Restricted ${toolName} agent`,
-          tools: [...ALL_SEVEN_TOOLS],
-          toolRestrictions: { [toolName]: ["allowed-*"] },
+          toolRestrictions: { ...toolsToRestrictions(ALL_SEVEN_TOOLS), [toolName]: ["allowed-*"] },
         });
         await spawnAndVerify(spec.toJSON(), `smoke-${toolName}`);
       }, 20_000);
@@ -46,7 +55,7 @@ describe("FORGE_SPEC E2E", () => {
           id: "spec-excluded-allowlist",
           role: "spec-excluded-allowlist",
           systemPrompt: "Agent with excluded tools from allowlist",
-          tools: ["read", "grep", "ls", "bash", "write"],
+          toolRestrictions: toolsToRestrictions(["read", "grep", "ls", "bash", "write"]),
           excludedTools: ["bash", "write"],
         }).toJSON(),
         "excluded-allowlist",
@@ -59,7 +68,7 @@ describe("FORGE_SPEC E2E", () => {
           id: "spec-excluded-default",
           role: "spec-excluded-default",
           systemPrompt: "Agent with excluded tools from defaults",
-          tools: [],
+          toolRestrictions: {},
           excludedTools: ["bash", "write"],
         }).toJSON(),
         "excluded-default",
@@ -72,7 +81,7 @@ describe("FORGE_SPEC E2E", () => {
           id: "spec-all-excluded",
           role: "spec-all-excluded",
           systemPrompt: "Agent with all tools excluded",
-          tools: ["bash", "write"],
+          toolRestrictions: { bash: [], write: [] },
           excludedTools: ["bash", "write"],
         }).toJSON(),
         "all-excluded",
@@ -90,7 +99,7 @@ describe("FORGE_SPEC E2E", () => {
             id: `spec-thinking-${level}`,
             role: `spec-thinking-${level}`,
             systemPrompt: `Thinking level ${level}`,
-            tools: ["read", "grep"],
+            toolRestrictions: { read: [], grep: [] },
             thinkingLevel: level,
           }).toJSON(),
           `thinking-${level}`,
@@ -106,14 +115,13 @@ describe("FORGE_SPEC E2E", () => {
           id: "spec-combined",
           role: "spec-combined",
           systemPrompt: "Combined spec with tools, exclusions, restrictions, and thinking",
-          tools: ["read", "grep", "ls", "bash", "write", "edit", "find"],
-          excludedTools: ["write"],
-          thinkingLevel: "high",
           toolRestrictions: {
+            ...toolsToRestrictions(["read", "grep", "ls", "bash", "write", "edit", "find"]),
             bash: ["git *", "npm *"],
             edit: ["src/*"],
             write: ["src/*"],
           },
+          excludedTools: ["write"],
         }).toJSON(),
         "combined",
       );
@@ -125,9 +133,11 @@ describe("FORGE_SPEC E2E", () => {
           id: "spec-tools-restrictions-thinking",
           role: "spec-tools-restrictions-thinking",
           systemPrompt: "Tools with restrictions and thinking, no exclusions",
-          tools: ["read", "grep", "ls", "bash"],
           thinkingLevel: "medium",
-          toolRestrictions: { bash: ["safe:*"] },
+          toolRestrictions: {
+            ...toolsToRestrictions(["read", "grep", "ls", "bash"]),
+            bash: ["safe:*"],
+          },
         }).toJSON(),
         "tools-restrictions-thinking",
       );
@@ -139,9 +149,9 @@ describe("FORGE_SPEC E2E", () => {
           id: "spec-multi-restrictions",
           role: "spec-multi-restrictions",
           systemPrompt: "Multiple tool restrictions with exclusions",
-          tools: ["read", "grep", "ls", "bash", "edit", "find"],
           excludedTools: ["edit"],
           toolRestrictions: {
+            ...toolsToRestrictions(["read", "grep", "ls", "bash", "edit", "find"]),
             bash: ["safe:*"],
             find: ["src/*"],
             grep: ["src/*"],
@@ -157,38 +167,37 @@ describe("FORGE_SPEC E2E", () => {
       await spawnAndVerify(null, "baseline-no-spec");
     }, 20_000);
 
-    it("loads with minimal FORGE_SPEC (only tools)", async () => {
+    it("loads with minimal FORGE_SPEC (only toolRestrictions)", async () => {
       await spawnAndVerify(
         createMockSpec({
           id: "spec-minimal",
           role: "spec-minimal",
           systemPrompt: "Minimal spec",
-          tools: ["read", "bash"],
+          toolRestrictions: { read: [], bash: [] },
         }).toJSON(),
         "baseline-minimal",
       );
     }, 20_000);
 
-    it("loads with empty tools array", async () => {
+    it("loads with empty toolRestrictions", async () => {
       await spawnAndVerify(
         createMockSpec({
           id: "spec-empty-tools",
           role: "spec-empty-tools",
           systemPrompt: "Empty tools spec",
-          tools: [],
+          toolRestrictions: {},
         }).toJSON(),
         "baseline-empty-tools",
       );
     }, 20_000);
 
-    it("loads with empty toolRestrictions object", async () => {
+    it("loads with empty toolRestrictions patterns", async () => {
       await spawnAndVerify(
         createMockSpec({
           id: "spec-empty-restrictions",
           role: "spec-empty-restrictions",
           systemPrompt: "Empty restrictions spec",
-          tools: ["read", "bash"],
-          toolRestrictions: {},
+          toolRestrictions: { read: [], bash: [] },
         }).toJSON(),
         "baseline-empty-restrictions",
       );

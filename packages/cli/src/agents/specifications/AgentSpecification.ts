@@ -4,7 +4,6 @@ export type AgentSpecificationParams = {
   id: string;
   role: string;
   systemPrompt: string;
-  tools?: readonly string[];
   excludedTools?: readonly string[];
   toolRestrictions?: Record<string, readonly string[]>;
   model?: string;
@@ -20,24 +19,16 @@ export type AgentSpecificationParams = {
 };
 
 /**
- * Build the toolRestrictions map from params.tools and params.toolRestrictions.
+ * Build the toolRestrictions map from params.toolRestrictions.
  *
- * Every tool in `params.tools` becomes a key with an empty array
- * (unrestricted). If `params.toolRestrictions` is also provided, its
- * entries are merged on top — allowing restriction overrides for specific
- * tools and adding tools that appear only in toolRestrictions.
+ * Returns a shallow copy of params.toolRestrictions, or an empty object
+ * if none are provided. Every allowed tool is a key in this map —
+ * unrestricted tools have an empty array (`[]`).
  */
 export function buildToolRestrictions(
-  params: AgentSpecificationParams,
+  params: Pick<AgentSpecificationParams, "toolRestrictions">,
 ): Record<string, readonly string[]> {
-  const restrictions: Record<string, readonly string[]> = {};
-  for (const tool of params.tools ?? []) {
-    restrictions[tool] = [];
-  }
-  for (const [tool, patterns] of Object.entries(params.toolRestrictions ?? {})) {
-    restrictions[tool] = patterns;
-  }
-  return restrictions;
+  return { ...params.toolRestrictions };
 }
 
 /**

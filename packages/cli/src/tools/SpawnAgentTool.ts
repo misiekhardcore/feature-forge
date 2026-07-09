@@ -28,9 +28,10 @@ export const SpawnAgentParameters = Type.Object({
       description: "Optional initial task the agent should execute immediately.",
     }),
   ),
-  tools: Type.Readonly(
-    Type.Array(Type.String(), {
-      description: "Tool names to grant the agent.",
+  toolRestrictions: Type.Readonly(
+    Type.Record(Type.String(), Type.Array(Type.String()), {
+      description:
+        "Per-tool pattern restrictions. Each key is a tool name, value is a list of glob patterns (empty array = unrestricted).",
     }),
   ),
   model: Type.Optional(

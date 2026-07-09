@@ -38,7 +38,6 @@ export function makeSpec(
   overrides: Partial<{
     role: string;
     systemPrompt: string;
-    tools: readonly string[];
     toolRestrictions: Record<string, readonly string[]>;
     model: string;
     ephemeral: boolean;
@@ -50,7 +49,6 @@ export function makeSpec(
         id,
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
-        tools: overrides.tools,
         toolRestrictions: overrides.toolRestrictions,
         model: overrides.model,
         ephemeral: overrides.ephemeral,
@@ -282,7 +280,7 @@ export function makeMockSpecManager() {
         role: params.role ?? "mock",
         systemPrompt: params.systemPrompt ?? "Mock system prompt",
         get tools() {
-          return params.tools ?? [];
+          return Object.keys(params.toolRestrictions ?? {});
         },
         cwd: params.cwd,
         disableBuiltinTools: false,
@@ -292,7 +290,7 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
-        toolRestrictions: {},
+        toolRestrictions: params.toolRestrictions ?? {},
         model: undefined,
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
@@ -303,7 +301,7 @@ export function makeMockSpecManager() {
         role: params.role,
         systemPrompt: params.systemPrompt,
         get tools() {
-          return params.tools ?? [];
+          return Object.keys(params.toolRestrictions ?? {});
         },
         model: params.model,
         cwd: params.cwd,
@@ -314,7 +312,7 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
-        toolRestrictions: {},
+        toolRestrictions: params.toolRestrictions ?? {},
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
     }),

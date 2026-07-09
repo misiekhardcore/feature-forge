@@ -45,8 +45,7 @@ function makeSpecJSON(overrides: Record<string, unknown> = {}): string {
     id: "test-spec",
     role: "test-spec",
     systemPrompt: "Test agent",
-    tools: ["read", "grep", "ls"],
-    toolRestrictions: {},
+    toolRestrictions: { read: [], grep: [], ls: [] },
     excludedTools: [],
     ...overrides,
   });
@@ -74,8 +73,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: ["read", "grep", "ls", "bash"],
-        toolRestrictions: { bash: ["git *", "npm *"] },
+        toolRestrictions: { read: [], grep: [], ls: [], bash: ["git *", "npm *"] },
         systemPrompt: "Test agent with restricted bash",
       });
 
@@ -115,8 +113,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: ["read", "bash"],
-        toolRestrictions: {},
+        toolRestrictions: { read: [], bash: [] },
         systemPrompt: "Agent with full bash access",
       });
 
@@ -132,8 +129,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: ["read", "grep", "ls"],
-        toolRestrictions: {},
+        toolRestrictions: { read: [], grep: [], ls: [] },
         systemPrompt: "Read-only agent",
       });
 
@@ -179,7 +175,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: ["read", "grep", "ls", "bash", "write"],
+        toolRestrictions: { read: [], grep: [], ls: [], bash: [], write: [] },
         excludedTools: ["bash", "write"],
       });
 
@@ -194,7 +190,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: [],
+        toolRestrictions: {},
         excludedTools: ["bash", "write"],
       });
 
@@ -209,7 +205,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: [],
+        toolRestrictions: {},
         excludedTools: [],
       });
 
@@ -227,7 +223,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: [],
+        toolRestrictions: {},
         excludedTools: ["bash", "write"],
       });
 
@@ -243,7 +239,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: ["read", "grep", "ls"],
+        toolRestrictions: { read: [], grep: [], ls: [] },
         excludedTools: [],
       });
 
@@ -259,7 +255,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        tools: ["bash", "write"],
+        toolRestrictions: { bash: [], write: [] },
         excludedTools: ["bash", "write"],
       });
 
@@ -301,7 +297,7 @@ describe("activateSpecResolution", () => {
       const pi = makeMockPiWithHandlers();
       activateSpecResolution(pi as unknown as ExtensionAPI);
 
-      process.env.FORGE_SPEC = makeSpecJSON({ tools: ["read"] });
+      process.env.FORGE_SPEC = makeSpecJSON({ toolRestrictions: { read: [] } });
       const sessionStartHandler = pi.getHandler("session_start");
       sessionStartHandler!();
 

@@ -29,12 +29,12 @@ export const PROJECT_ROOT = new URL("../", import.meta.url).pathname;
 export function createMockSpec(
   params?: Partial<AgentSpecificationParams>,
 ): DynamicAgentSpecification {
-  const { id, role, systemPrompt, tools, ...rest } = params ?? {};
+  const { id, role, systemPrompt, toolRestrictions, ...rest } = params ?? {};
   return new DynamicAgentSpecification({
     id: id ?? "e2e-spec",
     role: role ?? "e2e-spec",
     systemPrompt: systemPrompt ?? "",
-    tools: tools ?? ["read"],
+    toolRestrictions: toolRestrictions ?? { read: [] },
     ...rest,
   });
 }

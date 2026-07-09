@@ -18,6 +18,12 @@ import { createMockSpec, spawnAndVerify } from "./helpers";
 
 const ALL_RESTRICTABLE_TOOLS = ["bash", "write", "grep", "read", "edit", "find", "ls"] as const;
 
+function toolsToRestrictions(tools: readonly string[]): Record<string, readonly string[]> {
+  const restrictions: Record<string, readonly string[]> = {};
+  for (const tool of tools) restrictions[tool] = [];
+  return restrictions;
+}
+
 describe("tool-restricted E2E", () => {
   for (const toolName of ALL_RESTRICTABLE_TOOLS) {
     it(`loads without crash when restricting "${toolName}" tool`, async () => {
@@ -26,8 +32,10 @@ describe("tool-restricted E2E", () => {
           id: `tool-restricted-${toolName}`,
           role: `tool-restricted-${toolName}`,
           systemPrompt: `Test agent with restricted ${toolName}`,
-          tools: [...ALL_RESTRICTABLE_TOOLS],
-          toolRestrictions: { [toolName]: ["allowed-*"] },
+          toolRestrictions: {
+            ...toolsToRestrictions(ALL_RESTRICTABLE_TOOLS),
+            [toolName]: ["allowed-*"],
+          },
         }).toJSON(),
         `tool-e2e-${toolName}`,
       );
@@ -40,8 +48,8 @@ describe("tool-restricted E2E", () => {
         id: "tool-restricted-all",
         role: "tool-restricted-all",
         systemPrompt: "Agent with all tools restricted",
-        tools: [...ALL_RESTRICTABLE_TOOLS],
         toolRestrictions: {
+          ...toolsToRestrictions(ALL_RESTRICTABLE_TOOLS),
           bash: ["git *", "npm *"],
           write: ["src/**"],
           grep: ["src/**", "packages/**"],
@@ -61,9 +69,8 @@ describe("tool-restricted E2E", () => {
         id: "tool-restricted-excluded",
         role: "tool-restricted-excluded",
         systemPrompt: "Agent with restrictions and exclusions",
-        tools: ["read", "grep", "ls", "bash", "write", "edit"],
-        excludedTools: ["edit"],
         toolRestrictions: {
+          ...toolsToRestrictions(["read", "grep", "ls", "bash", "write", "edit"]),
           bash: ["git *"],
           write: ["src/**"],
         },

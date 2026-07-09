@@ -17,16 +17,15 @@ const hoisted = vi.hoisted(() => {
     id: "implement",
     role: "orchestrator",
     systemPrompt: "# persona",
-    tools: [],
-    excludedTools: [],
     toolRestrictions: {},
+    excludedTools: [],
     disableBuiltinTools: false,
     disableContextFiles: false,
     disableExtensions: false,
     disablePromptTemplates: false,
     disableSkills: false,
     ephemeral: false,
-  } as AgentSpecification;
+  } as unknown as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),
   };

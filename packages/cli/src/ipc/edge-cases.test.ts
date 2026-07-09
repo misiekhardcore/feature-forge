@@ -19,7 +19,7 @@ function createMockAgent(overrides: Partial<SubprocessAgent> = {}): SubprocessAg
     specification: {
       role: "test",
       systemPrompt: "",
-      tools: ["read"],
+      toolRestrictions: { read: [] },
       id,
     } as never,
     status: AgentStatus.Running,
@@ -120,7 +120,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "g1",
-        params: { role: "worker", systemPrompt: "x", tools: ["read"] },
+        params: { role: "worker", systemPrompt: "x", toolRestrictions: { read: [] } },
       }) + "\n",
     );
     const spawnResponse = (await read(client)) as { result: { agentId: string } };
@@ -153,7 +153,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "s1",
-        params: { role: "pusher", systemPrompt: "x", tools: ["read"] },
+        params: { role: "pusher", systemPrompt: "x", toolRestrictions: { read: [] } },
       }) + "\n",
     );
     const spawnResponse = (await read(client)) as { result: { agentId: string } };
@@ -228,7 +228,7 @@ describe("ParentSocketServer edge cases", () => {
       JSON.stringify({
         type: "spawn_agent",
         correlationId: "f1",
-        params: { role: "failer", systemPrompt: "x", tools: ["read"] },
+        params: { role: "failer", systemPrompt: "x", toolRestrictions: { read: [] } },
       }) + "\n",
     );
     const spawnResponse = (await read(client)) as { result: { agentId: string } };
