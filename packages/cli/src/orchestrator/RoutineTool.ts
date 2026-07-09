@@ -216,10 +216,6 @@ export class RoutineTool
         )
         .catch(() => {
           logger.warn("Agent viewer overlay creation failed");
-        })
-        .finally(() => {
-          overlayCleanup?.();
-          viewerDismiss?.();
         });
     }
 

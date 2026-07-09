@@ -15,12 +15,6 @@ export class AgentListCommand extends Command {
   readonly description = "Open the agent viewer overlay with all tracked agents.";
 
   handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
-    const agents = this.supervisor.getAllAgents();
-    if (agents.length === 0) {
-      ctx.ui?.notify("No agents currently tracked.", "info");
-      return;
-    }
-
     if (ctx.hasUI) {
       let overlayCleanup: (() => void) | undefined;
       let viewerDismiss: (() => void) | undefined;
