@@ -225,16 +225,19 @@ export class ParentSocketServer {
         const result = await agent.executeTask(params.prompt, {
           timeout: params.timeout,
           onEvent: (event) => {
-            this.pi.events.emit("feature-forge:agent-stream", {
-              details: { agentId: agent.id, event },
-            });
+            this.emitStreamEvent(agent.id, correlationId, agent.specification.role, event);
           },
         });
         this.sendResponse(socket, correlationId, { result });
         this.pi.events.emit("feature-forge:agent-done", {
           phase: "agent-done",
           message: `Agent "${agent.id}" completed`,
-          details: { executionId: correlationId, agentId: agent.id, passed: true },
+          details: {
+            executionId: correlationId,
+            agentId: agent.id,
+            summary: result,
+            passed: true,
+          },
         });
       } catch (error) {
         if (socketClosed) {
@@ -265,9 +268,7 @@ export class ParentSocketServer {
         .executeTask(params.prompt, {
           timeout: params.timeout,
           onEvent: (event) => {
-            this.pi.events.emit("feature-forge:agent-stream", {
-              details: { agentId: agent.id, event },
-            });
+            this.emitStreamEvent(agent.id, correlationId, agent.specification.role, event);
           },
         })
         .then(
@@ -339,6 +340,21 @@ export class ParentSocketServer {
   ): Promise<void> {
     await this.supervisor.destroyAgent(params.agentId);
     this.sendResponse(socket, correlationId, { status: "destroyed" });
+  }
+
+  // ─── Event bus emissions ──────────────────────────────────────────
+
+  private emitStreamEvent(
+    agentId: string,
+    executionId: string,
+    label: string,
+    event: unknown,
+  ): void {
+    this.pi.events.emit("feature-forge:agent-stream", {
+      phase: "agent-stream",
+      message: `Agent "${agentId}" stream event`,
+      details: { executionId, agentId, label, event },
+    });
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────

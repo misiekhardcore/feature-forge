@@ -1,5 +1,6 @@
 import { connect, type Socket } from "node:net";
 
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -452,7 +453,11 @@ describe("ParentSocketServer", () => {
         "feature-forge:agent-done",
         expect.objectContaining({
           phase: "agent-done",
-          details: expect.objectContaining({ agentId: "event-worker", passed: true }),
+          details: expect.objectContaining({
+            agentId: "event-worker",
+            passed: true,
+            summary: "task result",
+          }),
         }),
       );
 
@@ -597,6 +602,58 @@ describe("ParentSocketServer", () => {
             agentId: "fff-worker",
             passed: false,
             summary: "background failure",
+          }),
+        }),
+      );
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("emits feature-forge:agent-stream events with phase, message, executionId, label, and event fields", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localPi = makeMockPi();
+      const localServer = new ParentSocketServer(localSupervisor, localPi, createMockSpecManager());
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "str-1",
+        params: { role: "stream-worker", systemPrompt: "stream", tools: ["read"] },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("stream-worker") as SubprocessAgent;
+      vi.mocked(agent.executeTask).mockImplementation(async (_prompt, options) => {
+        const streamEvent = {
+          type: "tool_execution_start",
+          toolName: "read",
+        } as AgentEvent;
+        options?.onEvent?.(streamEvent);
+        return "stream result";
+      });
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "str-2",
+        params: { agentId: "stream-worker", prompt: "stream work", await: true },
+      });
+      await readResponse(client);
+
+      const emitSpy = localPi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+      expect(emitSpy.emit).toHaveBeenCalledWith(
+        "feature-forge:agent-stream",
+        expect.objectContaining({
+          phase: "agent-stream",
+          message: expect.stringContaining('Agent "stream-worker" stream event'),
+          details: expect.objectContaining({
+            executionId: "str-2",
+            agentId: "stream-worker",
+            label: "stream-worker",
+            event: { type: "tool_execution_start", toolName: "read" },
           }),
         }),
       );
