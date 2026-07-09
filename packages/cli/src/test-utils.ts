@@ -160,6 +160,7 @@ export function makeMockPi(): ExtensionAPI {
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
     on: vi.fn(),
+    events: makeMockEventBus(),
   } as unknown as ExtensionAPI;
 }
 

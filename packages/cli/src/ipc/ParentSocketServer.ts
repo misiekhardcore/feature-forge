@@ -199,6 +199,12 @@ export class ParentSocketServer {
       return;
     }
 
+    this.pi.events.emit("feature-forge:agent-started", {
+      phase: "agent-started",
+      message: `Agent "${agent.id}" (${agent.specification.role}) started`,
+      details: { executionId: correlationId, agentId: agent.id },
+    });
+
     if (params.await) {
       let socketClosed = false;
 
@@ -225,6 +231,11 @@ export class ParentSocketServer {
           },
         });
         this.sendResponse(socket, correlationId, { result });
+        this.pi.events.emit("feature-forge:agent-done", {
+          phase: "agent-done",
+          message: `Agent "${agent.id}" completed`,
+          details: { executionId: correlationId, agentId: agent.id, passed: true },
+        });
       } catch (error) {
         if (socketClosed) {
           return;
@@ -232,6 +243,16 @@ export class ParentSocketServer {
         const message = error instanceof Error ? error.message : String(error);
         this.sendError(socket, correlationId, message);
         this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+        this.pi.events.emit("feature-forge:agent-done", {
+          phase: "agent-done",
+          message: `Agent "${agent.id}" failed`,
+          details: {
+            executionId: correlationId,
+            agentId: agent.id,
+            passed: false,
+            summary: message,
+          },
+        });
       } finally {
         socket.removeListener("close", onSocketClose);
       }
@@ -252,10 +273,30 @@ export class ParentSocketServer {
         .then(
           (result) => {
             this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
+            this.pi.events.emit("feature-forge:agent-done", {
+              phase: "agent-done",
+              message: `Agent "${agent.id}" completed`,
+              details: {
+                executionId: correlationId,
+                agentId: agent.id,
+                passed: true,
+                summary: result,
+              },
+            });
           },
           (error) => {
             const message = error instanceof Error ? error.message : String(error);
             this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+            this.pi.events.emit("feature-forge:agent-done", {
+              phase: "agent-done",
+              message: `Agent "${agent.id}" failed`,
+              details: {
+                executionId: correlationId,
+                agentId: agent.id,
+                passed: false,
+                summary: message,
+              },
+            });
           },
         );
     }
