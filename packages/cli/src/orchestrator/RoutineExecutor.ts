@@ -135,7 +135,7 @@ export class RoutineExecutor {
             );
           }
           const feedback = await context.feedbackProvider();
-          context = context.withFeedback(feedback);
+          context = context.withAccumulatedFeedback(feedback);
           context = await executeStep(step, context, signal);
           continue;
         }

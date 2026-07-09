@@ -193,6 +193,12 @@ export const RoutineParamSchema = Type.Object({
   default: Type.Optional(Type.String()),
 });
 
+/** Metadata type for routine input parameters. */
+export const RoutineInputSchema = Type.Record(Type.String(), Type.String());
+
+/** Metadata type for routine output values. */
+export const RoutineOutputSchema = Type.Record(Type.String(), Type.String());
+
 const RoutineDefinitionSchema = Type.Object({
   params: Type.Array(RoutineParamSchema),
   input_schema: Type.Optional(Type.Record(Type.String(), Type.String())),
@@ -208,7 +214,7 @@ export const FlowDefinitionSchema = Type.Object({
   params: Type.Optional(Type.Array(RoutineParamSchema)),
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
-  orchestrator: OrchestratorConfigSchema,
+  orchestrator: Type.Optional(OrchestratorConfigSchema),
   routines: Type.Record(Type.String(), RoutineDefinitionSchema),
 });
 

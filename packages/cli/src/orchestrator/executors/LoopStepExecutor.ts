@@ -17,7 +17,7 @@ import { collectAllIds } from "./helpers";
  *
  * After each iteration, results from steps listed in
  * {@link LoopInstruction.accumulateFrom} are concatenated into
- * {@link FlowContext.feedback} for the next round.
+ * {@link FlowContext.accumulatedFeedback} for the next round.
  */
 export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
   readonly type = "loop";
@@ -93,8 +93,8 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
       if (accumulateFrom.length > 0) {
         const lines: string[] = [];
-        if (current.feedback) {
-          lines.push(current.feedback);
+        if (current.accumulatedFeedback) {
+          lines.push(current.accumulatedFeedback);
         }
         lines.push(`--- iteration ${iteration + 1} ---`);
         for (const id of accumulateFrom) {
@@ -103,7 +103,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
             lines.push(`${id}: ${result.raw}`);
           }
         }
-        current = current.withFeedback(lines.join("\n"));
+        current = current.withAccumulatedFeedback(lines.join("\n"));
       }
 
       // Evaluate continueWhile expression after every iteration.

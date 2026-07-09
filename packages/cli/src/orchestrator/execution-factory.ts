@@ -36,7 +36,7 @@ export function createChildExecutionContext(
     prompt: parent.prompt,
     workspaces: parent.workspaces,
     params: new Map(),
-    feedback: undefined,
+    accumulatedFeedback: undefined,
     feedbackProvider,
     iteration: 0,
     depth: nextDepth,

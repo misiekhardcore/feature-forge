@@ -4,7 +4,7 @@ import type { AgentSupervisor } from "../agents";
 import type { InSessionAgent } from "../agents/agents/InSessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
-import type { FlowDefinition } from "../orchestrator/FlowInstruction";
+import type { FlowDefinition, OrchestratorConfig } from "../orchestrator/FlowInstruction";
 import type { WorkspaceManager } from "../workspace";
 import { Command } from "./Command";
 
@@ -31,7 +31,8 @@ import { Command } from "./Command";
 export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;
-  private readonly flow: FlowDefinition;
+  private readonly flowName: string;
+  private readonly orchestrator: OrchestratorConfig;
   // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
   private agent: InSessionAgent | undefined;
@@ -44,8 +45,14 @@ export class OrchestratorCommand extends Command {
     flow: FlowDefinition,
   ) {
     super(supervisor, pi, specManager, workspaceManager);
+    if (!flow.orchestrator) {
+      throw new Error(
+        `Flow "${flow.name}" has no orchestrator config — cannot create OrchestratorCommand`,
+      );
+    }
     this.name = flow.command.replace(/^\//, "");
-    this.flow = flow;
+    this.flowName = flow.name;
+    this.orchestrator = flow.orchestrator;
     this.description = `Run the ${flow.name} orchestrator workflow`;
   }
 
@@ -54,7 +61,7 @@ export class OrchestratorCommand extends Command {
 
     if (!this.spec) {
       this.spec = this.specManager.resolve({
-        spec: this.flow.orchestrator.systemPrompt,
+        spec: this.orchestrator.systemPrompt,
       });
     }
 
@@ -64,18 +71,18 @@ export class OrchestratorCommand extends Command {
 
     this.agent.mount(this.pi, this.resolveTask(userTask));
 
-    ctx.ui.notify(`${this.flow.name} orchestrator loaded.`, "info");
+    ctx.ui.notify(`${this.flowName} orchestrator loaded.`, "info");
   }
 
   /**
    * Resolve the orchestrator prompt template against the user's slash-command
    * args. `{{prompt}}` maps to the (fallback-guarded) user task; any other
-   * `{{key}}` is resolved from `flow.orchestrator.promptParams`.
+   * `{{key}}` is resolved from `this.orchestrator.promptParams`.
    */
   private resolveTask(userTask: string): string {
-    const template = this.flow.orchestrator.prompt ?? "";
+    const template = this.orchestrator.prompt ?? "";
     const params: Record<string, string> = {
-      ...(this.flow.orchestrator.promptParams ?? {}),
+      ...(this.orchestrator.promptParams ?? {}),
       prompt: userTask,
     };
 

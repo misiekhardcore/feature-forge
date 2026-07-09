@@ -721,9 +721,9 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("rejects missing orchestrator", () => {
+  it("accepts missing orchestrator (library-only flows)", () => {
     const { orchestrator: _, ...rest } = validFlow;
-    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
+    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(true);
   });
 
   it("rejects orchestrator with empty systemPrompt", () => {

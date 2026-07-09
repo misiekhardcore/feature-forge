@@ -82,6 +82,11 @@ describe("OrchestratorCommand", () => {
     expect(cmd.description).toContain("test-flow");
   });
 
+  it("throws when constructed for a flow without orchestrator config", () => {
+    const noOrch: FlowDefinition = { ...baseFlow, orchestrator: undefined };
+    expect(() => makeCmd(makeSupervisor(), noOrch)).toThrow("has no orchestrator config");
+  });
+
   it("resolves the spec by name, mounts an in-session agent, and drives the live session", async () => {
     const flow: FlowDefinition = {
       ...baseFlow,

@@ -51,7 +51,7 @@ describe("FlowContext", () => {
       expect(ctx.results.size).toBe(0);
       expect(ctx.workspaces.size).toBe(0);
       expect(ctx.params.size).toBe(0);
-      expect(ctx.feedback).toBeUndefined();
+      expect(ctx.accumulatedFeedback).toBeUndefined();
       expect(ctx.iteration).toBe(0);
       expect(ctx.depth).toBe(0);
     });
@@ -64,12 +64,12 @@ describe("FlowContext", () => {
         prompt: "task",
         workspaces,
         params,
-        feedback: "fix x",
+        accumulatedFeedback: "fix x",
         iteration: 2,
       });
       expect(ctx.workspaces.get("ws")!.path).toBe("/tmp/ws");
       expect(ctx.params.get("plan")).toBe("use JWT");
-      expect(ctx.feedback).toBe("fix x");
+      expect(ctx.accumulatedFeedback).toBe("fix x");
       expect(ctx.iteration).toBe(2);
     });
   });
@@ -247,16 +247,16 @@ describe("FlowContext", () => {
   });
 
   // -----------------------------------------------------------------------
-  // withFeedback
+  // withAccumulatedFeedback
   // -----------------------------------------------------------------------
 
-  describe("withFeedback", () => {
-    it("replaces feedback", () => {
+  describe("withAccumulatedFeedback", () => {
+    it("replaces accumulated feedback", () => {
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "task",
-      }).withFeedback("[review] CRITICAL: fix");
-      expect(ctx.feedback).toBe("[review] CRITICAL: fix");
+      }).withAccumulatedFeedback("[review] CRITICAL: fix");
+      expect(ctx.accumulatedFeedback).toBe("[review] CRITICAL: fix");
     });
   });
 
@@ -386,11 +386,11 @@ describe("FlowContext", () => {
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "task",
-        feedback: "f",
+        accumulatedFeedback: "f",
       });
       const next = ctx.withDepth(1);
       expect(next.prompt).toBe("task");
-      expect(next.feedback).toBe("f");
+      expect(next.accumulatedFeedback).toBe("f");
       expect(next.depth).toBe(1);
     });
   });
@@ -420,13 +420,13 @@ describe("FlowContext", () => {
       expect(next.depth).toBe(3);
     });
 
-    it("preserves depth through withFeedback", () => {
+    it("preserves depth through withAccumulatedFeedback", () => {
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "task",
         depth: 2,
       });
-      const next = ctx.withFeedback("f");
+      const next = ctx.withAccumulatedFeedback("f");
       expect(next.depth).toBe(2);
     });
 
@@ -496,7 +496,7 @@ describe("FlowContext", () => {
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "task",
-        feedback: "fix validation",
+        accumulatedFeedback: "fix validation",
       });
       expect(ctx.resolve("Feedback: {{feedback}}")).toBe("Feedback: fix validation");
     });
@@ -625,7 +625,7 @@ describe("FlowContext", () => {
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "task",
-        feedback: "cached feedback",
+        accumulatedFeedback: "cached feedback",
         feedbackProvider: async () => "should not be called",
       });
 
@@ -650,17 +650,17 @@ describe("FlowContext", () => {
       });
 
       const ctx2 = ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
-      const ctx3 = ctx2.withFeedback("f");
+      const ctx3 = ctx2.withAccumulatedFeedback("f");
       const ctx4 = ctx3.withIteration(1);
 
       // Each is independent
       expect(ctx.workspaces.size).toBe(0);
       expect(ctx2.workspaces.get("ws")!.path).toBe("/tmp/ws");
-      expect(ctx2.feedback).toBeUndefined();
+      expect(ctx2.accumulatedFeedback).toBeUndefined();
       expect(ctx3.workspaces.get("ws")!.path).toBe("/tmp/ws");
-      expect(ctx3.feedback).toBe("f");
+      expect(ctx3.accumulatedFeedback).toBe("f");
       expect(ctx4.workspaces.get("ws")!.path).toBe("/tmp/ws");
-      expect(ctx4.feedback).toBe("f");
+      expect(ctx4.accumulatedFeedback).toBe("f");
       expect(ctx4.iteration).toBe(1);
     });
   });

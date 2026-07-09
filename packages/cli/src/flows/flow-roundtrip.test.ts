@@ -172,7 +172,7 @@ describe("flow round-trip", () => {
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
+      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
       expect(resolved).not.toMatch(/\{\{/);
     });
 
@@ -182,7 +182,7 @@ describe("flow round-trip", () => {
         prompt: "test-task",
       })
         .withParams({ plan: "test-plan", workspace: "/tmp/test-workspace" })
-        .withFeedback("test-feedback");
+        .withAccumulatedFeedback("test-feedback");
 
       const { agentTasks } = collectFromRoutines(flow.routines);
 
@@ -209,13 +209,13 @@ describe("flow round-trip", () => {
     // ── 4. Orchestrator.systemPrompt resolves cleanly ──────────────────
 
     it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
-      expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
+      expect(flow.orchestrator!.systemPrompt.length).toBeGreaterThan(0);
 
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
+      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
 
       expect(resolved).not.toMatch(/\{\{/);
       expect(resolved).not.toMatch(/\}\}/);

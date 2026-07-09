@@ -83,13 +83,13 @@ describe("createChildExecutionContext", () => {
     const parent = new FlowContext({
       results: new Map(),
       prompt: "task",
-      feedback: "fix x",
+      accumulatedFeedback: "fix x",
       iteration: 3,
     });
 
     const child = createChildExecutionContext(parent);
 
-    expect(child.feedback).toBeUndefined();
+    expect(child.accumulatedFeedback).toBeUndefined();
     expect(child.iteration).toBe(0);
   });
 

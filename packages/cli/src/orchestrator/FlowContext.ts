@@ -12,7 +12,7 @@ type FlowContextParams = {
   /** Routine parameters passed by the orchestrator LLM. */
   readonly params?: ReadonlyMap<string, string>;
   /** Accumulated feedback from prior loop iterations. */
-  readonly feedback?: string;
+  readonly accumulatedFeedback?: string;
   /** Current loop iteration (0-indexed). */
   readonly iteration?: number;
   /** Flow-global session that persists across routine calls. */
@@ -39,7 +39,7 @@ export class FlowContext {
   /** Routine parameters passed by the orchestrator LLM. */
   readonly params: ReadonlyMap<string, string>;
   /** Accumulated feedback from prior loop iterations. */
-  readonly feedback?: string;
+  readonly accumulatedFeedback?: string;
   /** Current loop iteration (0-indexed). */
   readonly iteration: number;
   /** Flow-global session that persists across routine calls. */
@@ -54,7 +54,7 @@ export class FlowContext {
     this.prompt = params.prompt;
     this.workspaces = params.workspaces ?? new Map();
     this.params = params.params ?? new Map();
-    this.feedback = params.feedback;
+    this.accumulatedFeedback = params.accumulatedFeedback;
     this.feedbackProvider = params.feedbackProvider;
     this.iteration = params.iteration ?? 0;
     this.store = params.store ?? new FlowStateStore();
@@ -71,7 +71,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: this.workspaces,
       params: this.params,
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -87,7 +87,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: next,
       params: this.params,
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -103,7 +103,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: next,
       params: this.params,
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -117,7 +117,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: this.workspaces,
       params: new Map(Object.entries(params)),
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -125,13 +125,13 @@ export class FlowContext {
     });
   }
 
-  withFeedback(feedback: string): FlowContext {
+  withAccumulatedFeedback(accumulatedFeedback: string): FlowContext {
     return new FlowContext({
       results: this.results,
       prompt: this.prompt,
       workspaces: this.workspaces,
       params: this.params,
-      feedback: feedback,
+      accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -145,7 +145,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: this.workspaces,
       params: this.params,
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: n,
       store: this.store,
@@ -163,7 +163,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: this.workspaces,
       params: this.params,
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -181,7 +181,7 @@ export class FlowContext {
       prompt: this.prompt,
       workspaces: this.workspaces,
       params: this.params,
-      feedback: this.feedback,
+      accumulatedFeedback: this.accumulatedFeedback,
       feedbackProvider: this.feedbackProvider,
       iteration: this.iteration,
       store: this.store,
@@ -211,7 +211,7 @@ export class FlowContext {
       case "prompt":
         return this.prompt;
       case "feedback":
-        if (this.feedback) return this.feedback;
+        if (this.accumulatedFeedback) return this.accumulatedFeedback;
         if (this.feedbackProvider) throw new FeedbackPendingError();
         return "(no prior findings)";
       default: {

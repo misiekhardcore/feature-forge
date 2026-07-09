@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import type { EventBus, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
@@ -14,11 +14,18 @@ import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { RoutineTool } from "./RoutineTool";
 import { RuntimeCapabilities } from "./RuntimeCapabilities";
-import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
- * Discovers flow definitions in a directory and registers their
- * orchestrator commands and routine tools with the pi extension.
+ * Discovers flow definitions in a directory and registers them with
+ * the pi extension using two registration paths:
+ *
+ * 1. **Full orchestrated flows** — flows that declare an `orchestrator`
+ *    config get an {@link OrchestratorCommand} registered under their
+ *    slash-command name.
+ * 2. **Library-only flows** — flows without an `orchestrator` config
+ *    only register their routine tools. They are callable from other
+ *    flows via {@link RoutineRefStepExecutor} but have no direct
+ *    slash command in the TUI.
  */
 export class FlowRegistrar {
   constructor(
@@ -31,8 +38,6 @@ export class FlowRegistrar {
       workspaceManager: WorkspaceManager;
       flowsDir: string;
       knownProviders: ReadonlySet<string>;
-      stepExecutorRegistry: StepExecutorRegistry;
-      eventBus: EventBus;
       runtimeCapabilities: RuntimeCapabilities;
     },
   ) {}
@@ -51,8 +56,6 @@ export class FlowRegistrar {
       workspaceManager,
       flowsDir,
       knownProviders,
-      stepExecutorRegistry,
-      eventBus,
       runtimeCapabilities,
     } = this.params;
 
@@ -68,8 +71,6 @@ export class FlowRegistrar {
         specManager,
         workspaceManager,
         knownProviders,
-        stepExecutorRegistry,
-        eventBus,
         runtimeCapabilities,
       });
     }
@@ -95,8 +96,6 @@ export class FlowRegistrar {
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
       knownProviders: ReadonlySet<string>;
-      stepExecutorRegistry: StepExecutorRegistry;
-      eventBus: EventBus;
       runtimeCapabilities: RuntimeCapabilities;
     },
   ): Promise<void> {
@@ -108,36 +107,11 @@ export class FlowRegistrar {
       specManager,
       workspaceManager,
       knownProviders,
-      stepExecutorRegistry,
-      eventBus,
       runtimeCapabilities,
     } = ctx;
 
-    // Skip flows without an orchestrator markdown file.
-    const orchestratorFile = path.join(flowDir, "orchestrator.md");
-    try {
-      await fs.access(orchestratorFile);
-    } catch (error) {
-      logger.warn(`[feature-forge] Orchestrator persona file not found for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    // Register the orchestrator persona as a spec in the shared registry before
-    // loading the flow definition, so the spec name participates in FlowLoader's
-    // semantic validation. The persona stays co-located with its flow but is
-    // loaded by the same `SpecLoader`. See ADR 0007.
-    try {
-      await specManager.loadFromDirectory(flowDir);
-    } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    // Load and validate the flow definition with an up-to-date spec snapshot.
+    // Load and validate the flow definition first, so we can decide which
+    // registration path to take based on whether the flow has an orchestrator.
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
@@ -160,29 +134,51 @@ export class FlowRegistrar {
       return;
     }
 
-    // Construct the orchestrator command with pi (needed for the base Command
-    // class and agent mounting), then register it through the CommandRegistry
-    // so it follows the same registration path as all other commands.
-    const orchestratorCommand = new OrchestratorCommand(
-      supervisor,
-      pi,
-      specManager,
-      workspaceManager,
-      flow,
-    );
-    try {
-      cmdRegistry.registerInstance(orchestratorCommand);
-    } catch (error) {
-      logger.warn(
-        `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
-        {
+    // ── Registration path 1: full orchestrated flow ──
+    // Only register the orchestrator command and load the orchestrator persona
+    // when the flow declares an orchestrator config.
+    if (flow.orchestrator) {
+      // Register the orchestrator persona as a spec in the shared registry.
+      // The persona stays co-located with its flow but is loaded by the same
+      // `SpecLoader`. See ADR 0007.
+      try {
+        await specManager.loadFromDirectory(flowDir);
+      } catch (error) {
+        logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
           error,
-        },
-      );
+        });
+        // Don't skip — still register the routine tools.
+      }
+
+      // Construct the orchestrator command and register it through the
+      // CommandRegistry so it follows the same registration path as all
+      // other commands.
+      try {
+        const orchestratorCommand = new OrchestratorCommand(
+          supervisor,
+          pi,
+          specManager,
+          workspaceManager,
+          flow,
+        );
+        cmdRegistry.registerInstance(orchestratorCommand);
+      } catch (error) {
+        logger.warn(
+          `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
+          { error },
+        );
+      }
     }
 
-    // Register routine tools for this flow.
-    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus, store);
+    // ── Registration path 2: routine tools (always registered) ──
+    // Every flow — whether orchestrated or library-only — exposes its
+    // routines as tools callable from other flows.
+    const routineExecutor = new RoutineExecutor(
+      flow,
+      runtimeCapabilities.stepExecutorRegistry,
+      runtimeCapabilities.eventBus,
+      store,
+    );
     for (const [routineName, routineDef] of Object.entries(flow.routines)) {
       const routineTool = new RoutineTool(
         flowName,

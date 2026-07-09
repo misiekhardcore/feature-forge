@@ -10,6 +10,8 @@ import {
   LoopInstructionSchema,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
+  RoutineInputSchema,
+  RoutineOutputSchema,
   RoutineParamSchema,
   RoutineRefInstructionSchema,
   SessionInstructionSchema,
@@ -38,14 +40,8 @@ const META_SCHEMA_URL = "https://json-schema.org/draft/2020-12/schema";
 const defs: Record<string, unknown> = {
   OrchestratorConfig: OrchestratorConfigSchema,
   RoutineParam: RoutineParamSchema,
-  RoutineInputSchema: {
-    type: "object",
-    additionalProperties: { type: "string" },
-  },
-  RoutineOutputSchema: {
-    type: "object",
-    additionalProperties: { type: "string" },
-  },
+  RoutineInputSchema,
+  RoutineOutputSchema,
   WorkspaceInstruction: WorkspaceInstructionSchema,
   AgentInstruction: AgentInstructionSchema,
   ParallelInstruction: replaceStepsRef(ParallelInstructionSchema),
@@ -80,7 +76,7 @@ const schema = {
     "Self-contained flow definition. " +
     "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: ["$schema", "name", "command", "orchestrator", "routines"],
+  required: ["$schema", "name", "command", "routines"],
   properties: {
     $schema: FlowDefinitionSchema.properties.$schema,
     name: { type: "string", minLength: 1 },

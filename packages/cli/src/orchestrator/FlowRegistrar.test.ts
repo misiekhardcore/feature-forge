@@ -1,11 +1,11 @@
-import { type EventBus, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InMemoryAgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { logger } from "../logging";
 import type { CommandRegistry, ToolRegistry } from "../registry";
-import { makeMockEventBus, makeMockPi } from "../test-utils";
+import { makeMockPi } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
@@ -17,7 +17,6 @@ import type { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 const {
   readdirMock,
-  accessMock,
   flowLoaderLoadMock,
   flowLoaderCtorMock,
   orchestratorCtorMock,
@@ -25,7 +24,6 @@ const {
   specManagerSpecNamesMock,
 } = vi.hoisted(() => {
   const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
-  const access = vi.fn<(p: string) => Promise<void>>();
   const load = vi.fn<() => Promise<FlowDefinition>>();
 
   // Must use named functions — arrow functions are not constructable
@@ -47,7 +45,6 @@ const {
 
   return {
     readdirMock: readdir,
-    accessMock: access,
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
     orchestratorCtorMock: orchestratorCtor,
@@ -58,7 +55,6 @@ const {
 
 vi.mock("node:fs/promises", () => ({
   readdir: readdirMock,
-  access: accessMock,
 }));
 
 vi.mock("./FlowLoader", () => ({
@@ -80,8 +76,6 @@ interface FlowRegistrarParams {
   workspaceManager: WorkspaceManager;
   flowsDir: string;
   knownProviders: ReadonlySet<string>;
-  stepExecutorRegistry: StepExecutorRegistry;
-  eventBus: EventBus;
   runtimeCapabilities: RuntimeCapabilities;
 }
 
@@ -107,11 +101,13 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
     flowsDir: overrides.flowsDir ?? "/flows",
     knownProviders: overrides.knownProviders ?? new Set(),
-    stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
-    eventBus: overrides.eventBus ?? makeMockEventBus(),
     runtimeCapabilities:
       overrides.runtimeCapabilities ??
-      new RuntimeCapabilities(makeMockEventBus(), {} as StepExecutorRegistry, new Map()),
+      new RuntimeCapabilities(
+        { emit: vi.fn(), on: vi.fn() },
+        {} as StepExecutorRegistry,
+        new Map(),
+      ),
   };
 }
 
@@ -130,7 +126,6 @@ function makeFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
 
 function setupSingleFlow() {
   readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-  accessMock.mockResolvedValue(undefined);
   flowLoaderLoadMock.mockResolvedValue(makeFlow());
 }
 
@@ -149,7 +144,6 @@ describe("FlowRegistrar", () => {
         { name: "flow-a", isDirectory: () => true },
         { name: "flow-b", isDirectory: () => true },
       ]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const params = makeParams({ flowsDir: "/custom/flows" });
@@ -167,7 +161,6 @@ describe("FlowRegistrar", () => {
         { name: "README.md", isDirectory: () => false },
         { name: "flow-b", isDirectory: () => true },
       ]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {
@@ -181,32 +174,9 @@ describe("FlowRegistrar", () => {
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
     });
 
-    it("skips directories without an orchestrator.md file", async () => {
-      readdirMock.mockResolvedValue([
-        { name: "valid-flow", isDirectory: () => true },
-        { name: "no-md", isDirectory: () => true },
-      ]);
-      // valid-flow has orchestrator.md, no-md does not
-      accessMock.mockImplementation(async (p: string) => {
-        if (p.includes("no-md")) throw new Error("ENOENT");
-      });
-      flowLoaderLoadMock.mockResolvedValue(makeFlow());
-
-      const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
-      const params = makeParams({ cmdRegistry });
-      const registrar = new FlowRegistrar(params);
-      await registrar.registerAll();
-
-      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
-    });
-
     it("skips flows that fail to load and logs a warning (non-Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
-      specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue("raw string error");
 
       const cmdRegistry = {
@@ -228,8 +198,6 @@ describe("FlowRegistrar", () => {
     it("skips flows that fail to load and logs a warning (Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
-      specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue(new Error("Invalid JSON"));
 
       const cmdRegistry = {
@@ -267,7 +235,7 @@ describe("FlowRegistrar", () => {
       expect(registeredCmd).toHaveProperty("handler");
     });
 
-    it("loads the orchestrator persona before constructing FlowLoader", async () => {
+    it("loads the orchestrator persona only for flows with orchestrator config", async () => {
       setupSingleFlow();
 
       const params = makeParams();
@@ -280,7 +248,6 @@ describe("FlowRegistrar", () => {
 
     it("passes knownSpecs and knownProviders to FlowLoader", async () => {
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const knownSpecs = new Set(["spec-a", "spec-b"]);
@@ -313,7 +280,6 @@ describe("FlowRegistrar", () => {
     it("handles RoutineTool registration failures gracefully (non-Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
           routines: {
@@ -343,7 +309,6 @@ describe("FlowRegistrar", () => {
     it("handles RoutineTool registration failures gracefully (Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
           routines: {
@@ -391,7 +356,6 @@ describe("FlowRegistrar", () => {
 
     it("registers orchestrator commands even when a flow has no routines", async () => {
       readdirMock.mockResolvedValue([{ name: "empty-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: {} }));
 
       const cmdRegistry = {
@@ -403,6 +367,111 @@ describe("FlowRegistrar", () => {
 
       // Command registered, but no tools (no routines to iterate over)
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── Split registration paths ───────────────────────────────
+
+  describe("library-only flows (no orchestrator config)", () => {
+    it("registers routine tools without an orchestrator command", async () => {
+      readdirMock.mockResolvedValue([{ name: "lib-flow", isDirectory: () => true }]);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow({ orchestrator: undefined }));
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const toolRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as ToolRegistry;
+      const params = makeParams({ cmdRegistry, toolRegistry });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // No orchestrator command registered
+      expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
+      // But routines and builtin are registered
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // 1 user + 1 builtin
+      // Spec manager should not be called for library-only flows
+      expect(specManagerLoadFromDirectoryMock).not.toHaveBeenCalled();
+    });
+
+    it("registers the flow in runtime capabilities for cross-flow references", async () => {
+      readdirMock.mockResolvedValue([{ name: "lib-flow", isDirectory: () => true }]);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow({ orchestrator: undefined }));
+
+      const runtimeCapabilities = new RuntimeCapabilities(
+        { emit: vi.fn(), on: vi.fn() },
+        {} as StepExecutorRegistry,
+        new Map(),
+      );
+      const params = makeParams({ runtimeCapabilities });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      expect(runtimeCapabilities.flows.has("/test")).toBe(true);
+    });
+  });
+
+  describe("orchestrator spec loading failures", () => {
+    it("handles OrchestratorCommand constructor failure gracefully", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+
+      // Make the OrchestratorCommand constructor throw so we can verify
+      // the catch path in registerFlow.
+      const originalImpl = orchestratorCtorMock.getMockImplementation();
+      orchestratorCtorMock.mockImplementation(() => {
+        throw new Error("constructor failure");
+      });
+
+      try {
+        const cmdRegistry = {
+          registerInstance: vi.fn().mockReturnValue(undefined),
+        } as unknown as CommandRegistry;
+        const toolRegistry = {
+          registerInstance: vi.fn().mockReturnValue(undefined),
+        } as unknown as ToolRegistry;
+        const params = makeParams({ cmdRegistry, toolRegistry });
+        const registrar = new FlowRegistrar(params);
+        await registrar.registerAll();
+
+        // Command not registered (constructor threw)
+        expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
+        // Tools still registered
+        expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Failed to register OrchestratorCommand"),
+          expect.any(Object),
+        );
+      } finally {
+        warnSpy.mockRestore();
+        // Restore the original mock implementation for subsequent tests
+        if (originalImpl) {
+          orchestratorCtorMock.mockImplementation(originalImpl);
+        }
+      }
+    });
+
+    it("still registers routine tools when orchestrator spec loading fails", async () => {
+      readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+      specManagerLoadFromDirectoryMock.mockRejectedValue(new Error("Spec not found"));
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const toolRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as ToolRegistry;
+      const params = makeParams({ cmdRegistry, toolRegistry });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // Command still registered (spec loading failure shouldn't block it)
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      // Tools still registered
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2);
     });
   });
 });

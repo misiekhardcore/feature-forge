@@ -2,13 +2,6 @@
   "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
   "name": "verify",
   "command": "/verify",
-  "orchestrator": {
-    "systemPrompt": "verify-orchestrator",
-    "prompt": "{{prompt}}",
-    "promptParams": {
-      "TASK": "{{prompt}}"
-    }
-  },
   "routines": {
     "check": {
       "description": "Verify acceptance criteria for code changes in a workspace",
