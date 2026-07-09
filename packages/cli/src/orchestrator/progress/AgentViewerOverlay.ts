@@ -440,16 +440,21 @@ export class AgentViewerOverlay implements Component {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
       const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
-      const iconColor =
-        entry.status === "done" && entry.passed !== false
-          ? "success"
-          : entry.status === "done"
-            ? "error"
-            : entry.status === "started"
-              ? "warning"
-              : entry.status === "error"
-                ? "error"
-                : "muted";
+      let iconColor: string;
+      switch (entry.status) {
+        case "done":
+          iconColor = entry.passed !== false ? "success" : "error";
+          break;
+        case "started":
+          iconColor = "warning";
+          break;
+        case "error":
+          iconColor = "error";
+          break;
+        default:
+          iconColor = "muted";
+          break;
+      }
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -514,14 +519,18 @@ export class AgentViewerOverlay implements Component {
     const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
 
     // Header
-    const statusLabel =
-      entry.status === "started"
-        ? "running"
-        : entry.status === "done" && entry.passed === false
-          ? "failed"
-          : entry.status === "done"
-            ? "completed"
-            : entry.status;
+    let statusLabel: string;
+    switch (entry.status) {
+      case "started":
+        statusLabel = "running";
+        break;
+      case "done":
+        statusLabel = entry.passed === false ? "failed" : "completed";
+        break;
+      default:
+        statusLabel = entry.status;
+        break;
+    }
     lines.push(
       `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${statusLabel}`)}`,
     );
