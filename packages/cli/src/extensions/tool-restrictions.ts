@@ -31,11 +31,17 @@ export function activateToolRestrictions(
   pi: ExtensionAPI,
   restrictions: Record<string, readonly string[]>,
 ): void {
-  if (Object.keys(restrictions).length === 0) return;
+  // Only register the interceptor when there are actual restriction
+  // patterns to enforce (non-empty arrays).
+  const hasRestrictions = Object.values(restrictions).some((p) => p.length > 0);
+  if (!hasRestrictions) return;
 
   pi.on("tool_call", (event) => {
     const patterns = restrictions[event.toolName];
     if (!patterns) return;
+
+    // Empty patterns array means unrestricted — allow everything.
+    if (patterns.length === 0) return;
 
     const inputField = TOOL_INPUT_FIELDS[event.toolName];
     if (!inputField) {

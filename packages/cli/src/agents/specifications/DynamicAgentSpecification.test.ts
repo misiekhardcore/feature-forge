@@ -4,7 +4,7 @@ import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 
 describe("DynamicAgentSpecification", () => {
   describe("toolRestrictions passthrough", () => {
-    it("passes toolRestrictions through to the base AgentSpecification", () => {
+    it("merges tools into toolRestrictions with per-tool overrides", () => {
       const spec = new DynamicAgentSpecification({
         role: "test",
         systemPrompt: "You are a test agent.",
@@ -12,18 +12,18 @@ describe("DynamicAgentSpecification", () => {
         toolRestrictions: { bash: ["restricted/*"] },
       });
 
-      expect(spec.toolRestrictions).toEqual({ bash: ["restricted/*"] });
+      expect(spec.toolRestrictions).toEqual({ read: [], bash: ["restricted/*"] });
       expect(spec.tools).toEqual(["read", "bash"]);
     });
 
-    it("defaults toolRestrictions to empty object when not provided", () => {
+    it("converts tools to toolRestrictions entries when no restrictions provided", () => {
       const spec = new DynamicAgentSpecification({
         role: "test",
         systemPrompt: "You are a test agent.",
         tools: ["read", "bash"],
       });
 
-      expect(spec.toolRestrictions).toEqual({});
+      expect(spec.toolRestrictions).toEqual({ read: [], bash: [] });
     });
   });
 
@@ -73,9 +73,8 @@ describe("DynamicAgentSpecification", () => {
         id: "json-test",
         role: "json-role",
         systemPrompt: "JSON test",
-        tools: ["read", "bash"],
         excludedTools: ["write"],
-        toolRestrictions: { bash: ["git *"] },
+        toolRestrictions: { read: [], bash: ["git *"] },
         model: undefined,
         thinkingLevel: "high",
         disableBuiltinTools: true,
@@ -128,7 +127,7 @@ describe("DynamicAgentSpecification", () => {
       expect(spec.role).toBe("from-json");
       expect(spec.systemPrompt).toBe("From JSON test");
       expect(spec.tools).toEqual(["read", "bash"]);
-      expect(spec.toolRestrictions).toEqual({ bash: ["git *"] });
+      expect(spec.toolRestrictions).toEqual({ read: [], bash: ["git *"] });
     });
 
     it("throws on invalid JSON", () => {

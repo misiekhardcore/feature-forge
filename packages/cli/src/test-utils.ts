@@ -39,6 +39,7 @@ export function makeSpec(
     role: string;
     systemPrompt: string;
     tools: readonly string[];
+    toolRestrictions: Record<string, readonly string[]>;
     model: string;
     ephemeral: boolean;
   }> = {},
@@ -50,6 +51,7 @@ export function makeSpec(
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
         tools: overrides.tools,
+        toolRestrictions: overrides.toolRestrictions,
         model: overrides.model,
         ephemeral: overrides.ephemeral,
       });
@@ -279,7 +281,9 @@ export function makeMockSpecManager() {
         id: params.spec ?? params.role ?? "mock",
         role: params.role ?? "mock",
         systemPrompt: params.systemPrompt ?? "Mock system prompt",
-        tools: params.tools ?? [],
+        get tools() {
+          return params.tools ?? [];
+        },
         cwd: params.cwd,
         disableBuiltinTools: false,
         disableExtensions: false,
@@ -298,7 +302,9 @@ export function makeMockSpecManager() {
         id: params.role,
         role: params.role,
         systemPrompt: params.systemPrompt,
-        tools: params.tools ?? [],
+        get tools() {
+          return params.tools ?? [];
+        },
         model: params.model,
         cwd: params.cwd,
         disableBuiltinTools: false,

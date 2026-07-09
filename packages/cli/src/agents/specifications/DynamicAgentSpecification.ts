@@ -40,7 +40,6 @@ export class DynamicAgentSpecification extends AgentSpecification {
       id: this.id,
       role: this.role,
       systemPrompt: this.systemPrompt,
-      tools: this.tools,
       excludedTools: this.excludedTools,
       toolRestrictions: this.toolRestrictions,
       model: this.model,
