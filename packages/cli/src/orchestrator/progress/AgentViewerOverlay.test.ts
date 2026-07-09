@@ -14,6 +14,7 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../../test-utils";
 import type { AgentViewerEntry } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
+import { wireOverlayEvents } from "./wireOverlayEvents";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -408,32 +409,6 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("statusIcon", () => {
-    it("returns ✓ for done with passed: true", () => {
-      expect(AgentViewerOverlay.statusIcon("done", true)).toBe("✓");
-    });
-
-    it("returns ✓ for done without explicit passed", () => {
-      expect(AgentViewerOverlay.statusIcon("done")).toBe("✓");
-    });
-
-    it("returns ✗ for done with passed: false", () => {
-      expect(AgentViewerOverlay.statusIcon("done", false)).toBe("✗");
-    });
-
-    it("returns ⏳ for started", () => {
-      expect(AgentViewerOverlay.statusIcon("started")).toBe("⏳");
-    });
-
-    it("returns ✗ for error", () => {
-      expect(AgentViewerOverlay.statusIcon("error")).toBe("✗");
-    });
-
-    it("returns ○ for unknown status", () => {
-      expect(AgentViewerOverlay.statusIcon("paused")).toBe("○");
-    });
-  });
-
   describe("formatStreamEvent", () => {
     it("formats tool_execution_start events as 'tool_execution_start: <toolName>'", () => {
       const line = AgentViewerOverlay.formatStreamEvent({
@@ -611,10 +586,10 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.getLastStreamLine("reviewer")).toBe("tool_execution_start: lint");
     });
 
-    it("writes stream events to a filesystem log when executionId and streamDir are configured", () => {
+    it("writes stream events to a filesystem log when streamDir is configured", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -625,24 +600,23 @@ describe("AgentViewerOverlay", () => {
         message: { role: "assistant" },
       } as AgentEvent);
 
-      const tail = overlay.getStreamTail("builder");
-      expect(tail).toContain("tool_execution_start: read");
-      expect(tail).toContain("message_start: assistant");
+      const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
+      expect(content).toContain("tool_execution_start: read");
+      expect(content).toContain("message_start: assistant");
 
       overlay.dispose();
     });
 
-    it("uses executionId as prefix in stream filenames", () => {
+    it("writes stream files with agent id as filename", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-42", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as AgentEvent);
 
-      // The file should be named with the executionId prefix.
       const expectedPath = join(tmpDir, "builder.stream");
       expect(existsSync(expectedPath)).toBe(true);
 
@@ -652,11 +626,10 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("does not write to disk when executionId is not set", () => {
+    it("writes to disk when streamDir is configured", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       const overlay = makeOverlay();
-      // streamDir set but no executionId
-      overlay.setAgentExecutionId("", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -672,15 +645,15 @@ describe("AgentViewerOverlay", () => {
     it("creates the stream directory if it does not exist", () => {
       const tmpDir = join(tmpdir(), `forge-stream-mkdir-${Date.now()}`);
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as AgentEvent);
 
-      const tail = overlay.getStreamTail("builder");
-      expect(tail).toContain("tool_execution_start: read");
+      const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
+      expect(content).toContain("tool_execution_start: read");
 
       overlay.dispose();
     });
@@ -688,7 +661,7 @@ describe("AgentViewerOverlay", () => {
     it("reuses cached file path for subsequent events from the same agent", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -699,16 +672,16 @@ describe("AgentViewerOverlay", () => {
         toolName: "write",
       } as AgentEvent);
 
-      const tail = overlay.getStreamTail("builder");
-      expect(tail).toContain("tool_execution_start: read");
-      expect(tail).toContain("tool_execution_start: write");
+      const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
+      expect(content).toContain("tool_execution_start: read");
+      expect(content).toContain("tool_execution_start: write");
 
       overlay.dispose();
     });
 
     it("does not throw when streamDir filesystem operations fail", () => {
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", "/nonexistent/path/that/should/fail");
+      overlay.setStreamDir("/nonexistent/path/that/should/fail");
 
       expect(() => {
         overlay.pushStreamEvent("builder", {
@@ -746,10 +719,10 @@ describe("AgentViewerOverlay", () => {
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
-    it("handles pushStreamEvent with streamDir set but empty executionId gracefully", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-empty-exec-stream-"));
+    it("handles pushStreamEvent with streamDir set gracefully", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-dir-"));
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       // Should not throw.
       expect(() => {
@@ -786,97 +759,36 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("getStreamTail", () => {
-    it("returns empty string when no streamDir was configured", () => {
-      const overlay = makeOverlay();
-      overlay.pushStreamEvent("builder", {
-        type: "tool_execution_start",
-        toolName: "read",
-      } as AgentEvent);
-
-      expect(overlay.getStreamTail("builder")).toBe("");
-    });
-
-    it("returns empty string when agent has no stream file", () => {
+  describe("setStreamDir", () => {
+    it("configures stream directory for file persistence", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
-
-      expect(overlay.getStreamTail("unknown")).toBe("");
-
-      overlay.dispose();
-    });
-
-    it("returns the last N lines from the stream file", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
-
-      for (let i = 0; i < 5; i++) {
-        overlay.pushStreamEvent("builder", {
-          type: "tool_execution_start",
-          toolName: `tool-${i}`,
-        } as AgentEvent);
-      }
-
-      const tail = overlay.getStreamTail("builder", 2);
-      const tailLines = tail.split("\n");
-      expect(tailLines).toHaveLength(2);
-      expect(tailLines[0]).toBe("tool_execution_start: tool-3");
-      expect(tailLines[1]).toBe("tool_execution_start: tool-4");
-
-      overlay.dispose();
-    });
-
-    it("handles read errors gracefully", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
-      overlay.pushStreamEvent("builder", {
-        type: "tool_execution_start",
-        toolName: "read",
-      } as AgentEvent);
-
-      // Remove the stream file to force a read error.
-      const filePath = join(tmpDir, "builder.stream");
-      rmSync(filePath);
-
-      const tail = overlay.getStreamTail("builder");
-      expect(tail).toBe("");
-
-      overlay.dispose();
-    });
-  });
-
-  describe("setAgentExecutionId", () => {
-    it("configures execution id and stream directory", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setAgentExecutionId("my-exec", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as AgentEvent);
-      expect(overlay.getStreamTail("builder")).toContain("tool_execution_start: read");
+      const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
+      expect(content).toContain("tool_execution_start: read");
 
       overlay.dispose();
     });
 
-    it("overwrites previous executionId and streamDir when called again", () => {
+    it("overwrites previous streamDir when called again", () => {
       const tmpDir1 = mkdtempSync(join(tmpdir(), "forge-overwrite-1-"));
       const tmpDir2 = mkdtempSync(join(tmpdir(), "forge-overwrite-2-"));
 
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-first", tmpDir1);
-      overlay.setAgentExecutionId("exec-second", tmpDir2);
+      overlay.setStreamDir(tmpDir1);
+      overlay.setStreamDir(tmpDir2);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as AgentEvent);
 
-      // File should be written using the second (overwritten) executionId in tmpDir2.
+      // File should be written to the second (overwritten) directory.
       const expectedPath = join(tmpDir2, "builder.stream");
       expect(existsSync(expectedPath)).toBe(true);
 
@@ -887,25 +799,10 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("sets executionId without streamDir", () => {
-      const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-no-dir");
-
-      overlay.pushStreamEvent("builder", {
-        type: "tool_execution_start",
-        toolName: "read",
-      } as AgentEvent);
-
-      // In-memory should work.
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
-      // No disk file.
-      expect(overlay.getStreamTail("builder")).toBe("");
-    });
-
-    it("does not write to disk when executionId is empty string", () => {
+    it("writes to disk when streamDir is an empty string", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-empty-exec-"));
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -914,7 +811,7 @@ describe("AgentViewerOverlay", () => {
 
       // In-memory line should still be recorded.
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
-      // Disk file IS written (executionId prefix removed).
+      // Disk file IS written.
       const files = existsSync(tmpDir) ? readdirSync(tmpDir) : [];
       expect(files.filter((f: string) => f.endsWith(".stream"))).toHaveLength(1);
 
@@ -939,7 +836,7 @@ describe("AgentViewerOverlay", () => {
 
     it("removes stream files written to disk", () => {
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -957,7 +854,7 @@ describe("AgentViewerOverlay", () => {
 
     it("resets agent entries on dispose", () => {
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
       overlay.update(makeEntry("builder", "started"));
 
       overlay.dispose();
@@ -967,7 +864,7 @@ describe("AgentViewerOverlay", () => {
 
     it("is safe to call multiple times", () => {
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
@@ -985,7 +882,7 @@ describe("AgentViewerOverlay", () => {
 
     it("clears lastLines and streamFiles maps on dispose", () => {
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
@@ -996,13 +893,11 @@ describe("AgentViewerOverlay", () => {
       } as AgentEvent);
 
       expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
-      expect(overlay.getStreamTail("builder")).toContain("tool_execution_start: read");
 
       overlay.dispose();
 
-      // Both in-memory maps are cleared.
+      // In-memory maps are cleared.
       expect(overlay.getLastStreamLine("builder")).toBeUndefined();
-      expect(overlay.getStreamTail("builder")).toBe("");
     });
   });
 
@@ -1539,7 +1434,7 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("constructor with streamDir (via setAgentExecutionId)", () => {
+  describe("constructor with streamDir", () => {
     let tmpDir: string;
 
     beforeEach(() => {
@@ -1552,7 +1447,7 @@ describe("AgentViewerOverlay", () => {
 
     it("writes stream events to disk and provides readable tail", () => {
       const overlay = makeOverlay();
-      overlay.setAgentExecutionId("exec-1", tmpDir);
+      overlay.setStreamDir(tmpDir);
 
       overlay.pushStreamEvent("builder", {
         type: "message_start",
@@ -1570,32 +1465,31 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
       } as AgentEvent);
 
-      const tail = overlay.getStreamTail("builder");
-      expect(tail).toContain("message_start: assistant");
-      expect(tail).toContain("message_end: I will now read the file.");
-      expect(tail).toContain("tool_execution_start: read");
+      const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
+      expect(content).toContain("message_start: assistant");
+      expect(content).toContain("message_end: I will now read the file.");
+      expect(content).toContain("tool_execution_start: read");
 
       overlay.dispose();
     });
 
     it("stream file content survives overlay instance lifetime", () => {
       const overlay1 = makeOverlay();
-      overlay1.setAgentExecutionId("exec-1", tmpDir);
+      overlay1.setStreamDir(tmpDir);
       overlay1.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as AgentEvent);
 
       const overlay2 = makeOverlay();
-      overlay2.setAgentExecutionId("exec-1", tmpDir);
+      overlay2.setStreamDir(tmpDir);
       overlay2.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "write",
       } as AgentEvent);
 
-      const tail = overlay2.getStreamTail("builder");
-      // The tail shows lines written via overlay2.
-      expect(tail).toContain("tool_execution_start: write");
+      const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
+      expect(content).toContain("tool_execution_start: write");
 
       overlay1.dispose();
       overlay2.dispose();
@@ -1631,7 +1525,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1664,7 +1558,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1696,7 +1590,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockEventBus();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1743,7 +1637,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockEventBus();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1765,7 +1659,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1793,7 +1687,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1823,7 +1717,7 @@ describe("AgentViewerOverlay", () => {
         const eventBus = makeMockEventBus();
         const overlay = makeOverlay();
 
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        const { connect, unsubs } = wireOverlayEvents({
           eventBus,
           supervisor,
         });
@@ -1839,8 +1733,8 @@ describe("AgentViewerOverlay", () => {
           },
         });
 
-        const tail = overlay.getStreamTail("builder");
-        expect(tail).toContain("tool_execution_start: read");
+        const content = readFileSync(join(streamDir, "builder.stream"), "utf-8");
+        expect(content).toContain("tool_execution_start: read");
 
         unsubs.forEach((u) => u());
         overlay.dispose();
@@ -1853,7 +1747,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor();
       const eventBus = makeMockEventBus();
 
-      const { unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1870,7 +1764,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1901,7 +1795,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1935,7 +1829,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+      const { connect, unsubs } = wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -2006,8 +1900,8 @@ describe("AgentViewerOverlay", () => {
         expect(joined).toContain("✓");
         expect(joined).toContain("Agent completed");
 
-        const tail = overlay.getStreamTail("reviewer");
-        expect(tail).toContain("tool_execution_start: lint");
+        const content = readFileSync(join(tmpDir, "reviewer.stream"), "utf-8");
+        expect(content).toContain("tool_execution_start: lint");
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
       }
@@ -2047,7 +1941,7 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(1);
     });
 
-    it("creates entries with stream files accessible via getStreamTail", () => {
+    it("creates entries for agents with stream files in the directory", () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-"));
       try {
         const streamPath = join(tmpDir, "unknown-agent.stream");
@@ -2056,9 +1950,9 @@ describe("AgentViewerOverlay", () => {
         const overlay = makeOverlay();
         overlay.prepopulateStreamFiles(tmpDir);
 
-        const tail = overlay.getStreamTail("unknown-agent");
-        expect(tail).toContain("tool_execution_start: grep");
-        expect(tail).toContain("tool_execution_end: grep (ok)");
+        const content = readFileSync(join(tmpDir, "unknown-agent.stream"), "utf-8");
+        expect(content).toContain("tool_execution_start: grep");
+        expect(content).toContain("tool_execution_end: grep (ok)");
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
       }

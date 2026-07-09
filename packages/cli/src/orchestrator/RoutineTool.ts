@@ -21,6 +21,7 @@ import type { ProgressWidget } from "./progress/ProgressReporter";
 import type { RoutineProgressState } from "./progress/RoutineProgressState";
 import { SharedStreamDir } from "./progress/sharedStreamDir";
 import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
+import { wireOverlayEvents } from "./progress/wireOverlayEvents";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
@@ -29,7 +30,7 @@ import type { RoutineResult } from "./RoutineResult";
  * Channels the handler subscribes to for contribution accumulation and
  * progress widget rendering. Agent channels are included so the widget
  * shows agent lifecycle status — the overlay is driven separately via
- * {@link AgentViewerOverlay.wireOverlayEvents}.
+ * {@link wireOverlayEvents}.
  */
 const PROGRESS_CHANNELS = [
   "feature-forge:workspace-ready",
@@ -189,7 +190,7 @@ export class RoutineTool
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
-            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+            const { connect, unsubs } = wireOverlayEvents({
               eventBus: this.executor.eventBus,
               supervisor: this.supervisor,
             });

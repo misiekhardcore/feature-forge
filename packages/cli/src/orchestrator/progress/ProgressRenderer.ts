@@ -7,6 +7,7 @@ import type { Component } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
 import type { DisplayContribution } from "./DisplayContribution";
+import { getStatusIcon } from "./helpers";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
@@ -72,17 +73,8 @@ export class ProgressRenderer {
    * - anything else → muted grey ○
    */
   static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
-    const entries: Record<string, { icon: string; color: string }> = {
-      done: {
-        icon: passed === false ? "✗" : "✓",
-        color: passed === false ? "error" : "success",
-      },
-      running: { icon: "⟳", color: "accent" },
-      started: { icon: "⏳", color: "warning" },
-      error: { icon: "✗", color: "error" },
-    };
-    const entry = entries[status ?? ""] ?? { icon: "○", color: "muted" };
-    return theme.fg(entry.color, entry.icon);
+    const { char, color } = getStatusIcon(status, passed);
+    return theme.fg(color, char);
   }
 
   /**

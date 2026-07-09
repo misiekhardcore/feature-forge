@@ -1,33 +1,14 @@
-import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { EventBus, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
+import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 
-import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-
-/**
- * A single turn in a per-agent conversation built from stream events.
- *
- * Message turns carry role + text content. Tool-call turns carry the
- * tool name, execution status, and optional result text.
- */
-export interface ConversationTurn {
-  type: "message" | "tool_call";
-  /** Role for message turns (e.g. "assistant", "user"). */
-  role?: string;
-  /** Text content for message turns. */
-  content?: string;
-  /** Tool name for tool-call turns. */
-  toolName?: string;
-  /** Execution status for tool-call turns. */
-  toolStatus?: "running" | "ok" | "error";
-  /** Optional result text for tool-call turns. */
-  toolResult?: string;
-}
+import { ConversationTracker, type ConversationTurn } from "./ConversationTracker";
+import { extractMessageText, getNestedString, getStatusIcon } from "./helpers";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -123,24 +104,8 @@ export class AgentViewerOverlay implements Component {
   /** Last render width used to compute scroll bounds. */
   private lastRenderWidth = 80;
 
-  /** Maps agent id → structured conversation turns built from stream events. */
-  private conversations = new Map<string, ConversationTurn[]>();
-
-  /**
-   * In-progress message turns being built from message_start/update/end
-   * events, keyed by agent id so that concurrent agent streams do not
-   * interfere with each other.
-   */
-  private pendingMessages = new Map<string, { role: string; content: string }>();
-
-  /**
-   * In-progress tool-call turns being built from tool_execution_* events,
-   * keyed by agent id.
-   */
-  private pendingToolCalls = new Map<
-    string,
-    { name: string; status: "running" | "ok" | "error"; result: string }
-  >();
+  /** Tracks structured conversation turns per agent from stream events. */
+  private conversationTracker = new ConversationTracker();
 
   /**
    * @param tui — TUI instance used to request re-renders.
@@ -164,14 +129,6 @@ export class AgentViewerOverlay implements Component {
    */
   setStreamDir(streamDir: string): void {
     this.streamDir = streamDir;
-  }
-
-  /**
-   * @deprecated Use {@link setStreamDir} — the executionId prefix is no
-   * longer part of the file path.
-   */
-  setAgentExecutionId(_executionId: string, streamDir?: string): void {
-    if (streamDir) this.setStreamDir(streamDir);
   }
 
   /**
@@ -239,7 +196,7 @@ export class AgentViewerOverlay implements Component {
    *
    * Does NOT clean up filesystem stream files — use {@link dispose}
    * for full cleanup when stream file persistence was configured via
-   * {@link setAgentExecutionId}.
+   * {@link setStreamDir}.
    *
    * @remarks Conversations are intentionally NOT cleared —
    * use {@link dispose} for a full reset of all state Maps.
@@ -261,9 +218,8 @@ export class AgentViewerOverlay implements Component {
    * Push a streaming event for an agent.
    *
    * Formats the event into a human-readable line (kept in memory as the
-   * most recent stream line) and, when {@link streamDir} and
-   * {@link executionId} are configured, appends it to a per-agent log
-   * file on disk.
+   * most recent stream line) and, when {@link streamDir} is
+   * configured, appends it to a per-agent log file on disk.
    */
   pushStreamEvent(agentId: string, event: AgentEvent): void {
     if (!this.agents.has(agentId)) {
@@ -295,7 +251,7 @@ export class AgentViewerOverlay implements Component {
       }
     }
 
-    this.trackConversationTurn(agentId, event);
+    this.conversationTracker.trackTurn(agentId, event);
 
     this.tui.requestRender();
   }
@@ -303,32 +259,10 @@ export class AgentViewerOverlay implements Component {
   /**
    * Return the structured conversation turns for an agent.
    *
-   * Includes any in-progress message or tool-call that has not yet been
-   * finalized by a subsequent event.
+   * Delegates to {@link ConversationTracker.getConversation}.
    */
   getConversation(agentId: string): ConversationTurn[] {
-    const turns = [...(this.conversations.get(agentId) ?? [])];
-
-    const pendingMessage = this.pendingMessages.get(agentId);
-    if (pendingMessage && pendingMessage.content.length > 0) {
-      turns.push({
-        type: "message" as const,
-        role: pendingMessage.role,
-        content: pendingMessage.content,
-      });
-    }
-
-    const pendingToolCall = this.pendingToolCalls.get(agentId);
-    if (pendingToolCall) {
-      turns.push({
-        type: "tool_call" as const,
-        toolName: pendingToolCall.name,
-        toolStatus: pendingToolCall.status,
-        toolResult: pendingToolCall.result,
-      });
-    }
-
-    return turns;
+    return this.conversationTracker.getConversation(agentId);
   }
 
   /**
@@ -350,29 +284,8 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Read the tail of a per-agent stream log file from disk.
-   *
-   * Only available when {@link streamDir} and {@link executionId} were
-   * configured via {@link setAgentExecutionId} and at least one
-   * {@link pushStreamEvent} call was made for the agent.
-   */
-  getStreamTail(agentId: string, maxLines = 100): string {
-    const filePath = this.streamFiles.get(agentId);
-    if (!filePath) return "";
-    try {
-      const content = readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((l) => l.length > 0);
-      const tail = lines.slice(-maxLines);
-      return tail.join("\n");
-    } catch {
-      return "";
-    }
-  }
-
-  /**
    * Scan the stream directory for existing {@code *.stream} files and
-   * pre-populate the internal {@link streamFiles} map so that
-   * {@link getStreamTail} works across overlay instances.
+   * pre-populate the internal {@link streamFiles} map.
    *
    * Also creates stale "done" entries for any agents that have stream
    * files but are not tracked by {@link agents}. This ensures that
@@ -414,9 +327,7 @@ export class AgentViewerOverlay implements Component {
     // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
     this.lastLines.clear();
-    this.conversations.clear();
-    this.pendingMessages.clear();
-    this.pendingToolCalls.clear();
+    this.conversationTracker.clear();
     this.clearMemory();
   }
 
@@ -442,6 +353,26 @@ export class AgentViewerOverlay implements Component {
   /**
    * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
    */
+  /**
+   * Map a tool call status to a display status consumed by {@link getStatusIcon}.
+   *
+   * Uses an exhaustive switch so TypeScript can warn when the
+   * {@code toolStatus} union gains new members.
+   */
+  private static mapToolStatusToDisplayStatus(
+    toolStatus: "running" | "ok" | "error" | undefined,
+  ): string {
+    switch (toolStatus) {
+      case "ok":
+        return "done";
+      case "error":
+        return "error";
+      case "running":
+      case undefined:
+        return "started";
+    }
+  }
+
   static formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
@@ -453,27 +384,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   // ── Static helpers ────────────────────────────────────────
-
-  /**
-   * Map an agent status to a theme-coloured icon character.
-   *
-   * - `"done"` → success green ✓
-   * - `"started"` → warning yellow ⏳
-   * - `"error"` → error red ✗
-   * - anything else → muted grey ○
-   */
-  static statusIcon(status: string, passed?: boolean): string {
-    switch (status) {
-      case "done":
-        return passed === false ? "✗" : "✓";
-      case "started":
-        return "⏳";
-      case "error":
-        return "✗";
-      default:
-        return "○";
-    }
-  }
 
   /**
    * Format a stream event into a single-line human-readable description.
@@ -531,22 +441,7 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
-      let iconColor: ThemeColor;
-      switch (entry.status) {
-        case "done":
-          iconColor = entry.passed !== false ? "success" : "error";
-          break;
-        case "started":
-          iconColor = "warning";
-          break;
-        case "error":
-          iconColor = "error";
-          break;
-        default:
-          iconColor = "muted";
-          break;
-      }
+      const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -608,7 +503,7 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
+    const { char: icon } = getStatusIcon(entry.status, entry.passed);
 
     // Header
     let statusLabel: string;
@@ -768,22 +663,8 @@ export class AgentViewerOverlay implements Component {
     const { theme } = this;
     const lines: string[] = [];
 
-    let statusIcon: string;
-    let statusColor: ThemeColor;
-    switch (turn.toolStatus) {
-      case "ok":
-        statusIcon = "✓";
-        statusColor = "success";
-        break;
-      case "error":
-        statusIcon = "✗";
-        statusColor = "error";
-        break;
-      default:
-        statusIcon = "⏳";
-        statusColor = "warning";
-        break;
-    }
+    const toolDisplayStatus = AgentViewerOverlay.mapToolStatusToDisplayStatus(turn.toolStatus);
+    const { char: resultIcon, color: resultIconColor } = getStatusIcon(toolDisplayStatus);
 
     const toolName = turn.toolName ?? "unknown";
     let statusLabel: string;
@@ -802,7 +683,7 @@ export class AgentViewerOverlay implements Component {
         break;
     }
     const innerWidth = Math.max(10, width - 6);
-    const headerLine = `${theme.fg(statusColor, statusIcon)} ${theme.fg("accent", toolName)} ${theme.fg("muted", statusLabel)}`;
+    const headerLine = `${theme.fg(resultIconColor, resultIcon)} ${theme.fg("accent", toolName)} ${theme.fg("muted", statusLabel)}`;
     const headerPad = innerWidth - this.stripAnsi(headerLine).length;
     const paddedHeader = headerPad > 0 ? headerLine + " ".repeat(headerPad) : headerLine;
 
@@ -834,91 +715,6 @@ export class AgentViewerOverlay implements Component {
   private stripAnsi(text: string): string {
     // eslint-disable-next-line no-control-regex
     return text.replace(/\x1b\[[0-9;]*m/g, "");
-  }
-
-  /**
-   * Build conversation turns from an incoming stream event.
-   *
-   * Maintains pending message / tool-call state so that multi-event
-   * sequences (e.g. message_start → message_update → message_end) are
-   * collapsed into a single turn when finalized.
-   */
-  private trackConversationTurn(agentId: string, event: AgentEvent): void {
-    if (event.type === "message_start") {
-      this.finalizePendingTurns(agentId);
-      const message =
-        event.message && typeof event.message === "object"
-          ? (event.message as unknown as Record<string, unknown>)
-          : null;
-      const rawRole = message ? message["role"] : undefined;
-      const role = typeof rawRole === "string" ? rawRole : "unknown";
-      this.pendingMessages.set(agentId, { role, content: "" });
-    } else if (event.type === "message_update") {
-      const text = AgentViewerOverlay.extractMessageText(event.message);
-      const pending = this.pendingMessages.get(agentId);
-      if (pending) {
-        pending.content = text;
-      }
-    } else if (event.type === "message_end") {
-      const text = AgentViewerOverlay.extractMessageText(event.message);
-      const pending = this.pendingMessages.get(agentId);
-      if (pending) {
-        pending.content = text;
-      }
-      this.finalizePendingTurns(agentId);
-    } else if (event.type === "tool_execution_start") {
-      this.finalizePendingTurns(agentId);
-      const toolName =
-        event.toolName && typeof event.toolName === "string" ? event.toolName : "unknown";
-      this.pendingToolCalls.set(agentId, { name: toolName, status: "running", result: "" });
-    } else if (event.type === "tool_execution_update") {
-      // partialResult may be object (serialized via formatDetail) or string;
-      // final tool_execution_end replaces accumulated result, so partial
-      // non-strings are intentionally skipped here.
-      const pending = this.pendingToolCalls.get(agentId);
-      if (pending && typeof event.partialResult === "string") {
-        pending.result += event.partialResult;
-      }
-    } else if (event.type === "tool_execution_end") {
-      const pending = this.pendingToolCalls.get(agentId);
-      if (pending) {
-        pending.status = event.isError === true ? "error" : "ok";
-        if (typeof event.result === "string") {
-          pending.result = event.result;
-        }
-      }
-      this.finalizePendingTurns(agentId);
-    }
-  }
-
-  /**
-   * Commit any in-progress message or tool-call into the agent's conversation.
-   */
-  private finalizePendingTurns(agentId: string): void {
-    const turns = [...(this.conversations.get(agentId) ?? [])];
-
-    const pendingMessage = this.pendingMessages.get(agentId);
-    if (pendingMessage && pendingMessage.content.length > 0) {
-      turns.push({
-        type: "message" as const,
-        role: pendingMessage.role,
-        content: pendingMessage.content,
-      });
-      this.pendingMessages.delete(agentId);
-    }
-
-    const pendingToolCall = this.pendingToolCalls.get(agentId);
-    if (pendingToolCall) {
-      turns.push({
-        type: "tool_call" as const,
-        toolName: pendingToolCall.name,
-        toolStatus: pendingToolCall.status,
-        toolResult: pendingToolCall.result,
-      });
-      this.pendingToolCalls.delete(agentId);
-    }
-
-    this.conversations.set(agentId, turns);
   }
 
   private handleListInput(data: string): void {
@@ -975,135 +771,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Create event subscriptions that feed an overlay with live agent data.
-   *
-   * Returns subscriptions and a {@code connect} callback.  Callers construct the
-   * overlay after subscriptions are established and then call {@code connect}
-   * to replay buffered events, set the stream directory, and populate initial
-   * agent entries from the supervisor.
-   */
-  static wireOverlayEvents(params: { eventBus: EventBus; supervisor: AgentSupervisor }): {
-    connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
-    unsubs: Array<() => void>;
-  } {
-    const { eventBus, supervisor } = params;
-
-    const channels = [
-      "feature-forge:agent-stream",
-      "feature-forge:agent-started",
-      "feature-forge:agent-done",
-    ] as const;
-
-    const eventBuffer: Array<{
-      agentId: string;
-      event?: AgentEvent;
-      status?: string;
-      passed?: boolean;
-      summary?: string;
-    }> = [];
-    let connected = false;
-
-    const deliverStatusEvent = (
-      viewer: AgentViewerOverlay,
-      agentId: string,
-      mappedStatus: string,
-      passed?: boolean,
-      eventSummary?: string,
-    ) => {
-      const agent = supervisor.getAgent(agentId);
-      const summary =
-        eventSummary ??
-        (agent ? `${agent.specification.role} — ${agent.status}` : "Agent disconnected");
-      viewer.update({
-        id: agentId,
-        status: mappedStatus,
-        passed,
-        summary,
-        role: agent?.specification.role,
-        elapsed: agent ? AgentViewerOverlay.formatElapsed(agent.createdAt) : undefined,
-      });
-    };
-
-    const unsubs = channels.map((channel) =>
-      eventBus.on(channel, (data) => {
-        const payload = data as {
-          details?: {
-            agentId?: string;
-            event?: unknown;
-            passed?: boolean;
-            summary?: string;
-          };
-        };
-        const agentId = payload.details?.agentId;
-        if (!agentId) return;
-
-        if (channel === "feature-forge:agent-stream" && payload.details?.event) {
-          if (connected) {
-            viewer.pushStreamEvent(agentId, payload.details.event as AgentEvent);
-          } else {
-            eventBuffer.push({
-              agentId,
-              event: payload.details.event as AgentEvent,
-            });
-          }
-        } else if (
-          channel === "feature-forge:agent-started" ||
-          channel === "feature-forge:agent-done"
-        ) {
-          const mappedStatus = AgentViewerOverlay.mapStatus(
-            supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
-          );
-          const passed = payload.details?.passed;
-          const eventSummary = payload.details?.summary;
-          if (connected) {
-            deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
-          } else {
-            eventBuffer.push({
-              agentId,
-              status: mappedStatus,
-              passed,
-              summary: eventSummary,
-            });
-          }
-        }
-      }),
-    );
-
-    let viewer: AgentViewerOverlay;
-
-    const connect = (v: AgentViewerOverlay, streamDir: string) => {
-      viewer = v;
-      connected = true;
-
-      for (const item of eventBuffer) {
-        if (item.status) {
-          deliverStatusEvent(viewer, item.agentId, item.status, item.passed, item.summary);
-        } else if (item.event) {
-          viewer.pushStreamEvent(item.agentId, item.event);
-        }
-      }
-      eventBuffer.length = 0;
-
-      viewer.setStreamDir(streamDir);
-
-      viewer.prepopulateStreamFiles(streamDir);
-
-      for (const agent of supervisor.getAllAgents()) {
-        const status = AgentViewerOverlay.mapStatus(agent.status);
-        viewer.update({
-          id: agent.id,
-          status,
-          summary: `${agent.specification.role} — ${agent.status}`,
-          role: agent.specification.role,
-          elapsed: AgentViewerOverlay.formatElapsed(agent.createdAt),
-        });
-      }
-    };
-
-    return { connect, unsubs };
-  }
-
-  /**
    * Format a detail string from an event object using the pre-extracted
    * {@code eventType} for type-safe dispatch.
    *
@@ -1122,13 +789,13 @@ export class AgentViewerOverlay implements Component {
         return "turn end";
 
       case "message_start": {
-        const role = AgentViewerOverlay.getNestedString(event, "message", "role");
+        const role = getNestedString(event, "message", "role");
         return role.slice(0, 80);
       }
 
       case "message_update":
       case "message_end": {
-        const text = AgentViewerOverlay.extractMessageText(event.message);
+        const text = extractMessageText(event.message);
         return text.slice(0, 80);
       }
 
@@ -1158,43 +825,5 @@ export class AgentViewerOverlay implements Component {
       default:
         return "";
     }
-  }
-
-  /**
-   * Walk a dotted key path into a nested object and return a string value,
-   * or {@code ""} when any intermediate key is missing.
-   */
-  private static getNestedString(root: unknown, ...keys: string[]): string {
-    let current: unknown = root;
-    for (const key of keys) {
-      if (typeof current !== "object" || current === null) return "";
-      current = (current as Record<string, unknown>)[key];
-    }
-    return typeof current === "string" ? current : "";
-  }
-
-  /**
-   * Extract concatenated text from a message object"s content blocks.
-   *
-   * Handles both arrays of {@code { type: "text", text: "..." }} blocks
-   * and plain string content.
-   */
-  private static extractMessageText(message: unknown): string {
-    if (typeof message === "string") return message;
-    if (typeof message !== "object" || message === null) return "";
-    const msg = message as Record<string, unknown>;
-    const content = msg["content"];
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) return "";
-    const parts: string[] = [];
-    for (const block of content) {
-      if (typeof block === "object" && block !== null) {
-        const b = block as Record<string, unknown>;
-        if (b["type"] === "text" && typeof b["text"] === "string") {
-          parts.push(b["text"]);
-        }
-      }
-    }
-    return parts.join(" ");
   }
 }
