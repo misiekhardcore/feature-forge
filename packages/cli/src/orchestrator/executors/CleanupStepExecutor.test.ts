@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
+import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
@@ -14,7 +15,7 @@ import { CleanupStepExecutor } from "./CleanupStepExecutor";
 class TrackingProvider extends WorkspaceProvider {
   destroyedPaths: string[] = [];
 
-  override async createWorkspace(id: string): Promise<string> {
+  override async createWorkspace(id: string, _options?: CreateWorkspaceOptions): Promise<string> {
     return `/fake/${id}`;
   }
 
@@ -124,7 +125,10 @@ describe("CleanupStepExecutor", () => {
     it("continues even if one workspace destruction fails", async () => {
       const goodProvider = new TrackingProvider();
       const failingProvider = new (class extends WorkspaceProvider {
-        override async createWorkspace(_id: string): Promise<string> {
+        override async createWorkspace(
+          _id: string,
+          _options?: CreateWorkspaceOptions,
+        ): Promise<string> {
           return "/fail";
         }
         override async destroyWorkspace(_path: string): Promise<void> {

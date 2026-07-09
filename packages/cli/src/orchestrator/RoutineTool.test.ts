@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../test-utils";
+import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
@@ -311,7 +312,10 @@ describe("RoutineTool", () => {
     it("calls _onUpdate for each progress event emitted by executors", async () => {
       // Use a WorkspaceStepExecutor that fires workspace-ready events.
       class FakeProvider extends WorkspaceProvider {
-        override async createWorkspace(_id: string): Promise<string> {
+        override async createWorkspace(
+          _id: string,
+          _options?: CreateWorkspaceOptions,
+        ): Promise<string> {
           return "/tmp/ws";
         }
         override async destroyWorkspace(_path: string): Promise<void> {

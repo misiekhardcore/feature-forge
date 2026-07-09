@@ -1,3 +1,4 @@
+import type { CreateWorkspaceOptions } from "./WorkspaceProvider";
 import { WorkspaceProvider } from "./WorkspaceProvider";
 
 /**
@@ -7,7 +8,10 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
  * agents that inspect the build worktree without needing isolation.
  */
 export class CurrentDirProvider extends WorkspaceProvider {
-  public override async createWorkspace(_workspaceId: string): Promise<string> {
+  public override async createWorkspace(
+    _workspaceId: string,
+    _options?: CreateWorkspaceOptions,
+  ): Promise<string> {
     return process.cwd();
   }
 

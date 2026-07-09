@@ -103,6 +103,13 @@
               "const": "current-dir"
             }
           ]
+        },
+        "symlinks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },

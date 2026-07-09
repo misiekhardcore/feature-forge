@@ -51,7 +51,9 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       throw new Error(`Unknown workspace provider "${providerName}"`);
     }
 
-    const path = await provider.createWorkspace(workspaceId);
+    const path = await provider.createWorkspace(workspaceId, {
+      symlinks: instruction.symlinks,
+    });
     const handle = new WorkspaceHandle(path, new Date());
 
     await this.worktreeRegistry.register(handle);

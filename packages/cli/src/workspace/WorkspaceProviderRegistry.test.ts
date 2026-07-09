@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { CreateWorkspaceOptions } from "./WorkspaceProvider";
 import { WorkspaceProvider } from "./WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "./WorkspaceProviderRegistry";
 
@@ -13,7 +14,10 @@ class FakeProvider extends WorkspaceProvider {
     this.label = label;
   }
 
-  override async createWorkspace(_workspaceId: string): Promise<string> {
+  override async createWorkspace(
+    _workspaceId: string,
+    _options?: CreateWorkspaceOptions,
+  ): Promise<string> {
     return `/fake/${this.label}`;
   }
 
