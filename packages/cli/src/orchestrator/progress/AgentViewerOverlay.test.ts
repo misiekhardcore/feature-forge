@@ -1541,5 +1541,142 @@ describe("AgentViewerOverlay", () => {
       unsubs.forEach((u) => u());
       overlay.dispose();
     });
+
+    it("calls pushStreamEvent for stream events after connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          agentId: "builder",
+          event: { type: "tool_execution_start", toolName: "write" } as AgentEvent,
+        },
+      });
+
+      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: write");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("persists stream events to disk when connect sets streamDir", () => {
+      const streamDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
+      try {
+        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+        const supervisor = makeMockSupervisor([agent]);
+        const eventBus = makeMockEventBus();
+        const overlay = makeOverlay();
+
+        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+          eventBus,
+          supervisor,
+        });
+
+        connect(overlay, streamDir);
+
+        eventBus.emit("feature-forge:agent-stream", {
+          phase: "agent-stream",
+          message: 'Agent "builder" stream event',
+          details: {
+            agentId: "builder",
+            event: { type: "tool_execution_start", toolName: "read" } as AgentEvent,
+          },
+        });
+
+        const tail = overlay.getStreamTail("builder");
+        expect(tail).toContain("tool_execution_start: read");
+
+        unsubs.forEach((u) => u());
+        overlay.dispose();
+      } finally {
+        rmSync(streamDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns three unsubs, one per subscribed channel", () => {
+      const supervisor = makeMockSupervisor();
+      const eventBus = makeMockEventBus();
+
+      const { unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      expect(unsubs).toHaveLength(3);
+      for (const unsub of unsubs) {
+        expect(unsub).toBeInstanceOf(Function);
+      }
+    });
+
+    it("unsubs stop event processing for the unsubscribed channel", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      // Call the first unsub (agent-stream channel) to unsubscribe.
+      unsubs[0]();
+
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'Agent "builder" stream event',
+        details: {
+          agentId: "builder",
+          event: { type: "tool_execution_start", toolName: "read" } as AgentEvent,
+        },
+      });
+
+      // The stream line should not have been updated after unsub.
+      expect(overlay.getLastStreamLine("builder")).toBeUndefined();
+
+      unsubs.slice(1).forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("handles agent-started event after connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-started", {
+        phase: "agent-started",
+        message: 'Agent "builder" started',
+        details: { agentId: "builder" },
+      });
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("⏳");
+      expect(joined).toContain("builder");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
   });
 });
