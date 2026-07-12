@@ -2200,9 +2200,11 @@ describe("AgentViewerOverlay", () => {
         },
       } as AgentEvent);
 
-      const turns = overlay.getConversation("builder");
-      expect(turns).toHaveLength(1);
-      expect(turns[0].content).toBe("final content");
+      const [turn] = overlay.getConversation("builder");
+      expect(turn.type).toBe("message");
+      if (turn.type === "message") {
+        expect(turn.content).toBe("final content");
+      }
     });
 
     it("appends partialResult to tool call result", () => {
@@ -2229,11 +2231,13 @@ describe("AgentViewerOverlay", () => {
         result: "line 1\nline 2\n",
       } as unknown as AgentEvent);
 
-      const turns = overlay.getConversation("builder");
-      expect(turns).toHaveLength(1);
-      expect(turns[0].toolStatus).toBe("ok");
-      expect(turns[0].toolResult).toContain("line 1");
-      expect(turns[0].toolResult).toContain("line 2");
+      const [turn] = overlay.getConversation("builder");
+      expect(turn.type).toBe("tool_call");
+      if (turn.type === "tool_call") {
+        expect(turn.toolStatus).toBe("ok");
+        expect(turn.toolResult).toContain("line 1");
+        expect(turn.toolResult).toContain("line 2");
+      }
     });
 
     it("builds multiple turns in order", () => {
@@ -2321,8 +2325,12 @@ describe("AgentViewerOverlay", () => {
         },
       } as AgentEvent);
 
-      expect(overlay.getConversation("builder")[0].content).toBe("Building...");
-      expect(overlay.getConversation("reviewer")[0].content).toBe("Reviewing...");
+      const builderTurn = overlay.getConversation("builder")[0];
+      const reviewerTurn = overlay.getConversation("reviewer")[0];
+      expect(builderTurn.type).toBe("message");
+      expect(reviewerTurn.type).toBe("message");
+      if (builderTurn.type === "message") expect(builderTurn.content).toBe("Building...");
+      if (reviewerTurn.type === "message") expect(reviewerTurn.content).toBe("Reviewing...");
     });
 
     it("returns empty array for unknown agent", () => {

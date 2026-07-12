@@ -6,16 +6,21 @@ import { extractMessageText } from "./helpers";
 
 /**
  * A single turn in a per-agent conversation built from stream events.
+ *
+ * Discriminated union: use {@code turn.type} to narrow.
  */
-export interface ConversationTurn {
-  type: "message" | "tool_call";
-  role?: string;
-  content?: string;
-  toolName?: string;
-  toolArgs?: string;
-  toolStatus?: "running" | "ok" | "error";
-  toolResult?: string;
-}
+export type ConversationTurn =
+  | { type: "message"; role: string; content: string }
+  | {
+      type: "tool_call";
+      toolName: string;
+      toolArgs?: string;
+      toolStatus?: "running" | "ok" | "error";
+      toolResult?: string;
+    };
+
+/** Narrowed tool-call variant of {@link ConversationTurn}. */
+export type ToolCallTurn = Extract<ConversationTurn, { type: "tool_call" }>;
 
 /**
  * Tracks structured conversation turns per agent from stream events.

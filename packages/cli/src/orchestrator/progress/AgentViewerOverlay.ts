@@ -8,7 +8,11 @@ import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { ConversationTracker, type ConversationTurn } from "./ConversationTracker";
+import {
+  ConversationTracker,
+  type ConversationTurn,
+  type ToolCallTurn,
+} from "./ConversationTracker";
 import { extractMessageText, getNestedString, getStatusIcon } from "./helpers";
 
 /**
@@ -620,20 +624,17 @@ export class AgentViewerOverlay implements Component {
 
     for (const turn of turns) {
       if (turn.type === "message") {
-        const roleText = turn.role ?? "unknown";
-        const roleColor: ThemeColor = roleText === "user" ? "userMessageText" : "accent";
-        lines.push(`  ${theme.fg(roleColor, `${roleText}:`)}`);
-        if (turn.content) {
-          const maxContentWidth = Math.max(10, width - 6);
-          const truncated =
-            turn.content.length > maxContentWidth
-              ? turn.content.slice(0, maxContentWidth - 3) + "..."
-              : turn.content;
-          for (const contentLine of truncated.split("\n")) {
-            if (contentLine.length > 0) {
-              const styled = AgentViewerOverlay.applyInlineMarkdown(theme, contentLine);
-              lines.push(`    ${styled}`);
-            }
+        const roleColor: ThemeColor = turn.role === "user" ? "userMessageText" : "accent";
+        lines.push(`  ${theme.fg(roleColor, `${turn.role}:`)}`);
+        const maxContentWidth = Math.max(10, width - 6);
+        const truncated =
+          turn.content.length > maxContentWidth
+            ? turn.content.slice(0, maxContentWidth - 3) + "..."
+            : turn.content;
+        for (const contentLine of truncated.split("\n")) {
+          if (contentLine.length > 0) {
+            const styled = AgentViewerOverlay.applyInlineMarkdown(theme, contentLine);
+            lines.push(`    ${styled}`);
           }
         }
       } else {
@@ -678,7 +679,7 @@ export class AgentViewerOverlay implements Component {
    * Render a single tool-call turn as styled lines with coloured
    * background boxes via {@link Theme.bg}.
    */
-  private renderToolCall(turn: ConversationTurn, width: number): string[] {
+  private renderToolCall(turn: ToolCallTurn, width: number): string[] {
     const { theme } = this;
     const lines: string[] = [];
 

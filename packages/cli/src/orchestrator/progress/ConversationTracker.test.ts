@@ -5,7 +5,14 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ConversationTracker } from "./ConversationTracker";
+import {
+  ConversationTracker,
+  type ConversationTurn,
+  type ToolCallTurn,
+} from "./ConversationTracker";
+
+/** Narrowed message variant of {@link ConversationTurn}. */
+type MessageTurn = Extract<ConversationTurn, { type: "message" }>;
 
 describe("ConversationTracker", () => {
   let tracker: ConversationTracker;
@@ -83,7 +90,7 @@ describe("ConversationTracker", () => {
         } as AgentEvent);
 
         const turns = tracker.getConversation("agent-1");
-        expect(turns[0].role).toBe("unknown");
+        expect((turns[0] as MessageTurn).role).toBe("unknown");
       });
 
       it("resolves role to unknown when message is not an object", () => {
@@ -98,8 +105,8 @@ describe("ConversationTracker", () => {
 
         const turns = tracker.getConversation("agent-1");
         expect(turns).toHaveLength(1);
-        expect(turns[0].role).toBe("unknown");
-        expect(turns[0].content).toBe("final");
+        expect((turns[0] as MessageTurn).role).toBe("unknown");
+        expect((turns[0] as MessageTurn).content).toBe("final");
       });
     });
 
@@ -149,8 +156,8 @@ describe("ConversationTracker", () => {
         } as AgentEvent);
 
         const turns = tracker.getConversation("agent-1");
-        expect(turns[0].toolStatus).toBe("error");
-        expect(turns[0].toolResult).toBe("command failed");
+        expect((turns[0] as ToolCallTurn).toolStatus).toBe("error");
+        expect((turns[0] as ToolCallTurn).toolResult).toBe("command failed");
       });
 
       it("uses unknown toolName when toolName is not provided", () => {
@@ -164,8 +171,8 @@ describe("ConversationTracker", () => {
         } as AgentEvent);
 
         const turns = tracker.getConversation("agent-1");
-        expect(turns[0].toolName).toBe("unknown");
-        expect(turns[0].toolResult).toBe("done");
+        expect((turns[0] as ToolCallTurn).toolName).toBe("unknown");
+        expect((turns[0] as ToolCallTurn).toolResult).toBe("done");
       });
 
       it("ignores partialResult updates that are not strings", () => {
@@ -186,7 +193,7 @@ describe("ConversationTracker", () => {
         } as AgentEvent);
 
         const turns = tracker.getConversation("agent-1");
-        expect(turns[0].toolResult).toBe("final");
+        expect((turns[0] as ToolCallTurn).toolResult).toBe("final");
       });
     });
 
@@ -263,7 +270,7 @@ describe("ConversationTracker", () => {
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
       expect(turns[0].type).toBe("message");
-      expect(turns[0].content).toBe("streaming...");
+      expect((turns[0] as MessageTurn).content).toBe("streaming...");
     });
 
     it("excludes in-progress message with empty content", () => {
@@ -285,7 +292,7 @@ describe("ConversationTracker", () => {
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
       expect(turns[0].type).toBe("tool_call");
-      expect(turns[0].toolStatus).toBe("running");
+      expect((turns[0] as ToolCallTurn).toolStatus).toBe("running");
     });
 
     it("tracks multiple agents independently", () => {
@@ -403,8 +410,8 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolArgs).toContain("command");
-      expect(turns[0].toolArgs).toContain("ls -la");
+      expect((turns[0] as ToolCallTurn).toolArgs).toContain("command");
+      expect((turns[0] as ToolCallTurn).toolArgs).toContain("ls -la");
     });
 
     it("captures string toolArgs verbatim", () => {
@@ -421,7 +428,7 @@ describe("ConversationTracker", () => {
       } as unknown as AgentEvent);
 
       const turns = tracker.getConversation("agent-1");
-      expect(turns[0].toolArgs).toBe("some-file.txt");
+      expect((turns[0] as ToolCallTurn).toolArgs).toBe("some-file.txt");
     });
 
     it("does not set toolArgs when args is undefined", () => {
@@ -437,7 +444,7 @@ describe("ConversationTracker", () => {
       } as unknown as AgentEvent);
 
       const turns = tracker.getConversation("agent-1");
-      expect(turns[0].toolArgs).toBeUndefined();
+      expect((turns[0] as ToolCallTurn).toolArgs).toBeUndefined();
     });
 
     it("includes toolArgs in pending tool call", () => {
@@ -449,8 +456,8 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolArgs).toBe("echo hello");
-      expect(turns[0].toolStatus).toBe("running");
+      expect((turns[0] as ToolCallTurn).toolArgs).toBe("echo hello");
+      expect((turns[0] as ToolCallTurn).toolStatus).toBe("running");
     });
   });
 
@@ -510,7 +517,7 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolStatus).toBe("error");
+      expect((turns[0] as ToolCallTurn).toolStatus).toBe("error");
     });
 
     it("parses tool_execution_update lines", () => {
@@ -530,8 +537,8 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolResult).toContain("line 1");
-      expect(turns[0].toolResult).toContain("line 2");
+      expect((turns[0] as ToolCallTurn).toolResult).toContain("line 1");
+      expect((turns[0] as ToolCallTurn).toolResult).toContain("line 2");
     });
 
     it("handles nonexistent file gracefully", () => {
@@ -574,7 +581,7 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].content).toBe("Hello");
+      expect((turns[0] as MessageTurn).content).toBe("Hello");
     });
 
     it("handles tool_execution_end without status suffix", () => {
@@ -589,9 +596,9 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolName).toBe("bash");
+      expect((turns[0] as ToolCallTurn).toolName).toBe("bash");
       // Without status suffix, isError defaults to false.
-      expect(turns[0].toolStatus).toBe("ok");
+      expect((turns[0] as ToolCallTurn).toolStatus).toBe("ok");
     });
 
     it("handles tool_execution_update without detail after tool name", () => {
@@ -611,7 +618,7 @@ describe("ConversationTracker", () => {
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
       // The update with empty partialResult should not break conversation tracking.
-      expect(turns[0].toolStatus).toBe("ok");
+      expect((turns[0] as ToolCallTurn).toolStatus).toBe("ok");
     });
 
     it("handles line without colon-space that is not agent_start/agent_end", () => {
@@ -638,7 +645,7 @@ describe("ConversationTracker", () => {
       const turns = tracker.getConversation("agent-1");
       // The empty message_update should be skipped; Hello from message_end should appear.
       expect(turns).toHaveLength(1);
-      expect(turns[0].content).toBe("Hello");
+      expect((turns[0] as MessageTurn).content).toBe("Hello");
     });
 
     it("handles line that is just 'agent_end' without colon-space", () => {
@@ -660,8 +667,8 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].role).toBe("unknown");
-      expect(turns[0].content).toBe("Hello");
+      expect((turns[0] as MessageTurn).role).toBe("unknown");
+      expect((turns[0] as MessageTurn).content).toBe("Hello");
     });
 
     it("handles message_end with empty detail", () => {
@@ -687,7 +694,7 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolName).toBe("unknown");
+      expect((turns[0] as ToolCallTurn).toolName).toBe("unknown");
     });
 
     it("parses tool_execution_start with serialized args from stream line", () => {
@@ -705,9 +712,9 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolName).toBe("read");
-      expect(turns[0].toolArgs).toContain("path");
-      expect(turns[0].toolArgs).toContain("/tmp/file.txt");
+      expect((turns[0] as ToolCallTurn).toolName).toBe("read");
+      expect((turns[0] as ToolCallTurn).toolArgs).toContain("path");
+      expect((turns[0] as ToolCallTurn).toolArgs).toContain("/tmp/file.txt");
     });
 
     it("parses tool_execution_start with string args from stream line", () => {
@@ -722,8 +729,8 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolName).toBe("read");
-      expect(turns[0].toolArgs).toBe("some-file.txt");
+      expect((turns[0] as ToolCallTurn).toolName).toBe("read");
+      expect((turns[0] as ToolCallTurn).toolArgs).toBe("some-file.txt");
     });
 
     it("parses tool_execution_start without args (old format) backward-compatibly", () => {
@@ -738,8 +745,8 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].toolName).toBe("bash");
-      expect(turns[0].toolArgs).toBeUndefined();
+      expect((turns[0] as ToolCallTurn).toolName).toBe("bash");
+      expect((turns[0] as ToolCallTurn).toolArgs).toBeUndefined();
     });
 
     it("handles message_update with non-empty detail", () => {
@@ -756,7 +763,7 @@ describe("ConversationTracker", () => {
 
       const turns = tracker.getConversation("agent-1");
       expect(turns).toHaveLength(1);
-      expect(turns[0].content).toBe("Hello");
+      expect((turns[0] as MessageTurn).content).toBe("Hello");
     });
   });
 });

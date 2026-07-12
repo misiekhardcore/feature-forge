@@ -1,6 +1,10 @@
 export type { AgentViewerEntry } from "./AgentViewerOverlay";
 export { AgentViewerOverlay } from "./AgentViewerOverlay";
-export { ConversationTracker, type ConversationTurn } from "./ConversationTracker";
+export {
+  ConversationTracker,
+  type ConversationTurn,
+  type ToolCallTurn,
+} from "./ConversationTracker";
 export type { DisplayContribution } from "./DisplayContribution";
 export { NoOpProgressReporter } from "./NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./ProgressEvent";
