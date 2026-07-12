@@ -132,14 +132,14 @@ describe("SessionAgent", () => {
       expect(pi.setActiveTools).toHaveBeenLastCalledWith(["read", "bash", "edit", "write"]);
     });
 
-    it("handler returns undefined after unmount, suppressing the persona", () => {
+    it("handler returns empty object after unmount, suppressing the persona", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
       agent.mount(pi, "task");
 
       const handler = (pi.on as ReturnType<typeof vi.fn>).mock.calls[0][1] as (event: {
         systemPrompt: string;
-      }) => { systemPrompt: string } | undefined;
+      }) => { systemPrompt?: string };
 
       // Before unmount: handler appends persona
       expect(handler({ systemPrompt: "base" })).toBeDefined();
@@ -147,7 +147,7 @@ describe("SessionAgent", () => {
       agent.unmount();
 
       // After unmount: handler returns undefined (skips persona injection)
-      expect(handler({ systemPrompt: "base" })).toBeUndefined();
+      expect(handler({ systemPrompt: "base" })).toEqual({});
     });
   });
 

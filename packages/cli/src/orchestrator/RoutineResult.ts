@@ -18,6 +18,10 @@ export interface RoutineResult {
   rounds: number;
   /** Named worktree path produced by the routine (if any). */
   workspace?: string;
+  /** Branch name associated with the workspace, if set. */
+  branch?: string;
+  /** PR URL extracted from a shell step output, if present. */
+  prUrl?: string;
   /** Per-instruction outputs from the final iteration. */
   results: Record<string, InstructionResult>;
   /** Human-readable digest for the orchestrator LLM. */

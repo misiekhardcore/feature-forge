@@ -8,6 +8,7 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -207,6 +208,9 @@ describe("CleanupStepExecutor", () => {
           expect.objectContaining({
             phase: "cleanup-done",
             message: expect.stringContaining("c1") as string,
+            details: expect.objectContaining({
+              workspace: expect.any(String),
+            }),
           }),
         );
       });
@@ -251,7 +255,7 @@ describe("CleanupStepExecutor", () => {
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
     });
 
-    it("skips providers that return undefined from get", async () => {
+    it("destroys workspace with registered provider", async () => {
       const goodProvider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", goodProvider);
       const wtRegistry = stubWorktreeRegistry();
@@ -268,6 +272,78 @@ describe("CleanupStepExecutor", () => {
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
+    });
+  });
+
+  describe("getDisplayContribution", () => {
+    it("returns phase, message, and workspace from cleanup-done event", () => {
+      const executor = new CleanupStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "cleanup-done",
+        message: "Cleanup completed",
+        details: { workspace: "/fake/ws1" },
+      };
+
+      const contribution = executor.getDisplayContribution(event);
+
+      expect(contribution).toBeDefined();
+      expect(contribution!.phase).toBe("cleanup-done");
+      expect(contribution!.message).toBe("Cleanup completed");
+      expect(contribution!.workspace).toBe("/fake/ws1");
+    });
+
+    it("returns contribution without workspace when details have none", () => {
+      const executor = new CleanupStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "cleanup-done",
+        message: "No workspaces cleaned",
+        details: {},
+      };
+
+      const contribution = executor.getDisplayContribution(event);
+
+      expect(contribution).toBeDefined();
+      expect(contribution!.phase).toBe("cleanup-done");
+      expect(contribution!.message).toBe("No workspaces cleaned");
+      expect(contribution!.workspace).toBeUndefined();
+    });
+
+    it("returns undefined for non-cleanup-done events", () => {
+      const executor = new CleanupStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "cleanup-start",
+        message: "Cleanup starting",
+        details: {},
+      };
+
+      expect(executor.getDisplayContribution(event)).toBeUndefined();
+    });
+
+    it("returns undefined for unrelated events", () => {
+      const executor = new CleanupStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "agent-started",
+        message: "Agent started",
+        details: {},
+      };
+
+      expect(executor.getDisplayContribution(event)).toBeUndefined();
     });
   });
 });

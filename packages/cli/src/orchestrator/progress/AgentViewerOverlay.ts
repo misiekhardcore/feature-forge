@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
+import type { EventBus, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
@@ -440,7 +440,7 @@ export class AgentViewerOverlay implements Component {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
       const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
-      let iconColor: string;
+      let iconColor: ThemeColor;
       switch (entry.status) {
         case "done":
           iconColor = entry.passed !== false ? "success" : "error";

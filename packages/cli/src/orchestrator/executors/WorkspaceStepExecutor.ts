@@ -54,14 +54,15 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     const path = await provider.createWorkspace(workspaceId, {
       symlinks: instruction.symlinks,
     });
-    const handle = new WorkspaceHandle(path, new Date());
+    const branch = `forge/${workspaceId}`;
+    const handle = new WorkspaceHandle(path, new Date(), branch);
 
     await this.worktreeRegistry.register(handle);
 
     eventBus.emit("feature-forge:workspace-ready", {
       phase: "workspace-ready",
       message: `Workspace "${workspaceId}" created at ${path}`,
-      details: { workspace: path },
+      details: { workspace: path, branch },
     });
 
     return context.withWorkspace("ws", handle).withResult("ws", {
@@ -71,7 +72,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
   }
 
   /**
-   * Extract workspace path from a workspace-ready event.
+   * Extract workspace path and branch from a workspace-ready event.
    */
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (event.phase !== "workspace-ready") {
@@ -81,8 +82,10 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     if (typeof workspace !== "string") {
       return undefined;
     }
+    const branch = event.details.branch;
     return {
       workspace,
+      branch: typeof branch === "string" ? branch : undefined,
       phase: event.phase,
       message: event.message,
     };

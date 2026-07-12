@@ -5,6 +5,8 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -99,7 +101,9 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     eventBus.emit("feature-forge:cleanup-done", {
       phase: "cleanup-done",
       message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
-      details: {},
+      details: {
+        workspace: cleaned.length > 0 ? cleaned[0] : undefined,
+      },
     });
 
     return updatedContext;
@@ -121,5 +125,20 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
         `Failed to destroy workspace at "${path}": ${errors.map((e) => e.message).join("; ")}`,
       );
     }
+  }
+
+  /**
+   * Extract display contribution from a cleanup-done event.
+   */
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (event.phase !== "cleanup-done") {
+      return undefined;
+    }
+    const workspace = event.details.workspace;
+    return {
+      phase: event.phase,
+      message: event.message,
+      ...(typeof workspace === "string" ? { workspace } : {}),
+    };
   }
 }

@@ -5,6 +5,11 @@ import { WorkspaceHandle } from "./WorkspaceHandle";
 describe("WorkspaceHandle", () => {
   const createdAt = new Date("2026-06-24T12:00:00.000Z");
   const handle = new WorkspaceHandle("/tmp/.forge/worktrees/task-1", createdAt);
+  const handleWithBranch = new WorkspaceHandle(
+    "/tmp/.forge/worktrees/task-1",
+    createdAt,
+    "forge/ws-abc123",
+  );
 
   it("stores path and createdAt", () => {
     expect(handle.path).toBe("/tmp/.forge/worktrees/task-1");
@@ -43,6 +48,16 @@ describe("WorkspaceHandle", () => {
       const partialHandle = new WorkspaceHandle("/x", new Date("2026-01-15T08:30:00.000Z"));
       expect(partialHandle.toJSON().createdAt).toBe("2026-01-15T08:30:00.000Z");
     });
+
+    it("includes branch when set", () => {
+      const json = handleWithBranch.toJSON();
+      expect(json.branch).toBe("forge/ws-abc123");
+    });
+
+    it("omits branch when not set", () => {
+      const json = handle.toJSON();
+      expect(json.branch).toBeUndefined();
+    });
   });
 
   describe("fromJSON", () => {
@@ -63,6 +78,28 @@ describe("WorkspaceHandle", () => {
       expect(restored.equals(handle)).toBe(true);
       expect(restored.path).toBe(handle.path);
       expect(restored.createdAt.getTime()).toBe(handle.createdAt.getTime());
+    });
+
+    it("restores branch from JSON", () => {
+      const json = handleWithBranch.toJSON();
+      const restored = WorkspaceHandle.fromJSON(json);
+      expect(restored.branch).toBe("forge/ws-abc123");
+    });
+
+    it("handles missing branch in fromJSON", () => {
+      const restored = WorkspaceHandle.fromJSON({
+        path: "/tmp/.forge/worktrees/task-1",
+        createdAt: "2026-06-24T12:00:00.000Z",
+      });
+      expect(restored.branch).toBeUndefined();
+    });
+
+    it("stores branch on the handle", () => {
+      expect(handleWithBranch.branch).toBe("forge/ws-abc123");
+    });
+
+    it("omits branch when not provided", () => {
+      expect(handle.branch).toBeUndefined();
     });
   });
 });

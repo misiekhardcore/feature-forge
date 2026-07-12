@@ -75,7 +75,7 @@ export class SessionAgent extends InSessionAgent {
     // Instead we use an internal flag so the handler returns undefined (no-op)
     // after unmount() is called, suppressing persona injection.
     this.handler = (event) => {
-      if (this.unmounted) return undefined;
+      if (this.unmounted) return {};
       return {
         systemPrompt:
           event.systemPrompt +
