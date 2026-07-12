@@ -102,7 +102,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       phase: "cleanup-done",
       message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
       details: {
-        workspaces: cleaned.length > 0 ? cleaned : undefined,
+        workspace: cleaned.length > 0 ? cleaned[0] : undefined,
       },
     });
 
