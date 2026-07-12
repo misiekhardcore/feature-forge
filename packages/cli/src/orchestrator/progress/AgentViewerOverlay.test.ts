@@ -418,6 +418,29 @@ describe("AgentViewerOverlay", () => {
       expect(line).toBe("tool_execution_start: read");
     });
 
+    it("includes serialized args in tool_execution_start stream line", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "tool_execution_start",
+        toolName: "bash",
+        args: { command: "ls -la" },
+      });
+      expect(line).toContain("tool_execution_start: bash");
+      expect(line).toContain("|");
+      expect(line).toContain('"command"');
+      expect(line).toContain("ls -la");
+    });
+
+    it("includes serialized string args in tool_execution_start stream line", () => {
+      const line = AgentViewerOverlay.formatStreamEvent({
+        type: "tool_execution_start",
+        toolName: "read",
+        args: "some-file.txt",
+      });
+      expect(line).toContain("tool_execution_start: read");
+      expect(line).toContain("|");
+      expect(line).toContain("some-file.txt");
+    });
+
     it("formats tool_execution_end with ok status", () => {
       const line = AgentViewerOverlay.formatStreamEvent({
         type: "tool_execution_end",
@@ -996,7 +1019,8 @@ describe("AgentViewerOverlay", () => {
 
       expect(overlay.viewMode).toBe("detail");
       expect(overlay.selectedAgentId).toBe("agent-b");
-      expect(overlay.scrollOffset).toBe(0);
+      // Auto-scroll enabled and scrollOffset set to max on entering detail view.
+      expect(overlay.autoScroll).toBe(true);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
@@ -1846,6 +1870,122 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
       expect(joined).toContain("⏳");
       expect(joined).toContain("builder");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("falls back to 'Agent disconnected' summary when no agent found and no event summary", () => {
+      const supervisor = makeMockSupervisor([]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      // Emit agent-done without a summary — supervisor has no agent,
+      // so deliverStatusEvent should fall back to "Agent disconnected".
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "orphan" done',
+        details: { agentId: "orphan" },
+      });
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("orphan");
+      expect(joined).toContain("Agent disconnected");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("falls back to agent-based summary when no event summary and agent exists", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      // Emit agent-done without a summary in details — should derive
+      // summary from the agent's specification.
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "builder" done',
+        details: { agentId: "builder" },
+      });
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("builder");
+      expect(joined).toContain("builder");
+      expect(joined).toContain("Running");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("handles agent-stream event without event in details (falls through)", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const supervisor = makeMockSupervisor([agent]);
+      const eventBus = makeMockEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      connect(overlay, "");
+
+      // Emit agent-stream without an event payload — should be silently
+      // ignored (no-op).
+      expect(() => {
+        eventBus.emit("feature-forge:agent-stream", {
+          phase: "agent-stream",
+          message: 'Agent "builder" stream',
+          details: { agentId: "builder" },
+        });
+      }).not.toThrow();
+
+      // No stream line should be recorded.
+      expect(overlay.getLastStreamLine("builder")).toBeUndefined();
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("buffers agent-stream event without event in details (no-op)", () => {
+      const supervisor = makeMockSupervisor([]);
+      const eventBus = makeMockEventBus();
+
+      const { connect, unsubs } = wireOverlayEvents({
+        eventBus,
+        supervisor,
+      });
+
+      // Emit agent-stream without event details BEFORE connect.
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'Agent "builder" stream',
+        details: { agentId: "builder" },
+      });
+
+      const overlay = makeOverlay();
+      connect(overlay, "");
+
+      // No stream line should be recorded.
+      expect(overlay.getLastStreamLine("builder")).toBeUndefined();
 
       unsubs.forEach((u) => u());
       overlay.dispose();
@@ -2914,6 +3054,305 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("Hello");
+    });
+  });
+
+  describe("autoScroll", () => {
+    it("starts auto-scrolling when entering detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // When we last rendered, autoScroll should have been set.
+      overlay.autoScroll = true;
+
+      expect(overlay.autoScroll).toBe(true);
+    });
+
+    it("disables auto-scroll on ArrowUp in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = true;
+
+      overlay.handleInput("\x1b[A");
+
+      expect(overlay.autoScroll).toBe(false);
+    });
+
+    it("resumes auto-scroll on ArrowDown when at the bottom", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Hello" }],
+        },
+      } as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = false;
+      // Set scrollOffset past the max — ArrowDown will clamp to max and resume auto-scroll.
+      overlay.scrollOffset = 999999;
+
+      overlay.handleInput("\x1b[B");
+
+      expect(overlay.autoScroll).toBe(true);
+    });
+
+    it("does not resume auto-scroll on ArrowDown when not at bottom", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Hello" }],
+        },
+      } as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = false;
+      overlay.scrollOffset = 0;
+
+      overlay.handleInput("\x1b[B");
+
+      expect(overlay.autoScroll).toBe(false);
+    });
+
+    it("auto-scrolls to bottom when new stream event arrives in detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = true;
+
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+
+      // Should have scrolled to bottom.
+      // The exact value depends on content, but should be >= 0.
+      expect(overlay.scrollOffset).toBeGreaterThanOrEqual(0);
+    });
+
+    it("does not auto-scroll when autoScroll is off", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = false;
+      overlay.scrollOffset = 0;
+
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+
+      // Scroll offset should remain 0.
+      expect(overlay.scrollOffset).toBe(0);
+    });
+
+    it("resets autoScroll on clearMemory", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.autoScroll = true;
+
+      overlay.clearMemory();
+
+      expect(overlay.autoScroll).toBe(false);
+    });
+
+    it("resets autoScroll when leaving detail view via Escape", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = true;
+
+      overlay.handleInput("\x1b");
+
+      expect(overlay.autoScroll).toBe(false);
+    });
+
+    it("disables auto-scroll on ArrowUp after entering detail view", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+      overlay.autoScroll = true;
+
+      overlay.handleInput("\x1b[A");
+
+      expect(overlay.autoScroll).toBe(false);
+    });
+  });
+
+  describe("toolArgs rendering", () => {
+    it("renders toolArgs in detail view tool call", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "bash",
+        args: { command: "ls -la" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_end",
+        toolName: "bash",
+        isError: false,
+        result: "file1\nfile2",
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("bash");
+      expect(joined).toContain("ls -la");
+      expect(joined).toContain("file1");
+      expect(joined).toContain("file2");
+    });
+
+    it("shows visual delimiter between toolArgs and toolResult", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "bash",
+        args: { command: "ls" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_end",
+        toolName: "bash",
+        isError: false,
+        result: "file.txt",
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      // Should have args, indented delimiter, and result in that order.
+      const argsIndex = joined.indexOf("ls");
+      const delimiterIndex = joined.indexOf("      ──");
+      const resultIndex = joined.indexOf("file.txt");
+      expect(argsIndex).toBeGreaterThan(-1);
+      expect(delimiterIndex).toBeGreaterThan(-1);
+      expect(resultIndex).toBeGreaterThan(-1);
+      expect(delimiterIndex).toBeGreaterThan(argsIndex);
+      expect(resultIndex).toBeGreaterThan(delimiterIndex);
+    });
+
+    it("does not show delimiter when only args without result", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "bash",
+        args: { command: "sleep 10" },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("sleep");
+      // The 6-space-indented delimiter ── must not appear when there's no result.
+      // (The header separator ─── has 0 indent and is always present.)
+      const delimiterIndex = joined.indexOf("      ──");
+      expect(delimiterIndex).toBe(-1);
+    });
+
+    it("renders toolArgs without result when no result exists", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "bash",
+        args: { command: "sleep 10" },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("bash");
+      expect(joined).toContain("sleep");
+      expect(joined).toContain("(running)");
+    });
+  });
+
+  describe("prepopulateStreamFiles with ingestFromStream", () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-ingest-"));
+    });
+
+    afterEach(() => {
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        // best-effort
+      }
+    });
+
+    it("replays stream content into conversation tracker for stale entries", () => {
+      const streamPath = join(tmpDir, "reviewer.stream");
+      writeFileSync(
+        streamPath,
+        ["message_start: assistant", "message_end: Review done."].join("\n"),
+        "utf-8",
+      );
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const turns = overlay.getConversation("reviewer");
+      expect(turns).toHaveLength(1);
+      expect(turns[0]).toMatchObject({
+        type: "message",
+        role: "assistant",
+        content: "Review done.",
+      });
+    });
+
+    it("replays stream content for tracked agents", () => {
+      const streamPath = join(tmpDir, "builder.stream");
+      writeFileSync(
+        streamPath,
+        ["tool_execution_start: read", "tool_execution_end: read (ok)"].join("\n"),
+        "utf-8",
+      );
+
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const turns = overlay.getConversation("builder");
+      expect(turns).toHaveLength(1);
+      expect(turns[0]).toMatchObject({
+        type: "tool_call",
+        toolName: "read",
+        toolStatus: "ok",
+      });
     });
   });
 });

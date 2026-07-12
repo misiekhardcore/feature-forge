@@ -101,6 +101,13 @@ export class AgentViewerOverlay implements Component {
   /** Scroll offset for detail view content. */
   scrollOffset = 0;
 
+  /**
+   * Whether the detail view automatically scrolls to the bottom when new
+   * stream events arrive. Enabled on entering detail view; disabled by
+   * manual scroll-up; re-enabled by scrolling to the very bottom.
+   */
+  autoScroll = false;
+
   /** Last render width used to compute scroll bounds. */
   private lastRenderWidth = 80;
 
@@ -158,6 +165,7 @@ export class AgentViewerOverlay implements Component {
         this.viewMode = "list";
         this.selectedAgentId = undefined;
         this.scrollOffset = 0;
+        this.autoScroll = false;
         this.tui.requestRender();
         return;
       }
@@ -207,6 +215,7 @@ export class AgentViewerOverlay implements Component {
     this.selectedIndex = 0;
     this.selectedAgentId = undefined;
     this.scrollOffset = 0;
+    this.autoScroll = false;
   }
 
   /** Number of agent entries currently tracked. */
@@ -252,6 +261,11 @@ export class AgentViewerOverlay implements Component {
     }
 
     this.conversationTracker.trackTurn(agentId, event);
+
+    // Auto-scroll to the bottom when in detail view with autoScroll enabled.
+    if (this.autoScroll && this.viewMode === "detail" && this.selectedAgentId === agentId) {
+      this.scrollOffset = this.computeScrollMax();
+    }
 
     this.tui.requestRender();
   }
@@ -309,6 +323,10 @@ export class AgentViewerOverlay implements Component {
           if (!this.agents.has(agentId)) {
             this.update({ id: agentId, status: "done", summary: "Agent completed" });
           }
+          // Replay the .stream file into the conversation tracker so that
+          // the agent's conversation turns are populated even though the
+          // tracker did not exist when the original events were emitted.
+          this.conversationTracker.ingestFromStream(agentId, filePath);
         }
       }
     } catch {
@@ -695,6 +713,22 @@ export class AgentViewerOverlay implements Component {
           : "toolPendingBg";
     lines.push(`  ${theme.bg(bgColor, paddedHeader)}`);
 
+    if (turn.toolArgs) {
+      const innerWidth = Math.max(10, width - 8);
+      const truncatedArgs =
+        turn.toolArgs.length > innerWidth
+          ? turn.toolArgs.slice(0, innerWidth - 3) + "..."
+          : turn.toolArgs;
+      for (const argLine of truncatedArgs.split("\n")) {
+        lines.push(`      ${theme.fg("toolOutput", argLine)}`);
+      }
+    }
+
+    // Visual delimiter between args and result when both are present.
+    if (turn.toolArgs && turn.toolResult) {
+      lines.push(`      ${theme.fg("muted", "──")}`);
+    }
+
     if (turn.toolResult) {
       const maxResultWidth = Math.max(10, width - 8);
       const truncated =
@@ -734,7 +768,8 @@ export class AgentViewerOverlay implements Component {
       if (agentId) {
         this.viewMode = "detail";
         this.selectedAgentId = agentId;
-        this.scrollOffset = 0;
+        this.autoScroll = true;
+        this.scrollOffset = this.computeScrollMax();
         this.tui.requestRender();
       }
     }
@@ -742,11 +777,16 @@ export class AgentViewerOverlay implements Component {
 
   private handleDetailInput(data: string): void {
     if (matchesKey(data, Key.up)) {
+      this.autoScroll = false;
       this.scrollOffset = Math.max(0, this.scrollOffset - 1);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.down)) {
       const maxOffset = this.computeScrollMax();
       this.scrollOffset = Math.min(this.scrollOffset + 1, maxOffset);
+      // Resume auto-scroll when the user scrolled to the very bottom.
+      if (this.scrollOffset >= maxOffset) {
+        this.autoScroll = true;
+      }
       this.tui.requestRender();
     }
   }
@@ -801,7 +841,14 @@ export class AgentViewerOverlay implements Component {
 
       case "tool_execution_start": {
         const name = event.toolName;
-        return typeof name === "string" ? name.slice(0, 80) : "";
+        const toolName = typeof name === "string" ? name.slice(0, 80) : "";
+        // Serialize args into the stream line so they survive the
+        // .stream file round-trip (replayed via parseStreamLine).
+        if ("args" in event && event.args !== undefined) {
+          const serialized = ConversationTracker.serializeToolArgs(event.args);
+          return (toolName + " | " + serialized).slice(0, 240);
+        }
+        return toolName;
       }
 
       case "tool_execution_end": {
