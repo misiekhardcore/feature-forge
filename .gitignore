@@ -7,6 +7,7 @@ dist/
 coverage/
 .turbo/
 .env
+.env.local
 
 # Project memory artifacts
 .claude/

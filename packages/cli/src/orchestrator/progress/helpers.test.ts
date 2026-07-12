@@ -15,6 +15,10 @@ describe("getStatusIcon", () => {
     expect(getStatusIcon("done", false)).toEqual({ char: "✗", color: "error" });
   });
 
+  it('returns accent spinner for "running" status', () => {
+    expect(getStatusIcon("running")).toEqual({ char: "⟳", color: "accent" });
+  });
+
   it('returns warning icon for "started" status', () => {
     expect(getStatusIcon("started")).toEqual({ char: "⏳", color: "warning" });
   });

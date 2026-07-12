@@ -30,6 +30,7 @@ export function extractMessageText(message: unknown): string {
  *
  * - `"done"` + `passed !== false` → `{ char: "✓", color: "success" }`
  * - `"done"` + `passed === false` → `{ char: "✗", color: "error" }`
+ * - `"running"` → `{ char: "⟳", color: "accent" }`
  * - `"started"` → `{ char: "⏳", color: "warning" }`
  * - `"error"` → `{ char: "✗", color: "error" }`
  * - anything else → `{ char: "○", color: "muted" }`
@@ -41,6 +42,8 @@ export function getStatusIcon(
   switch (status) {
     case "done":
       return passed === false ? { char: "✗", color: "error" } : { char: "✓", color: "success" };
+    case "running":
+      return { char: "⟳", color: "accent" };
     case "started":
       return { char: "⏳", color: "warning" };
     case "error":

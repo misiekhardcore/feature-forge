@@ -3,7 +3,6 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "../logging";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
-import { wireOverlayEvents } from "../orchestrator/progress/wireOverlayEvents";
 import { Command } from "./Command";
 
 /**
@@ -25,7 +24,7 @@ export class AgentListCommand extends Command {
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
-            const { connect, unsubs } = wireOverlayEvents({
+            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
               eventBus: this.pi.events,
               supervisor: this.supervisor,
             });

@@ -14,7 +14,6 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../../test-utils";
 import type { AgentViewerEntry } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
-import { wireOverlayEvents } from "./wireOverlayEvents";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -1549,7 +1548,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1582,7 +1581,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1614,7 +1613,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockEventBus();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1661,7 +1660,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockEventBus();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1683,7 +1682,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1711,7 +1710,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1741,7 +1740,7 @@ describe("AgentViewerOverlay", () => {
         const eventBus = makeMockEventBus();
         const overlay = makeOverlay();
 
-        const { connect, unsubs } = wireOverlayEvents({
+        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
           eventBus,
           supervisor,
         });
@@ -1771,7 +1770,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor();
       const eventBus = makeMockEventBus();
 
-      const { unsubs } = wireOverlayEvents({
+      const { unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1788,7 +1787,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1819,7 +1818,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1853,7 +1852,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1880,7 +1879,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1910,7 +1909,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1941,7 +1940,7 @@ describe("AgentViewerOverlay", () => {
       const eventBus = makeMockEventBus();
       const overlay = makeOverlay();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
@@ -1969,7 +1968,7 @@ describe("AgentViewerOverlay", () => {
       const supervisor = makeMockSupervisor([]);
       const eventBus = makeMockEventBus();
 
-      const { connect, unsubs } = wireOverlayEvents({
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
       });
