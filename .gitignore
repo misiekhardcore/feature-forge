@@ -14,3 +14,6 @@ coverage/
 # Worktree runtime state
 .forge/
 .lavish/
+
+# pi coding agent runtime (symlinked per worktree)
+.pi

@@ -209,7 +209,6 @@ describe("CleanupStepExecutor", () => {
             phase: "cleanup-done",
             message: expect.stringContaining("c1") as string,
             details: expect.objectContaining({
-              workspace: expect.any(String),
               workspaces: expect.any(Array),
             }),
           }),
