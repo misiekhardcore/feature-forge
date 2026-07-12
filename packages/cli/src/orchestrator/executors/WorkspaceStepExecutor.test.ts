@@ -7,6 +7,7 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
 
 // ── Mock setup ───────────────────────────────────────────────
@@ -173,6 +174,7 @@ describe("WorkspaceStepExecutor", () => {
           message: expect.stringContaining("ws-") as string,
           details: expect.objectContaining({
             workspace: expect.stringContaining("/test/ws-") as string,
+            branch: expect.stringContaining("forge/ws-") as string,
           }),
         }),
       );
@@ -194,6 +196,80 @@ describe("WorkspaceStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
       expect(result.workspaces.has("ws")).toBe(true);
+    });
+  });
+
+  describe("getDisplayContribution", () => {
+    it("returns contribution with workspace and branch from workspace-ready event", () => {
+      const executor = new WorkspaceStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "workspace-ready",
+        message: "Workspace created",
+        details: { workspace: "/test/ws-abc", branch: "forge/ws-abc" },
+      };
+
+      const contribution = executor.getDisplayContribution(event);
+
+      expect(contribution).toBeDefined();
+      expect(contribution!.workspace).toBe("/test/ws-abc");
+      expect(contribution!.branch).toBe("forge/ws-abc");
+      expect(contribution!.phase).toBe("workspace-ready");
+      expect(contribution!.message).toBe("Workspace created");
+    });
+
+    it("returns undefined for non-workspace-ready events", () => {
+      const executor = new WorkspaceStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "agent-started",
+        message: "Agent started",
+        details: {},
+      };
+
+      expect(executor.getDisplayContribution(event)).toBeUndefined();
+    });
+
+    it("returns undefined when workspace is not a string", () => {
+      const executor = new WorkspaceStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+
+      const event: RoutineProgressEvent = {
+        phase: "workspace-ready",
+        message: "Workspace created",
+        details: {},
+      };
+
+      expect(executor.getDisplayContribution(event)).toBeUndefined();
+    });
+  });
+
+  describe("execute — branch", () => {
+    it("passes branch to WorkspaceHandle", async () => {
+      const provider = new CountingProvider();
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+      const instruction: WorkspaceInstruction = {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+
+      const handle = result.workspaces.get("ws");
+      expect(handle).toBeDefined();
+      expect(handle!.branch).toBe(`forge/ws-00000000`);
     });
   });
 });

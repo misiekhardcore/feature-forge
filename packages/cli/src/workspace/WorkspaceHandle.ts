@@ -10,6 +10,8 @@ export class WorkspaceHandle {
     public readonly path: string,
     /** Timestamp when the workspace was created. */
     public readonly createdAt: Date,
+    /** Optional branch name associated with this workspace. */
+    public readonly branch?: string,
   ) {}
 
   /**
@@ -22,17 +24,18 @@ export class WorkspaceHandle {
   /**
    * Serialize to a plain object for JSON persistence.
    */
-  toJSON(): { path: string; createdAt: string } {
+  toJSON(): { path: string; createdAt: string; branch?: string } {
     return {
       path: this.path,
       createdAt: this.createdAt.toISOString(),
+      ...(this.branch !== undefined ? { branch: this.branch } : {}),
     };
   }
 
   /**
    * Deserialize from a plain object (e.g., loaded from JSON storage).
    */
-  static fromJSON(data: { path: string; createdAt: string }): WorkspaceHandle {
-    return new WorkspaceHandle(data.path, new Date(data.createdAt));
+  static fromJSON(data: { path: string; createdAt: string; branch?: string }): WorkspaceHandle {
+    return new WorkspaceHandle(data.path, new Date(data.createdAt), data.branch);
   }
 }

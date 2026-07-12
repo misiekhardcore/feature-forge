@@ -26,6 +26,8 @@ export interface DisplayContribution {
   maxIterations?: number;
   /** Workspace path, if one has been provisioned. */
   workspace?: string;
+  /** Branch name associated with the workspace, if set. */
+  branch?: string;
   /** The event phase label (e.g. "agent-started"). */
   phase?: string;
   /** Human-readable description of the current progress. */

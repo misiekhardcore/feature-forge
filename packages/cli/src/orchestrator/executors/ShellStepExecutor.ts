@@ -6,6 +6,8 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
@@ -62,6 +64,10 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
 
       const output = (stdout + (stderr ? `\nstderr:\n${stderr}` : "")).trim();
 
+      // Extract GitHub PR URL from output if present
+      const prUrlMatch = output.match(/https?:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
+      const prUrl = prUrlMatch ? prUrlMatch[0] : undefined;
+
       const result: InstructionResult = {
         raw: output,
         parsed: {
@@ -75,7 +81,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       eventBus.emit("feature-forge:shell-done", {
         phase: "shell-done",
         message: `Shell "${instruction.id}" completed`,
-        details: {},
+        details: { ...(prUrl ? { prUrl } : {}) },
       });
 
       return updatedContext;
@@ -104,5 +110,22 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
 
       return context.withResult(instruction.id, failureResult);
     }
+  }
+
+  /**
+   * Extract PR URL from a shell-done event.
+   */
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (event.phase !== "shell-done") {
+      return undefined;
+    }
+    const prUrl = event.details.prUrl;
+    if (typeof prUrl !== "string") {
+      return undefined;
+    }
+    return {
+      phase: event.phase,
+      message: prUrl,
+    };
   }
 }

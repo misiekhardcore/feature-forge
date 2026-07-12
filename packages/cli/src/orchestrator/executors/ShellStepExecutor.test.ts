@@ -25,6 +25,7 @@ import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { ShellInstruction } from "../FlowInstruction";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { ShellStepExecutor } from "./ShellStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -296,6 +297,98 @@ describe("ShellStepExecutor", () => {
         const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
 
         expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
+      });
+
+      it("includes prUrl in shell-done event details when output contains a URL", async () => {
+        mockExecSuccess("PR created: https://github.com/owner/repo/pull/42");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh1",
+          command: "gh pr create",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
+
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          2,
+          "feature-forge:shell-done",
+          expect.objectContaining({
+            details: expect.objectContaining({
+              prUrl: "https://github.com/owner/repo/pull/42",
+            }),
+          }),
+        );
+      });
+
+      it("omits prUrl in shell-done event details when output has no URL", async () => {
+        mockExecSuccess("build completed successfully");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh1",
+          command: "npm run build",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+        const eventBus = makeMockEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
+
+        expect(eventBus.emit).toHaveBeenNthCalledWith(
+          2,
+          "feature-forge:shell-done",
+          expect.not.objectContaining({
+            details: expect.objectContaining({ prUrl: expect.anything() }),
+          }),
+        );
+      });
+    });
+
+    describe("getDisplayContribution", () => {
+      it("returns contribution with prUrl from shell-done event", () => {
+        const executor = new ShellStepExecutor();
+
+        const event: RoutineProgressEvent = {
+          phase: "shell-done",
+          message: "Shell completed",
+          details: { prUrl: "https://github.com/owner/repo/pull/42" },
+        };
+
+        const contribution = executor.getDisplayContribution(event);
+
+        expect(contribution).toBeDefined();
+        expect(contribution!.phase).toBe("shell-done");
+        expect(contribution!.message).toBe("https://github.com/owner/repo/pull/42");
+      });
+
+      it("returns undefined for shell-done events without prUrl", () => {
+        const executor = new ShellStepExecutor();
+
+        const event: RoutineProgressEvent = {
+          phase: "shell-done",
+          message: "Shell completed",
+          details: {},
+        };
+
+        expect(executor.getDisplayContribution(event)).toBeUndefined();
+      });
+
+      it("returns undefined for non-shell-done events", () => {
+        const executor = new ShellStepExecutor();
+
+        const event: RoutineProgressEvent = {
+          phase: "shell-start",
+          message: "Shell started",
+          details: {},
+        };
+
+        expect(executor.getDisplayContribution(event)).toBeUndefined();
       });
     });
   });

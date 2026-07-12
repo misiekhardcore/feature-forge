@@ -66,33 +66,23 @@ export class ProgressRenderer {
    *
    * - `"done"` + passed → success green ✓
    * - `"done"` + !passed → error red ✗
+   * - `"running"` → accent ⟳
    * - `"started"` → warning yellow ⏳
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
   static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
-    const icon = (() => {
-      switch (status) {
-        case "done":
-          return passed === false ? "✗" : "✓";
-        case "started":
-          return "⏳";
-        case "error":
-          return "✗";
-        default:
-          return "○";
-      }
-    })();
-    switch (status) {
-      case "done":
-        return theme.fg(passed === false ? "error" : "success", icon);
-      case "started":
-        return theme.fg("warning", icon);
-      case "error":
-        return theme.fg("error", icon);
-      default:
-        return theme.fg("muted", icon);
-    }
+    const entries: Record<string, { icon: string; color: string }> = {
+      done: {
+        icon: passed === false ? "✗" : "✓",
+        color: passed === false ? "error" : "success",
+      },
+      running: { icon: "⟳", color: "accent" },
+      started: { icon: "⏳", color: "warning" },
+      error: { icon: "✗", color: "error" },
+    };
+    const entry = entries[status ?? ""] ?? { icon: "○", color: "muted" };
+    return theme.fg(entry.color, entry.icon);
   }
 
   /**
@@ -119,9 +109,10 @@ export class ProgressRenderer {
     const lines: string[] = [];
 
     // Header
+    const runningIcon = ProgressRenderer.statusIcon("running", theme);
     const header = subtitle
-      ? `${theme.fg("accent", "⟳")} ${title} ${theme.fg("muted", subtitle)}`
-      : `${theme.fg("accent", "⟳")} ${title}`;
+      ? `${runningIcon} ${title} ${theme.fg("muted", subtitle)}`
+      : `${runningIcon} ${title}`;
     lines.push(header);
 
     // Separator
@@ -162,9 +153,10 @@ export class ProgressRenderer {
   static buildStatusLine(params: BuildStatusLineParams): string {
     const { theme, title, subtitle, tags } = params;
 
+    const runningIcon = ProgressRenderer.statusIcon("running", theme);
     const iter = subtitle ? ` ${subtitle}` : "";
     const tagText = tags.length > 0 ? ` · ${tags.join(" · ")}` : "";
-    return `${theme.fg("accent", "⟳")} ${title}${iter}${tagText}`;
+    return `${runningIcon} ${title}${iter}${tagText}`;
   }
 
   /**
@@ -220,6 +212,17 @@ export class ProgressRenderer {
   }
 
   /**
+   * Extract the latest branch name from accumulated contributions.
+   */
+  static getBranch(contributions: readonly DisplayContribution[]): string | undefined {
+    let branch: string | undefined;
+    for (const c of contributions) {
+      if (c.branch !== undefined) branch = c.branch;
+    }
+    return branch;
+  }
+
+  /**
    * Extract the latest continueWhile expression from accumulated contributions.
    */
   static getContinueWhile(contributions: readonly DisplayContribution[]): string | undefined {
@@ -228,6 +231,58 @@ export class ProgressRenderer {
       if (c.continueWhile !== undefined) continueWhile = c.continueWhile;
     }
     return continueWhile;
+  }
+
+  /**
+   * Build a human-readable result suffix from routine result details.
+   *
+   * Priority (highest first):
+   * 1. Agent label or id — identifies which agent produced the result.
+   * 2. Rounds count — shows how many loop iterations the routine ran.
+   * 3. PR URL — extracted from the `pr` instruction raw output (e.g. `gh pr create` result).
+   * 4. Workspace path — shows the worktree location.
+   * 5. Cleanup summary — extracted from the `cleanup` instruction parsed output.
+   * 6. Summary text — the routine's own digest message.
+   * 7. Fallback — "passed" / "failed" based on {@link RoutineResult.passed}.
+   *
+   * @param details — The routine result details (may be undefined).
+   * @returns A short human-readable suffix string.
+   */
+  static buildResultSuffix(details: RoutineResult | undefined): string {
+    if (!details) {
+      return "failed";
+    }
+
+    if (details.label) {
+      return `agent: ${details.label}`;
+    }
+
+    if (details.agentId) {
+      return `agent: ${details.agentId}`;
+    }
+
+    if (typeof details.rounds === "number" && details.rounds > 0) {
+      return `${details.rounds} round${details.rounds > 1 ? "s" : ""}`;
+    }
+
+    if (details.results.pr?.raw) {
+      return details.results.pr.raw;
+    }
+
+    if (details.workspace) {
+      const base = details.workspace.split("/").pop() ?? details.workspace;
+      return `ws: ${base}`;
+    }
+
+    if (details.results.cleanup?.parsed?.summary) {
+      return details.results.cleanup.parsed.summary;
+    }
+
+    if (details.summary) {
+      return details.summary;
+    }
+
+    return details.passed ? "passed" : "failed";
   }
 
   // ── Instance (reads live state) ────────────────────────────
@@ -253,7 +308,8 @@ export class ProgressRenderer {
       render: () => {
         const agentMap = ProgressRenderer.buildAgentMap(state.contributions);
         const { iteration, maxIterations } = ProgressRenderer.getIterationInfo(state.contributions);
-        const parts = [theme.fg("accent", `⟳ ${state.routineName}`)];
+        const runningIcon = ProgressRenderer.statusIcon("running", theme);
+        const parts = [`${runningIcon} ${state.routineName}`];
         if (maxIterations > 0) {
           parts.push(theme.fg("muted", ` ${iteration + 1}/${maxIterations}`));
         }
@@ -275,7 +331,8 @@ export class ProgressRenderer {
    * Build a {@link Component} for the tool-row "result" line.
    *
    * Partial (streaming) updates show a neutral "running" state.
-   * Final results show ✓/✗ with passed/failed.
+   * Final results show ✓/✗ with a contextual suffix from
+   * {@link buildResultSuffix}.
    */
   buildResultComponent(
     result: AgentToolResult<RoutineResult>,
@@ -286,16 +343,17 @@ export class ProgressRenderer {
 
     if (options.isPartial) {
       return {
-        render: () => [`${theme.fg("warning", "⏳")} ${routine} · running`],
+        render: () => [`${ProgressRenderer.statusIcon("started", theme)} ${routine} · running`],
         invalidate: () => {},
       };
     }
 
     const passed = result.details?.passed ?? false;
     const icon = ProgressRenderer.statusIcon("done", theme, passed);
+    const suffix = ProgressRenderer.buildResultSuffix(result.details);
 
     return {
-      render: () => [`${icon} ${routine} · ${passed ? "passed" : "failed"}`],
+      render: () => [`${icon} ${routine} · ${suffix}`],
       invalidate: () => {
         /* stateless — nothing to clear */
       },
@@ -314,6 +372,7 @@ export class ProgressRenderer {
     const agentMap = ProgressRenderer.buildAgentMap(state.contributions);
     const { iteration, maxIterations } = ProgressRenderer.getIterationInfo(state.contributions);
     const workspace = ProgressRenderer.getWorkspacePath(state.contributions);
+    const branch = ProgressRenderer.getBranch(state.contributions);
     const continueWhile = ProgressRenderer.getContinueWhile(state.contributions);
 
     const rows: string[] = [];
@@ -329,13 +388,15 @@ export class ProgressRenderer {
       metadata.push(`while: ${continueWhile}`);
     }
 
+    const pathLine = [workspace, branch].filter(Boolean).join(" · ");
+
     const widgetLines = ProgressRenderer.buildWidgetLines({
       theme,
       title: state.routineName,
       subtitle,
       rows,
       metadata: metadata.length > 0 ? metadata : undefined,
-      path: workspace,
+      path: pathLine || undefined,
     });
 
     const tags: string[] = [];
