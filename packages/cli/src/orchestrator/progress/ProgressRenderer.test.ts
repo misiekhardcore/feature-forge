@@ -3,12 +3,14 @@ import type {
   Theme,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { RoutineResult } from "../RoutineResult";
-import type { DisplayContribution } from "./DisplayContribution";
+import type { AgentContribution, DisplayContribution } from "./DisplayContribution";
+import { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ThemeLike } from "./ProgressRenderer";
 import { ProgressRenderer } from "./ProgressRenderer";
+import type { RoutineProgressState } from "./RoutineProgressState";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -19,6 +21,11 @@ function makeTheme(): ThemeLike {
 }
 
 const theme = makeTheme();
+
+/** Minimal mock widget for renderToWidget tests. */
+function makeMockWidget() {
+  return { render: vi.fn(), clear: vi.fn() };
+}
 
 // ── Tests ────────────────────────────────────────────────────
 
@@ -403,10 +410,24 @@ describe("ProgressRenderer", () => {
 
   describe("buildAgentMap", () => {
     it("maps contributions by agent id", () => {
-      const map = ProgressRenderer.buildAgentMap([
-        { agentId: "a1", agentStatus: "done", agentPassed: true },
-        { agentId: "a2", agentStatus: "started" },
-      ]);
+      const contributions: AgentContribution[] = [
+        {
+          type: "agent",
+          agentId: "a1",
+          agentStatus: "done",
+          agentPassed: true,
+          phase: "agent-done",
+          message: "done",
+        },
+        {
+          type: "agent",
+          agentId: "a2",
+          agentStatus: "started",
+          phase: "agent-started",
+          message: "started",
+        },
+      ];
+      const map = ProgressRenderer.buildAgentMap(contributions);
       expect(map.get("a1")?.status).toBe("done");
       expect(map.get("a1")?.passed).toBe(true);
       expect(map.get("a2")?.status).toBe("started");
@@ -414,19 +435,34 @@ describe("ProgressRenderer", () => {
     });
 
     it("overwrites earlier contributions with later ones for same agent", () => {
-      const map = ProgressRenderer.buildAgentMap([
-        { agentId: "a1", agentStatus: "started" },
-        { agentId: "a1", agentStatus: "done", agentPassed: true },
-      ]);
+      const contributions: AgentContribution[] = [
+        {
+          type: "agent",
+          agentId: "a1",
+          agentStatus: "started",
+          phase: "agent-started",
+          message: "started",
+        },
+        {
+          type: "agent",
+          agentId: "a1",
+          agentStatus: "done",
+          agentPassed: true,
+          phase: "agent-done",
+          message: "done",
+        },
+      ];
+      const map = ProgressRenderer.buildAgentMap(contributions);
       expect(map.get("a1")?.status).toBe("done");
       expect(map.get("a1")?.passed).toBe(true);
     });
 
     it("skips contributions without agentId or agentStatus", () => {
-      const map = ProgressRenderer.buildAgentMap([
-        { agentId: "a1", agentStatus: "done" },
-        { phase: "loop-round" },
-      ]);
+      const contributions: DisplayContribution[] = [
+        { type: "agent", agentId: "a1", agentStatus: "done", phase: "agent-done", message: "done" },
+        { type: "status", phase: "shell-done", message: "completed" },
+      ];
+      const map = ProgressRenderer.buildAgentMap(contributions);
       expect(map.size).toBe(1);
     });
   });
@@ -439,8 +475,20 @@ describe("ProgressRenderer", () => {
 
     it("picks the latest iteration values", () => {
       const info = ProgressRenderer.getIterationInfo([
-        { iteration: 0, maxIterations: 3 },
-        { iteration: 1, maxIterations: 3 },
+        {
+          type: "loop",
+          iteration: 0,
+          maxIterations: 3,
+          phase: "loop-round-start",
+          message: "round 1",
+        },
+        {
+          type: "loop",
+          iteration: 1,
+          maxIterations: 3,
+          phase: "loop-round-start",
+          message: "round 2",
+        },
       ]);
       expect(info).toEqual({ iteration: 1, maxIterations: 3 });
     });
@@ -453,8 +501,20 @@ describe("ProgressRenderer", () => {
 
     it("returns the latest branch", () => {
       const branch = ProgressRenderer.getBranch([
-        { branch: "forge/ws-abc" },
-        { branch: "forge/ws-def" },
+        {
+          type: "workspace",
+          workspace: "/tmp/ws-1",
+          branch: "forge/ws-abc",
+          phase: "workspace-ready",
+          message: "ready",
+        },
+        {
+          type: "workspace",
+          workspace: "/tmp/ws-2",
+          branch: "forge/ws-def",
+          phase: "workspace-ready",
+          message: "ready",
+        },
       ]);
       expect(branch).toBe("forge/ws-def");
     });
@@ -467,10 +527,17 @@ describe("ProgressRenderer", () => {
 
     it("returns the latest workspace path", () => {
       const path = ProgressRenderer.getWorkspacePath([
-        { workspace: "/tmp/ws-1" },
-        { workspace: "/tmp/ws-2" },
+        { type: "workspace", workspace: "/tmp/ws-1", phase: "workspace-ready", message: "ready" },
+        { type: "workspace", workspace: "/tmp/ws-2", phase: "workspace-ready", message: "ready" },
       ]);
       expect(path).toBe("/tmp/ws-2");
+    });
+
+    it("reads workspace from status contributions", () => {
+      const path = ProgressRenderer.getWorkspacePath([
+        { type: "status", workspace: "/tmp/cleanup-ws", phase: "cleanup-done", message: "done" },
+      ]);
+      expect(path).toBe("/tmp/cleanup-ws");
     });
   });
 
@@ -481,24 +548,34 @@ describe("ProgressRenderer", () => {
 
     it("returns the latest continueWhile expression", () => {
       const expr = ProgressRenderer.getContinueWhile([
-        { continueWhile: "result.passed" },
-        { continueWhile: "result.rounds < 5" },
+        {
+          type: "loop",
+          iteration: 0,
+          maxIterations: 5,
+          continueWhile: "result.passed",
+          phase: "loop-round-start",
+          message: "round",
+        },
+        {
+          type: "loop",
+          iteration: 1,
+          maxIterations: 5,
+          continueWhile: "result.rounds < 5",
+          phase: "loop-round-start",
+          message: "round",
+        },
       ]);
       expect(expr).toBe("result.rounds < 5");
     });
   });
 
   describe("buildResultComponent", () => {
-    function makeRenderer(contributions: Partial<DisplayContribution>[] = []) {
-      const state = {
+    function makeRenderer() {
+      const state: RoutineProgressState = {
         routineName: "test-routine",
-        contributions: contributions.map((c) => ({
-          agentId: "a1",
-          agentStatus: "started",
-          ...c,
-        })),
+        contributions: [],
       };
-      return new ProgressRenderer(state);
+      return new ProgressRenderer(state, new DisplayContributionRegistry());
     }
 
     it("renders running state with started icon in partial mode", () => {
@@ -548,6 +625,251 @@ describe("ProgressRenderer", () => {
       expect(lines[0]).toContain("✗");
       expect(lines[0]).toContain("test-routine");
       expect(lines[0]).toContain("failed");
+    });
+  });
+
+  describe("buildCallComponent", () => {
+    it("renders routine name with pending state when no agents", () => {
+      const registry = new DisplayContributionRegistry();
+      const state: RoutineProgressState = {
+        routineName: "build-routine",
+        contributions: [],
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const component = renderer.buildCallComponent(theme as unknown as Theme);
+      const lines = component.render(80);
+      expect(lines[0]).toContain("⟳");
+      expect(lines[0]).toContain("build-routine");
+      expect(lines[0]).toContain("pending");
+    });
+
+    it("renders with agent count from registry", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, { status: contribution.agentStatus });
+        }
+      });
+      registry.register("loop", (state, contribution) => {
+        if (contribution.type === "loop") {
+          state.iteration = contribution.iteration;
+          state.maxIterations = contribution.maxIterations;
+        }
+      });
+
+      const contributions: DisplayContribution[] = [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "started",
+          phase: "agent-started",
+          message: "started",
+        },
+        {
+          type: "agent",
+          agentId: "tester",
+          agentStatus: "done",
+          agentPassed: true,
+          agentSummary: "All passed",
+          phase: "agent-done",
+          message: "completed",
+        },
+        {
+          type: "loop",
+          iteration: 0,
+          maxIterations: 3,
+          phase: "loop-round-start",
+          message: "round 1",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "build-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const component = renderer.buildCallComponent(theme as unknown as Theme);
+      const lines = component.render(80);
+      expect(lines[0]).toContain("⟳");
+      expect(lines[0]).toContain("build-routine");
+      expect(lines[0]).toContain("1/3");
+      expect(lines[0]).toContain("2 agents");
+    });
+
+    it("renders with no iteration info when no loop contributions", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, { status: contribution.agentStatus });
+        }
+      });
+      const contributions: DisplayContribution[] = [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "started",
+          phase: "agent-started",
+          message: "started",
+        },
+      ];
+      const state: RoutineProgressState = {
+        routineName: "build-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const component = renderer.buildCallComponent(theme as unknown as Theme);
+      const lines = component.render(80);
+      expect(lines[0]).toContain("⟳");
+      expect(lines[0]).toContain("build-routine");
+      expect(lines[0]).toContain("1 agent");
+      expect(lines[0]).not.toContain("/");
+    });
+  });
+
+  describe("renderToWidget", () => {
+    it("renders to widget with correct lines and status text", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, {
+            status: contribution.agentStatus,
+            summary: contribution.agentSummary,
+            passed: contribution.agentPassed,
+          });
+        }
+      });
+      registry.register("loop", (state, contribution) => {
+        if (contribution.type === "loop") {
+          state.iteration = contribution.iteration;
+          state.maxIterations = contribution.maxIterations;
+        }
+      });
+      registry.register("workspace", (state, contribution) => {
+        if (contribution.type === "workspace") {
+          state.workspace = contribution.workspace;
+          state.branch = contribution.branch;
+        }
+      });
+
+      const contributions: DisplayContribution[] = [
+        {
+          type: "workspace",
+          workspace: "/tmp/my-ws",
+          branch: "forge/ws-abc",
+          phase: "workspace-ready",
+          message: "ready",
+        },
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "started",
+          phase: "agent-started",
+          message: "started",
+        },
+        {
+          type: "agent",
+          agentId: "tester",
+          agentStatus: "done",
+          agentPassed: true,
+          agentSummary: "All tests passed",
+          phase: "agent-done",
+          message: "completed",
+        },
+        {
+          type: "loop",
+          iteration: 1,
+          maxIterations: 3,
+          phase: "loop-round-start",
+          message: "round 2",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "my-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      expect(widget.render).toHaveBeenCalledTimes(1);
+      const [lines, statusText] = widget.render.mock.calls[0];
+
+      // Widget lines
+      expect(lines[0]).toContain("⟳");
+      expect(lines[0]).toContain("my-routine");
+      expect(lines[0]).toContain("iteration 2/3");
+
+      // Agent rows
+      const joinedLines = (lines as string[]).join("\n");
+      expect(joinedLines).toContain("builder");
+      expect(joinedLines).toContain("tester");
+      expect(joinedLines).toContain("All tests passed");
+
+      // Workspace path
+      expect(joinedLines).toContain("/tmp/my-ws");
+      expect(joinedLines).toContain("forge/ws-abc");
+
+      // Status text
+      expect(statusText).toContain("⟳");
+      expect(statusText).toContain("my-routine");
+      expect(statusText).toContain("2/3");
+      expect(statusText).toContain("builder");
+      expect(statusText).toContain("tester");
+    });
+
+    it("renders empty state when no contributions", () => {
+      const registry = new DisplayContributionRegistry();
+      const state: RoutineProgressState = {
+        routineName: "empty-routine",
+        contributions: [],
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      expect(widget.render).toHaveBeenCalledTimes(1);
+      const [lines, statusText] = widget.render.mock.calls[0];
+      const joinedLines = (lines as string[]).join("\n");
+      expect(joinedLines).toContain("no agents yet");
+      expect(statusText).toBe("⟳ empty-routine");
+    });
+
+    it("includes continueWhile in metadata when present", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("loop", (state, contribution) => {
+        if (contribution.type === "loop") {
+          state.iteration = contribution.iteration;
+          state.maxIterations = contribution.maxIterations;
+          state.continueWhile = contribution.continueWhile;
+        }
+      });
+
+      const contributions: DisplayContribution[] = [
+        {
+          type: "loop",
+          iteration: 0,
+          maxIterations: 5,
+          continueWhile: "result.passed",
+          phase: "loop-round-start",
+          message: "round",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "loop-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      const [lines] = widget.render.mock.calls[0];
+      const joinedLines = (lines as string[]).join("\n");
+      expect(joinedLines).toContain("while: result.passed");
     });
   });
 });

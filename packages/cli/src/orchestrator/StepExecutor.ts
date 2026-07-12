@@ -2,6 +2,7 @@ import type { TypedEventBus } from "./eventBus";
 import type { FlowContext } from "./FlowContext";
 import type { FlowInstruction } from "./FlowInstruction";
 import type { DisplayContribution } from "./progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 
 /**
@@ -50,5 +51,19 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
    */
   getDisplayContribution(_event: RoutineProgressEvent): DisplayContribution | undefined {
     return undefined;
+  }
+
+  /**
+   * Register a handler on the given registry that applies this executor's
+   * contribution type to an {@link import("./progress/AccumulatedState").AccumulatedState}.
+   *
+   * The default is a no-op. Override in executors that produce
+   * {@link DisplayContribution} instances so consumer code (e.g.
+   * {@link import("./progress/ProgressRenderer").ProgressRenderer}) can
+   * build an accumulated snapshot via
+   * {@link DisplayContributionRegistry.apply}.
+   */
+  registerDisplayHandler(_registry: DisplayContributionRegistry): void {
+    // no-op by default
   }
 }

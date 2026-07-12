@@ -7,6 +7,7 @@ import type { TypedEventBus } from "../eventBus";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
@@ -73,6 +74,18 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
   /**
    * Extract workspace path and branch from a workspace-ready event.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("workspace", (state, contribution) => {
+      if (contribution.type !== "workspace") return;
+      if (contribution.workspace !== undefined) {
+        state.workspace = contribution.workspace;
+      }
+      if (contribution.branch !== undefined) {
+        state.branch = contribution.branch;
+      }
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (event.phase !== "workspace-ready") {
       return undefined;
@@ -83,6 +96,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     }
     const branch = event.details.branch;
     return {
+      type: "workspace",
       workspace,
       branch: typeof branch === "string" ? branch : undefined,
       phase: event.phase,

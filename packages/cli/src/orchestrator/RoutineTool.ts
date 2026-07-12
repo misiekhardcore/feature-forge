@@ -15,7 +15,7 @@ import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { logger } from "../logging";
 import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { AgentViewerOverlay } from "./progress";
+import { AgentViewerOverlay, DisplayContributionRegistry } from "./progress";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -109,7 +109,15 @@ export class RoutineTool
     this.description = this.buildDescription(routineName, routineDef);
     this.parameters = RoutineTool.buildParamsSchema(routineDef);
 
-    this.renderer = new ProgressRenderer(this);
+    // Wire the display contribution registry so ProgressRenderer can
+    // build an accumulated snapshot via registry.apply() instead of
+    // iterating contributions manually.
+    const displayRegistry = new DisplayContributionRegistry();
+    for (const stepExecutor of this.executor.stepRegistry.getAll().values()) {
+      stepExecutor.registerDisplayHandler(displayRegistry);
+    }
+
+    this.renderer = new ProgressRenderer(this, displayRegistry);
   }
 
   // ── RoutineProgressState getters ───────────────────────────
@@ -239,7 +247,7 @@ export class RoutineTool
       for (const executor of this.executor.stepRegistry.getAll().values()) {
         const contrib = executor.getDisplayContribution(event);
         if (!contrib) continue;
-        const isStreamOnly = contrib.streamEvent !== undefined && contrib.agentStatus === undefined;
+        const isStreamOnly = contrib.type === "agent" && contrib.streamEvent !== undefined;
         if (!isStreamOnly) {
           this._contributions.push(contrib);
         }

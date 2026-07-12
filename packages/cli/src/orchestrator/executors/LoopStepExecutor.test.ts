@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import { createAccumulatedState } from "../progress/AccumulatedState";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineResult } from "../RoutineResult";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
@@ -424,8 +427,14 @@ describe("LoopStepExecutor", () => {
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.iteration).toBe(1); // rounds - 1 (0-based)
-      expect(contrib!.maxIterations).toBe(5);
+      expect(contrib!.type).toBe("loop");
+      const loopContrib = contrib! as DisplayContribution & {
+        type: "loop";
+        iteration: number;
+        maxIterations: number;
+      };
+      expect(loopContrib.iteration).toBe(1); // rounds - 1 (0-based)
+      expect(loopContrib.maxIterations).toBe(5);
     });
 
     it("returns iteration and maxIterations for loop-round-complete events", () => {
@@ -436,8 +445,14 @@ describe("LoopStepExecutor", () => {
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.iteration).toBe(2);
-      expect(contrib!.maxIterations).toBe(3);
+      expect(contrib!.type).toBe("loop");
+      const loopContrib = contrib! as DisplayContribution & {
+        type: "loop";
+        iteration: number;
+        maxIterations: number;
+      };
+      expect(loopContrib.iteration).toBe(2);
+      expect(loopContrib.maxIterations).toBe(3);
     });
 
     it("defaults maxIterations to 0 when not present in details", () => {
@@ -448,7 +463,8 @@ describe("LoopStepExecutor", () => {
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.maxIterations).toBe(0);
+      const loopContrib = contrib! as DisplayContribution & { type: "loop"; maxIterations: number };
+      expect(loopContrib.maxIterations).toBe(0);
     });
 
     it("returns undefined for non-loop phase events", () => {
@@ -459,6 +475,45 @@ describe("LoopStepExecutor", () => {
       });
 
       expect(contrib).toBeUndefined();
+    });
+  });
+
+  describe("registerDisplayHandler", () => {
+    it("registers a loop handler that updates iteration and maxIterations", () => {
+      const executor = new LoopStepExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+      registry.apply(state, [
+        {
+          type: "loop",
+          iteration: 0,
+          maxIterations: 3,
+          continueWhile: "x < 5",
+          phase: "test",
+          message: "test",
+        },
+      ]);
+
+      expect(state.iteration).toBe(0);
+      expect(state.maxIterations).toBe(3);
+      expect(state.continueWhile).toBe("x < 5");
+    });
+
+    it("only sets fields that are present in the contribution", () => {
+      const executor = new LoopStepExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+      registry.apply(state, [
+        { type: "loop", iteration: 1, maxIterations: 0, phase: "test", message: "test" },
+      ]);
+
+      expect(state.iteration).toBe(1);
+      expect(state.maxIterations).toBe(0);
+      expect(state.continueWhile).toBeUndefined();
     });
   });
 });

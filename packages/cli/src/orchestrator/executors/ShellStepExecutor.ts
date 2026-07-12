@@ -115,9 +115,6 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     }
   }
 
-  /**
-   * Extract PR URL from a shell-done event.
-   */
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (event.phase !== "shell-done") {
       return undefined;
@@ -127,6 +124,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       return undefined;
     }
     return {
+      type: "status",
       phase: event.phase,
       message: prUrl,
     };

@@ -25,6 +25,8 @@ import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { ShellInstruction } from "../FlowInstruction";
+import { createAccumulatedState } from "../progress/AccumulatedState";
+import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { ShellStepExecutor } from "./ShellStepExecutor";
 
@@ -404,6 +406,24 @@ describe("ShellStepExecutor", () => {
 
         expect(executor.getDisplayContribution(event)).toBeUndefined();
       });
+    });
+  });
+
+  describe("registerDisplayHandler", () => {
+    it("registers a shell handler that does not modify accumulated state", () => {
+      const executor = new ShellStepExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+      registry.apply(state, [
+        { type: "status", phase: "shell-done", message: "https://github.com/owner/repo/pull/1" },
+      ]);
+
+      // Shell handler is a no-op — state should remain default
+      expect(state.agentMap.size).toBe(0);
+      expect(state.iteration).toBe(0);
+      expect(state.workspace).toBeUndefined();
     });
   });
 });

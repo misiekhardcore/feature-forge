@@ -9,6 +9,7 @@ import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
@@ -160,6 +161,19 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
    * Reads the agentId from {@code event.details.agentId} and maps the
    * phase to a lifecycle status.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("agent", (state, contribution) => {
+      if (contribution.type !== "agent") return;
+      if (contribution.agentId && contribution.agentStatus) {
+        state.agentMap.set(contribution.agentId, {
+          status: contribution.agentStatus,
+          summary: contribution.agentSummary,
+          passed: contribution.agentPassed,
+        });
+      }
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (!event.phase.startsWith("agent-")) {
       return undefined;
@@ -168,15 +182,16 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     if (!agentId) {
       return undefined;
     }
-    const agentStatus =
+    const agentStatus: string =
       event.phase === "agent-started"
         ? "started"
         : event.phase === "agent-done"
           ? "done"
-          : undefined;
+          : "streaming";
     const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
     const executionId = event.details.executionId;
     return {
+      type: "agent",
       executionId,
       agentId,
       agentStatus,
