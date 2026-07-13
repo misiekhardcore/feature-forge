@@ -62,7 +62,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     eventBus.emit("feature-forge:workspace-ready", {
       phase: "workspace-ready",
       message: `Workspace "${workspaceId}" created at ${path}`,
-      details: { path },
+      details: { path, branch },
     });
 
     return context.withWorkspace("ws", handle).withResult("ws", {
@@ -90,15 +90,14 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     if (event.phase !== "workspace-ready") {
       return undefined;
     }
-    const workspace = event.details.workspace;
-    if (typeof workspace !== "string") {
+    const details = event.details as { path?: string; branch?: string };
+    if (typeof details.path !== "string") {
       return undefined;
     }
-    const branch = event.details.branch;
     return {
       type: "workspace",
-      workspace,
-      branch: typeof branch === "string" ? branch : undefined,
+      workspace: details.path,
+      branch: details.branch,
       phase: event.phase,
       message: event.message,
     };

@@ -202,17 +202,17 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   describe("getDisplayContribution", () => {
-    it("returns contribution with workspace and branch from workspace-ready event", () => {
+    it("returns contribution with workspace path and branch from workspace-ready event", () => {
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const event = {
         phase: "workspace-ready",
         message: "Workspace created",
-        details: { workspace: "/test/ws-abc", branch: "forge/ws-abc" },
-      };
+        details: { path: "/test/ws-abc", branch: "forge/ws-abc" },
+      } as unknown as RoutineProgressEvent;
 
       const contribution = executor.getDisplayContribution(event);
 
@@ -242,7 +242,7 @@ describe("WorkspaceStepExecutor", () => {
       expect(executor.getDisplayContribution(event)).toBeUndefined();
     });
 
-    it("returns undefined when workspace is not a string", () => {
+    it("returns undefined when path is not a string", () => {
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),

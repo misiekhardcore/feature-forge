@@ -166,14 +166,14 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       return undefined;
     }
     const details = event.details as {
-      rounds?: number;
+      round?: number;
       maxIterations?: number;
       continueWhile?: string;
     };
     const maxIterations = typeof details.maxIterations === "number" ? details.maxIterations : 0;
     return {
       type: "loop",
-      iteration: (details.rounds ?? 1) - 1,
+      iteration: (details.round ?? 1) - 1,
       maxIterations,
       continueWhile: details.continueWhile,
       phase: event.phase,

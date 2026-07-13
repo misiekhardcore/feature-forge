@@ -423,7 +423,7 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "loop-round-start",
         message: 'Loop "l" — round 2/5',
-        details: { rounds: 2, maxIterations: 5 } as Partial<RoutineResult>,
+        details: { round: 2, maxIterations: 5 } as unknown as Partial<RoutineResult>,
       });
 
       expect(contrib).toBeDefined();
@@ -441,7 +441,7 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "loop-round-complete",
         message: 'Loop "l" — round 3 complete',
-        details: { rounds: 3, maxIterations: 3 } as Partial<RoutineResult>,
+        details: { round: 3, maxIterations: 3 } as unknown as Partial<RoutineResult>,
       });
 
       expect(contrib).toBeDefined();
@@ -459,7 +459,7 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "loop-round-start",
         message: "Loop started",
-        details: { rounds: 1 },
+        details: { round: 1 } as unknown as Partial<RoutineResult>,
       });
 
       expect(contrib).toBeDefined();

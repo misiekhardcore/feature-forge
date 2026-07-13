@@ -6,8 +6,8 @@ import type {
 import type { Component } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { createAccumulatedState } from "./AccumulatedState";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import type { DisplayContribution } from "./DisplayContribution";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
