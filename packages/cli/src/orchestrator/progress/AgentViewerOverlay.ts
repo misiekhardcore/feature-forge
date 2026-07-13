@@ -15,7 +15,7 @@ import { AgentStatus } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import type { TypedEventBus } from "../eventBus";
-import { AgentDisplayHelpers } from "./helpers";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.

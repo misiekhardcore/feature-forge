@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { describe, expect, it } from "vitest";
 
-import { AgentDisplayHelpers } from "./helpers";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
 describe("getStatusIcon", () => {
   it('returns success icon for "done" status', () => {

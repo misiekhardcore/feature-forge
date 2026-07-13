@@ -44,7 +44,7 @@ export interface ForgeChannels {
   "feature-forge:cleanup-done": {
     phase: "cleanup-done";
     message: string;
-    details: { executionId?: string; errors: number };
+    details: { executionId?: string; workspace?: string };
   };
 
   "feature-forge:git-start": {
