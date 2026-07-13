@@ -586,10 +586,19 @@ export class AgentViewerOverlay implements Component {
       lines.push("");
     }
 
-    // Structured conversation from stream events
-    const conversationLines = this.renderConversation(entry.id, width);
-    for (const convLine of conversationLines) {
-      lines.push(convLine);
+    // Conversation header
+    lines.push(theme.fg("accent", "Conversation:"));
+
+    const events = this.getConversation(entry.id);
+    const conversationLines = this.renderConversationTurns(events, width);
+    if (conversationLines.length === 0) {
+      lines.push(`  ${theme.fg("muted", "No conversation recorded.")}`);
+      lines.push("");
+    } else {
+      for (const convLine of conversationLines) {
+        lines.push(convLine);
+      }
+      lines.push("");
     }
 
     // Help text
@@ -606,43 +615,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   // ── Private conversation rendering ───────────────────────
-
-  /**
-   * Render the structured conversation for an agent as a list of styled lines.
-   */
-  private renderConversation(agentId: string, width: number): string[] {
-    const { theme } = this;
-    const events = this.getConversation(agentId);
-    const lines: string[] = [];
-
-    lines.push(theme.fg("accent", "Conversation:"));
-
-    const turnLines = this.renderConversationTurns(events, width);
-    if (turnLines.length === 0) {
-      lines.push(`  ${theme.fg("muted", "No conversation recorded.")}`);
-      lines.push("");
-      return lines;
-    }
-
-    for (const line of turnLines) {
-      lines.push(line);
-    }
-
-    lines.push("");
-    return lines;
-  }
-
-  /**
-   * Render conversation turn lines without header/footer for scroll-bound
-   * calculation.  Called by {@link computeScrollMax} to determine the
-   * maximum valid scroll offset.
-   */
-  private renderConversationContent(agentId: string, width: number): string[] {
-    const events = this.getConversation(agentId);
-    if (events.length === 0) return [];
-    return this.renderConversationTurns(events, width);
-  }
-
   /**
    * Render a list of raw stream events as styled conversation lines.
    *
@@ -650,10 +622,6 @@ export class AgentViewerOverlay implements Component {
    * tool_execution_start → tool_execution_end) into visual blocks and
    * delegates rendering to pi components: {@link UserMessageComponent},
    * {@link AssistantMessageComponent}, {@link ToolExecutionComponent}.
-   *
-   * Shared by {@link renderConversation} (which adds header/footer) and
-   * {@link renderConversationContent} (which returns raw turn lines
-   * for scroll-bound calculation).
    */
   private renderConversationTurns(events: AgentEvent[], width: number): string[] {
     const lines: string[] = [];
@@ -680,29 +648,11 @@ export class AgentViewerOverlay implements Component {
             lines.push(`  ${line}`);
           }
         } else {
-          const assistantMsg: AssistantMessage = {
-            role: "assistant",
-            content: [{ type: "text", text: pendingMessage.content }],
-            api: "anthropic",
-            provider: "anthropic",
-            model: "claude",
-            usage: {
-              input: 0,
-              output: 0,
-              cacheRead: 0,
-              cacheWrite: 0,
-              totalTokens: 0,
-              cost: {
-                input: 0,
-                output: 0,
-                cacheRead: 0,
-                cacheWrite: 0,
-                total: 0,
-              },
-            },
-            stopReason: "stop",
-            timestamp: Date.now(),
-          };
+          // AssistantMessageComponent only reads content — supply minimal message.
+          const assistantMsg = {
+            role: "assistant" as const,
+            content: [{ type: "text" as const, text: pendingMessage.content }],
+          } as AssistantMessage;
           const component = new AssistantMessageComponent(assistantMsg, false, this.markdownTheme);
           const rendered = component.render(innerWidth);
           for (const line of rendered) {
@@ -863,11 +813,11 @@ export class AgentViewerOverlay implements Component {
     const summaryLines = entry.summary ? 3 : 0;
     // Conversation block from renderConversation: "Conversation:" header +
     // turn lines + trailing empty line = 1 + conversationLines + 1
-    const conversationLines = this.renderConversationContent(
-      this.selectedAgentId,
+    const conversationTurns = this.renderConversationTurns(
+      this.getConversation(this.selectedAgentId),
       this.lastRenderWidth,
     ).length;
-    const totalConversationBlock = 1 + conversationLines + 1;
+    const totalConversationBlock = 1 + conversationTurns + 1;
     // Help text: 1
     const footerLines = 1;
 
