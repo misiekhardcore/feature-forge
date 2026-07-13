@@ -493,7 +493,10 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
+      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+        entry.status,
+        entry.passed,
+      );
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;

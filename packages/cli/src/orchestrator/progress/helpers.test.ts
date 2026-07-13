@@ -8,7 +8,10 @@ describe("getStatusIcon", () => {
   });
 
   it('returns success icon for "done" status with passed: true', () => {
-    expect(AgentDisplayHelpers.getStatusIcon("done", true)).toEqual({ char: "✓", color: "success" });
+    expect(AgentDisplayHelpers.getStatusIcon("done", true)).toEqual({
+      char: "✓",
+      color: "success",
+    });
   });
 
   it('returns error icon for "done" status with passed: false', () => {
@@ -81,7 +84,9 @@ describe("extractMessageText", () => {
   });
 
   it("handles blocks where text is not a string", () => {
-    expect(AgentDisplayHelpers.extractMessageText({ content: [{ type: "text", text: 123 }] })).toBe("");
+    expect(AgentDisplayHelpers.extractMessageText({ content: [{ type: "text", text: 123 }] })).toBe(
+      "",
+    );
   });
 
   it("handles null blocks in content array", () => {
@@ -135,7 +140,9 @@ describe("getNestedString", () => {
   });
 
   it("walks a dotted key path", () => {
-    expect(AgentDisplayHelpers.getNestedString({ message: { role: "user" } }, "message", "role")).toBe("user");
+    expect(
+      AgentDisplayHelpers.getNestedString({ message: { role: "user" } }, "message", "role"),
+    ).toBe("user");
   });
 
   it("returns empty string when intermediate key is missing", () => {
