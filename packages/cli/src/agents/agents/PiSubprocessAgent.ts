@@ -87,8 +87,11 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
     // Promise that resolves when agent_end is received, rejecting on timeout.
     let cancelResultPromise: (() => void) | undefined;
+    let rejectResultPromise: ((reason: unknown) => void) | undefined;
 
     const resultPromise = new Promise<string>((resolve, reject) => {
+      rejectResultPromise = reject;
+
       const timeoutId = setTimeout(() => {
         reject(new Error(`Task timed out after ${timeout}ms`));
       }, timeout);
@@ -131,6 +134,13 @@ export class PiSubprocessAgent extends SubprocessAgent {
       }
     });
 
+    // Safety net: if the timeout fires while prompt() is still in-flight, the
+    // rejection has no listener yet — Node would report an unhandled rejection.
+    // The rejection is surfaced through await resultPromise in the try block.
+    resultPromise.catch(() => {
+      // Silently handled — the rejection will be re-thrown on await.
+    });
+
     try {
       await this.rpcClient.prompt(prompt, options?.images);
       this.result = await resultPromise;
@@ -138,6 +148,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
       return this.result;
     } catch (error) {
       cancelResultPromise?.();
+      rejectResultPromise?.(error);
       logger.error("Task execution failed", { agentId: this.id, prompt, error });
       this._status = AgentStatus.Failed;
       this.error = error instanceof Error ? error : new Error(String(error));
