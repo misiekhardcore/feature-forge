@@ -7,6 +7,9 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
+import { createMutableState } from "../progress/AccumulatedState";
+import type { DisplayContribution, WorkspaceContribution } from "../progress/DisplayContribution";
+import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";
 
@@ -200,19 +203,24 @@ describe("WorkspaceStepExecutor", () => {
   });
 
   describe("getDisplayContribution", () => {
+    function getWorkspace(
+      executor: WorkspaceStepExecutor,
+      event: RoutineProgressEvent,
+    ): WorkspaceContribution | undefined {
+      return executor.getDisplayContribution(event) as WorkspaceContribution | undefined;
+    }
+
     it("returns contribution with workspace and branch from workspace-ready event", () => {
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const contribution = getWorkspace(executor, {
         phase: "workspace-ready",
         message: "Workspace created",
         details: { workspace: "/test/ws-abc", branch: "forge/ws-abc" },
-      };
-
-      const contribution = executor.getDisplayContribution(event);
+      });
 
       expect(contribution).toBeDefined();
       expect(contribution!.workspace).toBe("/test/ws-abc");
@@ -270,6 +278,69 @@ describe("WorkspaceStepExecutor", () => {
       const handle = result.workspaces.get("ws");
       expect(handle).toBeDefined();
       expect(handle!.branch).toBe(`forge/ws-00000000`);
+    });
+  });
+
+  describe("registerDisplayHandler", () => {
+    it("registers a 'workspace' handler that updates workspacePath and branch", () => {
+      const executor = new WorkspaceStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+      const registry = new DisplayContributionRegistry();
+
+      executor.registerDisplayHandler(registry);
+
+      expect(registry.has("workspace")).toBe(true);
+
+      const contributions: DisplayContribution[] = [
+        { type: "workspace", workspace: "/tmp/ws-1", branch: "forge/ws-1" },
+        { type: "workspace", workspace: "/tmp/ws-2", branch: "forge/ws-2" },
+      ];
+
+      const state = createMutableState();
+      registry.apply(state, contributions);
+
+      expect(state.workspacePath).toBe("/tmp/ws-2");
+      expect(state.branch).toBe("forge/ws-2");
+    });
+
+    it("updates workspacePath even when branch is undefined", () => {
+      const executor = new WorkspaceStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+      const registry = new DisplayContributionRegistry();
+
+      executor.registerDisplayHandler(registry);
+
+      const contributions: DisplayContribution[] = [{ type: "workspace", workspace: "/tmp/ws-1" }];
+
+      const state = createMutableState();
+      registry.apply(state, contributions);
+
+      expect(state.workspacePath).toBe("/tmp/ws-1");
+      expect(state.branch).toBeUndefined();
+    });
+
+    it("does not update non-workspace fields", () => {
+      const executor = new WorkspaceStepExecutor(
+        new WorkspaceProviderRegistry(),
+        stubWorktreeRegistry(),
+      );
+      const registry = new DisplayContributionRegistry();
+
+      executor.registerDisplayHandler(registry);
+
+      const contributions: DisplayContribution[] = [
+        { type: "agent", agentId: "a1", agentStatus: "done" },
+      ];
+
+      const state = createMutableState();
+      registry.apply(state, contributions);
+
+      expect(state.workspacePath).toBeUndefined();
+      expect(state.branch).toBeUndefined();
     });
   });
 });

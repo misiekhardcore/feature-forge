@@ -9,7 +9,9 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
+import type { MutableState } from "../progress/AccumulatedState";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
@@ -161,6 +163,17 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
    * Parses the agent instruction id from the event message (format:
    * {@code Agent "<id>" ...}) and maps the phase to a lifecycle status.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("agent", (contribution, state: MutableState) => {
+      if (contribution.type !== "agent") return;
+      state.agentMap.set(contribution.agentId, {
+        status: contribution.agentStatus,
+        summary: contribution.agentSummary,
+        passed: contribution.agentPassed,
+      });
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (!event.phase.startsWith("agent-")) {
       return undefined;
@@ -169,7 +182,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     if (!agentId) {
       return undefined;
     }
-    const agentStatus =
+    const agentStatus: string | undefined =
       event.phase === "agent-started"
         ? "started"
         : event.phase === "agent-done"
@@ -178,8 +191,9 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
     const executionId = event.details.executionId;
     return {
+      type: "agent" as const,
       executionId,
-      agentId,
+      agentId: agentId,
       agentStatus,
       agentSummary: event.details.summary,
       agentPassed: event.details.passed,

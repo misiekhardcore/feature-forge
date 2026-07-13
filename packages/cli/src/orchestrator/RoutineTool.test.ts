@@ -16,7 +16,8 @@ import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
-import type { DisplayContribution } from "./progress/DisplayContribution";
+import type { AgentContribution, DisplayContribution } from "./progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
@@ -601,7 +602,25 @@ describe("RoutineTool", () => {
                   : event.phase === "agent-done"
                     ? "done"
                     : undefined;
-              return { agentId, agentStatus, phase: event.phase, message: event.message };
+              if (!agentStatus) return undefined;
+              return {
+                type: "agent" as const,
+                agentId,
+                agentStatus,
+                phase: event.phase,
+                message: event.message,
+              };
+            }
+
+            override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+              registry.register("agent", (contribution, state) => {
+                if (contribution.type !== "agent") return;
+                state.agentMap.set(contribution.agentId, {
+                  status: contribution.agentStatus,
+                  summary: contribution.agentSummary,
+                  passed: contribution.agentPassed,
+                });
+              });
             }
 
             async execute(
@@ -772,15 +791,18 @@ describe("RoutineTool", () => {
               if (!event.phase.startsWith("agent-")) return undefined;
               const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
               if (!agentId) return undefined;
+              const agentStatus =
+                event.phase === "agent-started"
+                  ? "started"
+                  : event.phase === "agent-done"
+                    ? "done"
+                    : undefined;
+              if (!agentStatus) return undefined;
               return {
+                type: "agent" as const,
                 executionId: event.details.executionId,
                 agentId,
-                agentStatus:
-                  event.phase === "agent-started"
-                    ? "started"
-                    : event.phase === "agent-done"
-                      ? "done"
-                      : undefined,
+                agentStatus,
                 streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
                 phase: event.phase,
                 message: event.message,
@@ -847,7 +869,7 @@ describe("RoutineTool", () => {
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
       // Contributions should include executionId from the emitted events.
-      const contributions = tool.contributions;
+      const contributions = tool.contributions as readonly AgentContribution[];
       const startedContribution = contributions.find((c) => c.agentStatus === "started");
       const doneContribution = contributions.find((c) => c.agentStatus === "done");
 

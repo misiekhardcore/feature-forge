@@ -4,7 +4,9 @@ import { logger } from "../../logging";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import type { MutableState } from "../progress/AccumulatedState";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import type { RoutineResult } from "../RoutineResult";
 import { StepExecutor } from "../StepExecutor";
@@ -147,6 +149,17 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
    *
    * Only contributes for {@code loop-round-*} phase events.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("loop", (contribution, state: MutableState) => {
+      if (contribution.type !== "loop") return;
+      state.iteration = contribution.iteration;
+      state.maxIterations = contribution.maxIterations;
+      if (contribution.continueWhile !== undefined) {
+        state.continueWhile = contribution.continueWhile;
+      }
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (!event.phase.startsWith("loop-")) {
       return undefined;
@@ -158,6 +171,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     };
     const maxIterations = typeof details.maxIterations === "number" ? details.maxIterations : 0;
     return {
+      type: "loop" as const,
       iteration: (details.rounds ?? 1) - 1,
       maxIterations,
       continueWhile: details.continueWhile,

@@ -5,7 +5,9 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
+import type { MutableState } from "../progress/AccumulatedState";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
@@ -130,12 +132,20 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   /**
    * Extract display contribution from a cleanup-done event.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    // Cleanup contributions carry no structural state beyond phase/message.
+    registry.register("status", (_contribution, _state: MutableState) => {
+      // No accumulated state to update from cleanup events.
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (event.phase !== "cleanup-done") {
       return undefined;
     }
     const workspace = event.details.workspace;
     return {
+      type: "status",
       phase: event.phase,
       message: event.message,
       ...(typeof workspace === "string" ? { workspace } : {}),

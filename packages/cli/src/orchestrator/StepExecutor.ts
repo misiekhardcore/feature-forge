@@ -3,6 +3,7 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 import type { FlowContext } from "./FlowContext";
 import type { FlowInstruction } from "./FlowInstruction";
 import type { DisplayContribution } from "./progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 
 /**
@@ -51,5 +52,22 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
    */
   getDisplayContribution(_event: RoutineProgressEvent): DisplayContribution | undefined {
     return undefined;
+  }
+
+  /**
+   * Register a handler for the contribution type produced by this executor.
+   *
+   * Called during initialisation to populate a
+   * {@link DisplayContributionRegistry} with type-specific handlers that
+   * update an {@link import("./progress/AccumulatedState").MutableState}.
+   *
+   * The default implementation is a no-op. Executors that override
+   * {@link getDisplayContribution} should also override this method to
+   * register the corresponding handler.
+   *
+   * @param registry — The registry to register the handler with.
+   */
+  registerDisplayHandler(_registry: DisplayContributionRegistry): void {
+    // No-op by default.
   }
 }

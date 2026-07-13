@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMutableState } from "../progress/AccumulatedState";
+import type { DisplayContribution, StatusContribution } from "../progress/DisplayContribution";
+import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
+
 const { execFileRaw } = vi.hoisted(() => ({
   execFileRaw: vi.fn(),
 }));
@@ -351,16 +355,21 @@ describe("ShellStepExecutor", () => {
     });
 
     describe("getDisplayContribution", () => {
+      function getStatus(
+        executor: ShellStepExecutor,
+        event: RoutineProgressEvent,
+      ): StatusContribution | undefined {
+        return executor.getDisplayContribution(event) as StatusContribution | undefined;
+      }
+
       it("returns contribution with prUrl from shell-done event", () => {
         const executor = new ShellStepExecutor();
 
-        const event: RoutineProgressEvent = {
+        const contribution = getStatus(executor, {
           phase: "shell-done",
           message: "Shell completed",
           details: { prUrl: "https://github.com/owner/repo/pull/42" },
-        };
-
-        const contribution = executor.getDisplayContribution(event);
+        });
 
         expect(contribution).toBeDefined();
         expect(contribution!.phase).toBe("shell-done");
@@ -390,6 +399,28 @@ describe("ShellStepExecutor", () => {
 
         expect(executor.getDisplayContribution(event)).toBeUndefined();
       });
+    });
+  });
+
+  describe("registerDisplayHandler", () => {
+    it("registers a 'status' handler that does not modify accumulated state", () => {
+      const executor = new ShellStepExecutor();
+      const registry = new DisplayContributionRegistry();
+
+      executor.registerDisplayHandler(registry);
+
+      expect(registry.has("status")).toBe(true);
+
+      const contributions: DisplayContribution[] = [
+        { type: "status", phase: "shell-done", message: "Done" },
+      ];
+
+      const state = createMutableState();
+      registry.apply(state, contributions);
+
+      expect(state.agentMap.size).toBe(0);
+      expect(state.workspacePath).toBeUndefined();
+      expect(state.continueWhile).toBeUndefined();
     });
   });
 });

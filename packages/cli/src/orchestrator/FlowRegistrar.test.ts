@@ -105,7 +105,9 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
     flowsDir: overrides.flowsDir ?? "/flows",
     knownProviders: overrides.knownProviders ?? new Set(),
-    stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
+    stepExecutorRegistry:
+      overrides.stepExecutorRegistry ??
+      ({ getAll: () => new Map() } as unknown as StepExecutorRegistry),
     eventBus: overrides.eventBus ?? makeMockEventBus(),
   };
 }
