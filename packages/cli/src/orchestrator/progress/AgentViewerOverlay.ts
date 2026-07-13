@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
+import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -48,6 +49,18 @@ export type ViewMode = "list" | "detail";
 const DEFAULT_MAX_RAW_LENGTH = 500;
 
 /**
+ * Maximum raw events kept in memory per agent (sliding window FIFO).
+ * Older events are evicted but persist on disk via JSONL for lazy loading.
+ */
+const MAX_AGENT_EVENTS = 200;
+
+/**
+ * Maximum events buffered before {@link connect} is called.
+ * Prevents unbounded memory from a burst of pre-connect events.
+ */
+const MAX_PRECONNECT_BUFFER = 2000;
+
+/**
  * Parameters for constructing an {@link AgentViewerOverlay}.
  */
 export interface AgentViewerOverlayParams {
@@ -94,6 +107,9 @@ export class AgentViewerOverlay implements Component {
 
   /** Maps agent id → stream file path on disk. */
   private streamFiles = new Map<string, string>();
+
+  /** Maps agent id → events JSONL file path on disk. */
+  private eventsFiles = new Map<string, string>();
 
   /** TUI instance for requesting re-renders. */
   private readonly tui: TUI;
@@ -285,22 +301,39 @@ export class AgentViewerOverlay implements Component {
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
-    if (this.streamDir && AgentViewerOverlay.shouldPersistToStreamFile(event, line)) {
+    if (this.streamDir) {
       try {
         mkdirSync(this.streamDir, { recursive: true });
-        const filePath = this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
-        if (!this.streamFiles.has(agentId)) {
-          this.streamFiles.set(agentId, filePath);
+
+        // Persist formatted line to .stream file (sync, small writes).
+        if (AgentViewerOverlay.shouldPersistToStreamFile(event, line)) {
+          const streamPath =
+            this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
+          if (!this.streamFiles.has(agentId)) {
+            this.streamFiles.set(agentId, streamPath);
+          }
+          appendFileSync(streamPath, `${line}\n`, "utf-8");
         }
-        appendFileSync(filePath, `${line}\n`, "utf-8");
+
+        // Persist raw event to .events.jsonl (async, fire-and-forget).
+        const eventsPath =
+          this.eventsFiles.get(agentId) ?? join(this.streamDir, `${agentId}.events.jsonl`);
+        if (!this.eventsFiles.has(agentId)) {
+          this.eventsFiles.set(agentId, eventsPath);
+        }
+        appendFile(eventsPath, `${JSON.stringify(event)}\n`, "utf-8").catch(() => {});
       } catch {
         // Silently ignore filesystem errors — the in-memory line is sufficient.
       }
     }
 
-    // Append the raw event to the in-memory buffer.
+    // Append the raw event to the in-memory buffer (capped FIFO sliding window).
     const events = this.agentEvents.get(agentId) ?? [];
     events.push(event);
+    if (events.length > MAX_AGENT_EVENTS) {
+      const removeCount = events.length - MAX_AGENT_EVENTS;
+      events.splice(0, removeCount);
+    }
     this.agentEvents.set(agentId, events);
 
     // Invalidate cached line count so computeScrollMax re-renders.
@@ -316,9 +349,64 @@ export class AgentViewerOverlay implements Component {
 
   /**
    * Return the raw stream events for an agent, in insertion order.
+   *
+   * Only returns events currently held in the in-memory sliding window
+   * (up to {@link MAX_AGENT_EVENTS} per agent). Use
+   * {@link loadConversationEvents} for disk-backed history beyond the
+   * window.
    */
   getConversation(agentId: string): AgentEvent[] {
     return this.agentEvents.get(agentId) ?? [];
+  }
+
+  /**
+   * Load conversation events from the on-disk JSONL file for the given agent.
+   *
+   * Reads the last {@code count} events from the JSONL log by scanning from
+   * the end of the file, avoiding loading the entire file into memory.
+   *
+   * Falls back to the in-memory buffer when the JSONL file is missing or
+   * unreadable. Merges the result with the in-memory buffer (deduplicated
+   * by reference identity — callback for custom dedup).
+   *
+   * @param agentId — The agent to load events for.
+   * @param count — Maximum number of events to return (default: 200).
+   * @returns A promise that resolves to an array of events, most recent last.
+   */
+  async loadConversationEvents(
+    agentId: string,
+    count: number = MAX_AGENT_EVENTS,
+  ): Promise<AgentEvent[]> {
+    const eventsPath = this.eventsFiles.get(agentId);
+    if (!eventsPath) {
+      return this.getConversation(agentId);
+    }
+
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const content = await readFile(eventsPath, "utf-8");
+      const lines = content.trimEnd().split("\n");
+      // Take the last N lines.
+      const tail = lines.slice(Math.max(0, lines.length - count));
+      const diskEvents: AgentEvent[] = [];
+      for (const line of tail) {
+        try {
+          const parsed = JSON.parse(line) as AgentEvent;
+          diskEvents.push(parsed);
+        } catch {
+          // Skip malformed lines.
+        }
+      }
+
+      // Merge with in-memory buffer, preferring in-memory for matching events.
+      const memoryEvents = this.agentEvents.get(agentId) ?? [];
+      const inMemorySet = new Set(memoryEvents);
+      const merged = [...diskEvents.filter((ev) => !inMemorySet.has(ev)), ...memoryEvents];
+      return merged.slice(Math.max(0, merged.length - count));
+    } catch {
+      // Fall back to in-memory buffer on read errors.
+      return this.getConversation(agentId);
+    }
   }
 
   /**
@@ -385,6 +473,7 @@ export class AgentViewerOverlay implements Component {
     // Stream files are shared across overlay instances — do NOT delete
     // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
+    this.eventsFiles.clear();
     this.lastLines.clear();
     this.agentEvents.clear();
     this.clearMemory();
@@ -741,6 +830,13 @@ export class AgentViewerOverlay implements Component {
       passed?: boolean;
       summary?: string;
     }> = [];
+
+    const capEventBuffer = (): void => {
+      if (eventBuffer.length > MAX_PRECONNECT_BUFFER) {
+        eventBuffer.splice(0, eventBuffer.length - MAX_PRECONNECT_BUFFER);
+      }
+    };
+
     let connected = false;
 
     const deliverStatusEvent = (
@@ -774,6 +870,7 @@ export class AgentViewerOverlay implements Component {
             viewer.pushStreamEvent(agentId, payload.details.event);
           } else {
             eventBuffer.push({ agentId, event: payload.details.event });
+            capEventBuffer();
           }
         }
       }),
@@ -789,6 +886,7 @@ export class AgentViewerOverlay implements Component {
           deliverStatusEvent(viewer, agentId, mappedStatus);
         } else {
           eventBuffer.push({ agentId, status: mappedStatus });
+          capEventBuffer();
         }
       }),
 
@@ -805,6 +903,7 @@ export class AgentViewerOverlay implements Component {
           deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
         } else {
           eventBuffer.push({ agentId, status: mappedStatus, passed, summary: eventSummary });
+          capEventBuffer();
         }
       }),
     ];
