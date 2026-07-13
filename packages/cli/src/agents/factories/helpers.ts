@@ -1,4 +1,4 @@
-import { AgentSpecification, resolveSkillPaths } from "../specifications";
+import { AgentSpecification, SkillResolver } from "../specifications";
 
 /**
  * Converts an AgentSpecification into pi CLI arguments.
@@ -37,7 +37,10 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
     !specification.disableSkills &&
     (specification.skills.length > 0 || specification.excludedSkills.length > 0)
   ) {
-    const skillPaths = resolveSkillPaths(specification.skills, specification.excludedSkills);
+    const skillPaths = SkillResolver.resolvePaths(
+      specification.skills,
+      specification.excludedSkills,
+    );
     args.push("--no-skills");
     for (const skillPath of skillPaths) {
       args.push("--skill", skillPath);
