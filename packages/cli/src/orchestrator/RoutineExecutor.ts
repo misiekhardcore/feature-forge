@@ -162,11 +162,7 @@ export class RoutineExecutor {
       }
     }
 
-    const summary = passed
-      ? `Routine "${routineName}" completed with ${Object.keys(results).length} results`
-      : error
-        ? `Routine "${routineName}" failed: ${error.message}`
-        : `Routine "${routineName}" failed — step result(s) not passed`;
+    const summary = RoutineExecutor.buildResultSummary(routineName, passed, error, results);
 
     return {
       routine: routineName,
@@ -185,5 +181,20 @@ export class RoutineExecutor {
     error: Error,
   ): RoutineResult {
     return this.buildResult(routineName, context, false, error);
+  }
+
+  private static buildResultSummary(
+    routineName: string,
+    passed: boolean,
+    error: Error | undefined,
+    results: Record<string, unknown>,
+  ): string {
+    if (passed) {
+      return `Routine "${routineName}" completed with ${Object.keys(results).length} results`;
+    }
+    if (error) {
+      return `Routine "${routineName}" failed: ${error.message}`;
+    }
+    return `Routine "${routineName}" failed — step result(s) not passed`;
   }
 }
