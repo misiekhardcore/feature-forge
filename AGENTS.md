@@ -177,8 +177,44 @@ packages/
 - Double quotes, semicolons required, trailing commas everywhere.
 - 100 char print width, 2-space tabs.
 
+## Operational patterns (from self-learning memory)
+
+These are frequently repeated patterns and mistakes collected across sessions. Follow them to avoid known failure modes.
+
+### Worktree lifecycle
+
+- Always use `wt remove <branch>` to clean up worktrees — never run `git branch -d` directly; the worktree tool handles both worktree and branch deletion together.
+- Use `wt remove -D <branch>` when the branch has been pushed but the local worktree still tracks it as unmerged. Check with `wt list` first.
+- Do not attempt to delete a branch while a worktree is still attached — always go through `wt remove`.
+
+### Pre-flight checks
+
+- Always check `git status` before any operation that modifies history (rebase, merge, reset).
+- Verify the remote URL: `git remote -v` should show `misiekhardcore/feature-forge` before fetching or pushing.
+- Before invoking `wt list`, pipe output through `grep -E '<pattern>'` to extract only the relevant row — the full list can be very long.
+
+### Command execution
+
+- Chain destructive or sequential commands with `&&` in a single call to avoid partial execution on interruption, e.g., `prettier --write . && npm run check`.
+- Run the smallest, most targeted command first: `wt list | grep <branch>` instead of unfiltered `wt list`; `grep <pattern>` instead of grepping the full repo when scope is known.
+- Before pushing, verify the commit content: `git diff HEAD~1 --stat` to confirm only expected files changed.
+- Cache or reuse API responses where possible — a single `gh pr view <n> --json baseRefName,headRefName` covers both branch names in one call.
+
+### PR creation
+
+- Use `--body-file -` with a heredoc `<<'ENDOFBODY'` for multi-line PR bodies (single-quote the delimiter to prevent shell variable expansion).
+- Use single quotes for `--title` values to reduce escaping complexity when the title contains special characters like parentheses.
+- Verify the final PR body is correct before running the command — shell escaping issues are easy to miss.
+
+### Testing
+
+- Before writing test assertions for event payloads, cross-reference the expected keys against the actual implementation file (e.g., `CleanupStepExecutor.ts`) — not assumptions or issue descriptions.
+- When changing a method's type signature (e.g., `unknown` to a strict type), grep for all test call sites first and update them with explicit type assertions.
+- Run `npx vitest run <specific-test-file>` on changed test files before running the full suite to catch type errors immediately.
+
 ## Tips
 
 - When moving test files, update all relative import paths manually — there is no automatic refactoring.
 - `vi.mock` + `vi.hoisted` pattern: `vi.hoisted()` sets up mock state before `vi.mock()` factory runs (avoids TDZ). Mock constructors must be plain `function`, not arrow functions.
 - Use `MockAgent` + `makeMockFactory` for supervisor/command tests to avoid RpcClient dependency.
+- Update the self-learning memory (`.pi/self-learning-memory/`) when you discover a new repeating pattern or avoid a mistake — future sessions benefit from historical context.
