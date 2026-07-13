@@ -216,6 +216,45 @@ describe("RoutineExecutor", () => {
       expect(result.summary).toContain("failed");
       expect(result.summary).toContain("step f1 failed intentionally");
     });
+    it("returns a failure result when a step result has parsed.passed=false", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+            ): Promise<FlowContext> {
+              return context.withResult(instruction.id, {
+                raw: "failed result",
+                parsed: { passed: false, summary: "agent failed" },
+              });
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "step-fail-flow",
+        command: "/step-fail",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "agent", id: "a1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(false);
+      expect(result.summary).toContain("step result(s) not passed");
+      expect(result.results["a1"].parsed?.passed).toBe(false);
+    });
 
     it("throws for an unknown routine name", async () => {
       const registry = new StepExecutorRegistry();
