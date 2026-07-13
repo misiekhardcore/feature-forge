@@ -167,7 +167,7 @@ export class RoutineExecutor {
       routine: routineName,
       passed,
       session: context.store.toObject(),
-      rounds: context.iteration + 1,
+      rounds: context.iteration,
       workspace,
       results,
       summary,

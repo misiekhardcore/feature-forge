@@ -185,6 +185,41 @@ describe("ProgressRenderer", () => {
       expect(ProgressRenderer.buildResultSuffix(details)).toBe("workspace released");
     });
 
+    it("shows cleanup summary for destroy_workspace-style result (rounds > 0 regression guard)", () => {
+      // Regression: PR #115 added cleanup summary at step 6, but rounds was
+      // always ≥1 in production (RoutineExecutor context.iteration + 1 bug)
+      // so the cleanup path was unreachable for non-loop routines.
+      const details: RoutineResult = {
+        routine: "destroy_workspace",
+        passed: true,
+        rounds: 0,
+        results: {
+          cleanup: {
+            raw: "",
+            parsed: { passed: true, summary: "Cleanup completed: 1 workspace(s)" },
+          },
+        },
+        summary: "done",
+        session: {},
+      };
+      expect(ProgressRenderer.buildResultSuffix(details)).toBe("Cleanup completed: 1 workspace(s)");
+    });
+
+    it("shows workspace path for create_workspace-style result (rounds > 0 regression guard)", () => {
+      // Regression: rounds was always ≥1, masking workspace display for
+      // non-loop routines like create_workspace.
+      const details: RoutineResult = {
+        routine: "create_workspace",
+        passed: true,
+        rounds: 0,
+        results: {},
+        summary: "done",
+        session: {},
+        workspace: "/tmp/forge-ws",
+      };
+      expect(ProgressRenderer.buildResultSuffix(details)).toBe("ws: forge-ws");
+    });
+
     it("falls through cleanup when parsed is missing", () => {
       const details: RoutineResult = {
         routine: "test",
