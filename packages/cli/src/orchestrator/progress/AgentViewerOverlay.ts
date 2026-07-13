@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -144,6 +144,22 @@ export class AgentViewerOverlay implements Component {
   private agentEvents = new Map<string, AgentEvent[]>();
 
   /**
+   * Tracks the total count of events pushed per agent (including evicted ones,
+   * so callers can know whether any events were evicted from the in-memory buffer).
+   */
+  private totalEventCount = new Map<string, number>();
+
+  /**
+   * Temporary cache for events loaded from disk when the in-memory buffer
+   * doesn't cover the full conversation. Cleared on {@link clearMemory} and
+   * {@link dispose}.
+   */
+  private renderBuffer = new Map<string, AgentEvent[]>();
+
+  /** Maximum raw stream events retained per agent before FIFO eviction. */
+  static readonly STREAM_EVENT_BUFFER_MAX = 200;
+
+  /**
    * @param params — Configuration object with tui, theme, onDone, cwd, and markdownTheme.
    */
   constructor(params: AgentViewerOverlayParams) {
@@ -240,6 +256,7 @@ export class AgentViewerOverlay implements Component {
    */
   clearMemory(): void {
     this.agents.clear();
+    this.renderBuffer.clear();
     this.viewMode = "list";
     this.selectedIndex = 0;
     this.selectedAgentId = undefined;
@@ -257,7 +274,12 @@ export class AgentViewerOverlay implements Component {
    *
    * Formats the event into a human-readable line (kept in memory as the
    * most recent stream line) and, when {@link streamDir} is
-   * configured, appends it to a per-agent log file on disk.
+   * configured, appends a filtered human-readable line to a per-agent
+   * {@code .stream} log file on disk and ALL raw events to an
+   * {@code .events.jsonl} file.
+   *
+   * The in-memory event buffer is capped at {@link STREAM_EVENT_BUFFER_MAX}
+   * entries per agent; oldest events are evicted first (FIFO).
    */
   pushStreamEvent(agentId: string, event: AgentEvent): void {
     if (!this.agents.has(agentId)) {
@@ -266,6 +288,15 @@ export class AgentViewerOverlay implements Component {
 
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
+
+    // Track total events pushed per agent (including evicted ones) so
+    // callers know whether the in-memory window has gaps.
+    const currentTotal = this.totalEventCount.get(agentId) ?? 0;
+    this.totalEventCount.set(agentId, currentTotal + 1);
+
+    // Invalidate the render buffer when new events arrive, since the
+    // cached disk snapshot would be stale.
+    this.renderBuffer.delete(agentId);
 
     // Skip noisy events from the stream file:
     // - message_update: tiny incremental deltas; full text arrives as message_end
@@ -276,22 +307,45 @@ export class AgentViewerOverlay implements Component {
       event.type !== "turn_start" &&
       event.type !== "turn_end" &&
       !(event.type === "message_end" && line === "message_end");
-    if (this.streamDir && shouldWrite) {
+    if (this.streamDir) {
+      // Create the stream directory once before writing any file.
       try {
         mkdirSync(this.streamDir, { recursive: true });
-        const filePath = this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
-        if (!this.streamFiles.has(agentId)) {
-          this.streamFiles.set(agentId, filePath);
-        }
-        appendFileSync(filePath, `${line}\n`, "utf-8");
       } catch {
-        // Silently ignore filesystem errors — the in-memory line is sufficient.
+        // Silently ignore filesystem errors.
+      }
+
+      if (shouldWrite) {
+        try {
+          const filePath =
+            this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
+          if (!this.streamFiles.has(agentId)) {
+            this.streamFiles.set(agentId, filePath);
+          }
+          appendFileSync(filePath, `${line}\n`, "utf-8");
+        } catch {
+          // Silently ignore filesystem errors — the in-memory line is sufficient.
+        }
+      }
+
+      // Write ALL raw events as JSONL (unfiltered) for machine consumption.
+      try {
+        const eventsFilePath = join(this.streamDir, `${agentId}.events.jsonl`);
+        appendFileSync(eventsFilePath, `${JSON.stringify(event)}\n`, "utf-8");
+      } catch {
+        // Silently ignore filesystem errors.
       }
     }
 
     // Append the raw event to the in-memory buffer.
     const events = this.agentEvents.get(agentId) ?? [];
     events.push(event);
+
+    // Enforce sliding window buffer limit — evict oldest events from the front.
+    if (events.length > AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX) {
+      events.splice(0, events.length - AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+    }
+
     this.agentEvents.set(agentId, events);
 
     // Auto-scroll to the bottom when in detail view with autoScroll enabled.
@@ -303,10 +357,87 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Return the raw stream events for an agent, in insertion order.
+   * Return the raw stream events from the in-memory buffer for an agent,
+   * in insertion order. The buffer holds at most
+   * {@link STREAM_EVENT_BUFFER_MAX} events; older events are evicted to
+   * a persistent `.events.jsonl` file on disk.
+   *
+   * For the full conversation (including events evicted from memory),
+   * use {@link getAllEventsForConversation}, which transparently loads
+   * from disk when needed.
    */
   getConversation(agentId: string): AgentEvent[] {
     return this.agentEvents.get(agentId) ?? [];
+  }
+
+  /**
+   * Load a range of raw events from the `.events.jsonl` file on disk.
+   *
+   * Returns an empty array when the file is missing, unreadable,
+   * or when the requested range is empty.
+   *
+   * @param agentId — Agent identifier whose events to load.
+   * @param fromIndex — Start index (inclusive, 0-based).
+   * @param toIndex — End index (exclusive).
+   */
+  loadConversationEvents(agentId: string, fromIndex: number, toIndex: number): AgentEvent[] {
+    if (!this.streamDir) return [];
+    if (fromIndex >= toIndex || fromIndex < 0) return [];
+
+    const eventsFilePath = join(this.streamDir, `${agentId}.events.jsonl`);
+    try {
+      const content = readFileSync(eventsFilePath, "utf-8");
+      const lines = content.trim().split("\n");
+      // If the file is empty (single empty line after trim → [""]), return [].
+      if (lines.length === 1 && lines[0] === "") return [];
+      const slice = lines.slice(fromIndex, toIndex);
+      const parsed: AgentEvent[] = [];
+      for (const line of slice) {
+        try {
+          parsed.push(JSON.parse(line) as AgentEvent);
+        } catch {
+          // Skip malformed lines.
+        }
+      }
+      return parsed;
+    } catch {
+      // File missing or inaccessible — return empty.
+      return [];
+    }
+  }
+
+  /**
+   * Return the full set of conversation events for an agent, combining
+   * the in-memory buffer (most recent events) with older events loaded
+   * from the `.events.jsonl` file on disk.
+   *
+   * When all events fit in memory (no eviction has occurred), returns
+   * the in-memory buffer directly. Otherwise, loads from disk and
+   * caches the result in a temporary render buffer (cleared on
+   * {@link clearMemory} and {@link dispose}).
+   *
+   * Used internally by the conversation render methods to ensure the
+   * detail view shows the full conversation even when the user scrolls
+   * past the in-memory window.
+   */
+  private getAllEventsForConversation(agentId: string): AgentEvent[] {
+    const totalCount = this.totalEventCount.get(agentId) ?? 0;
+    const memoryEvents = this.agentEvents.get(agentId) ?? [];
+    const memoryStartIndex = totalCount - memoryEvents.length;
+
+    // All events fit in memory — no need to read from disk.
+    if (memoryStartIndex === 0 || totalCount === 0) {
+      return memoryEvents;
+    }
+
+    // Check the render buffer cache.
+    const cached = this.renderBuffer.get(agentId);
+    if (cached) return cached;
+
+    // Load everything from disk into the render buffer.
+    const loaded = this.loadConversationEvents(agentId, 0, totalCount);
+    this.renderBuffer.set(agentId, loaded);
+    return loaded;
   }
 
   /**
@@ -375,6 +506,8 @@ export class AgentViewerOverlay implements Component {
     this.streamFiles.clear();
     this.lastLines.clear();
     this.agentEvents.clear();
+    this.renderBuffer.clear();
+    this.totalEventCount.clear();
     this.clearMemory();
   }
 
@@ -604,7 +737,7 @@ export class AgentViewerOverlay implements Component {
    */
   private renderConversation(agentId: string, width: number): string[] {
     const { theme } = this;
-    const events = this.getConversation(agentId);
+    const events = this.getAllEventsForConversation(agentId);
     const lines: string[] = [];
 
     lines.push(theme.fg("accent", "Conversation:"));
@@ -630,7 +763,7 @@ export class AgentViewerOverlay implements Component {
    * maximum valid scroll offset.
    */
   private renderConversationContent(agentId: string, width: number): string[] {
-    const events = this.getConversation(agentId);
+    const events = this.getAllEventsForConversation(agentId);
     if (events.length === 0) return [];
     return this.renderConversationTurns(events, width);
   }

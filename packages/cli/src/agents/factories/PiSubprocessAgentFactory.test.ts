@@ -9,7 +9,6 @@ const rpcMock = vi.hoisted(() => {
       stop: vi.fn().mockResolvedValue(undefined),
       prompt: vi.fn().mockResolvedValue(undefined),
       onEvent: vi.fn().mockReturnValue(vi.fn()),
-      collectEvents: vi.fn().mockResolvedValue([]),
     };
   }
   reset();

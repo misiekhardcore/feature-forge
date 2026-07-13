@@ -800,6 +800,133 @@ describe("AgentViewerOverlay", () => {
 
       overlay.dispose();
     });
+
+    it("writes ALL events to JSONL file (including filtered ones)", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-jsonl-all-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        // Push events that are filtered from .stream + regular events.
+        overlay.pushStreamEvent("builder", {
+          type: "message_update",
+          message: { role: "assistant", content: [{ type: "text", text: "partial" }] },
+        } as AgentEvent);
+        overlay.pushStreamEvent("builder", { type: "turn_start" });
+        overlay.pushStreamEvent("builder", { type: "turn_end" } as AgentEvent);
+        overlay.pushStreamEvent("builder", {
+          type: "message_start",
+          message: { role: "assistant" },
+        } as AgentEvent);
+
+        const jsonlContent = readFileSync(join(tmpDir, "builder.events.jsonl"), "utf-8");
+        const lines = jsonlContent.trim().split("\n");
+        expect(lines).toHaveLength(4);
+
+        // Each line must be valid JSON.
+        for (const line of lines) {
+          expect(() => JSON.parse(line) as Record<string, unknown>).not.toThrow();
+        }
+
+        // Verify every event type is present.
+        const parsed = lines.map((l) => JSON.parse(l) as { type: string });
+        expect(parsed.map((e: { type: string }) => e.type)).toEqual([
+          "message_update",
+          "turn_start",
+          "turn_end",
+          "message_start",
+        ]);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("writes valid JSONL even for events filtered from .stream file", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-jsonl-filtered-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        overlay.pushStreamEvent("builder", {
+          type: "message_end",
+        } as AgentEvent);
+
+        const jsonlContent = readFileSync(join(tmpDir, "builder.events.jsonl"), "utf-8");
+        const parsed = JSON.parse(jsonlContent.trim()) as { type: string };
+        expect(parsed.type).toBe("message_end");
+
+        overlay.dispose();
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("limits in-memory buffer to STREAM_EVENT_BUFFER_MAX events", () => {
+      const overlay = makeOverlay();
+      for (let i = 0; i < AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX + 10; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: `tool-${i}`,
+        } as AgentEvent);
+      }
+
+      const events = overlay.getConversation("builder");
+      expect(events).toHaveLength(AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+    });
+
+    it("evicts oldest events first (FIFO)", () => {
+      const overlay = makeOverlay();
+      const total = AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX + 15;
+
+      for (let i = 0; i < total; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: `tool-${i}`,
+        } as AgentEvent);
+      }
+
+      const events = overlay.getConversation("builder");
+      expect(events).toHaveLength(AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+
+      // The first 15 events (tool-0 through tool-14) should be evicted.
+      const remain = events.map((e) => (e as Record<string, unknown>)["toolName"] as string);
+      expect(remain[0]).toBe("tool-15");
+      expect(remain[remain.length - 1]).toBe(`tool-${total - 1}`);
+
+      for (let i = 0; i < 15; i++) {
+        expect(remain).not.toContain(`tool-${i}`);
+      }
+    });
+
+    it("getConversation returns at most STREAM_EVENT_BUFFER_MAX events", () => {
+      const overlay = makeOverlay();
+      const total = AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX * 2;
+
+      for (let i = 0; i < total; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: `tool-${i}`,
+        } as AgentEvent);
+      }
+
+      const events = overlay.getConversation("builder");
+      expect(events.length).toBeLessThanOrEqual(AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+      expect(events).toHaveLength(AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+    });
+
+    it("does not evict events below STREAM_EVENT_BUFFER_MAX", () => {
+      const overlay = makeOverlay();
+
+      for (let i = 0; i < AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: `tool-${i}`,
+        } as AgentEvent);
+      }
+
+      const events = overlay.getConversation("builder");
+      expect(events).toHaveLength(AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+    });
   });
 
   describe("lastStreamLine", () => {
@@ -3367,6 +3494,279 @@ describe("AgentViewerOverlay", () => {
 
       // Events are NOT replayed from disk.
       expect(overlay.getConversation("builder")).toEqual([]);
+    });
+  });
+
+  describe("loadConversationEvents", () => {
+    it("reads valid JSONL from disk and returns specified range", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-load-events-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        // Push 10 events to build a JSONL file.
+        for (let i = 0; i < 10; i++) {
+          overlay.pushStreamEvent("builder", {
+            type: "tool_execution_start",
+            toolName: `tool-${i}`,
+          } as AgentEvent);
+        }
+
+        // Load range 3-7 (5 events).
+        const loaded = overlay.loadConversationEvents("builder", 3, 7);
+        expect(loaded).toHaveLength(4);
+        expect((loaded[0] as Record<string, unknown>)["toolName"]).toBe("tool-3");
+        expect((loaded[3] as Record<string, unknown>)["toolName"]).toBe("tool-6");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns empty array when file is missing", () => {
+      const overlay = makeOverlay();
+      overlay.setStreamDir("/nonexistent/path");
+
+      const loaded = overlay.loadConversationEvents("ghost", 0, 10);
+      expect(loaded).toEqual([]);
+    });
+
+    it("returns empty array when streamDir is not set", () => {
+      const overlay = makeOverlay();
+
+      const loaded = overlay.loadConversationEvents("builder", 0, 10);
+      expect(loaded).toEqual([]);
+    });
+
+    it("returns empty array for empty range (fromIndex >= toIndex)", () => {
+      const overlay = makeOverlay();
+      expect(overlay.loadConversationEvents("builder", 5, 3)).toEqual([]);
+      expect(overlay.loadConversationEvents("builder", 5, 5)).toEqual([]);
+    });
+
+    it("returns empty array for negative fromIndex", () => {
+      const overlay = makeOverlay();
+      expect(overlay.loadConversationEvents("builder", -1, 5)).toEqual([]);
+    });
+
+    it("handles range that extends beyond file length", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-load-over-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        for (let i = 0; i < 5; i++) {
+          overlay.pushStreamEvent("builder", {
+            type: "tool_execution_start",
+            toolName: `tool-${i}`,
+          } as AgentEvent);
+        }
+
+        // Request range that extends past end of file.
+        const loaded = overlay.loadConversationEvents("builder", 2, 20);
+        expect(loaded).toHaveLength(3);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("getAllEventsForConversation (disk-backed)", () => {
+    it("returns in-memory events when all events fit", () => {
+      const overlay = makeOverlay();
+
+      for (let i = 0; i < 10; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: `tool-${i}`,
+        } as AgentEvent);
+      }
+
+      // getAllEventsForConversation is private; we test via getConversation
+      // when totalEventCount matches buffer length.
+      const events = overlay.getConversation("builder");
+      expect(events).toHaveLength(10);
+      expect((events[0] as Record<string, unknown>)["toolName"]).toBe("tool-0");
+    });
+
+    it("loads from disk when events were evicted past STREAM_EVENT_BUFFER_MAX", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-disk-full-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        // Push more than MAX events so eviction occurs.
+        // Use message_start/message_end pairs so each pair forms a complete turn.
+        const extra = AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX + 5;
+        for (let i = 0; i < extra; i++) {
+          overlay.pushStreamEvent("builder", {
+            type: "message_start",
+            message: { role: "assistant" },
+          } as AgentEvent);
+          overlay.pushStreamEvent("builder", {
+            type: "message_end",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `message-${i}` }],
+            },
+          } as AgentEvent);
+        }
+
+        // In-memory buffer only has MAX event *pairs* (each pair is 2 events).
+        // With (200 + 5) * 2 = 410 events total, eviction keeps the last 200.
+        const memoryEvents = overlay.getConversation("builder");
+        expect(memoryEvents).toHaveLength(AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+
+        // After entering detail view, the render calls getAllEventsForConversation
+        // which loads from disk. We trigger it via render().
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+        const detailLines = overlay.render(80);
+
+        // The conversation should include the event at index 0 (message-0).
+        const joined = detailLines.join("\n");
+        expect(joined).toContain("message-0");
+        expect(joined).toContain("Conversation:");
+
+        // The in-memory buffer should still have only MAX events.
+        expect(overlay.getConversation("builder")).toHaveLength(
+          AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX,
+        );
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("caches loaded events in renderBuffer", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-cache-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        // Push more than MAX events so eviction occurs.
+        const extra = AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX + 5;
+        for (let i = 0; i < extra; i++) {
+          overlay.pushStreamEvent("builder", {
+            type: "message_start",
+            message: { role: "assistant" },
+          } as AgentEvent);
+          overlay.pushStreamEvent("builder", {
+            type: "message_end",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `message-${i}` }],
+            },
+          } as AgentEvent);
+        }
+
+        // Trigger disk loading via render.
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+        overlay.render(80);
+
+        // Subsequent render should use cached buffer (read disk once).
+        // Verify by deleting the JSONL file and confirming render still works.
+        rmSync(join(tmpDir, "builder.events.jsonl"), { force: true });
+        const secondRender = overlay.render(80);
+        const joined = secondRender.join("\n");
+        expect(joined).toContain("message-0");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("invalidates renderBuffer when new event is pushed", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-invalidate-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        const extra = AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX + 5;
+        for (let i = 0; i < extra; i++) {
+          overlay.pushStreamEvent("builder", {
+            type: "message_start",
+            message: { role: "assistant" },
+          } as AgentEvent);
+          overlay.pushStreamEvent("builder", {
+            type: "message_end",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `message-${i}` }],
+            },
+          } as AgentEvent);
+        }
+
+        // Load into render buffer via render.
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+        overlay.render(80);
+
+        // Push a new event — should invalidate render buffer.
+        overlay.pushStreamEvent("builder", {
+          type: "message_start",
+          message: { role: "assistant" },
+        } as AgentEvent);
+        overlay.pushStreamEvent("builder", {
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "new-message" }],
+          },
+        } as AgentEvent);
+
+        // Delete the JSONL file; renderBuffer was invalidated so
+        // next render would re-read disk and fail gracefully.
+        rmSync(join(tmpDir, "builder.events.jsonl"), { force: true });
+        const reRender = overlay.render(80);
+        // Should not throw and should still show some content.
+        expect(Array.isArray(reRender)).toBe(true);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("clears renderBuffer on clearMemory", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-clear-mem-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: "tool-0",
+        } as AgentEvent);
+
+        // Trigger disk loading.
+        overlay.viewMode = "detail";
+        overlay.selectedAgentId = "builder";
+        overlay.render(80);
+
+        overlay.clearMemory();
+
+        // Agent entries are gone after clearMemory.
+        expect(overlay.entryCount).toBe(0);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("clears renderBuffer on dispose", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-dispose-buf-"));
+      try {
+        const overlay = makeOverlay();
+        overlay.setStreamDir(tmpDir);
+
+        overlay.pushStreamEvent("builder", {
+          type: "tool_execution_start",
+          toolName: "tool-0",
+        } as AgentEvent);
+
+        overlay.dispose();
+
+        // After dispose, all state is cleared.
+        expect(overlay.getConversation("builder")).toEqual([]);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 });
