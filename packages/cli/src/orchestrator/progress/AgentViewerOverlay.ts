@@ -625,120 +625,91 @@ export class AgentViewerOverlay implements Component {
     const lines: string[] = [];
     let toolCallIndex = 0;
 
-    // In-progress state for grouping start/end event pairs.
-    let pendingMessage: { role: string; message: AgentMessage; text: string } | undefined;
-    let pendingTool:
-      | {
-          toolName: string;
-          toolArgs?: string;
-          toolStatus: "running" | "ok" | "error";
-          toolResult: string;
-        }
+    // In-progress state.  Uses pi's own types — no custom wrappers.
+    let pendingMessage: AgentMessage | undefined;
+    let pendingToolStart:
+      | Extract<AgentEvent, { type: "tool_execution_start" }>
       | undefined;
+    let pendingToolResult: { text: string; isError: boolean } | undefined;
 
     const flushMessage = (): void => {
-      if (pendingMessage && pendingMessage.text.length > 0) {
-        const innerWidth = Math.max(10, width - 4);
-        if (pendingMessage.role === "user") {
-          const component = new UserMessageComponent(pendingMessage.text, this.markdownTheme);
-          const rendered = component.render(innerWidth);
-          for (const line of rendered) {
-            lines.push(`  ${line}`);
-          }
-        } else {
-          // Pass the real message object so AssistantMessageComponent can render
-          // thinking blocks, tool calls, code blocks, and markdown.
-          const component = new AssistantMessageComponent(
-            pendingMessage.message as AssistantMessage,
-            false,
-            this.markdownTheme,
-          );
-          const rendered = component.render(innerWidth);
-          for (const line of rendered) {
-            lines.push(`  ${line}`);
-          }
+      if (!pendingMessage) return;
+      const innerWidth = Math.max(10, width - 4);
+
+      if (pendingMessage.role === "user") {
+        const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
+        if (text.length > 0) {
+          const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
+          for (const line of rendered) lines.push(`  ${line}`);
         }
+      } else {
+        // AssistantMessageComponent renders thinking blocks, tool calls, and markdown
+        // directly from the real AgentMessage object — no text extraction needed.
+        const rendered = new AssistantMessageComponent(
+          pendingMessage as AssistantMessage,
+          false,
+          this.markdownTheme,
+        ).render(innerWidth);
+        for (const line of rendered) lines.push(`  ${line}`);
       }
       pendingMessage = undefined;
     };
 
     const flushTool = (): void => {
-      if (pendingTool) {
-        toolCallIndex++;
-        const innerWidth = Math.max(10, width - 4);
-        const component = new ToolExecutionComponent(
-          pendingTool.toolName,
-          `tool-${toolCallIndex}`,
-          pendingTool.toolArgs || {},
-          undefined,
-          undefined,
-          this.tui,
-          this.cwd,
+      if (!pendingToolStart) return;
+      toolCallIndex++;
+      const innerWidth = Math.max(10, width - 4);
+      const component = new ToolExecutionComponent(
+        pendingToolStart.toolName,
+        `tool-${toolCallIndex}`,
+        pendingToolStart.args,
+        undefined,
+        undefined,
+        this.tui,
+        this.cwd,
+      );
+      if (pendingToolResult) {
+        component.updateResult(
+          {
+            content: [{ type: "text", text: pendingToolResult.text }],
+            isError: pendingToolResult.isError,
+          },
+          false,
         );
-        if (pendingTool.toolStatus !== "running") {
-          component.updateResult(
-            {
-              content: [{ type: "text", text: pendingTool.toolResult }],
-              isError: pendingTool.toolStatus === "error",
-            },
-            false,
-          );
-          component.setExpanded(true);
-        }
-        const rendered = component.render(innerWidth);
-        for (const line of rendered) {
-          lines.push(`  ${line}`);
-        }
+        component.setExpanded(true);
       }
-      pendingTool = undefined;
+      const rendered = component.render(innerWidth);
+      for (const line of rendered) lines.push(`  ${line}`);
+      pendingToolStart = undefined;
+      pendingToolResult = undefined;
     };
 
+    // Dispatch on AgentEvent.type — TypeScript discriminates the union.
     for (const event of events) {
       if (event.type === "message_start") {
         flushTool();
-        const typed = event as Record<string, unknown>;
-        const msg = typeof typed["message"] === "object" && typed["message"] !== null ? typed["message"] : null;
-        const role =
-          typeof msg === "object" &&
-          msg !== null &&
-          typeof (msg as Record<string, unknown>)["role"] === "string"
-            ? ((msg as Record<string, unknown>)["role"] as string)
-            : "unknown";
-        pendingMessage = { role, message: (msg as AgentMessage | null) ?? ({} as AgentMessage), text: "" };
-      } else if (event.type === "message_update" || event.type === "message_end") {
-        const typed = event as Record<string, unknown>;
-        if (pendingMessage) {
-          // Store the real message object for rich rendering, and extract text for UserMessageComponent.
-          pendingMessage.message = typed["message"] as AgentMessage;
-          pendingMessage.text = AgentDisplayHelpers.extractMessageText(typed["message"]);
-        }
-        if (event.type === "message_end") {
-          flushMessage();
-        }
+        pendingMessage = event.message;
+      } else if (event.type === "message_update") {
+        if (pendingMessage) pendingMessage = event.message;
+      } else if (event.type === "message_end") {
+        if (pendingMessage) pendingMessage = event.message;
+        flushMessage();
       } else if (event.type === "tool_execution_start") {
         flushMessage();
-        const typed = event as Record<string, unknown>;
-        const toolName = typeof typed["toolName"] === "string" ? typed["toolName"] : "unknown";
-        const args =
-          "args" in typed && typed["args"] !== undefined
-            ? AgentDisplayHelpers.serializeToolArgs(typed["args"])
-            : undefined;
-        pendingTool = { toolName, toolArgs: args, toolStatus: "running", toolResult: "" };
+        pendingToolStart = event;
+        pendingToolResult = undefined;
       } else if (event.type === "tool_execution_update") {
-        if (pendingTool) {
-          const typed = event as Record<string, unknown>;
-          if (typeof typed["partialResult"] === "string") {
-            pendingTool.toolResult += typed["partialResult"];
-          }
+        if (pendingToolStart) {
+          pendingToolResult = {
+            text: (pendingToolResult?.text ?? "") + String(event.partialResult ?? ""),
+            isError: false,
+          };
         }
       } else if (event.type === "tool_execution_end") {
-        if (pendingTool) {
-          const typed = event as Record<string, unknown>;
-          pendingTool.toolStatus = typed["isError"] === true ? "error" : "ok";
-          if (typeof typed["result"] === "string") {
-            pendingTool.toolResult = typed["result"];
-          }
-        }
+        pendingToolResult = {
+          text: String(event.result ?? ""),
+          isError: event.isError,
+        };
         flushTool();
       }
     }
