@@ -18,14 +18,14 @@ Or use the combined script: `npm run check` (lint → format → test — does N
 
 ### Known failures / exemptions
 
-- **AgentFactory.ts line 27** (`cause?: Error` parameter): The `cause instanceof Error ? cause : undefined` ternary has an unreachable `undefined` branch. PiSubprocessAgent converts non-Errors to Errors before rethrowing, so the ternary always evaluates to `cause`. This is dead code — do not add coverage-only tests for it.
+- **`cause instanceof Error` ternary**: Several files use `cause instanceof Error ? cause : undefined` — the `undefined` branch is unreachable because error causes are always normalized to `Error` instances before propagation. This is intentional defensive code — do not add coverage-only tests for it.
 
 ## Coverage
 
 - Thresholds: 90% lines, statements, functions, branches.
-- Test files are co-located next to source files (`src/**/*.test.ts`).
-- `src/test-utils.ts` is excluded from coverage (test infrastructure).
-- `src/index.ts` and `src/**/index.ts` (barrel files) are excluded from coverage.
+- Test files are co-located next to source files (`packages/*/src/**/*.test.ts`).
+- `packages/*/src/test-utils.ts` is excluded from coverage (test infrastructure).
+- `packages/*/src/index.ts` and `packages/*/src/**/index.ts` (barrel files) are excluded from coverage.
 - Coverage is a quality signal, not a goal. Prefer behaviour-oriented tests; never write tests solely to execute lines.
 
 ## Architecture
@@ -72,20 +72,39 @@ Service locator, global mutable state, singleton business logic, circular depend
 ## Project structure
 
 ```
-src/
-├── agents/
-│   ├── agents/           # Agent implementations (PiSubprocessAgent)
-│   ├── base/             # Base types (AgentIdentifier, AgentStatus)
-│   ├── factories/        # Agent factories
-│   ├── policies/         # Governance policies
-│   ├── specifications/   # Agent specifications
-│   └── supervisors/      # Agent supervisors
-├── commands/             # CLI commands (ResearchCommand, etc.)
-├── registry/             # Registry, CommandRegistry, ToolRegistry
-├── tools/                # Tool definitions
-├── index.ts              # Pi extension entry point
-└── test-utils.ts         # Shared test helpers
+packages/
+├── cli/                  # @feature-forge/cli — pi extension entry point
+│   └── src/
+│       ├── agents/       # Agent implementations (PiSubprocessAgent)
+│       ├── commands/     # CLI commands (ResearchCommand, etc.)
+│       ├── extensions/   # Pi extension integration
+│       ├── flows/        # Flow JSON definitions
+│       ├── ipc/          # Inter-process communication (socket server/client)
+│       ├── loaders/      # Flow loaders
+│       ├── logging/      # Logging infrastructure
+│       ├── orchestrator/ # Step executors, registry, event bus
+│       ├── registry/     # Registry, CommandRegistry, ToolRegistry
+│       ├── tools/        # Tool definitions
+│       ├── workspace/    # Workspace management
+│       ├── index.ts      # Pi extension entry point
+│       └── test-utils.ts # Shared test helpers
+├── shared/               # @feature-forge/shared — shared abstractions
+│   └── src/
+│       ├── agents/       # Shared agent types and specs
+│       ├── helpers/      # Shared helpers
+│       ├── registry/     # Shared registry abstractions
+│       ├── tools/        # Shared tool definitions
+│       └── index.ts      # Barrel export
+├── eslint-config/        # @feature-forge/eslint-config — shared ESLint config
+└── web/                  # @feature-forge/web — web UI package
 ```
+
+## Packages
+
+- **`@feature-forge/cli`** — the main pi extension. Contains all orchestrator logic, step executors, IPC, and the agent lifecycle. Entry point for pi extension registration.
+- **`@feature-forge/shared`** — shared base types and abstractions used across packages. Depended on by `@feature-forge/cli`.
+- **`@feature-forge/eslint-config`** — shared ESLint configuration consumed by sibling packages.
+- **`@feature-forge/web`** — web UI package (TBD).
 
 ## Coding conventions
 
