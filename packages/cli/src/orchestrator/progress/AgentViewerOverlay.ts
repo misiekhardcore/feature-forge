@@ -438,17 +438,39 @@ export class AgentViewerOverlay implements Component {
   // ── Private rendering ─────────────────────────────────────
 
   private addBorder(lines: string[], contentWidth: number): string[] {
-    const { theme } = this;
     const inner = Math.max(contentWidth - 2, 10);
-    const top = theme.fg("border", "┌" + "─".repeat(inner) + "┐");
-    const bot = theme.fg("border", "└" + "─".repeat(inner) + "┘");
-    const result: string[] = [top];
+    // Bright yellow ANSI: \x1b[93m, reset: \x1b[0m
+    const by = "\x1b[93m";
+    const rst = "\x1b[0m";
+
+    const top = by + "┌" + "─".repeat(inner) + "┐" + rst;
+    const bot = by + "└" + "─".repeat(inner) + "┘" + rst;
+    const leftBorder = by + "│" + rst;
+    const rightBorder = by + "│" + rst;
+
+    // Content area between left and right margin spaces.
+    const contentArea = Math.max(inner - 2, 0);
+
+    const result: string[] = [];
+
+    // Top border
+    result.push(top);
+
+    // 1-line top margin (blank line with borders + margin spaces)
+    result.push(leftBorder + " " + " ".repeat(contentArea) + " " + rightBorder);
+
     for (const raw of lines) {
       const visible = this.stripAnsi(raw);
-      const pad = visible.length < inner ? " ".repeat(inner - visible.length) : "";
-      result.push(theme.fg("border", "│") + raw + pad + theme.fg("border", "│"));
+      const pad = visible.length < contentArea ? " ".repeat(contentArea - visible.length) : "";
+      result.push(leftBorder + " " + raw + pad + " " + rightBorder);
     }
+
+    // 1-line bottom margin (blank line with borders + margin spaces)
+    result.push(leftBorder + " " + " ".repeat(contentArea) + " " + rightBorder);
+
+    // Bottom border
     result.push(bot);
+
     return result;
   }
 
@@ -463,7 +485,7 @@ export class AgentViewerOverlay implements Component {
 
     if (this.agents.size === 0) {
       lines.push(`  ${theme.fg("muted", "no agents running")}`);
-      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
       return this.addBorder(wrapped, width);
     }
 
@@ -514,7 +536,7 @@ export class AgentViewerOverlay implements Component {
       ),
     );
 
-    const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+    const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
   }
 
@@ -529,7 +551,7 @@ export class AgentViewerOverlay implements Component {
       lines.push(`  ${theme.fg("muted", "agent not found")}`);
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
-      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
       return this.addBorder(wrapped, width);
     }
 
@@ -576,7 +598,7 @@ export class AgentViewerOverlay implements Component {
     this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
     const visibleLines = lines.slice(this.scrollOffset);
 
-    const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
+    const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
   }
 

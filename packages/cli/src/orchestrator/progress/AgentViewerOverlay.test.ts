@@ -17,6 +17,12 @@ import { AgentViewerOverlay } from "./AgentViewerOverlay";
 
 // ── Helpers ──────────────────────────────────────────────────
 
+// Helper: strip ANSI escape codes from a line for assertion purposes.
+function stripAnsiForTest(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[\d+m/g, "");
+}
+
 beforeAll(() => {
   // pi components (UserMessageComponent, AssistantMessageComponent,
   // ToolExecutionComponent) depend on the pi runtime theme singleton.
@@ -312,6 +318,98 @@ describe("AgentViewerOverlay", () => {
 
       expect(lines).toBeInstanceOf(Array);
       // Should not throw.
+    });
+  });
+
+  describe("border rendering (addBorder)", () => {
+    it("produces top and bottom border lines with bright yellow ANSI codes", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const lines = overlay.render(60);
+      const joined = lines.join("\n");
+
+      // Top border: bright yellow ┌─...─┐
+      expect(joined).toContain("\u001b[93m");
+      expect(joined).toContain("\u001b[0m");
+      expect(joined).toMatch(/[┌└]/);
+    });
+
+    it("applies 1-column left margin — space after opening │", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const lines = overlay.render(60);
+      // Strip ANSI codes so the raw content between border chars is visible.
+      const cleanLines = lines.map(stripAnsiForTest);
+      const contentLine = cleanLines.find((l) => l.includes("▶") || l.includes("no agents"));
+      expect(contentLine).toBeDefined();
+      if (contentLine) {
+        const afterLeftBorder = contentLine.indexOf("│") + 1;
+        expect(contentLine[afterLeftBorder]).toBe(" ");
+      }
+    });
+
+    it("applies 1-column right margin — space before closing │", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const lines = overlay.render(60);
+      const cleanLines = lines.map(stripAnsiForTest);
+      const contentLine = cleanLines.find((l) => l.includes("▶") || l.includes("no agents"));
+      expect(contentLine).toBeDefined();
+      if (contentLine) {
+        const lastPipe = contentLine.lastIndexOf("│");
+        expect(contentLine[lastPipe - 1]).toBe(" ");
+      }
+    });
+
+    it("includes a blank margin line between top border and content", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const lines = overlay.render(60);
+      // Second line (index 1) should be the top margin blank line.
+      const marginLine = lines[1];
+      // It should have │ with only spaces between them (margin + padding).
+      const clean = stripAnsiForTest(marginLine);
+      expect(clean).toMatch(/^│ +│$/);
+    });
+
+    it("includes a blank margin line between content and bottom border", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      const lines = overlay.render(60);
+      // Second-to-last line should be the bottom margin blank line.
+      const marginLine = lines[lines.length - 2];
+      const clean = stripAnsiForTest(marginLine);
+      expect(clean).toMatch(/^│ +│$/);
+    });
+
+    it("renders correctly with zero width and does not throw", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+
+      expect(() => overlay.render(0)).not.toThrow();
+      const lines = overlay.render(0);
+      expect(lines).toBeInstanceOf(Array);
+    });
+
+    it("renders detail view with border margin structure", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("test-agent", "done", { summary: "Completed" }));
+
+      // Navigate to detail view.
+      overlay.handleInput("\r");
+
+      const lines = overlay.render(60);
+      const cleanLines = lines.map(stripAnsiForTest);
+      expect(cleanLines[0]).toContain("┌");
+      expect(cleanLines[cleanLines.length - 1]).toContain("└");
+      // Blank margin lines in detail view too.
+      expect(cleanLines[1]).toMatch(/^│ +│$/);
+      expect(cleanLines[cleanLines.length - 2]).toMatch(/^│ +│$/);
     });
   });
 
@@ -3309,6 +3407,35 @@ describe("AgentViewerOverlay", () => {
 
       // Events are NOT replayed from disk.
       expect(overlay.getConversation("builder")).toEqual([]);
+    });
+  });
+
+  describe("stripAnsi", () => {
+    it("strips \x1b[93m (bright yellow) escape codes", () => {
+      const overlay = makeOverlay();
+      const input = "\x1b[93mHello\x1b[0m";
+      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
+      expect(result).toBe("Hello");
+    });
+
+    it("strips multiple ANSI codes from the same string", () => {
+      const overlay = makeOverlay();
+      const input = "\x1b[93m┌──┐\x1b[0m\n\x1b[93m│Hi│\x1b[0m";
+      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
+      expect(result).toBe("┌──┐\n│Hi│");
+    });
+
+    it("leaves plain text without ANSI codes unchanged", () => {
+      const overlay = makeOverlay();
+      const input = "Just plain text \u2502 more text";
+      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
+      expect(result).toBe(input);
+    });
+
+    it("handles empty string", () => {
+      const overlay = makeOverlay();
+      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi("");
+      expect(result).toBe("");
     });
   });
 });
