@@ -438,15 +438,13 @@ export class AgentViewerOverlay implements Component {
   // ── Private rendering ─────────────────────────────────────
 
   private addBorder(lines: string[], contentWidth: number): string[] {
+    const { theme } = this;
     const inner = Math.max(contentWidth - 2, 10);
-    // Bright yellow ANSI: \x1b[93m, reset: \x1b[0m
-    const by = "\x1b[93m";
-    const rst = "\x1b[0m";
 
-    const top = by + "┌" + "─".repeat(inner) + "┐" + rst;
-    const bot = by + "└" + "─".repeat(inner) + "┘" + rst;
-    const leftBorder = by + "│" + rst;
-    const rightBorder = by + "│" + rst;
+    const top = theme.fg("warning", "┌" + "─".repeat(inner) + "┐");
+    const bot = theme.fg("warning", "└" + "─".repeat(inner) + "┘");
+    const leftBorder = theme.fg("warning", "│");
+    const rightBorder = theme.fg("warning", "│");
 
     // Content area between left and right margin spaces.
     const contentArea = Math.max(inner - 2, 0);

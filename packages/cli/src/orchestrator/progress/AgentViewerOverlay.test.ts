@@ -322,17 +322,15 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("border rendering (addBorder)", () => {
-    it("produces top and bottom border lines with bright yellow ANSI codes", () => {
-      const overlay = makeOverlay();
+    it("applies warning theme color to border characters", () => {
+      const theme = makeTheme();
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
 
-      const lines = overlay.render(60);
-      const joined = lines.join("\n");
+      overlay.render(60);
 
-      // Top border: bright yellow ┌─...─┐
-      expect(joined).toContain("\u001b[93m");
-      expect(joined).toContain("\u001b[0m");
-      expect(joined).toMatch(/[┌└]/);
+      // addBorder should call theme.fg with "warning" for border styling.
+      expect(theme.fg).toHaveBeenCalledWith("warning", expect.stringMatching(/^[┌└]/));
     });
 
     it("applies 1-column left margin — space after opening │", () => {
@@ -3411,7 +3409,7 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("stripAnsi", () => {
-    it("strips \x1b[93m (bright yellow) escape codes", () => {
+    it("strips foreground colour escape codes (e.g. \x1b[93m)", () => {
       const overlay = makeOverlay();
       const input = "\x1b[93mHello\x1b[0m";
       const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
