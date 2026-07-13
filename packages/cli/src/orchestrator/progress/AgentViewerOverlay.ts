@@ -105,15 +105,16 @@ export class AgentViewerOverlay implements Component {
   private readonly onDone: () => void;
 
   /**
-   * Reserved for Phase 3 — base directory for resolving relative paths
-   * when rendering markdown content or accessing workspace files.
+   * Base directory for resolving relative paths when rendering
+   * tool execution components (passed through to
+   * {@link ConversationRenderer}).
    */
   private readonly cwd: string;
 
   /**
-   * Reserved for Phase 3 — theme used when rendering markdown blocks
-   * within the conversation view, e.g. headings, code blocks, lists.
-   * Currently stored but not wired into rendering methods.
+   * Theme used when rendering markdown blocks within the conversation
+   * view — headings, code blocks, lists (passed through to
+   * {@link ConversationRenderer}).
    */
   private readonly markdownTheme: MarkdownTheme;
 
