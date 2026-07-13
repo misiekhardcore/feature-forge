@@ -7,25 +7,33 @@ Autonomous software engineering platform — idea-to-PR via structured discovery
 Run these in order. A change is not done until all pass cleanly.
 
 ```bash
-npm run lint          # eslint .
-npm run format        # prettier --check .
-npm run typecheck     # tsc --noEmit
+npm run lint          # turbo run lint
+npm run format        # turbo run format
+npm run typecheck     # turbo run typecheck
 npm run test          # vitest run
 npm test -- --coverage  # coverage with thresholds
 ```
 
 Or use the combined script: `npm run check` (lint → format → test — does NOT include typecheck or coverage).
 
+**Before pushing**, auto-fix formatting and lint issues:
+
+```bash
+npm run fix           # lint:fix + format:fix (turbo)
+```
+
+Then re-run validation to confirm nothing broke. **Never push without running `fix` first.**
+
 ### Known failures / exemptions
 
-- **AgentFactory.ts line 27** (`cause?: Error` parameter): The `cause instanceof Error ? cause : undefined` ternary has an unreachable `undefined` branch. PiSubprocessAgent converts non-Errors to Errors before rethrowing, so the ternary always evaluates to `cause`. This is dead code — do not add coverage-only tests for it.
+- **`cause instanceof Error` ternary**: Several files use `cause instanceof Error ? cause : undefined` — the `undefined` branch is unreachable because error causes are always normalized to `Error` instances before propagation. This is intentional defensive code — do not add coverage-only tests for it.
 
 ## Coverage
 
 - Thresholds: 90% lines, statements, functions, branches.
-- Test files are co-located next to source files (`src/**/*.test.ts`).
-- `src/test-utils.ts` is excluded from coverage (test infrastructure).
-- `src/index.ts` and `src/**/index.ts` (barrel files) are excluded from coverage.
+- Test files are co-located next to source files (`packages/*/src/**/*.test.ts`).
+- `packages/*/src/test-utils.ts` is excluded from coverage (test infrastructure).
+- `packages/*/src/index.ts` and `packages/*/src/**/index.ts` (barrel files) are excluded from coverage.
 - Coverage is a quality signal, not a goal. Prefer behaviour-oriented tests; never write tests solely to execute lines.
 
 ## Architecture
@@ -72,20 +80,39 @@ Service locator, global mutable state, singleton business logic, circular depend
 ## Project structure
 
 ```
-src/
-├── agents/
-│   ├── agents/           # Agent implementations (PiSubprocessAgent)
-│   ├── base/             # Base types (AgentIdentifier, AgentStatus)
-│   ├── factories/        # Agent factories
-│   ├── policies/         # Governance policies
-│   ├── specifications/   # Agent specifications
-│   └── supervisors/      # Agent supervisors
-├── commands/             # CLI commands (ResearchCommand, etc.)
-├── registry/             # Registry, CommandRegistry, ToolRegistry
-├── tools/                # Tool definitions
-├── index.ts              # Pi extension entry point
-└── test-utils.ts         # Shared test helpers
+packages/
+├── cli/                  # @feature-forge/cli — pi extension entry point
+│   └── src/
+│       ├── agents/       # Agent implementations (PiSubprocessAgent)
+│       ├── commands/     # CLI commands (ResearchCommand, etc.)
+│       ├── extensions/   # Pi extension integration
+│       ├── flows/        # Flow JSON definitions
+│       ├── ipc/          # Inter-process communication (socket server/client)
+│       ├── loaders/      # Flow loaders
+│       ├── logging/      # Logging infrastructure
+│       ├── orchestrator/ # Step executors, registry, event bus
+│       ├── registry/     # Registry, CommandRegistry, ToolRegistry
+│       ├── tools/        # Tool definitions
+│       ├── workspace/    # Workspace management
+│       ├── index.ts      # Pi extension entry point
+│       └── test-utils.ts # Shared test helpers
+├── shared/               # @feature-forge/shared — shared abstractions
+│   └── src/
+│       ├── agents/       # Shared agent types and specs
+│       ├── helpers/      # Shared helpers
+│       ├── registry/     # Shared registry abstractions
+│       ├── tools/        # Shared tool definitions
+│       └── index.ts      # Barrel export
+├── eslint-config/        # @feature-forge/eslint-config — shared ESLint config
+└── web/                  # @feature-forge/web — web UI package
 ```
+
+## Packages
+
+- **`@feature-forge/cli`** — the main pi extension. Contains all orchestrator logic, step executors, IPC, and the agent lifecycle. Entry point for pi extension registration.
+- **`@feature-forge/shared`** — shared base types and abstractions used across packages. Depended on by `@feature-forge/cli`.
+- **`@feature-forge/eslint-config`** — shared ESLint configuration consumed by sibling packages.
+- **`@feature-forge/web`** — web UI package (TBD).
 
 ## Coding conventions
 
@@ -158,8 +185,46 @@ src/
 - Double quotes, semicolons required, trailing commas everywhere.
 - 100 char print width, 2-space tabs.
 
+## Operational patterns (from self-learning memory)
+
+These are frequently repeated patterns and mistakes collected across sessions. Follow them to avoid known failure modes.
+
+### Worktree lifecycle
+
+- **All code changes MUST be made inside a git worktree** — never modify files directly in the main repo directory (the root `~/Projects/feature-forge`). Always create a worktree first with `wt switch --create <branch>`.
+- Always use `wt remove <branch>` to clean up worktrees — never run `git branch -d` directly; the worktree tool handles both worktree and branch deletion together.
+- Use `wt remove -D <branch>` when the branch has been pushed but the local worktree still tracks it as unmerged. Check with `wt list` first.
+- Do not attempt to delete a branch while a worktree is still attached — always go through `wt remove`.
+
+### Pre-flight checks
+
+- Always check `git status` before any operation that modifies history (rebase, merge, reset).
+- Verify the remote URL: `git remote -v` should show `misiekhardcore/feature-forge` before fetching or pushing.
+- Before invoking `wt list`, pipe output through `grep -E '<pattern>'` to extract only the relevant row — the full list can be very long.
+
+### Command execution
+
+- Chain destructive or sequential commands with `&&` in a single call to avoid partial execution on interruption, e.g., `npm run fix && npm run check`.
+- **Always run `npm run fix` before pushing** — this runs `eslint --fix` and `prettier --write` across all packages via turbo, catching formatting/lint issues that automated hooks might miss.
+- Run the smallest, most targeted command first: `wt list | grep <branch>` instead of unfiltered `wt list`; `grep <pattern>` instead of grepping the full repo when scope is known.
+- Before pushing, verify the commit content: `git diff HEAD~1 --stat` to confirm only expected files changed.
+- Cache or reuse API responses where possible — a single `gh pr view <n> --json baseRefName,headRefName` covers both branch names in one call.
+
+### PR creation
+
+- Use `--body-file -` with a heredoc `<<'ENDOFBODY'` for multi-line PR bodies (single-quote the delimiter to prevent shell variable expansion).
+- Use single quotes for `--title` values to reduce escaping complexity when the title contains special characters like parentheses.
+- Verify the final PR body is correct before running the command — shell escaping issues are easy to miss.
+
+### Testing
+
+- Before writing test assertions for event payloads, cross-reference the expected keys against the actual implementation file (e.g., `CleanupStepExecutor.ts`) — not assumptions or issue descriptions.
+- When changing a method's type signature (e.g., `unknown` to a strict type), grep for all test call sites first and update them with explicit type assertions.
+- Run `npx vitest run <specific-test-file>` on changed test files before running the full suite to catch type errors immediately.
+
 ## Tips
 
 - When moving test files, update all relative import paths manually — there is no automatic refactoring.
 - `vi.mock` + `vi.hoisted` pattern: `vi.hoisted()` sets up mock state before `vi.mock()` factory runs (avoids TDZ). Mock constructors must be plain `function`, not arrow functions.
 - Use `MockAgent` + `makeMockFactory` for supervisor/command tests to avoid RpcClient dependency.
+- Update the self-learning memory (`.pi/self-learning-memory/`) when you discover a new repeating pattern or avoid a mistake — future sessions benefit from historical context.

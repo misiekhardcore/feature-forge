@@ -13,7 +13,9 @@
     "build": "echo 'shared: nothing to build'",
     "test": "vitest run",
     "lint": "eslint .",
-    "format": "prettier --check .",
+    "lint:fix": "eslint --fix .",
+    "format": "prettier . --check",
+    "format:fix": "prettier . --write",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

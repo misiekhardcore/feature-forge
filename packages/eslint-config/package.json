@@ -10,7 +10,9 @@
   "scripts": {
     "build": "echo 'eslint-config: nothing to build'",
     "lint": "echo 'eslint-config: no source to lint'",
+    "lint:fix": "echo 'eslint-config: no source to fix'",
     "format": "echo 'eslint-config: formatted via root'",
+    "format:fix": "echo 'eslint-config: formatted via root'",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
