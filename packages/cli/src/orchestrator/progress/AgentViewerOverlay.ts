@@ -3,11 +3,12 @@ import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { EventBus, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import type { Component, TUI } from "@earendil-works/pi-tui";
+import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { extractMessageText, getNestedString, getStatusIcon, serializeToolArgs } from "./helpers";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -43,6 +44,22 @@ export type ViewMode = "list" | "detail";
  * Maximum characters of raw agent output to display per entry.
  */
 const DEFAULT_MAX_RAW_LENGTH = 500;
+
+/**
+ * Parameters for constructing an {@link AgentViewerOverlay}.
+ */
+export interface AgentViewerOverlayParams {
+  /** TUI instance used to request re-renders. */
+  tui: TUI;
+  /** Theme for colouring UI elements. */
+  theme: Theme;
+  /** Callback invoked when the user presses Escape in list view. */
+  onDone: () => void;
+  /** Current working directory from the extension context. */
+  cwd: string;
+  /** Markdown theme for rendering markdown content. */
+  markdownTheme: MarkdownTheme;
+}
 
 /**
  * Standard overlay configuration shared by
@@ -85,6 +102,19 @@ export class AgentViewerOverlay implements Component {
   /** Called when the user presses Escape in list view. */
   private readonly onDone: () => void;
 
+  /**
+   * Reserved for Phase 3 — base directory for resolving relative paths
+   * when rendering markdown content or accessing workspace files.
+   */
+  private readonly cwd: string;
+
+  /**
+   * Reserved for Phase 3 — theme used when rendering markdown blocks
+   * within the conversation view, e.g. headings, code blocks, lists.
+   * Currently stored but not wired into rendering methods.
+   */
+  private readonly markdownTheme: MarkdownTheme;
+
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
 
@@ -101,14 +131,43 @@ export class AgentViewerOverlay implements Component {
   scrollOffset = 0;
 
   /**
-   * @param tui — TUI instance used to request re-renders.
-   * @param theme — Theme for colouring UI elements.
-   * @param onDone — Callback invoked when the user presses Escape in list view.
+   * Whether the detail view automatically scrolls to the bottom when new
+   * stream events arrive. Enabled on entering detail view; disabled by
+   * manual scroll-up; re-enabled by scrolling to the very bottom.
    */
-  constructor(tui: TUI, theme: Theme, onDone: () => void) {
-    this.tui = tui;
-    this.theme = theme;
-    this.onDone = onDone;
+  autoScroll = false;
+
+  /** Last render width used to compute scroll bounds. */
+  private lastRenderWidth = 80;
+
+  /** Maps agent id → raw stream events in insertion order. */
+  private agentEvents = new Map<string, AgentEvent[]>();
+
+  /**
+   * Tracks the total count of events pushed per agent (including evicted ones,
+   * so callers can know whether any events were evicted from the in-memory buffer).
+   */
+  private totalEventCount = new Map<string, number>();
+
+  /**
+   * Temporary cache for events loaded from disk when the in-memory buffer
+   * doesn't cover the full conversation. Cleared on {@link clearMemory} and
+   * {@link dispose}.
+   */
+  private renderBuffer = new Map<string, AgentEvent[]>();
+
+  /** Maximum raw stream events retained per agent before FIFO eviction. */
+  static readonly STREAM_EVENT_BUFFER_MAX = 200;
+
+  /**
+   * @param params — Configuration object with tui, theme, onDone, cwd, and markdownTheme.
+   */
+  constructor(params: AgentViewerOverlayParams) {
+    this.tui = params.tui;
+    this.theme = params.theme;
+    this.onDone = params.onDone;
+    this.cwd = params.cwd;
+    this.markdownTheme = params.markdownTheme;
   }
 
   /**
@@ -125,14 +184,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * @deprecated Use {@link setStreamDir} — the executionId prefix is no
-   * longer part of the file path.
-   */
-  setAgentExecutionId(_executionId: string, streamDir?: string): void {
-    if (streamDir) this.setStreamDir(streamDir);
-  }
-
-  /**
    * Standard overlay configuration consumed by
    * {@link import("../RoutineTool").RoutineTool} and
    * {@link import("../../commands/AgentListCommand").AgentListCommand}.
@@ -146,6 +197,7 @@ export class AgentViewerOverlay implements Component {
   // ── Component interface ───────────────────────────────────
 
   render(width: number): string[] {
+    this.lastRenderWidth = width;
     if (this.viewMode === "detail" && this.selectedAgentId) {
       return this.renderDetail(width);
     }
@@ -158,6 +210,7 @@ export class AgentViewerOverlay implements Component {
         this.viewMode = "list";
         this.selectedAgentId = undefined;
         this.scrollOffset = 0;
+        this.autoScroll = false;
         this.tui.requestRender();
         return;
       }
@@ -196,14 +249,19 @@ export class AgentViewerOverlay implements Component {
    *
    * Does NOT clean up filesystem stream files — use {@link dispose}
    * for full cleanup when stream file persistence was configured via
-   * {@link setAgentExecutionId}.
+   * {@link setStreamDir}.
+   *
+   * @remarks Conversations are intentionally NOT cleared —
+   * use {@link dispose} for a full reset of all state Maps.
    */
   clearMemory(): void {
     this.agents.clear();
+    this.renderBuffer.clear();
     this.viewMode = "list";
     this.selectedIndex = 0;
     this.selectedAgentId = undefined;
     this.scrollOffset = 0;
+    this.autoScroll = false;
   }
 
   /** Number of agent entries currently tracked. */
@@ -215,9 +273,13 @@ export class AgentViewerOverlay implements Component {
    * Push a streaming event for an agent.
    *
    * Formats the event into a human-readable line (kept in memory as the
-   * most recent stream line) and, when {@link streamDir} and
-   * {@link executionId} are configured, appends it to a per-agent log
-   * file on disk.
+   * most recent stream line) and, when {@link streamDir} is
+   * configured, appends a filtered human-readable line to a per-agent
+   * {@code .stream} log file on disk and ALL raw events to an
+   * {@code .events.jsonl} file.
+   *
+   * The in-memory event buffer is capped at {@link STREAM_EVENT_BUFFER_MAX}
+   * entries per agent; oldest events are evicted first (FIFO).
    */
   pushStreamEvent(agentId: string, event: AgentEvent): void {
     if (!this.agents.has(agentId)) {
@@ -226,6 +288,15 @@ export class AgentViewerOverlay implements Component {
 
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
+
+    // Track total events pushed per agent (including evicted ones) so
+    // callers know whether the in-memory window has gaps.
+    const currentTotal = this.totalEventCount.get(agentId) ?? 0;
+    this.totalEventCount.set(agentId, currentTotal + 1);
+
+    // Invalidate the render buffer when new events arrive, since the
+    // cached disk snapshot would be stale.
+    this.renderBuffer.delete(agentId);
 
     // Skip noisy events from the stream file:
     // - message_update: tiny incremental deltas; full text arrives as message_end
@@ -236,20 +307,137 @@ export class AgentViewerOverlay implements Component {
       event.type !== "turn_start" &&
       event.type !== "turn_end" &&
       !(event.type === "message_end" && line === "message_end");
-    if (this.streamDir && shouldWrite) {
+    if (this.streamDir) {
+      // Create the stream directory once before writing any file.
       try {
         mkdirSync(this.streamDir, { recursive: true });
-        const filePath = this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
-        if (!this.streamFiles.has(agentId)) {
-          this.streamFiles.set(agentId, filePath);
-        }
-        appendFileSync(filePath, `${line}\n`, "utf-8");
       } catch {
-        // Silently ignore filesystem errors — the in-memory line is sufficient.
+        // Silently ignore filesystem errors.
+      }
+
+      if (shouldWrite) {
+        try {
+          const filePath =
+            this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
+          if (!this.streamFiles.has(agentId)) {
+            this.streamFiles.set(agentId, filePath);
+          }
+          appendFileSync(filePath, `${line}\n`, "utf-8");
+        } catch {
+          // Silently ignore filesystem errors — the in-memory line is sufficient.
+        }
+      }
+
+      // Write ALL raw events as JSONL (unfiltered) for machine consumption.
+      try {
+        const eventsFilePath = join(this.streamDir, `${agentId}.events.jsonl`);
+        appendFileSync(eventsFilePath, `${JSON.stringify(event)}\n`, "utf-8");
+      } catch {
+        // Silently ignore filesystem errors.
       }
     }
 
+    // Append the raw event to the in-memory buffer.
+    const events = this.agentEvents.get(agentId) ?? [];
+    events.push(event);
+
+    // Enforce sliding window buffer limit — evict oldest events from the front.
+    if (events.length > AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX) {
+      events.splice(0, events.length - AgentViewerOverlay.STREAM_EVENT_BUFFER_MAX);
+    }
+
+    this.agentEvents.set(agentId, events);
+
+    // Auto-scroll to the bottom when in detail view with autoScroll enabled.
+    if (this.autoScroll && this.viewMode === "detail" && this.selectedAgentId === agentId) {
+      this.scrollOffset = this.computeScrollMax();
+    }
+
     this.tui.requestRender();
+  }
+
+  /**
+   * Return the raw stream events from the in-memory buffer for an agent,
+   * in insertion order. The buffer holds at most
+   * {@link STREAM_EVENT_BUFFER_MAX} events; older events are evicted to
+   * a persistent `.events.jsonl` file on disk.
+   *
+   * For the full conversation (including events evicted from memory),
+   * use {@link getAllEventsForConversation}, which transparently loads
+   * from disk when needed.
+   */
+  getConversation(agentId: string): AgentEvent[] {
+    return this.agentEvents.get(agentId) ?? [];
+  }
+
+  /**
+   * Load a range of raw events from the `.events.jsonl` file on disk.
+   *
+   * Returns an empty array when the file is missing, unreadable,
+   * or when the requested range is empty.
+   *
+   * @param agentId — Agent identifier whose events to load.
+   * @param fromIndex — Start index (inclusive, 0-based).
+   * @param toIndex — End index (exclusive).
+   */
+  loadConversationEvents(agentId: string, fromIndex: number, toIndex: number): AgentEvent[] {
+    if (!this.streamDir) return [];
+    if (fromIndex >= toIndex || fromIndex < 0) return [];
+
+    const eventsFilePath = join(this.streamDir, `${agentId}.events.jsonl`);
+    try {
+      const content = readFileSync(eventsFilePath, "utf-8");
+      const lines = content.trim().split("\n");
+      // If the file is empty (single empty line after trim → [""]), return [].
+      if (lines.length === 1 && lines[0] === "") return [];
+      const slice = lines.slice(fromIndex, toIndex);
+      const parsed: AgentEvent[] = [];
+      for (const line of slice) {
+        try {
+          parsed.push(JSON.parse(line) as AgentEvent);
+        } catch {
+          // Skip malformed lines.
+        }
+      }
+      return parsed;
+    } catch {
+      // File missing or inaccessible — return empty.
+      return [];
+    }
+  }
+
+  /**
+   * Return the full set of conversation events for an agent, combining
+   * the in-memory buffer (most recent events) with older events loaded
+   * from the `.events.jsonl` file on disk.
+   *
+   * When all events fit in memory (no eviction has occurred), returns
+   * the in-memory buffer directly. Otherwise, loads from disk and
+   * caches the result in a temporary render buffer (cleared on
+   * {@link clearMemory} and {@link dispose}).
+   *
+   * Used internally by the conversation render methods to ensure the
+   * detail view shows the full conversation even when the user scrolls
+   * past the in-memory window.
+   */
+  private getAllEventsForConversation(agentId: string): AgentEvent[] {
+    const totalCount = this.totalEventCount.get(agentId) ?? 0;
+    const memoryEvents = this.agentEvents.get(agentId) ?? [];
+    const memoryStartIndex = totalCount - memoryEvents.length;
+
+    // All events fit in memory — no need to read from disk.
+    if (memoryStartIndex === 0 || totalCount === 0) {
+      return memoryEvents;
+    }
+
+    // Check the render buffer cache.
+    const cached = this.renderBuffer.get(agentId);
+    if (cached) return cached;
+
+    // Load everything from disk into the render buffer.
+    const loaded = this.loadConversationEvents(agentId, 0, totalCount);
+    this.renderBuffer.set(agentId, loaded);
+    return loaded;
   }
 
   /**
@@ -271,29 +459,14 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Read the tail of a per-agent stream log file from disk.
-   *
-   * Only available when {@link streamDir} and {@link executionId} were
-   * configured via {@link setAgentExecutionId} and at least one
-   * {@link pushStreamEvent} call was made for the agent.
-   */
-  getStreamTail(agentId: string, maxLines = 100): string {
-    const filePath = this.streamFiles.get(agentId);
-    if (!filePath) return "";
-    try {
-      const content = readFileSync(filePath, "utf-8");
-      const lines = content.split("\n").filter((l) => l.length > 0);
-      const tail = lines.slice(-maxLines);
-      return tail.join("\n");
-    } catch {
-      return "";
-    }
-  }
-
-  /**
    * Scan the stream directory for existing {@code *.stream} files and
-   * pre-populate the internal {@link streamFiles} map so that
-   * {@link getStreamTail} works across overlay instances.
+   * pre-populate the internal {@link streamFiles} map.
+   *
+   * Also creates stale "done" entries for any agents that have stream
+   * files but are not tracked by {@link agents}. This ensures that
+   * {@code /agent:list} shows the same set of agents as the routine's
+   * auto-opened overlay, even after completed agents have been removed
+   * from the supervisor.
    *
    * Silently ignores missing or inaccessible directories — the map
    * will be populated lazily by {@link pushStreamEvent} calls instead.
@@ -305,6 +478,15 @@ export class AgentViewerOverlay implements Component {
           const agentId = entry.slice(0, -7);
           const filePath = join(streamDir, entry);
           this.streamFiles.set(agentId, filePath);
+          // Restore entries for agents that completed and were removed
+          // from the supervisor so /agent:list shows the same set as
+          // the routine's auto-opened overlay.
+          if (!this.agents.has(agentId)) {
+            this.update({ id: agentId, status: "done", summary: "Agent completed" });
+          }
+          // No replay is needed — events are ingested in real time
+          // via pushStreamEvent. The stream file serves as an append-only
+          // log for debugging, not as a re-ingestion source.
         }
       }
     } catch {
@@ -323,6 +505,9 @@ export class AgentViewerOverlay implements Component {
     // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
     this.lastLines.clear();
+    this.agentEvents.clear();
+    this.renderBuffer.clear();
+    this.totalEventCount.clear();
     this.clearMemory();
   }
 
@@ -348,6 +533,26 @@ export class AgentViewerOverlay implements Component {
   /**
    * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
    */
+  /**
+   * Map a tool call status to a display status consumed by {@link getStatusIcon}.
+   *
+   * Uses an exhaustive switch so TypeScript can warn when the
+   * {@code toolStatus} union gains new members.
+   */
+  private static mapToolStatusToDisplayStatus(
+    toolStatus: "running" | "ok" | "error" | undefined,
+  ): string {
+    switch (toolStatus) {
+      case "ok":
+        return "done";
+      case "error":
+        return "error";
+      case "running":
+      case undefined:
+        return "started";
+    }
+  }
+
   static formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
@@ -359,27 +564,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   // ── Static helpers ────────────────────────────────────────
-
-  /**
-   * Map an agent status to a theme-coloured icon character.
-   *
-   * - `"done"` → success green ✓
-   * - `"started"` → warning yellow ⏳
-   * - `"error"` → error red ✗
-   * - anything else → muted grey ○
-   */
-  static statusIcon(status: string, passed?: boolean): string {
-    switch (status) {
-      case "done":
-        return passed === false ? "✗" : "✓";
-      case "started":
-        return "⏳";
-      case "error":
-        return "✗";
-      default:
-        return "○";
-    }
-  }
 
   /**
    * Format a stream event into a single-line human-readable description.
@@ -410,9 +594,7 @@ export class AgentViewerOverlay implements Component {
     const bot = theme.fg("border", "└" + "─".repeat(inner) + "┘");
     const result: string[] = [top];
     for (const raw of lines) {
-      // Strip ANSI to measure visible length, then pad.
-      // eslint-disable-next-line no-control-regex
-      const visible = raw.replace(/\[[0-9;]*m/g, "");
+      const visible = this.stripAnsi(raw);
       const pad = visible.length < inner ? " ".repeat(inner - visible.length) : "";
       result.push(theme.fg("border", "│") + raw + pad + theme.fg("border", "│"));
     }
@@ -439,22 +621,7 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
-      let iconColor: ThemeColor;
-      switch (entry.status) {
-        case "done":
-          iconColor = entry.passed !== false ? "success" : "error";
-          break;
-        case "started":
-          iconColor = "warning";
-          break;
-        case "error":
-          iconColor = "error";
-          break;
-        default:
-          iconColor = "muted";
-          break;
-      }
+      const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -516,7 +683,7 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const icon = AgentViewerOverlay.statusIcon(entry.status, entry.passed);
+    const { char: icon } = getStatusIcon(entry.status, entry.passed);
 
     // Header
     let statusLabel: string;
@@ -544,45 +711,10 @@ export class AgentViewerOverlay implements Component {
       lines.push("");
     }
 
-    // Stream tail from disk when available
-    if (this.streamDir && this.selectedAgentId) {
-      const tail = this.getStreamTail(this.selectedAgentId, 50);
-      if (tail.length > 0) {
-        lines.push(theme.fg("accent", "Stream log:"));
-        for (const tailLine of tail.split("\n")) {
-          lines.push(`  ${theme.fg("muted", tailLine)}`);
-        }
-        lines.push("");
-      } else {
-        lines.push(theme.fg("muted", "  No stream events captured."));
-        lines.push("");
-      }
-    }
-
-    // Last stream line (in-memory fallback, truncated to fit width)
-    const lastLine = this.lastLines.get(entry.id);
-    if (lastLine) {
-      const maxLastLineWidth = Math.max(10, width - 2);
-      const truncatedLastLine =
-        lastLine.length > maxLastLineWidth
-          ? lastLine.slice(0, maxLastLineWidth - 3) + "..."
-          : lastLine;
-      lines.push(theme.fg("accent", "Last event:"));
-      lines.push(`  ${theme.fg("muted", truncatedLastLine)}`);
-      lines.push("");
-    }
-
-    // Raw output
-    if (entry.raw !== undefined) {
-      lines.push(theme.fg("accent", "Raw output:"));
-      const truncated =
-        entry.raw.length > DEFAULT_MAX_RAW_LENGTH
-          ? entry.raw.slice(0, DEFAULT_MAX_RAW_LENGTH) + "..."
-          : entry.raw;
-      for (const rawLine of truncated.split("\n")) {
-        lines.push(`  ${theme.fg("muted", rawLine)}`);
-      }
-      lines.push("");
+    // Structured conversation from stream events
+    const conversationLines = this.renderConversation(entry.id, width);
+    for (const convLine of conversationLines) {
+      lines.push(convLine);
     }
 
     // Help text
@@ -590,15 +722,275 @@ export class AgentViewerOverlay implements Component {
       theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
     );
 
-    // Clamp scroll offset to visible range without mutating state.
-    const effectiveOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
-    const visibleLines = lines.slice(effectiveOffset);
+    // Clamp scroll offset to visible range and keep state in sync.
+    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
+    const visibleLines = lines.slice(this.scrollOffset);
 
     const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 2));
     return this.addBorder(wrapped, width);
   }
 
-  // ── Private input handling ────────────────────────────────
+  // ── Private conversation rendering ───────────────────────
+
+  /**
+   * Render the structured conversation for an agent as a list of styled lines.
+   */
+  private renderConversation(agentId: string, width: number): string[] {
+    const { theme } = this;
+    const events = this.getAllEventsForConversation(agentId);
+    const lines: string[] = [];
+
+    lines.push(theme.fg("accent", "Conversation:"));
+
+    const turnLines = this.renderConversationTurns(events, width);
+    if (turnLines.length === 0) {
+      lines.push(`  ${theme.fg("muted", "No conversation recorded.")}`);
+      lines.push("");
+      return lines;
+    }
+
+    for (const line of turnLines) {
+      lines.push(line);
+    }
+
+    lines.push("");
+    return lines;
+  }
+
+  /**
+   * Render conversation turn lines without header/footer for scroll-bound
+   * calculation.  Called by {@link computeScrollMax} to determine the
+   * maximum valid scroll offset.
+   */
+  private renderConversationContent(agentId: string, width: number): string[] {
+    const events = this.getAllEventsForConversation(agentId);
+    if (events.length === 0) return [];
+    return this.renderConversationTurns(events, width);
+  }
+
+  /**
+   * Render a list of raw stream events as styled conversation lines.
+   *
+   * Groups related start/end events (message_start → message_end,
+   * tool_execution_start → tool_execution_end) into visual blocks.
+   *
+   * Shared by {@link renderConversation} (which adds header/footer) and
+   * {@link renderConversationContent} (which returns raw turn lines
+   * for scroll-bound calculation).
+   */
+  private renderConversationTurns(events: AgentEvent[], width: number): string[] {
+    const { theme } = this;
+    const lines: string[] = [];
+
+    // In-progress state for grouping start/end event pairs.
+    let pendingMessage: { role: string; content: string } | undefined;
+    let pendingTool:
+      | {
+          toolName: string;
+          toolArgs?: string;
+          toolStatus: "running" | "ok" | "error";
+          toolResult: string;
+        }
+      | undefined;
+
+    const flushMessage = (): void => {
+      if (pendingMessage && pendingMessage.content.length > 0) {
+        const roleColor: ThemeColor = pendingMessage.role === "user" ? "userMessageText" : "accent";
+        lines.push(`  ${theme.fg(roleColor, `${pendingMessage.role}:`)}`);
+        const maxContentWidth = Math.max(10, width - 6);
+        const truncated =
+          pendingMessage.content.length > maxContentWidth
+            ? pendingMessage.content.slice(0, maxContentWidth - 3) + "..."
+            : pendingMessage.content;
+        for (const contentLine of truncated.split("\n")) {
+          if (contentLine.length > 0) {
+            const styled = AgentViewerOverlay.applyInlineMarkdown(theme, contentLine);
+            lines.push(`    ${styled}`);
+          }
+        }
+      }
+      pendingMessage = undefined;
+    };
+
+    const flushTool = (): void => {
+      if (pendingTool) {
+        const toolLines = this.renderToolCall(pendingTool, width);
+        for (const toolLine of toolLines) {
+          lines.push(toolLine);
+        }
+      }
+      pendingTool = undefined;
+    };
+
+    for (const event of events) {
+      if (event.type === "message_start") {
+        flushTool();
+        const typed = event as Record<string, unknown>;
+        const msg =
+          typeof typed["message"] === "object" && typed["message"] !== null
+            ? (typed["message"] as Record<string, unknown>)
+            : undefined;
+        const role = typeof msg?.["role"] === "string" ? msg["role"] : "unknown";
+        pendingMessage = { role, content: "" };
+      } else if (event.type === "message_update" || event.type === "message_end") {
+        const typed = event as Record<string, unknown>;
+        if (pendingMessage) {
+          // Extract latest content from the event's message.
+          pendingMessage.content = extractMessageText(typed["message"]);
+        }
+        if (event.type === "message_end") {
+          flushMessage();
+        }
+      } else if (event.type === "tool_execution_start") {
+        flushMessage();
+        const typed = event as Record<string, unknown>;
+        const toolName = typeof typed["toolName"] === "string" ? typed["toolName"] : "unknown";
+        const args =
+          "args" in typed && typed["args"] !== undefined
+            ? serializeToolArgs(typed["args"])
+            : undefined;
+        pendingTool = { toolName, toolArgs: args, toolStatus: "running", toolResult: "" };
+      } else if (event.type === "tool_execution_update") {
+        if (pendingTool) {
+          const typed = event as Record<string, unknown>;
+          if (typeof typed["partialResult"] === "string") {
+            pendingTool.toolResult += typed["partialResult"];
+          }
+        }
+      } else if (event.type === "tool_execution_end") {
+        if (pendingTool) {
+          const typed = event as Record<string, unknown>;
+          pendingTool.toolStatus = typed["isError"] === true ? "error" : "ok";
+          if (typeof typed["result"] === "string") {
+            pendingTool.toolResult = typed["result"];
+          }
+        }
+        flushTool();
+      }
+    }
+
+    // Flush any remaining pending state (incomplete start without end).
+    flushMessage();
+    flushTool();
+
+    return lines;
+  }
+
+  /**
+   * Apply inline markdown styling to a single content line.
+   *
+   * Detects bold (**text**), italic (*text*), and inline code
+   * (\`text\`) patterns and wraps them with the injected theme's
+   * bold / italic / inverse styling methods.
+   */
+  private static applyInlineMarkdown(theme: Theme, line: string): string {
+    let result = line;
+
+    // Bold: **text**
+    result = result.replace(/\*\*(.+?)\*\*/g, (_match: string, text: string): string =>
+      theme.bold(text),
+    );
+    // Italic: *text* (but not **)
+    result = result.replace(
+      /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,
+      (_match: string, text: string): string => theme.italic(text),
+    );
+    // Inline code: `text`
+    result = result.replace(/`(.+?)`/g, (_match: string, text: string): string =>
+      theme.inverse(text),
+    );
+
+    return result;
+  }
+
+  /**
+   * Render a single tool-call turn as styled lines with coloured
+   * background boxes via {@link Theme.bg}.
+   *
+   * @param turn — Grouped tool call data (toolName, args, status, result).
+   * @param width — Available render width.
+   */
+  private renderToolCall(
+    turn: {
+      toolName: string;
+      toolArgs?: string;
+      toolStatus: "running" | "ok" | "error";
+      toolResult: string;
+    },
+    width: number,
+  ): string[] {
+    const { theme } = this;
+    const lines: string[] = [];
+
+    const toolDisplayStatus = AgentViewerOverlay.mapToolStatusToDisplayStatus(turn.toolStatus);
+    const { char: resultIcon, color: resultIconColor } = getStatusIcon(toolDisplayStatus);
+
+    const toolName = turn.toolName ?? "unknown";
+    let statusLabel: string;
+    switch (turn.toolStatus) {
+      case "running":
+        statusLabel = "(running)";
+        break;
+      case "ok":
+        statusLabel = "(ok)";
+        break;
+      case "error":
+        statusLabel = "(error)";
+        break;
+      default:
+        statusLabel = "";
+        break;
+    }
+    const innerWidth = Math.max(10, width - 6);
+    const headerLine = `${theme.fg(resultIconColor, resultIcon)} ${theme.fg("accent", toolName)} ${theme.fg("muted", statusLabel)}`;
+    const headerPad = innerWidth - this.stripAnsi(headerLine).length;
+    const paddedHeader = headerPad > 0 ? headerLine + " ".repeat(headerPad) : headerLine;
+
+    const bgColor =
+      turn.toolStatus === "ok"
+        ? "toolSuccessBg"
+        : turn.toolStatus === "error"
+          ? "toolErrorBg"
+          : "toolPendingBg";
+    lines.push(`  ${theme.bg(bgColor, paddedHeader)}`);
+
+    if (turn.toolArgs) {
+      const innerWidth = Math.max(10, width - 8);
+      const truncatedArgs =
+        turn.toolArgs.length > innerWidth
+          ? turn.toolArgs.slice(0, innerWidth - 3) + "..."
+          : turn.toolArgs;
+      for (const argLine of truncatedArgs.split("\n")) {
+        lines.push(`      ${theme.fg("toolOutput", argLine)}`);
+      }
+    }
+
+    // Visual delimiter between args and result when both are present.
+    if (turn.toolArgs && turn.toolResult) {
+      lines.push(`      ${theme.fg("muted", "──")}`);
+    }
+
+    if (turn.toolResult) {
+      const maxResultWidth = Math.max(10, width - 8);
+      const truncated =
+        turn.toolResult.length > maxResultWidth
+          ? turn.toolResult.slice(0, maxResultWidth - 3) + "..."
+          : turn.toolResult;
+      for (const resultLine of truncated.split("\n")) {
+        lines.push(`      ${theme.fg("toolOutput", resultLine)}`);
+      }
+    }
+
+    return lines;
+  }
+
+  /**
+   * Strip ANSI escape sequences to measure visible length.
+   */
+  private stripAnsi(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    return text.replace(/\x1b\[[0-9;]*m/g, "");
+  }
 
   private handleListInput(data: string): void {
     const entries = Array.from(this.agents.keys());
@@ -617,7 +1009,8 @@ export class AgentViewerOverlay implements Component {
       if (agentId) {
         this.viewMode = "detail";
         this.selectedAgentId = agentId;
-        this.scrollOffset = 0;
+        this.autoScroll = true;
+        this.scrollOffset = this.computeScrollMax();
         this.tui.requestRender();
       }
     }
@@ -625,14 +1018,46 @@ export class AgentViewerOverlay implements Component {
 
   private handleDetailInput(data: string): void {
     if (matchesKey(data, Key.up)) {
+      this.autoScroll = false;
       this.scrollOffset = Math.max(0, this.scrollOffset - 1);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.down)) {
-      this.scrollOffset = this.scrollOffset + 1;
+      const maxOffset = this.computeScrollMax();
+      this.scrollOffset = Math.min(this.scrollOffset + 1, maxOffset);
+      // Resume auto-scroll when the user scrolled to the very bottom.
+      if (this.scrollOffset >= maxOffset) {
+        this.autoScroll = true;
+      }
       this.tui.requestRender();
     }
   }
 
+  /**
+   * Compute the maximum valid scroll offset based on the current detail
+   * view line count so that {@link scrollOffset} never grows unbounded.
+   */
+  private computeScrollMax(): number {
+    if (!this.selectedAgentId) return 0;
+    // Render detail to get total line count.
+    const entry = this.agents.get(this.selectedAgentId);
+    if (!entry) return 0;
+    const headerLines = 4;
+    const footerLines = 1;
+    const conversationLines = this.renderConversationContent(
+      this.selectedAgentId,
+      this.lastRenderWidth,
+    ).length;
+    const totalLines = headerLines + conversationLines + footerLines;
+    return Math.max(0, totalLines - 1);
+  }
+
+  /**
+   * Format a detail string from an event object using the pre-extracted
+   * {@code eventType} for type-safe dispatch.
+   *
+   * Accepts a generic record so that callers do not need unsafe
+   * {@code as AgentEvent} casts. All property access is guarded.
+   */
   /**
    * Create event subscriptions that feed an overlay with live agent data.
    *
@@ -728,7 +1153,7 @@ export class AgentViewerOverlay implements Component {
       }),
     );
 
-    let viewer: AgentViewerOverlay;
+    let viewer!: AgentViewerOverlay;
 
     const connect = (v: AgentViewerOverlay, streamDir: string) => {
       viewer = v;
@@ -762,13 +1187,6 @@ export class AgentViewerOverlay implements Component {
     return { connect, unsubs };
   }
 
-  /**
-   * Format a detail string from an event object using the pre-extracted
-   * {@code eventType} for type-safe dispatch.
-   *
-   * Accepts a generic record so that callers do not need unsafe
-   * {@code as AgentEvent} casts. All property access is guarded.
-   */
   private static formatDetail(event: Record<string, unknown>, eventType: string): string {
     switch (eventType) {
       case "agent_start":
@@ -781,19 +1199,26 @@ export class AgentViewerOverlay implements Component {
         return "turn end";
 
       case "message_start": {
-        const role = AgentViewerOverlay.getNestedString(event, "message", "role");
+        const role = getNestedString(event, "message", "role");
         return role.slice(0, 80);
       }
 
       case "message_update":
       case "message_end": {
-        const text = AgentViewerOverlay.extractMessageText(event.message);
+        const text = extractMessageText(event.message);
         return text.slice(0, 80);
       }
 
       case "tool_execution_start": {
         const name = event.toolName;
-        return typeof name === "string" ? name.slice(0, 80) : "";
+        const toolName = typeof name === "string" ? name.slice(0, 80) : "";
+        // Serialize args into the stream line so they survive the
+        // .stream file round-trip (replayed via parseStreamLine).
+        if ("args" in event && event.args !== undefined) {
+          const serialized = serializeToolArgs(event.args);
+          return (toolName + " | " + serialized).slice(0, 240);
+        }
+        return toolName;
       }
 
       case "tool_execution_end": {
@@ -817,43 +1242,5 @@ export class AgentViewerOverlay implements Component {
       default:
         return "";
     }
-  }
-
-  /**
-   * Walk a dotted key path into a nested object and return a string value,
-   * or {@code ""} when any intermediate key is missing.
-   */
-  private static getNestedString(root: unknown, ...keys: string[]): string {
-    let current: unknown = root;
-    for (const key of keys) {
-      if (typeof current !== "object" || current === null) return "";
-      current = (current as Record<string, unknown>)[key];
-    }
-    return typeof current === "string" ? current : "";
-  }
-
-  /**
-   * Extract concatenated text from a message object"s content blocks.
-   *
-   * Handles both arrays of {@code { type: "text", text: "..." }} blocks
-   * and plain string content.
-   */
-  private static extractMessageText(message: unknown): string {
-    if (typeof message === "string") return message;
-    if (typeof message !== "object" || message === null) return "";
-    const msg = message as Record<string, unknown>;
-    const content = msg["content"];
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) return "";
-    const parts: string[] = [];
-    for (const block of content) {
-      if (typeof block === "object" && block !== null) {
-        const b = block as Record<string, unknown>;
-        if (b["type"] === "text" && typeof b["text"] === "string") {
-          parts.push(b["text"]);
-        }
-      }
-    }
-    return parts.join(" ");
   }
 }
