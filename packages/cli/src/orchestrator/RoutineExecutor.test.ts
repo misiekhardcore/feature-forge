@@ -106,7 +106,7 @@ describe("RoutineExecutor", () => {
 
       expect(result.passed).toBe(true);
       expect(result.routine).toBe("main");
-      expect(result.rounds).toBe(1);
+      expect(result.rounds).toBe(0);
       expect(result.summary).toContain("completed");
 
       // Steps executed in order.
@@ -116,6 +116,65 @@ describe("RoutineExecutor", () => {
 
       // Template resolution applied.
       expect(RecordExecutor.executed[1].task).toBe("do add auth with use JWT");
+    });
+
+    it("sets rounds to 0 for non-loop routines (regression: was always ≥1)", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const flow = makeTestFlow();
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+
+      const result = await executor.run("main", { plan: "" }, "task");
+
+      expect(result.rounds).toBe(0);
+    });
+
+    it("sets rounds to actual iteration count for loop routines", async () => {
+      // Simulate a loop that increments context.iteration 3 times.
+      class LoopSimulator extends StepExecutor {
+        readonly type = "loop-sim";
+
+        async execute(
+          _instruction: FlowInstruction,
+          context: FlowContext,
+          executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+          _eventBus: EventBus,
+        ): Promise<FlowContext> {
+          let current = context;
+          for (let i = 0; i < 3; i++) {
+            current = current.withIteration(i + 1);
+            current = await executeStep({ type: "record" } as unknown as FlowInstruction, current);
+          }
+          return current.withResult(_instruction.id, { raw: "loop-done" });
+        }
+      }
+
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new LoopSimulator());
+      registry.register(() => new RecordExecutor());
+
+      const flow = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "loop-flow",
+        command: "/loop-test",
+        orchestrator: { systemPrompt: "test" },
+        routines: {
+          "loop-main": {
+            steps: [{ type: "loop-sim", id: "loop" } as unknown as FlowInstruction],
+          },
+        },
+      } as unknown as FlowDefinition;
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+
+      const result = await executor.run("loop-main", {}, "task");
+
+      expect(result.rounds).toBe(3);
     });
 
     it("returns per-instruction results", async () => {
