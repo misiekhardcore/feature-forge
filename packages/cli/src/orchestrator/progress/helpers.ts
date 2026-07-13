@@ -54,6 +54,23 @@ export function getStatusIcon(
 }
 
 /**
+ * Serialize tool call arguments to a stable string representation.
+ *
+ * Attempts JSON serialization first; falls back to {@code String()} for
+ * non-serializable values (BigInt, circular references, etc.).
+ */
+export function serializeToolArgs(args: unknown): string {
+  if (typeof args === "string") return args;
+  try {
+    const serialized = JSON.stringify(args, null, 2);
+    if (serialized !== undefined) return serialized;
+  } catch {
+    // Fall through to string coercion.
+  }
+  return String(args);
+}
+
+/**
  * Walk a dotted key path into a nested object and return a string value,
  * or {@code ""} when any intermediate key is missing.
  */

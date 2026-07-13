@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractMessageText, getNestedString, getStatusIcon } from "./helpers";
+import { extractMessageText, getNestedString, getStatusIcon, serializeToolArgs } from "./helpers";
 
 describe("getStatusIcon", () => {
   it('returns success icon for "done" status', () => {
@@ -90,6 +90,42 @@ describe("extractMessageText", () => {
         content: [null, { type: "text", text: "valid" }],
       }),
     ).toBe("valid");
+  });
+});
+
+describe("serializeToolArgs", () => {
+  it("returns the string when args is already a string", () => {
+    expect(serializeToolArgs("hello")).toBe("hello");
+  });
+
+  it("serializes a plain object as formatted JSON", () => {
+    const result = serializeToolArgs({ command: "ls", cwd: "/tmp" });
+    expect(result).toContain('"command"');
+    expect(result).toContain("ls");
+    expect(result).toContain('"cwd"');
+    expect(result).toContain("/tmp");
+  });
+
+  it("serializes a number as a string", () => {
+    const result = serializeToolArgs(42);
+    expect(result).toBe("42");
+  });
+
+  it("serializes null as string null", () => {
+    const result = serializeToolArgs(null);
+    expect(result).toBe("null");
+  });
+
+  it("serializes an array as JSON", () => {
+    const result = serializeToolArgs(["a", "b"]);
+    expect(result).toContain('"a"');
+    expect(result).toContain('"b"');
+  });
+
+  it("falls back to String() for non-serializable values", () => {
+    const bigInt = BigInt(123);
+    const result = serializeToolArgs(bigInt);
+    expect(result).toBe("123");
   });
 });
 
