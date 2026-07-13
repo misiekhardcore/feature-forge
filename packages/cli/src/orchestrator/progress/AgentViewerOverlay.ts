@@ -626,7 +626,7 @@ export class AgentViewerOverlay implements Component {
     let toolCallIndex = 0;
 
     // In-progress state for grouping start/end event pairs.
-    let pendingMessage: { role: string; content: string } | undefined;
+    let pendingMessage: { role: string; message: unknown; text: string } | undefined;
     let pendingTool:
       | {
           toolName: string;
@@ -637,21 +637,22 @@ export class AgentViewerOverlay implements Component {
       | undefined;
 
     const flushMessage = (): void => {
-      if (pendingMessage && pendingMessage.content.length > 0) {
+      if (pendingMessage && pendingMessage.text.length > 0) {
         const innerWidth = Math.max(10, width - 4);
         if (pendingMessage.role === "user") {
-          const component = new UserMessageComponent(pendingMessage.content, this.markdownTheme);
+          const component = new UserMessageComponent(pendingMessage.text, this.markdownTheme);
           const rendered = component.render(innerWidth);
           for (const line of rendered) {
             lines.push(`  ${line}`);
           }
         } else {
-          // AssistantMessageComponent only reads content — supply minimal message.
-          const assistantMsg = {
-            role: "assistant" as const,
-            content: [{ type: "text" as const, text: pendingMessage.content }],
-          } as AssistantMessage;
-          const component = new AssistantMessageComponent(assistantMsg, false, this.markdownTheme);
+          // Pass the real message object so AssistantMessageComponent can render
+          // thinking blocks, tool calls, code blocks, and markdown.
+          const component = new AssistantMessageComponent(
+            pendingMessage.message as AssistantMessage,
+            false,
+            this.markdownTheme,
+          );
           const rendered = component.render(innerWidth);
           for (const line of rendered) {
             lines.push(`  ${line}`);
@@ -698,15 +699,21 @@ export class AgentViewerOverlay implements Component {
         const typed = event as Record<string, unknown>;
         const msg =
           typeof typed["message"] === "object" && typed["message"] !== null
-            ? (typed["message"] as Record<string, unknown>)
+            ? typed["message"]
             : undefined;
-        const role = typeof msg?.["role"] === "string" ? msg["role"] : "unknown";
-        pendingMessage = { role, content: "" };
+        const role =
+          typeof msg === "object" &&
+          msg !== null &&
+          typeof (msg as Record<string, unknown>)["role"] === "string"
+            ? ((msg as Record<string, unknown>)["role"] as string)
+            : "unknown";
+        pendingMessage = { role, message: msg, text: "" };
       } else if (event.type === "message_update" || event.type === "message_end") {
         const typed = event as Record<string, unknown>;
         if (pendingMessage) {
-          // Extract latest content from the event's message.
-          pendingMessage.content = AgentDisplayHelpers.extractMessageText(typed["message"]);
+          // Store the real message object for rich rendering, and extract text for UserMessageComponent.
+          pendingMessage.message = typed["message"];
+          pendingMessage.text = AgentDisplayHelpers.extractMessageText(typed["message"]);
         }
         if (event.type === "message_end") {
           flushMessage();
