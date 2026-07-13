@@ -1,6 +1,5 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../logging";
+import type { TypedEventBus } from "./eventBus";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
@@ -32,7 +31,7 @@ export class RoutineExecutor {
      * can iterate executors for display-contribution extraction.
      */
     public readonly stepRegistry: StepExecutorRegistry,
-    public readonly eventBus: EventBus,
+    public readonly eventBus: TypedEventBus,
     store?: FlowStateStore,
   ) {
     this.store = store ?? new FlowStateStore();
@@ -152,9 +151,17 @@ export class RoutineExecutor {
     const workspaceEntry = [...context.workspaces.entries()][0];
     const workspace = workspaceEntry ? workspaceEntry[1].path : undefined;
 
-    const summary = passed
-      ? `Routine "${routineName}" completed with ${Object.keys(results).length} results`
-      : `Routine "${routineName}" failed: ${error?.message ?? "unknown error"}`;
+    // Check if any step result explicitly failed — overrides the exception-only signal.
+    if (passed) {
+      for (const result of Object.values(results)) {
+        if (result.parsed?.passed === false) {
+          passed = false;
+          break;
+        }
+      }
+    }
+
+    const summary = RoutineExecutor.buildResultSummary(routineName, passed, error, results);
 
     return {
       routine: routineName,
@@ -173,5 +180,20 @@ export class RoutineExecutor {
     error: Error,
   ): RoutineResult {
     return this.buildResult(routineName, context, false, error);
+  }
+
+  private static buildResultSummary(
+    routineName: string,
+    passed: boolean,
+    error: Error | undefined,
+    results: Record<string, unknown>,
+  ): string {
+    if (passed) {
+      return `Routine "${routineName}" completed with ${Object.keys(results).length} results`;
+    }
+    if (error) {
+      return `Routine "${routineName}" failed: ${error.message}`;
+    }
+    return `Routine "${routineName}" failed — step result(s) not passed`;
   }
 }

@@ -25,6 +25,8 @@ const hoisted = vi.hoisted(() => {
     disablePromptTemplates: false,
     disableSkills: false,
     ephemeral: false,
+    skills: [],
+    excludedSkills: [],
     get tools() {
       return [];
     },

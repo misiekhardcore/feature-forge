@@ -121,7 +121,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
         // timeout from collectEvents — noise after the actionable error.
         logger.warn("collectEvents promise rejected after task already failed", {
           agentId: this.id,
-          error
+          error,
         });
       });
       await this.rpcClient.prompt(prompt, options?.images);

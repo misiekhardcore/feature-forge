@@ -1,6 +1,8 @@
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { jsonParse } from "@feature-forge/shared";
+
 import { FlowLoader } from "../src/orchestrator/FlowLoader";
 
 /**
@@ -62,7 +64,7 @@ async function main(): Promise<void> {
 
   let json: unknown;
   try {
-    json = JSON.parse(raw);
+    json = jsonParse(raw);
   } catch (cause) {
     console.error(`✗ Invalid JSON: ${(cause as Error).message}`);
     process.exit(1);

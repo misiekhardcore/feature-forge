@@ -1,6 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 
 import { logger } from "../logging";
+import { TypedEventBus } from "../orchestrator/eventBus";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";
@@ -24,15 +26,23 @@ export class AgentListCommand extends Command {
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
+            const typedBus = new TypedEventBus(this.pi.events);
+
             const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-              eventBus: this.pi.events,
+              eventBus: typedBus,
               supervisor: this.supervisor,
             });
 
-            const viewer = new AgentViewerOverlay(tui, theme, () => {
-              unsubs.forEach((u) => u());
-              viewer.dispose();
-              done();
+            const viewer = new AgentViewerOverlay({
+              tui,
+              theme,
+              onDone: () => {
+                unsubs.forEach((u) => u());
+                viewer.dispose();
+                done();
+              },
+              cwd: ctx.cwd,
+              markdownTheme: getMarkdownTheme(),
             });
 
             connect(viewer, streamDir);

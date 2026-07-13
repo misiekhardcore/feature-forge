@@ -21,6 +21,7 @@ import {
   AgentSpecification,
   AgentSpecificationParams,
 } from "./agents/specifications/AgentSpecification";
+import { TypedEventBus } from "./orchestrator/eventBus";
 import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
 import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
@@ -331,6 +332,8 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
+        skills: [],
+        excludedSkills: [],
         toolRestrictions: params.toolRestrictions ?? {},
         model: undefined,
         thinkingLevel: undefined,
@@ -353,6 +356,8 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
+        skills: [],
+        excludedSkills: [],
         toolRestrictions: params.toolRestrictions ?? {},
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
@@ -400,4 +405,8 @@ export function makeMockEventBus() {
     on: onSpy,
     clear: clearSpy,
   } as EventBus;
+}
+
+export function makeMockTypedEventBus(): TypedEventBus {
+  return new TypedEventBus(makeMockEventBus());
 }

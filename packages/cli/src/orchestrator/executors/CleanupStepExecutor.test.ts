@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
@@ -52,7 +52,7 @@ describe("CleanupStepExecutor", () => {
       controller.abort();
 
       await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus(), controller.signal),
       ).rejects.toThrow();
 
       // No workspace was destroyed.
@@ -73,7 +73,7 @@ describe("CleanupStepExecutor", () => {
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -94,7 +94,7 @@ describe("CleanupStepExecutor", () => {
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "{{target}}" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -116,7 +116,7 @@ describe("CleanupStepExecutor", () => {
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(provider.destroyedPaths).toContain("/fake/ws1");
       expect(provider.destroyedPaths).toContain("/fake/ws2");
@@ -151,7 +151,7 @@ describe("CleanupStepExecutor", () => {
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -168,7 +168,7 @@ describe("CleanupStepExecutor", () => {
         prompt: "task",
       });
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       expect(result.results.get("c1")!.raw).toContain('"cleaned":[]');
@@ -190,11 +190,11 @@ describe("CleanupStepExecutor", () => {
 
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledTimes(2);
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           1,
           "feature-forge:cleanup-start",
           expect.objectContaining({
@@ -202,7 +202,7 @@ describe("CleanupStepExecutor", () => {
             message: expect.stringContaining("c1") as string,
           }),
         );
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           2,
           "feature-forge:cleanup-done",
           expect.objectContaining({
@@ -230,7 +230,12 @@ describe("CleanupStepExecutor", () => {
 
         const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
 
-        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
 
         expect(result.results.get("c1")!.parsed!.passed).toBe(true);
       });
@@ -249,7 +254,7 @@ describe("CleanupStepExecutor", () => {
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "/raw/path" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(provider.destroyedPaths).toContain("/raw/path");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
@@ -268,7 +273,7 @@ describe("CleanupStepExecutor", () => {
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);

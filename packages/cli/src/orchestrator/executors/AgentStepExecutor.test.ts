@@ -4,7 +4,7 @@ import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications/AgentSpecification";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
@@ -88,7 +88,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(specManager.resolve).toHaveBeenCalled();
       expect(supervisor.spawnGuest).toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe("AgentStepExecutor", () => {
         prompt: "add auth",
       });
 
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(agent.executeTask).toHaveBeenCalledWith(
         "do add auth",
@@ -145,7 +145,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.parsed).toBeDefined();
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
@@ -169,7 +169,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -192,7 +192,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const resolveCall = (specManager.resolve as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(resolveCall.spec).toBe("build");
@@ -216,7 +216,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.raw).toBe("not json at all");
       expect(result.results.get("builder")!.parsed).toBeUndefined();
@@ -242,7 +242,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
@@ -270,7 +270,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
@@ -294,7 +294,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       // Raw preserved, parsed is undefined because no JSON found
       expect(result.results.get("builder")!.raw).toBe("just plain text, no json at all");
@@ -321,7 +321,7 @@ describe("AgentStepExecutor", () => {
       controller.abort();
 
       await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus(), controller.signal),
       ).rejects.toThrow();
 
       // Agent was never spawned.
@@ -349,7 +349,7 @@ describe("AgentStepExecutor", () => {
       });
 
       await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
       ).rejects.toThrow("The operation was aborted");
 
       // destroyAgent is still called in the finally block.
@@ -374,7 +374,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(supervisor.destroyAgent).toHaveBeenCalledWith(agent.id);
     });
@@ -404,7 +404,7 @@ describe("AgentStepExecutor", () => {
       };
       const context = contextWithWorkspace("ws", "/repos/worktree-ws");
 
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/repos/worktree-ws");
@@ -430,7 +430,7 @@ describe("AgentStepExecutor", () => {
       });
 
       await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
       ).rejects.toBeInstanceOf(AgentInstructionWorkingDirMissing);
       expect(supervisor.spawnGuest).not.toHaveBeenCalled();
     });
@@ -453,7 +453,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBe("/abs/x");
@@ -477,11 +477,11 @@ describe("AgentStepExecutor", () => {
           prompt: "task",
         });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledTimes(4);
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenCalledTimes(4);
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           1,
           "feature-forge:agent-started",
           expect.objectContaining({
@@ -493,7 +493,7 @@ describe("AgentStepExecutor", () => {
             }),
           }),
         );
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           4,
           "feature-forge:agent-done",
           expect.objectContaining({
@@ -527,10 +527,10 @@ describe("AgentStepExecutor", () => {
           prompt: "task",
         });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenCalledWith(
           "feature-forge:agent-done",
           expect.objectContaining({
             phase: "agent-done",
@@ -561,17 +561,17 @@ describe("AgentStepExecutor", () => {
           prompt: "task",
         });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
         // Both agent-started and agent-done are fired.
-        expect(eventBus.emit).toHaveBeenCalledTimes(2);
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           1,
           "feature-forge:agent-started",
           expect.anything(),
         );
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           2,
           "feature-forge:agent-done",
           expect.objectContaining({
@@ -603,12 +603,12 @@ describe("AgentStepExecutor", () => {
           prompt: "task",
         });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
         // agent-started, 2x agent-stream, agent-done = 4 emits
-        expect(eventBus.emit).toHaveBeenCalledTimes(4);
-        expect(eventBus.emit).toHaveBeenCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenCalledTimes(4);
+        expect(eventBus.raw.emit).toHaveBeenCalledWith(
           "feature-forge:agent-stream",
           expect.objectContaining({
             phase: "agent-stream",
@@ -640,7 +640,12 @@ describe("AgentStepExecutor", () => {
         });
 
         // Should work with an event bus that is mocked.
-        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
 
         expect(result.results.get("builder")!.raw).toBe("output");
       });
@@ -663,7 +668,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(spawnedSpec.cwd).toBeUndefined();
@@ -689,7 +694,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
       expect(result.results.get("builder")!.parsed!.details).toBeUndefined();
@@ -713,7 +718,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(result.results.get("builder")!.parsed!.details).toBeUndefined();
@@ -737,7 +742,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.parsed!.passed).toBe(true);
     });
@@ -760,7 +765,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);
@@ -784,7 +789,7 @@ describe("AgentStepExecutor", () => {
         prompt: "task",
       });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("reviewer")!.parsed!.details).toBeDefined();
       expect(result.results.get("reviewer")!.parsed!.passed).toBe(false);

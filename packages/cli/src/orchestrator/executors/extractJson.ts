@@ -1,3 +1,5 @@
+import { jsonParse } from "@feature-forge/shared";
+
 import type { AgentOutput } from "../FlowContext";
 
 /**
@@ -27,7 +29,7 @@ export function extractJson(raw: string): AgentOutput | undefined {
 
 function parseOrUndefined(json: string): AgentOutput | undefined {
   try {
-    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const parsed = jsonParse<Record<string, unknown>>(json);
     const passed = typeof parsed.passed === "boolean" ? parsed.passed : false;
 
     let summary = typeof parsed.summary === "string" ? parsed.summary : "";

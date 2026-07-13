@@ -1,12 +1,13 @@
-import { type EventBus, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InMemoryAgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { logger } from "../logging";
 import type { CommandRegistry, ToolRegistry } from "../registry";
-import { makeMockEventBus, makeMockPi } from "../test-utils";
+import { makeMockPi, makeMockTypedEventBus } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
+import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowRegistrar } from "./FlowRegistrar";
@@ -80,7 +81,7 @@ interface FlowRegistrarParams {
   flowsDir: string;
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
-  eventBus: EventBus;
+  eventBus: TypedEventBus;
 }
 
 function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {
@@ -106,7 +107,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     flowsDir: overrides.flowsDir ?? "/flows",
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
-    eventBus: overrides.eventBus ?? makeMockEventBus(),
+    eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
   };
 }
 

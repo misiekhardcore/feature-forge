@@ -5,6 +5,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 
+import { jsonParse } from "@feature-forge/shared";
 import { expect, vi } from "vitest";
 
 import type { Agent } from "../src/agents/agents";
@@ -172,7 +173,7 @@ export async function spawnAndVerify(
     const response = await new Promise<unknown>((res, rej) => {
       client.once("data", (chunk: Buffer) => {
         try {
-          res(JSON.parse(chunk.toString().trim()));
+          res(jsonParse(chunk.toString().trim()));
         } catch (error) {
           rej(new Error(error instanceof Error ? error.message : String(error), { cause: error }));
         }

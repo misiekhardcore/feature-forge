@@ -1,10 +1,11 @@
-import type {
-  AgentToolResult,
-  AgentToolUpdateCallback,
-  ExtensionContext,
-  Theme,
-  ToolDefinition,
-  ToolRenderResultOptions,
+import {
+  type AgentToolResult,
+  type AgentToolUpdateCallback,
+  type ExtensionContext,
+  getMarkdownTheme,
+  type Theme,
+  type ToolDefinition,
+  type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
@@ -12,6 +13,7 @@ import { Type } from "typebox";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { logger } from "../logging";
+import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { AgentViewerOverlay } from "./progress";
 import type { DisplayContribution } from "./progress/DisplayContribution";
@@ -46,7 +48,7 @@ const PROGRESS_CHANNELS = [
   "feature-forge:git-done",
   "feature-forge:shell-start",
   "feature-forge:shell-done",
-];
+] as const;
 
 /**
  * Internal state for tool-row invalidation.
@@ -184,20 +186,27 @@ export class RoutineTool
     let overlayCleanup: (() => void) | undefined;
     if (ctx.hasUI) {
       const streamDir = SharedStreamDir.get();
+      const typedBus = new TypedEventBus(this.executor.eventBus);
       ctx.ui
         .custom<void>(
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
             const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-              eventBus: this.executor.eventBus,
+              eventBus: typedBus,
               supervisor: this.supervisor,
             });
 
-            const viewer = new AgentViewerOverlay(tui, theme, () => {
-              unsubs.forEach((u) => u());
-              viewer.dispose();
-              done();
+            const viewer = new AgentViewerOverlay({
+              tui,
+              theme,
+              onDone: () => {
+                unsubs.forEach((u) => u());
+                viewer.dispose();
+                done();
+              },
+              cwd: ctx.cwd,
+              markdownTheme: getMarkdownTheme(),
             });
 
             connect(viewer, streamDir);

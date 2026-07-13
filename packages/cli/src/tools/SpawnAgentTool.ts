@@ -35,15 +35,19 @@ export const SpawnAgentParameters = Type.Object({
     }),
   ),
   skills: Type.Optional(
-    Type.Readonly(Type.Array(Type.String()), {
-      description:
-        "Allowlist of skill names to load for this agent. Empty = use default discovery.",
-    }),
+    Type.Readonly(
+      Type.Array(Type.String(), {
+        description:
+          "Allowlist of skill names to load for this agent. Empty = use default discovery.",
+      }),
+    ),
   ),
   excludedSkills: Type.Optional(
-    Type.Readonly(Type.Array(Type.String()), {
-      description: "Denylist of skill names to disable. Overrides skills.",
-    }),
+    Type.Readonly(
+      Type.Array(Type.String(), {
+        description: "Denylist of skill names to disable. Overrides skills.",
+      }),
+    ),
   ),
   model: Type.Optional(
     Type.String({

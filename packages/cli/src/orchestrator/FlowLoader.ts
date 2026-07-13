@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+import { jsonParse } from "@feature-forge/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -46,7 +47,7 @@ export class FlowLoader {
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = jsonParse(raw);
     } catch (error) {
       logger.error("Flow contains invalid JSON", { name, error: (error as Error).message });
       throw new Error(`Flow "${name}" contains invalid JSON: ${(error as Error).message}`, {

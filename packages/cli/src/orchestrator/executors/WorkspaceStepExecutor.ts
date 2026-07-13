@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
+import type { TypedEventBus } from "../eventBus";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
@@ -38,7 +37,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     signal?.throwIfAborted();
@@ -62,7 +61,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     eventBus.emit("feature-forge:workspace-ready", {
       phase: "workspace-ready",
       message: `Workspace "${workspaceId}" created at ${path}`,
-      details: { workspace: path, branch },
+      details: { path },
     });
 
     return context.withWorkspace("ws", handle).withResult("ws", {

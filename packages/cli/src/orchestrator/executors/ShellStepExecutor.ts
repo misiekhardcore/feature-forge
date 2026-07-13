@@ -1,9 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../../logging";
+import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
@@ -34,7 +33,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     signal?.throwIfAborted();
@@ -81,7 +80,11 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       eventBus.emit("feature-forge:shell-done", {
         phase: "shell-done",
         message: `Shell "${instruction.id}" completed`,
-        details: { ...(prUrl ? { prUrl } : {}) },
+        details: {
+          passed: true,
+          summary: result.parsed?.summary ?? result.raw,
+          ...(prUrl ? { prUrl } : {}),
+        },
       });
 
       return updatedContext;

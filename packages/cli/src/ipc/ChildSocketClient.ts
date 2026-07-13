@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { connect, type Socket } from "node:net";
 
+import { jsonParse } from "@feature-forge/shared";
+
 import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } from "./messages";
@@ -98,7 +100,7 @@ export class ChildSocketClient {
     signal?.throwIfAborted();
 
     return new Promise((resolve, reject) => {
-      const message: SocketMessage = { type, correlationId, params } as SocketMessage;
+      const message = { type, correlationId, params };
       this.socket?.write(JSON.stringify(message) + "\n");
 
       // Timeout
@@ -175,7 +177,7 @@ export class ChildSocketClient {
       }
 
       try {
-        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        const parsed = jsonParse<Record<string, unknown>>(trimmed);
         this.handleMessage(parsed);
       } catch (error) {
         logger.warn("Malformed IPC JSON, skipping", { error });
@@ -185,15 +187,19 @@ export class ChildSocketClient {
   }
 
   private handleMessage(parsed: Record<string, unknown>): void {
-    const message = parsed;
-
-    if (message.type === "result" || message.type === "error") {
-      const response = message as SocketResponse;
-      this.handleResponse(response);
-    } else if (message.type === "agent_update") {
-      const push = message as SocketPush;
-      this.handlePush(push);
+    if (this.isSocketResponse(parsed)) {
+      this.handleResponse(parsed);
+    } else if (this.isSocketPush(parsed)) {
+      this.handlePush(parsed);
     }
+  }
+
+  private isSocketResponse(parsed: Record<string, unknown>): parsed is SocketResponse {
+    return parsed.type === "result" || parsed.type === "error";
+  }
+
+  private isSocketPush(parsed: Record<string, unknown>): parsed is SocketPush {
+    return parsed.type === "agent_update";
   }
 
   private handleResponse(response: SocketResponse): void {

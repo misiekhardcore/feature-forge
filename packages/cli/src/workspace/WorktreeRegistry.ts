@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
-import { Registry } from "@feature-forge/shared";
+import { jsonParse, Registry } from "@feature-forge/shared";
 
 import { logger } from "../logging";
 import { WorkspaceError } from "./WorkspaceError";
@@ -71,7 +71,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
 
     try {
       const raw = await readFile(this.storagePath, "utf-8");
-      const data = JSON.parse(raw) as { path: string; createdAt: string }[];
+      const data = jsonParse<{ path: string; createdAt: string }[]>(raw);
 
       for (const entry of data) {
         const handle = WorkspaceHandle.fromJSON(entry);
