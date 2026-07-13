@@ -152,9 +152,21 @@ export class RoutineExecutor {
     const workspaceEntry = [...context.workspaces.entries()][0];
     const workspace = workspaceEntry ? workspaceEntry[1].path : undefined;
 
+    // Check if any step result explicitly failed — overrides the exception-only signal.
+    if (passed) {
+      for (const result of Object.values(results)) {
+        if (result.parsed?.passed === false) {
+          passed = false;
+          break;
+        }
+      }
+    }
+
     const summary = passed
       ? `Routine "${routineName}" completed with ${Object.keys(results).length} results`
-      : `Routine "${routineName}" failed: ${error?.message ?? "unknown error"}`;
+      : error
+        ? `Routine "${routineName}" failed: ${error.message}`
+        : `Routine "${routineName}" failed — step result(s) not passed`;
 
     return {
       routine: routineName,
