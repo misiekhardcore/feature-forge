@@ -8,16 +8,10 @@ import { Box, Text } from "@earendil-works/pi-tui";
 
 import type { SendTaskParams, SpawnAgentParams } from "../ipc/messages";
 
-type BgColor =
-  | "selectedBg"
-  | "userMessageBg"
-  | "customMessageBg"
-  | "toolPendingBg"
-  | "toolSuccessBg"
-  | "toolErrorBg";
+/** Background colours assigned per tool — derived from pi's Theme.bg parameter type. */
+type ToolBgColor = Parameters<Theme["bg"]>[0];
 
-/** Background colors assigned per tool. */
-const BG: Record<string, BgColor> = {
+const BG: Record<string, ToolBgColor> = {
   spawn_agent: "toolPendingBg",
   send_task: "toolSuccessBg",
   get_agent_result: "customMessageBg",
