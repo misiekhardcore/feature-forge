@@ -1,14 +1,8 @@
 import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import {
-  AssistantMessageComponent,
-  ToolExecutionComponent,
-  UserMessageComponent,
-} from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
@@ -16,6 +10,7 @@ import { AgentStatus } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { ConversationRenderer } from "./ConversationRenderer";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -150,6 +145,15 @@ export class AgentViewerOverlay implements Component {
   /** Maps agent id → raw stream events in insertion order. */
   private agentEvents = new Map<string, AgentEvent[]>();
 
+  /** Cached line count of the last renderConversationTurns call. Invalidated by pushStreamEvent. */
+  private cachedConversationLineCount = 0;
+
+  /** Whether the conversation line count cache needs to be recomputed. */
+  private conversationLinesDirty = true;
+
+  /** Stateless conversation renderer — holds only injected dependencies. */
+  private readonly conversationRenderer: ConversationRenderer;
+
   /**
    * @param params — Configuration object with tui, theme, onDone, cwd, and markdownTheme.
    */
@@ -159,6 +163,12 @@ export class AgentViewerOverlay implements Component {
     this.onDone = params.onDone;
     this.cwd = params.cwd;
     this.markdownTheme = params.markdownTheme;
+    this.conversationRenderer = new ConversationRenderer(
+      params.theme,
+      params.markdownTheme,
+      params.tui,
+      params.cwd,
+    );
   }
 
   /**
@@ -274,16 +284,7 @@ export class AgentViewerOverlay implements Component {
     const line = AgentViewerOverlay.formatStreamEvent(event);
     this.lastLines.set(agentId, line);
 
-    // Skip noisy events from the stream file:
-    // - message_update: tiny incremental deltas; full text arrives as message_end
-    // - turn_start / turn_end: lifecycle noise with no actionable content
-    // - message_end with no extracted text: nothing to show
-    const shouldWrite =
-      event.type !== "message_update" &&
-      event.type !== "turn_start" &&
-      event.type !== "turn_end" &&
-      !(event.type === "message_end" && line === "message_end");
-    if (this.streamDir && shouldWrite) {
+    if (this.streamDir && AgentViewerOverlay.shouldPersistToStreamFile(event, line)) {
       try {
         mkdirSync(this.streamDir, { recursive: true });
         const filePath = this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
@@ -300,6 +301,9 @@ export class AgentViewerOverlay implements Component {
     const events = this.agentEvents.get(agentId) ?? [];
     events.push(event);
     this.agentEvents.set(agentId, events);
+
+    // Invalidate cached line count so computeScrollMax re-renders.
+    this.conversationLinesDirty = true;
 
     // Auto-scroll to the bottom when in detail view with autoScroll enabled.
     if (this.autoScroll && this.viewMode === "detail" && this.selectedAgentId === agentId) {
@@ -425,6 +429,26 @@ export class AgentViewerOverlay implements Component {
   static formatStreamEvent(event: AgentEvent): string {
     const detail = AgentViewerOverlay.formatDetail(event);
     return detail ? `${event.type}: ${detail}` : event.type;
+  }
+
+  /**
+   * Whether an event should be persisted to the on-disk {@code .stream} file.
+   *
+   * Excludes noisy incremental events (message_update) and lifecycle markers
+   * (turn_start, turn_end) whose content arrives through other events.
+   * Also excludes message_end events that produced no extracted text.
+   */
+  private static shouldPersistToStreamFile(event: AgentEvent, line: string): boolean {
+    switch (event.type) {
+      case "message_update":
+      case "turn_start":
+      case "turn_end":
+        return false;
+      case "message_end":
+        return line !== "message_end";
+      default:
+        return true;
+    }
   }
 
   // ── Private rendering ─────────────────────────────────────
@@ -608,107 +632,11 @@ export class AgentViewerOverlay implements Component {
   /**
    * Render a list of raw stream events as styled conversation lines.
    *
-   * Groups related start/end events (message_start → message_end,
-   * tool_execution_start → tool_execution_end) into visual blocks and
-   * delegates rendering to pi components: {@link UserMessageComponent},
-   * {@link AssistantMessageComponent}, {@link ToolExecutionComponent}.
+   * Delegates to {@link ConversationRenderer} which handles the
+   * state-machine grouping and pi component dispatch.
    */
   private renderConversationTurns(events: AgentEvent[], width: number): string[] {
-    const lines: string[] = [];
-    let toolCallIndex = 0;
-
-    // In-progress state.  Uses pi's own types — no custom wrappers.
-    let pendingMessage: AgentMessage | undefined;
-    let pendingToolStart: Extract<AgentEvent, { type: "tool_execution_start" }> | undefined;
-    let pendingToolResult: { text: string; isError: boolean } | undefined;
-
-    const flushMessage = (): void => {
-      if (!pendingMessage) return;
-      const innerWidth = Math.max(10, width - 4);
-
-      if (pendingMessage.role === "user") {
-        const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
-        if (text.length > 0) {
-          const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
-          for (const line of rendered) lines.push(`  ${line}`);
-        }
-      } else {
-        // AssistantMessageComponent renders thinking blocks, tool calls, and markdown
-        // directly from the real AgentMessage object — no text extraction needed.
-        const rendered = new AssistantMessageComponent(
-          pendingMessage as AssistantMessage,
-          false,
-          this.markdownTheme,
-        ).render(innerWidth);
-        for (const line of rendered) lines.push(`  ${line}`);
-      }
-      pendingMessage = undefined;
-    };
-
-    const flushTool = (): void => {
-      if (!pendingToolStart) return;
-      toolCallIndex++;
-      const innerWidth = Math.max(10, width - 4);
-      const component = new ToolExecutionComponent(
-        pendingToolStart.toolName,
-        `tool-${toolCallIndex}`,
-        pendingToolStart.args,
-        undefined,
-        undefined,
-        this.tui,
-        this.cwd,
-      );
-      if (pendingToolResult) {
-        component.updateResult(
-          {
-            content: [{ type: "text", text: pendingToolResult.text }],
-            isError: pendingToolResult.isError,
-          },
-          false,
-        );
-        component.setExpanded(true);
-      }
-      const rendered = component.render(innerWidth);
-      for (const line of rendered) lines.push(`  ${line}`);
-      pendingToolStart = undefined;
-      pendingToolResult = undefined;
-    };
-
-    // Dispatch on AgentEvent.type — TypeScript discriminates the union.
-    for (const event of events) {
-      if (event.type === "message_start") {
-        flushTool();
-        pendingMessage = event.message;
-      } else if (event.type === "message_update") {
-        if (pendingMessage) pendingMessage = event.message;
-      } else if (event.type === "message_end") {
-        if (pendingMessage) pendingMessage = event.message;
-        flushMessage();
-      } else if (event.type === "tool_execution_start") {
-        flushMessage();
-        pendingToolStart = event;
-        pendingToolResult = undefined;
-      } else if (event.type === "tool_execution_update") {
-        if (pendingToolStart) {
-          pendingToolResult = {
-            text: (pendingToolResult?.text ?? "") + String(event.partialResult ?? ""),
-            isError: false,
-          };
-        }
-      } else if (event.type === "tool_execution_end") {
-        pendingToolResult = {
-          text: String(event.result ?? ""),
-          isError: event.isError,
-        };
-        flushTool();
-      }
-    }
-
-    // Flush any remaining pending state (incomplete start without end).
-    flushMessage();
-    flushTool();
-
-    return lines;
+    return this.conversationRenderer.render(events, width);
   }
 
   /**
@@ -774,13 +702,16 @@ export class AgentViewerOverlay implements Component {
     const baseHeaderLines = 2;
     // Summary section: "Summary:" + content + empty line = 3
     const summaryLines = entry.summary ? 3 : 0;
-    // Conversation block from renderConversation: "Conversation:" header +
-    // turn lines + trailing empty line = 1 + conversationLines + 1
-    const conversationTurns = this.renderConversationTurns(
-      this.getConversation(this.selectedAgentId),
-      this.lastRenderWidth,
-    ).length;
-    const totalConversationBlock = 1 + conversationTurns + 1;
+    // Conversation block: "Conversation:" header + turn lines + trailing empty line.
+    // Use cached line count unless pushStreamEvent dirtied it.
+    if (this.conversationLinesDirty) {
+      this.cachedConversationLineCount = this.renderConversationTurns(
+        this.getConversation(this.selectedAgentId),
+        this.lastRenderWidth,
+      ).length;
+      this.conversationLinesDirty = false;
+    }
+    const totalConversationBlock = 1 + this.cachedConversationLineCount + 1;
     // Help text: 1
     const footerLines = 1;
 
@@ -939,8 +870,7 @@ export class AgentViewerOverlay implements Component {
       }
 
       case "tool_execution_start": {
-        const name = event.toolName;
-        const toolName = typeof name === "string" ? name.slice(0, 80) : "";
+        const toolName = event.toolName.slice(0, 80);
         // Serialize args into the stream line so they survive the
         // .stream file round-trip (replayed via parseStreamLine).
         if ("args" in event && event.args !== undefined) {
@@ -951,13 +881,13 @@ export class AgentViewerOverlay implements Component {
       }
 
       case "tool_execution_end": {
-        const name = typeof event.toolName === "string" ? event.toolName : "";
+        const name = event.toolName;
         const status = event.isError ? " (error)" : " (ok)";
         return (name + status).slice(0, 80);
       }
 
       case "tool_execution_update": {
-        const name = typeof event.toolName === "string" ? event.toolName : "";
+        const name = event.toolName;
         const partial: string =
           typeof event.partialResult === "string"
             ? event.partialResult
