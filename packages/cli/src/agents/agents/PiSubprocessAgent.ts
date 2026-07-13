@@ -109,6 +109,20 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
     try {
       const eventsPromise = this.rpcClient.collectEvents(timeout);
+      // Safety net: if prompt() throws before we await eventsPromise, the promise
+      // stays pending with a 60s internal timer. When it eventually rejects, nobody
+      // is listening — causing an unhandled rejection that Node.js v25+ converts to
+      // uncaughtException and crashes the entire pi process.
+      eventsPromise.catch(() => {
+        // The primary error (from prompt() detecting the child died) is already
+        // caught by the outer catch block, logged as "Task execution failed",
+        // re-thrown, then caught by runAgent() which calls deliverError() to
+        // notify the calling agent. This delayed rejection is just the internal
+        // timeout from collectEvents — noise after the actionable error.
+        logger.warn("collectEvents promise rejected after task already failed", {
+          agentId: this.id,
+        });
+      });
       await this.rpcClient.prompt(prompt, options?.images);
       const events = await eventsPromise;
 
