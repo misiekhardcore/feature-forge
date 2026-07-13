@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 
 import { logger } from "../logging";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
@@ -29,10 +30,16 @@ export class AgentListCommand extends Command {
               supervisor: this.supervisor,
             });
 
-            const viewer = new AgentViewerOverlay(tui, theme, () => {
-              unsubs.forEach((u) => u());
-              viewer.dispose();
-              done();
+            const viewer = new AgentViewerOverlay({
+              tui,
+              theme,
+              onDone: () => {
+                unsubs.forEach((u) => u());
+                viewer.dispose();
+                done();
+              },
+              cwd: ctx.cwd,
+              markdownTheme: getMarkdownTheme(),
             });
 
             connect(viewer, streamDir);

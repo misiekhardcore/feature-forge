@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import type { TUI } from "@earendil-works/pi-tui";
+import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,7 +12,7 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../../test-utils";
-import type { AgentViewerEntry } from "./AgentViewerOverlay";
+import type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -25,6 +25,25 @@ function makeTheme(): Theme {
     italic: vi.fn((text: string) => text),
     inverse: vi.fn((text: string) => text),
   } as unknown as Theme;
+}
+
+function makeMarkdownTheme(): MarkdownTheme {
+  return {
+    heading: vi.fn((text: string) => text),
+    link: vi.fn((text: string) => text),
+    linkUrl: vi.fn((text: string) => text),
+    code: vi.fn((text: string) => text),
+    codeBlock: vi.fn((text: string) => text),
+    codeBlockBorder: vi.fn((text: string) => text),
+    quote: vi.fn((text: string) => text),
+    quoteBorder: vi.fn((text: string) => text),
+    hr: vi.fn((text: string) => text),
+    listBullet: vi.fn((text: string) => text),
+    bold: vi.fn((text: string) => text),
+    italic: vi.fn((text: string) => text),
+    strikethrough: vi.fn((text: string) => text),
+    underline: vi.fn((text: string) => text),
+  };
 }
 
 function makeTui(): TUI {
@@ -41,8 +60,15 @@ function makeEntry(
   return { id, status, ...overrides };
 }
 
-function makeOverlay(tui?: TUI, theme?: Theme, onDone?: () => void): AgentViewerOverlay {
-  return new AgentViewerOverlay(tui ?? makeTui(), theme ?? makeTheme(), onDone ?? vi.fn());
+function makeOverlay(overrides: Partial<AgentViewerOverlayParams> = {}): AgentViewerOverlay {
+  return new AgentViewerOverlay({
+    tui: makeTui(),
+    theme: makeTheme(),
+    onDone: vi.fn(),
+    cwd: "/test/cwd",
+    markdownTheme: makeMarkdownTheme(),
+    ...overrides,
+  });
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -54,13 +80,29 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(0);
     });
 
-    it("accepts tui, theme, and onDone", () => {
+    it("accepts tui, theme, onDone, cwd, and markdownTheme", () => {
       const tui = makeTui();
       const theme = makeTheme();
       const onDone = vi.fn();
-      const overlay = new AgentViewerOverlay(tui, theme, onDone);
+      const cwd = "/test/cwd";
+      const markdownTheme = makeMarkdownTheme();
+      const overlay = new AgentViewerOverlay({ tui, theme, onDone, cwd, markdownTheme });
 
       expect(overlay.entryCount).toBe(0);
+
+      // Verify the overlay functions correctly with custom params.
+      overlay.update({ id: "builder", status: "started" });
+      expect(overlay.entryCount).toBe(1);
+
+      // Verify event processing and rendering work with non-default theme values.
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "read",
+      } as AgentEvent);
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("builder");
+      expect(joined).toContain("tool_execution_start: read");
     });
 
     it("starts in list view mode with no selection", () => {
@@ -731,7 +773,7 @@ describe("AgentViewerOverlay", () => {
 
     it("requests render when pushing an event", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -927,7 +969,7 @@ describe("AgentViewerOverlay", () => {
     it("calls onDone when Escape is pressed in list view", () => {
       const tui = makeTui();
       const onDone = vi.fn();
-      const overlay = makeOverlay(tui, undefined, onDone);
+      const overlay = makeOverlay({ tui, onDone });
 
       overlay.handleInput("\x1b");
 
@@ -938,7 +980,7 @@ describe("AgentViewerOverlay", () => {
     it("returns to list view when Escape is pressed in detail view", () => {
       const tui = makeTui();
       const onDone = vi.fn();
-      const overlay = makeOverlay(tui, undefined, onDone);
+      const overlay = makeOverlay({ tui, onDone });
       overlay.update(makeEntry("builder", "started"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -955,7 +997,7 @@ describe("AgentViewerOverlay", () => {
 
     it("navigates down with ArrowDown in list view", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
       overlay.update(makeEntry("agent-c", "started"));
@@ -969,7 +1011,7 @@ describe("AgentViewerOverlay", () => {
 
     it("wraps around at the bottom with ArrowDown", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
       overlay.selectedIndex = 1;
@@ -982,7 +1024,7 @@ describe("AgentViewerOverlay", () => {
 
     it("navigates up with ArrowUp in list view", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
       overlay.selectedIndex = 1;
@@ -996,7 +1038,7 @@ describe("AgentViewerOverlay", () => {
 
     it("wraps around at the top with ArrowUp", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
 
@@ -1008,7 +1050,7 @@ describe("AgentViewerOverlay", () => {
 
     it("enters detail view on Enter", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
       overlay.selectedIndex = 1;
@@ -1043,7 +1085,7 @@ describe("AgentViewerOverlay", () => {
 
     it("scrolls up in detail view with ArrowUp", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("builder", "done"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -1057,7 +1099,7 @@ describe("AgentViewerOverlay", () => {
 
     it("does not scroll above zero in detail view", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("builder", "done"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -1070,7 +1112,7 @@ describe("AgentViewerOverlay", () => {
 
     it("scrolls down in detail view with ArrowDown", () => {
       const tui = makeTui();
-      const overlay = makeOverlay(tui);
+      const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("builder", "done"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -1113,7 +1155,7 @@ describe("AgentViewerOverlay", () => {
 
     it("highlights selected agent id with accent colour", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
       overlay.selectedIndex = 0;
@@ -2712,7 +2754,7 @@ describe("AgentViewerOverlay", () => {
 
     it("uses theme.bg for tool call background colour", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -2734,7 +2776,7 @@ describe("AgentViewerOverlay", () => {
 
     it("uses theme.bg with toolErrorBg for failed tool calls", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -2756,7 +2798,7 @@ describe("AgentViewerOverlay", () => {
 
     it("uses theme.bg with toolPendingBg for running tool calls", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -2772,7 +2814,7 @@ describe("AgentViewerOverlay", () => {
 
     it("shows toolOutput-coloured result lines", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -2949,7 +2991,7 @@ describe("AgentViewerOverlay", () => {
   describe("conversation markdown styling", () => {
     it("styles bold markdown in message content", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "message_start",
@@ -2972,7 +3014,7 @@ describe("AgentViewerOverlay", () => {
 
     it("styles italic markdown in message content", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "message_start",
@@ -2995,7 +3037,7 @@ describe("AgentViewerOverlay", () => {
 
     it("styles inline code markdown in message content", () => {
       const theme = makeTheme();
-      const overlay = makeOverlay(undefined, theme);
+      const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
         type: "message_start",

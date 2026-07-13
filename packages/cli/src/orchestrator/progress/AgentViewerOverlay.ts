@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { EventBus, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import type { Component, TUI } from "@earendil-works/pi-tui";
+import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 
@@ -46,6 +46,22 @@ export type ViewMode = "list" | "detail";
 const DEFAULT_MAX_RAW_LENGTH = 500;
 
 /**
+ * Parameters for constructing an {@link AgentViewerOverlay}.
+ */
+export interface AgentViewerOverlayParams {
+  /** TUI instance used to request re-renders. */
+  tui: TUI;
+  /** Theme for colouring UI elements. */
+  theme: Theme;
+  /** Callback invoked when the user presses Escape in list view. */
+  onDone: () => void;
+  /** Current working directory from the extension context. */
+  cwd: string;
+  /** Markdown theme for rendering markdown content. */
+  markdownTheme: MarkdownTheme;
+}
+
+/**
  * Standard overlay configuration shared by
  * {@link import("../RoutineTool").RoutineTool} and
  * {@link import("../../commands/AgentListCommand").AgentListCommand}.
@@ -86,6 +102,19 @@ export class AgentViewerOverlay implements Component {
   /** Called when the user presses Escape in list view. */
   private readonly onDone: () => void;
 
+  /**
+   * Reserved for Phase 3 — base directory for resolving relative paths
+   * when rendering markdown content or accessing workspace files.
+   */
+  private readonly cwd: string;
+
+  /**
+   * Reserved for Phase 3 — theme used when rendering markdown blocks
+   * within the conversation view, e.g. headings, code blocks, lists.
+   * Currently stored but not wired into rendering methods.
+   */
+  private readonly markdownTheme: MarkdownTheme;
+
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
 
@@ -115,14 +144,14 @@ export class AgentViewerOverlay implements Component {
   private agentEvents = new Map<string, AgentEvent[]>();
 
   /**
-   * @param tui — TUI instance used to request re-renders.
-   * @param theme — Theme for colouring UI elements.
-   * @param onDone — Callback invoked when the user presses Escape in list view.
+   * @param params — Configuration object with tui, theme, onDone, cwd, and markdownTheme.
    */
-  constructor(tui: TUI, theme: Theme, onDone: () => void) {
-    this.tui = tui;
-    this.theme = theme;
-    this.onDone = onDone;
+  constructor(params: AgentViewerOverlayParams) {
+    this.tui = params.tui;
+    this.theme = params.theme;
+    this.onDone = params.onDone;
+    this.cwd = params.cwd;
+    this.markdownTheme = params.markdownTheme;
   }
 
   /**

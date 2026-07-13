@@ -1,10 +1,11 @@
-import type {
-  AgentToolResult,
-  AgentToolUpdateCallback,
-  ExtensionContext,
-  Theme,
-  ToolDefinition,
-  ToolRenderResultOptions,
+import {
+  type AgentToolResult,
+  type AgentToolUpdateCallback,
+  type ExtensionContext,
+  getMarkdownTheme,
+  type Theme,
+  type ToolDefinition,
+  type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { TObject, TProperties } from "typebox";
@@ -194,10 +195,16 @@ export class RoutineTool
               supervisor: this.supervisor,
             });
 
-            const viewer = new AgentViewerOverlay(tui, theme, () => {
-              unsubs.forEach((u) => u());
-              viewer.dispose();
-              done();
+            const viewer = new AgentViewerOverlay({
+              tui,
+              theme,
+              onDone: () => {
+                unsubs.forEach((u) => u());
+                viewer.dispose();
+                done();
+              },
+              cwd: ctx.cwd,
+              markdownTheme: getMarkdownTheme(),
             });
 
             connect(viewer, streamDir);
