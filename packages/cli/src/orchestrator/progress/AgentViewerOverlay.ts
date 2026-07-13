@@ -2,7 +2,13 @@ import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { EventBus, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
+import {
+  AssistantMessageComponent,
+  ToolExecutionComponent,
+  UserMessageComponent,
+} from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
@@ -397,29 +403,6 @@ export class AgentViewerOverlay implements Component {
     }
   }
 
-  /**
-   * Format a {@link Date} as an elapsed-time string (e.g. "2m 14s").
-   */
-  /**
-   * Map a tool call status to a display status consumed by {@link getStatusIcon}.
-   *
-   * Uses an exhaustive switch so TypeScript can warn when the
-   * {@code toolStatus} union gains new members.
-   */
-  private static mapToolStatusToDisplayStatus(
-    toolStatus: "running" | "ok" | "error" | undefined,
-  ): string {
-    switch (toolStatus) {
-      case "ok":
-        return "done";
-      case "error":
-        return "error";
-      case "running":
-      case undefined:
-        return "started";
-    }
-  }
-
   static formatElapsed(createdAt: Date): string {
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
@@ -639,15 +622,17 @@ export class AgentViewerOverlay implements Component {
    * Render a list of raw stream events as styled conversation lines.
    *
    * Groups related start/end events (message_start → message_end,
-   * tool_execution_start → tool_execution_end) into visual blocks.
+   * tool_execution_start → tool_execution_end) into visual blocks and
+   * delegates rendering to pi components: {@link UserMessageComponent},
+   * {@link AssistantMessageComponent}, {@link ToolExecutionComponent}.
    *
    * Shared by {@link renderConversation} (which adds header/footer) and
    * {@link renderConversationContent} (which returns raw turn lines
    * for scroll-bound calculation).
    */
   private renderConversationTurns(events: AgentEvent[], width: number): string[] {
-    const { theme } = this;
     const lines: string[] = [];
+    let toolCallIndex = 0;
 
     // In-progress state for grouping start/end event pairs.
     let pendingMessage: { role: string; content: string } | undefined;
@@ -662,17 +647,41 @@ export class AgentViewerOverlay implements Component {
 
     const flushMessage = (): void => {
       if (pendingMessage && pendingMessage.content.length > 0) {
-        const roleColor: ThemeColor = pendingMessage.role === "user" ? "userMessageText" : "accent";
-        lines.push(`  ${theme.fg(roleColor, `${pendingMessage.role}:`)}`);
-        const maxContentWidth = Math.max(10, width - 6);
-        const truncated =
-          pendingMessage.content.length > maxContentWidth
-            ? pendingMessage.content.slice(0, maxContentWidth - 3) + "..."
-            : pendingMessage.content;
-        for (const contentLine of truncated.split("\n")) {
-          if (contentLine.length > 0) {
-            const styled = AgentViewerOverlay.applyInlineMarkdown(theme, contentLine);
-            lines.push(`    ${styled}`);
+        const innerWidth = Math.max(10, width - 4);
+        if (pendingMessage.role === "user") {
+          const component = new UserMessageComponent(pendingMessage.content, this.markdownTheme);
+          const rendered = component.render(innerWidth);
+          for (const line of rendered) {
+            lines.push(`  ${line}`);
+          }
+        } else {
+          const assistantMsg: AssistantMessage = {
+            role: "assistant",
+            content: [{ type: "text", text: pendingMessage.content }],
+            api: "anthropic",
+            provider: "anthropic",
+            model: "claude",
+            usage: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 0,
+              cost: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                total: 0,
+              },
+            },
+            stopReason: "stop",
+            timestamp: Date.now(),
+          };
+          const component = new AssistantMessageComponent(assistantMsg, false, this.markdownTheme);
+          const rendered = component.render(innerWidth);
+          for (const line of rendered) {
+            lines.push(`  ${line}`);
           }
         }
       }
@@ -681,9 +690,30 @@ export class AgentViewerOverlay implements Component {
 
     const flushTool = (): void => {
       if (pendingTool) {
-        const toolLines = this.renderToolCall(pendingTool, width);
-        for (const toolLine of toolLines) {
-          lines.push(toolLine);
+        toolCallIndex++;
+        const innerWidth = Math.max(10, width - 4);
+        const component = new ToolExecutionComponent(
+          pendingTool.toolName,
+          `tool-${toolCallIndex}`,
+          pendingTool.toolArgs || {},
+          undefined,
+          undefined,
+          this.tui,
+          this.cwd,
+        );
+        if (pendingTool.toolStatus !== "running") {
+          component.updateResult(
+            {
+              content: [{ type: "text", text: pendingTool.toolResult }],
+              isError: pendingTool.toolStatus === "error",
+            },
+            false,
+          );
+          component.setExpanded(true);
+        }
+        const rendered = component.render(innerWidth);
+        for (const line of rendered) {
+          lines.push(`  ${line}`);
         }
       }
       pendingTool = undefined;
@@ -744,114 +774,6 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Apply inline markdown styling to a single content line.
-   *
-   * Detects bold (**text**), italic (*text*), and inline code
-   * (\`text\`) patterns and wraps them with the injected theme's
-   * bold / italic / inverse styling methods.
-   */
-  private static applyInlineMarkdown(theme: Theme, line: string): string {
-    let result = line;
-
-    // Bold: **text**
-    result = result.replace(/\*\*(.+?)\*\*/g, (_match: string, text: string): string =>
-      theme.bold(text),
-    );
-    // Italic: *text* (but not **)
-    result = result.replace(
-      /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,
-      (_match: string, text: string): string => theme.italic(text),
-    );
-    // Inline code: `text`
-    result = result.replace(/`(.+?)`/g, (_match: string, text: string): string =>
-      theme.inverse(text),
-    );
-
-    return result;
-  }
-
-  /**
-   * Render a single tool-call turn as styled lines with coloured
-   * background boxes via {@link Theme.bg}.
-   *
-   * @param turn — Grouped tool call data (toolName, args, status, result).
-   * @param width — Available render width.
-   */
-  private renderToolCall(
-    turn: {
-      toolName: string;
-      toolArgs?: string;
-      toolStatus: "running" | "ok" | "error";
-      toolResult: string;
-    },
-    width: number,
-  ): string[] {
-    const { theme } = this;
-    const lines: string[] = [];
-
-    const toolDisplayStatus = AgentViewerOverlay.mapToolStatusToDisplayStatus(turn.toolStatus);
-    const { char: resultIcon, color: resultIconColor } = getStatusIcon(toolDisplayStatus);
-
-    const toolName = turn.toolName ?? "unknown";
-    let statusLabel: string;
-    switch (turn.toolStatus) {
-      case "running":
-        statusLabel = "(running)";
-        break;
-      case "ok":
-        statusLabel = "(ok)";
-        break;
-      case "error":
-        statusLabel = "(error)";
-        break;
-      default:
-        statusLabel = "";
-        break;
-    }
-    const innerWidth = Math.max(10, width - 6);
-    const headerLine = `${theme.fg(resultIconColor, resultIcon)} ${theme.fg("accent", toolName)} ${theme.fg("muted", statusLabel)}`;
-    const headerPad = innerWidth - this.stripAnsi(headerLine).length;
-    const paddedHeader = headerPad > 0 ? headerLine + " ".repeat(headerPad) : headerLine;
-
-    const bgColor =
-      turn.toolStatus === "ok"
-        ? "toolSuccessBg"
-        : turn.toolStatus === "error"
-          ? "toolErrorBg"
-          : "toolPendingBg";
-    lines.push(`  ${theme.bg(bgColor, paddedHeader)}`);
-
-    if (turn.toolArgs) {
-      const innerWidth = Math.max(10, width - 8);
-      const truncatedArgs =
-        turn.toolArgs.length > innerWidth
-          ? turn.toolArgs.slice(0, innerWidth - 3) + "..."
-          : turn.toolArgs;
-      for (const argLine of truncatedArgs.split("\n")) {
-        lines.push(`      ${theme.fg("toolOutput", argLine)}`);
-      }
-    }
-
-    // Visual delimiter between args and result when both are present.
-    if (turn.toolArgs && turn.toolResult) {
-      lines.push(`      ${theme.fg("muted", "──")}`);
-    }
-
-    if (turn.toolResult) {
-      const maxResultWidth = Math.max(10, width - 8);
-      const truncated =
-        turn.toolResult.length > maxResultWidth
-          ? turn.toolResult.slice(0, maxResultWidth - 3) + "..."
-          : turn.toolResult;
-      for (const resultLine of truncated.split("\n")) {
-        lines.push(`      ${theme.fg("toolOutput", resultLine)}`);
-      }
-    }
-
-    return lines;
-  }
-
-  /**
    * Strip ANSI escape sequences to measure visible length.
    */
   private stripAnsi(text: string): string {
@@ -905,26 +827,29 @@ export class AgentViewerOverlay implements Component {
    */
   private computeScrollMax(): number {
     if (!this.selectedAgentId) return 0;
-    // Render detail to get total line count.
     const entry = this.agents.get(this.selectedAgentId);
     if (!entry) return 0;
-    const headerLines = 4;
-    const footerLines = 1;
+
+    // Replicate the line structure of renderDetail without full rendering
+    // to compute the maximum valid scroll offset.
+    // Base header: agent line + separator = 2
+    const baseHeaderLines = 2;
+    // Summary section: "Summary:" + content + empty line = 3
+    const summaryLines = entry.summary ? 3 : 0;
+    // Conversation block from renderConversation: "Conversation:" header +
+    // turn lines + trailing empty line = 1 + conversationLines + 1
     const conversationLines = this.renderConversationContent(
       this.selectedAgentId,
       this.lastRenderWidth,
     ).length;
-    const totalLines = headerLines + conversationLines + footerLines;
+    const totalConversationBlock = 1 + conversationLines + 1;
+    // Help text: 1
+    const footerLines = 1;
+
+    const totalLines = baseHeaderLines + summaryLines + totalConversationBlock + footerLines;
     return Math.max(0, totalLines - 1);
   }
 
-  /**
-   * Format a detail string from an event object using the pre-extracted
-   * {@code eventType} for type-safe dispatch.
-   *
-   * Accepts a generic record so that callers do not need unsafe
-   * {@code as AgentEvent} casts. All property access is guarded.
-   */
   /**
    * Create event subscriptions that feed an overlay with live agent data.
    *
@@ -1054,6 +979,13 @@ export class AgentViewerOverlay implements Component {
     return { connect, unsubs };
   }
 
+  /**
+   * Format a detail string from an event object using the pre-extracted
+   * {@code eventType} for type-safe dispatch.
+   *
+   * Accepts a generic record so that callers do not need unsafe
+   * {@code as AgentEvent} casts. All property access is guarded.
+   */
   private static formatDetail(event: Record<string, unknown>, eventType: string): string {
     switch (eventType) {
       case "agent_start":
