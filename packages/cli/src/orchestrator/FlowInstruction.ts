@@ -155,7 +155,7 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 // ── Runtime validation schema ────────────────────────────────
 
 export const FLOW_SCHEMA_URL =
-  "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json";
+  "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json";
 
 export const FlowInstructionSchema = FlowInstructionUnion;
 

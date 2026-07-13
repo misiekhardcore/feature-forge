@@ -7,7 +7,7 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "const": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/src/flows/flow-schema.json"
+      "const": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json"
     },
     "name": {
       "type": "string",
