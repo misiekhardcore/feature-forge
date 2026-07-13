@@ -1,4 +1,4 @@
-import { AgentSpecification } from "../specifications";
+import { AgentSpecification, SkillResolver } from "../specifications";
 
 /**
  * Converts an AgentSpecification into pi CLI arguments.
@@ -27,6 +27,24 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
   }
   if (specification.disableContextFiles) {
     args.push("--no-context-files");
+  }
+
+  // --- Selective skill loading ---
+  // When skills or excludedSkills are specified, compute the effective set
+  // and emit --no-skills + --skill <path> for each allowed skill.
+  // This overrides auto-discovery with an explicit allowlist.
+  if (
+    !specification.disableSkills &&
+    (specification.skills.length > 0 || specification.excludedSkills.length > 0)
+  ) {
+    const skillPaths = SkillResolver.resolvePaths(
+      specification.skills,
+      specification.excludedSkills,
+    );
+    args.push("--no-skills");
+    for (const skillPath of skillPaths) {
+      args.push("--skill", skillPath);
+    }
   }
 
   // --- Session ---

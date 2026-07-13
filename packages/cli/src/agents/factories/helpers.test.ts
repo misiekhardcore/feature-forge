@@ -104,6 +104,69 @@ describe("buildPiCliArguments", () => {
     });
   });
 
+  describe("skill CLI arguments", () => {
+    it("emits --no-skills when skills is non-empty even if no skills are discovered", () => {
+      const spec = new (class extends AgentSpecification {
+        constructor() {
+          super({
+            id: "t",
+            role: "t",
+            systemPrompt: "p",
+            skills: ["nonexistent-skill"],
+          });
+        }
+      })();
+      const args = buildPiCliArguments(spec);
+      expect(args).toContain("--no-skills");
+    });
+
+    it("emits --no-skills when excludedSkills is non-empty", () => {
+      const spec = new (class extends AgentSpecification {
+        constructor() {
+          super({
+            id: "t",
+            role: "t",
+            systemPrompt: "p",
+            excludedSkills: ["some-skill"],
+          });
+        }
+      })();
+      const args = buildPiCliArguments(spec);
+      expect(args).toContain("--no-skills");
+    });
+
+    it("does not emit selective skill flags when both skills and excludedSkills are empty", () => {
+      const spec = new (class extends AgentSpecification {
+        constructor() {
+          super({
+            id: "t",
+            role: "t",
+            systemPrompt: "p",
+          });
+        }
+      })();
+      const args = buildPiCliArguments(spec);
+      expect(args).not.toContain("--no-skills");
+    });
+
+    it("disableSkills still emits --no-skills regardless of skills/excludedSkills", () => {
+      const spec = new (class extends AgentSpecification {
+        constructor() {
+          super({
+            id: "t",
+            role: "t",
+            systemPrompt: "p",
+            skills: ["build-skill"],
+            disableSkills: true,
+          });
+        }
+      })();
+      const args = buildPiCliArguments(spec);
+      // disableSkills takes precedence — only one --no-skills
+      const noSkillsCount = args.filter((a) => a === "--no-skills").length;
+      expect(noSkillsCount).toBe(1);
+    });
+  });
   describe("session flag", () => {
     it("adds --no-session when ephemeral is true", () => {
       const spec = new (class extends AgentSpecification {

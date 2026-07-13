@@ -1,12 +1,20 @@
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 
 /**
+ * Display helpers for agent viewer rendering.
+ *
+ * Provides static utilities for extracting message text, resolving status
+ * icons, serializing tool arguments, and safely navigating nested objects.
+ * All methods are pure — no instance state, no side effects.
+ */
+export class AgentDisplayHelpers {
+  /**
  * Extract concatenated text from a message object's content blocks.
  *
  * Handles both arrays of {@code { type: "text", text: "..." }} blocks
  * and plain string content.
  */
-export function extractMessageText(message: unknown): string {
+  static extractMessageText(message: unknown): string {
   if (typeof message === "string") return message;
   if (typeof message !== "object" || message === null) return "";
   const msg = message as Record<string, unknown>;
@@ -23,7 +31,7 @@ export function extractMessageText(message: unknown): string {
     }
   }
   return parts.join(" ");
-}
+  }
 
 /**
  * Resolve a status string to an icon character and theme colour tuple.
@@ -35,10 +43,10 @@ export function extractMessageText(message: unknown): string {
  * - `"error"` → `{ char: "✗", color: "error" }`
  * - anything else → `{ char: "○", color: "muted" }`
  */
-export function getStatusIcon(
+  static getStatusIcon(
   status: string | undefined,
   passed?: boolean,
-): { char: string; color: ThemeColor } {
+  ): { char: string; color: ThemeColor } {
   switch (status) {
     case "done":
       return passed === false ? { char: "✗", color: "error" } : { char: "✓", color: "success" };
@@ -51,7 +59,7 @@ export function getStatusIcon(
     default:
       return { char: "○", color: "muted" };
   }
-}
+  }
 
 /**
  * Serialize tool call arguments to a stable string representation.
@@ -59,7 +67,7 @@ export function getStatusIcon(
  * Attempts JSON serialization first; falls back to {@code String()} for
  * non-serializable values (BigInt, circular references, etc.).
  */
-export function serializeToolArgs(args: unknown): string {
+  static serializeToolArgs(args: unknown): string {
   if (typeof args === "string") return args;
   try {
     const serialized = JSON.stringify(args, null, 2);
@@ -68,17 +76,18 @@ export function serializeToolArgs(args: unknown): string {
     // Fall through to string coercion.
   }
   return String(args);
-}
+  }
 
 /**
  * Walk a dotted key path into a nested object and return a string value,
  * or {@code ""} when any intermediate key is missing.
  */
-export function getNestedString(root: unknown, ...keys: string[]): string {
+  static getNestedString(root: unknown, ...keys: string[]): string {
   let current: unknown = root;
   for (const key of keys) {
     if (typeof current !== "object" || current === null) return "";
     current = (current as Record<string, unknown>)[key];
   }
   return typeof current === "string" ? current : "";
-}
+  }
+  }

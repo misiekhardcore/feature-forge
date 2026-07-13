@@ -7,7 +7,7 @@ import type { Component } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
 import type { DisplayContribution } from "./DisplayContribution";
-import { getStatusIcon } from "./helpers";
+import { AgentDisplayHelpers } from "./helpers";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
@@ -73,7 +73,7 @@ export class ProgressRenderer {
    * - anything else → muted grey ○
    */
   static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
-    const { char, color } = getStatusIcon(status, passed);
+    const { char, color } = AgentDisplayHelpers.getStatusIcon(status, passed);
     return theme.fg(color, char);
   }
 

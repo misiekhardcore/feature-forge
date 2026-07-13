@@ -13,6 +13,10 @@ export type AgentSpecificationParams = {
   disableSkills?: boolean;
   disablePromptTemplates?: boolean;
   disableContextFiles?: boolean;
+  /** Allowlist of skill names to load. Empty = use default discovery. */
+  skills?: readonly string[];
+  /** Denylist of skill names to disable. Overrides `skills`. */
+  excludedSkills?: readonly string[];
   ephemeral?: boolean;
   /** Working directory for the agent process (defaults to process.cwd()). */
   cwd?: string;
@@ -80,6 +84,10 @@ export abstract class AgentSpecification {
   public readonly disableContextFiles: boolean = false;
   /** Don't persist the session to disk (ephemeral agent). */
   public readonly ephemeral: boolean = false;
+  /** Allowlist of skill names to load. Empty = use default discovery. */
+  public readonly skills: readonly string[] = [];
+  /** Denylist of skill names to disable. Overrides `skills`. */
+  public readonly excludedSkills: readonly string[] = [];
   /** Working directory for the agent process. */
   public readonly cwd?: string | undefined;
 
@@ -110,6 +118,8 @@ export abstract class AgentSpecification {
     this.disablePromptTemplates = params.disablePromptTemplates ?? false;
     this.disableContextFiles = params.disableContextFiles ?? false;
     this.ephemeral = params.ephemeral ?? false;
+    this.skills = params.skills ?? [];
+    this.excludedSkills = params.excludedSkills ?? [];
     this.cwd = params.cwd;
   }
 }
