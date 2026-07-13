@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
@@ -85,6 +86,21 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // resolve and apply tools, system prompt, tool restrictions, and
   // thinking level from the spec locally.
   activateSpecResolution(pi);
+
+  // ── Resource discovery ───────────────────────────────────────────
+  // Contribute .forge/skills/ to the main session's skill discovery
+  // so project-local skills are available to the in-session orchestrator.
+  pi.on("resources_discover", async (_event, _ctx) => {
+    const forgeSkillsDir = path.resolve(".forge", "skills");
+    try {
+      if (fs.existsSync(forgeSkillsDir)) {
+        return { skillPaths: [forgeSkillsDir] };
+      }
+    } catch {
+      // Ignore — directory doesn't exist
+    }
+    return {};
+  });
 
   // Every session runs as a client.
   // Child sessions: FORGE_PARENT_SOCKET points to the parent's server.

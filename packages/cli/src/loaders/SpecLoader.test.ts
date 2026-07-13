@@ -238,6 +238,68 @@ tools:
       expect(spec.tools).toEqual(["run_build_loop", "open_pr", "bash"]);
     });
 
+    it("parses skills and excludedSkills from frontmatter", async () => {
+      const filepath = join(tempDir, "skills-test.md");
+      const specContent = `---
+id: "skills-test"
+role: "skills-test"
+toolPreset: "fullAccess"
+skills:
+  - build
+  - review
+excludedSkills:
+  - verify
+---
+# Skills Test Agent
+`;
+      await fs.writeFile(filepath, specContent);
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("skills-test");
+      expect(spec.skills).toEqual(["build", "review"]);
+      expect(spec.excludedSkills).toEqual(["verify"]);
+    });
+
+    it("defaults skills and excludedSkills to empty arrays when not in frontmatter", async () => {
+      const filepath = join(tempDir, "defaults-test.md");
+      const specContent = `---
+id: "defaults-test"
+role: "defaults-test"
+toolPreset: "fullAccess"
+---
+# Defaults Test Agent
+`;
+      await fs.writeFile(filepath, specContent);
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("defaults-test");
+      expect(spec.skills).toEqual([]);
+      expect(spec.excludedSkills).toEqual([]);
+    });
+
+    it("passes single-element skill arrays correctly", async () => {
+      const filepath = join(tempDir, "single-skill.md");
+      const specContent = `---
+id: "single-skill"
+role: "single-skill"
+toolPreset: "fullAccess"
+skills:
+  - research
+---
+# Single Skill Agent
+`;
+      await fs.writeFile(filepath, specContent);
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      const spec = registry.create("single-skill");
+      expect(spec.skills).toEqual(["research"]);
+    });
     it("reports the offending filename in errors", async () => {
       const filepath = join(tempDir, "broken.md");
       await fs.writeFile(
