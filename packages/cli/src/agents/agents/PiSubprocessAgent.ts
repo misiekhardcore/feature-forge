@@ -3,15 +3,29 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 
+import { ForgeConfig } from "../../config";
 import { logger } from "../../logging";
 import { AgentSpecification } from "../specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
 
 /**
- * Default timeout for agent task execution (ms).
- * Override via the `FORGE_TASK_TIMEOUT_MS` environment variable.
+ * Resolve the default timeout for agent task execution (ms).
+ *
+ * Priority:
+ * 1. ForgeConfig.taskTimeoutMs (if initialized)
+ * 2. FORGE_TASK_TIMEOUT_MS environment variable
+ * 3. 1 hour default
+ *
+ * Evaluated lazily so it works correctly when ForgeConfig is initialized
+ * after module load time.
  */
-export const DEFAULT_TASK_TIMEOUT_MS = Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000; // 1 hour
+export function getDefaultTaskTimeoutMs(): number {
+  const configInstance = ForgeConfig.tryGetInstance();
+  if (configInstance) {
+    return configInstance.getTaskTimeoutMs();
+  }
+  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
+}
 
 /**
  * Concrete {@link SubprocessAgent} that wraps a pi subprocess spawned in RPC mode.
@@ -82,7 +96,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     };
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
-    const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
+    const timeout = options?.timeout ?? getDefaultTaskTimeoutMs();
     const unsubs: (() => void)[] = [];
 
     // Promise that resolves when agent_end is received, rejecting on timeout.

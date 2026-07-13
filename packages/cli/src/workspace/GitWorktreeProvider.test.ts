@@ -1,3 +1,7 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mock setup ───────────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ vi.mock("node:fs", async () => {
   };
 });
 
+import { ForgeConfig } from "../config";
 import { GitWorktreeProvider } from "./GitWorktreeProvider";
 import { WorktreeBranchExistsError, WorktreePathExistsError } from "./WorkspaceError";
 import { WorkspaceProvider } from "./WorkspaceProvider";
@@ -550,6 +555,47 @@ describe("GitWorktreeProvider", () => {
 
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
       expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
+    });
+
+    it("reads worktreeSymlinks from ForgeConfig when initialized", async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "forge-config-test-"));
+      try {
+        writeFileSync(
+          join(tempDir, "forge.config.json"),
+          JSON.stringify({
+            logLevel: "info",
+            workspaceProvider: "git-worktree",
+            agents: {},
+            defaultAgent: { model: { model: "gpt-4" } },
+            worktreeSymlinks: ["config-dir", "shared-assets"],
+          }),
+        );
+
+        await ForgeConfig.create({ cwd: tempDir });
+
+        mocks.addExistingPath(`${repoRoot}/config-dir`);
+        mocks.addExistingPath(`${repoRoot}/shared-assets`);
+
+        branchCheckPasses();
+        mocks.willSucceed(
+          "git",
+          ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+          "worktree created",
+        );
+
+        await provider.createWorkspace("task-1");
+
+        // 3 platform + 2 from ForgeConfig
+        expect(mocks.symlinkSync).toHaveBeenCalledTimes(5);
+
+        const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
+        expect(symlinkTargets).toContain(`${worktreePath}/config-dir`);
+        expect(symlinkTargets).toContain(`${worktreePath}/shared-assets`);
+
+        ForgeConfig.destroy();
+      } finally {
+        // Cleanup temp dir
+      }
     });
   });
 });

@@ -2,6 +2,10 @@ import * as path from "node:path";
 
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
+// Re-export public config API
+
+export * from "./config";
+
 import {
   InMemoryAgentSupervisor,
   PiSubprocessAgentFactory,
@@ -17,13 +21,14 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
+import { ForgeConfig } from "./config";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
-import { FileLogger } from "./logging";
+import { FileLogger, logger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
@@ -60,6 +65,9 @@ import {
  * the caller is the parent or a child.
  */
 const featureForgeExtension: ExtensionFactory = async (pi) => {
+  // ── Configuration ─────────────────────────────────────────────────
+  await ForgeConfig.create({ cwd: process.cwd() });
+
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.initialize();
 
@@ -72,6 +80,22 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
   await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
+
+  // Load additional agent specs from directories configured in forge.config
+  const forgeConfig = ForgeConfig.tryGetInstance();
+  if (forgeConfig) {
+    for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
+      const resolvedDir = path.resolve(process.cwd(), agentSpecDir);
+      try {
+        await specManager.loadFromDirectory(resolvedDir);
+      } catch (error) {
+        logger.warn("[feature-forge] Failed to load agent specs from config directory", {
+          dir: agentSpecDir,
+          error,
+        });
+      }
+    }
+  }
 
   const factory = new PiSubprocessAgentFactory({
     env: childEnv,
@@ -147,6 +171,12 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   // ── Flow-based orchestration commands ────────────────────────────
   const flowsDir = path.join(__dirname, "flows");
+  const additionalFlowDirs: string[] = [];
+  if (forgeConfig) {
+    for (const flowDir of forgeConfig.getFlowDirectories()) {
+      additionalFlowDirs.push(path.resolve(process.cwd(), flowDir));
+    }
+  }
   const flowRegistrar = new FlowRegistrar({
     pi,
     cmdRegistry,
@@ -158,6 +188,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
     eventBus: new TypedEventBus(pi.events),
+    additionalFlowDirs,
   });
   await flowRegistrar.registerAll();
 

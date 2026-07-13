@@ -33,6 +33,7 @@ export class FlowRegistrar {
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
+      additionalFlowDirs?: readonly string[];
     },
   ) {}
 
@@ -54,11 +55,10 @@ export class FlowRegistrar {
       eventBus,
     } = this.params;
 
-    const flowDirectories = await this.discoverFlowDirectories(flowsDir);
+    const builtinDirs = await this.discoverFlowDirectories(flowsDir);
 
-    for (const flowName of flowDirectories) {
-      const flowDir = path.join(flowsDir, flowName);
-      await this.registerFlow(flowName, flowDir, {
+    for (const flowName of builtinDirs) {
+      await this.registerFlow(flowName, path.join(flowsDir, flowName), {
         pi,
         cmdRegistry,
         toolRegistry,
@@ -69,6 +69,25 @@ export class FlowRegistrar {
         stepExecutorRegistry,
         eventBus,
       });
+    }
+
+    // Register flows from additional directories (configured via forge.config)
+    const additionalDirs = this.params.additionalFlowDirs ?? [];
+    for (const extraDir of additionalDirs) {
+      const extraFlowNames = await this.discoverFlowDirectories(extraDir);
+      for (const flowName of extraFlowNames) {
+        await this.registerFlow(flowName, path.join(extraDir, flowName), {
+          pi,
+          cmdRegistry,
+          toolRegistry,
+          supervisor,
+          specManager,
+          workspaceManager,
+          knownProviders,
+          stepExecutorRegistry,
+          eventBus,
+        });
+      }
     }
   }
 

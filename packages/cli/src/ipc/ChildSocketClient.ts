@@ -3,17 +3,32 @@ import { connect, type Socket } from "node:net";
 
 import { jsonParse } from "@feature-forge/shared";
 
+import { ForgeConfig } from "../config";
 import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } from "./messages";
 
 /**
- * Default timeout for IPC requests (ms).
- * Override via the `FORGE_TASK_TIMEOUT_MS` environment variable
- * (shares the same env var as {@link DEFAULT_TASK_TIMEOUT_MS} so both
- * layers stay synchronized by default).
+ * Resolve the default timeout for IPC requests (ms).
+ *
+ * Shares the same resolution logic as {@link getDefaultTaskTimeoutMs}
+ * so both layers stay synchronized by default.
+ *
+ * Priority:
+ * 1. ForgeConfig.taskTimeoutMs (if initialized)
+ * 2. FORGE_TASK_TIMEOUT_MS environment variable
+ * 3. 1 hour default
+ *
+ * Evaluated lazily so it works correctly when ForgeConfig is initialized
+ * after module load time.
  */
-export const IPC_REQUEST_TIMEOUT_MS = Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000; // 1 hour
+export function getIpcRequestTimeoutMs(): number {
+  const configInstance = ForgeConfig.tryGetInstance();
+  if (configInstance) {
+    return configInstance.getTaskTimeoutMs();
+  }
+  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
+}
 
 /**
  * Client for connecting to the parent's `ParentSocketServer` over a Unix socket.
@@ -92,7 +107,7 @@ export class ChildSocketClient {
   async request<ST extends SocketMessage["type"]>(
     type: ST,
     params: Extract<SocketMessage, { type: ST }>["params"],
-    timeout = IPC_REQUEST_TIMEOUT_MS,
+    timeout = getIpcRequestTimeoutMs(),
     signal?: AbortSignal,
   ): Promise<ParamsToResponseMap[ST]> {
     const correlationId = randomUUID();

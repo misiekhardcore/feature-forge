@@ -1,3 +1,7 @@
+import { ForgeConfig } from "../config";
+// ForgeConfig's LogLevel is string-based ("info", "debug", etc.) while
+// the Logger's LogLevel is numeric. The parseLogLevel method handles
+// the conversion for both env var strings and config strings.
 import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
 
 /**
@@ -14,14 +18,37 @@ import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
  * WorkspaceProvider, and Tool.
  */
 export class Logger {
-  protected static instance: Logger;
+  protected static instance: Logger | null = null;
   protected level: LogLevel;
 
   protected constructor() {
     if (!Logger.instance) {
       Logger.instance = this;
     }
-    this.level = this.parseLogLevel(process.env.FEATURE_FORGE_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL;
+    this.level = this.resolveLogLevel();
+  }
+
+  /**
+   * Return the active logger instance, or `null` if not initialized.
+   */
+  static getInstance(): Logger | null {
+    return Logger.instance;
+  }
+
+  /**
+   * Resolve the effective log level by checking, in order:
+   * 1. ForgeConfig (if initialized)
+   * 2. FORGE_LOG_LEVEL environment variable
+   * 3. DEFAULT_LOG_LEVEL
+   */
+  private resolveLogLevel(): LogLevel {
+    const configInstance = ForgeConfig.tryGetInstance();
+    if (configInstance) {
+      // ForgeConfig.LogLevel is a string enum — parseLogLevel handles
+      // the conversion to numeric LogLevel via the shared key names.
+      return this.parseLogLevel(configInstance.getLogLevel()) ?? DEFAULT_LOG_LEVEL;
+    }
+    return this.parseLogLevel(process.env.FORGE_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL;
   }
 
   /**
@@ -42,28 +69,79 @@ export class Logger {
    * fresh instance. Only intended for test teardown.
    */
   static resetForTest(): void {
-    Logger.instance = undefined as unknown as Logger;
+    Logger.instance = null;
+  }
+
+  /**
+   * Return the active logger singleton, or throw if not initialized.
+   *
+   * @throws Error if no logger instance has been created via
+   *   {@link initialize} or a subclass's initialize().
+   */
+  static getRequiredInstance(): Logger {
+    if (!Logger.instance) {
+      throw new Error("Logger not initialized. Call Logger.initialize() or a subclass first.");
+    }
+    return Logger.instance;
   }
 
   static setLogLevel(level: LogLevel): void {
-    Logger.instance.level = level;
+    Logger.getRequiredInstance().level = level;
   }
 
   static getLogLevel(): LogLevel {
-    return Logger.instance.level;
+    return Logger.getRequiredInstance().level;
   }
 
-  /** Log a critical error that prevents normal operation. */
-  error(_message: string, _data?: Record<string, unknown>): void {}
+  /**
+   * Log a critical error that prevents normal operation.
+   *
+   * When the singleton has been replaced by a concrete subclass
+   * (e.g. FileLogger), forwards to the active instance so the
+   * module-level `logger` const stays functional throughout the
+   * extension lifecycle.
+   */
+  error(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.error(message, data);
+    }
+  }
 
-  /** Log a warning about a recoverable problem or unexpected state. */
-  warn(_message: string, _data?: Record<string, unknown>): void {}
+  /**
+   * Log a warning about a recoverable problem or unexpected state.
+   *
+   * Forwards to the active Logger.instance when it differs from
+   * this instance (see {@link error}).
+   */
+  warn(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.warn(message, data);
+    }
+  }
 
-  /** Log informational messages about normal operation. */
-  info(_message: string, _data?: Record<string, unknown>): void {}
+  /**
+   * Log informational messages about normal operation.
+   *
+   * Forwards to the active Logger.instance when it differs from
+   * this instance (see {@link error}).
+   */
+  info(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.info(message, data);
+    }
+  }
 
-  /** Log detailed diagnostic information useful for debugging. */
-  debug(_message: string, _data?: Record<string, unknown>): void {}
+  /**
+   * Log detailed diagnostic information useful for debugging.
+   *
+   * Forwards to the active Logger.instance when it differs from
+   * this instance (see {@link error}).
+   */
+  debug(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.debug(message, data);
+    }
+  }
 
   /**
    * Parse a log level from a raw string value.

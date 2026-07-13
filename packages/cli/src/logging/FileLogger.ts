@@ -1,6 +1,7 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 
+import { ForgeConfig } from "../config";
 import { Logger } from "./Logger";
 import { LogLevel } from "./LogLevel";
 
@@ -40,13 +41,30 @@ export class FileLogger extends Logger {
   }
 
   static initialize(filePath?: string): FileLogger {
-    Logger.instance = new FileLogger(filePath);
-    return Logger.instance as FileLogger;
+    const logger = new FileLogger(filePath);
+    Logger.instance = logger;
+    return logger;
   }
 
   static getDefaultLogFilePath(): string {
-    const logDir = process.env.FEATURE_FORGE_LOG_DIR ?? path.join(process.cwd(), ".forge", "logs");
-    return path.join(logDir, `${Date.now()}.log`);
+    const logDir = FileLogger.resolveLogDir();
+    return path.join(logDir, `${Date.now()}-${process.pid}.log`);
+  }
+
+  /**
+   * Resolve the log directory from config or fall back to env var.
+   *
+   * Priority:
+   * 1. ForgeConfig (if initialized)
+   * 2. FORGE_LOG_DIR environment variable
+   * 3. `.forge/logs` relative to current working directory
+   */
+  private static resolveLogDir(): string {
+    const configInstance = ForgeConfig.tryGetInstance();
+    if (configInstance) {
+      return configInstance.getLogDir();
+    }
+    return process.env.FORGE_LOG_DIR ?? path.join(process.cwd(), ".forge", "logs");
   }
 
   /** Lazily-initialised write stream — no file created until first write. */
@@ -84,8 +102,9 @@ export class FileLogger extends Logger {
     if (!this._stream || this._stream.destroyed) {
       return;
     }
+    const stream = this._stream;
     return new Promise<void>((resolve) => {
-      this._stream!.end(() => resolve());
+      stream.end(() => resolve());
     });
   }
 

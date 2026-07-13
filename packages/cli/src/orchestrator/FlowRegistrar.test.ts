@@ -400,5 +400,67 @@ describe("FlowRegistrar", () => {
       // Command registered, but no tools (no routines to iterate over)
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
     });
+
+    it("registers flows from additionalFlowDirs", async () => {
+      // Builtin dir has no flows, additional dir has "extra-flow"
+      readdirMock
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ name: "extra-flow", isDirectory: () => true }]);
+      accessMock.mockResolvedValue(undefined);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const params = makeParams({ cmdRegistry, flowsDir: "/builtin/flows" });
+      const registrar = new FlowRegistrar({
+        ...params,
+        additionalFlowDirs: ["/extra/flows"],
+      });
+      await registrar.registerAll();
+
+      // Should read from both builtin dir and additional dirs
+      expect(readdirMock).toHaveBeenCalledWith("/builtin/flows", { withFileTypes: true });
+      expect(readdirMock).toHaveBeenCalledWith("/extra/flows", { withFileTypes: true });
+      // Only one flow registered (extra flow from additional dir)
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles missing additionalFlowDirs gracefully", async () => {
+      readdirMock.mockResolvedValue([]);
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const params = makeParams({ cmdRegistry });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // No flows registered
+      expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
+    });
+
+    it("processes multiple additionalFlowDirs", async () => {
+      // Return builtin flow first, then dir1 flows, then dir2 flows
+      readdirMock
+        .mockResolvedValueOnce([{ name: "builtin", isDirectory: () => true }])
+        .mockResolvedValueOnce([{ name: "addon-a", isDirectory: () => true }])
+        .mockResolvedValueOnce([{ name: "addon-b", isDirectory: () => true }]);
+      accessMock.mockResolvedValue(undefined);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const params = makeParams({ cmdRegistry, flowsDir: "/builtin" });
+      const registrar = new FlowRegistrar({
+        ...params,
+        additionalFlowDirs: ["/addons/one", "/addons/two"],
+      });
+      await registrar.registerAll();
+
+      // 3 flows = 3 commands
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(3);
+    });
   });
 });

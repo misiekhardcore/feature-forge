@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import { AgentSpecification } from "../agents";
 import type { Agent } from "../agents/agents";
 import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
 import type { AgentSupervisor } from "../agents/supervisors";
+import { ForgeConfig } from "../config";
 import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
@@ -271,5 +272,77 @@ describe("ChildSocketClient error handling", () => {
     await expect(requestPromise).rejects.toThrow("The operation was aborted");
 
     silentServer.close();
+  });
+});
+
+describe("getIpcRequestTimeoutMs", () => {
+  afterEach(() => {
+    ForgeConfig.destroy();
+  });
+
+  it("returns timeout from ForgeConfig when initialized", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-timeout-test-"));
+    try {
+      writeFileSync(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          taskTimeoutMs: 30000,
+        }),
+      );
+
+      await ForgeConfig.create({ cwd: tempDir });
+
+      const { getIpcRequestTimeoutMs } = await import("./ChildSocketClient");
+      const timeout = getIpcRequestTimeoutMs();
+      expect(timeout).toBe(30000);
+    } finally {
+      ForgeConfig.destroy();
+    }
+  });
+
+  it("falls back to 1 hour default when ForgeConfig is not initialized", async () => {
+    ForgeConfig.destroy();
+
+    const { getIpcRequestTimeoutMs } = await import("./ChildSocketClient");
+    const timeout = getIpcRequestTimeoutMs();
+    expect(timeout).toBe(60 * 60 * 1000);
+  });
+
+  it("uses FORGE_TASK_TIMEOUT_MS env var when ForgeConfig is not initialized", async () => {
+    ForgeConfig.destroy();
+    const original = process.env.FORGE_TASK_TIMEOUT_MS;
+    process.env.FORGE_TASK_TIMEOUT_MS = "30000";
+    try {
+      const { getIpcRequestTimeoutMs } = await import("./ChildSocketClient");
+      const timeout = getIpcRequestTimeoutMs();
+      expect(timeout).toBe(30000);
+    } finally {
+      if (original !== undefined) {
+        process.env.FORGE_TASK_TIMEOUT_MS = original;
+      } else {
+        delete process.env.FORGE_TASK_TIMEOUT_MS;
+      }
+    }
+  });
+
+  it("falls back to 1 hour default when FORGE_TASK_TIMEOUT_MS is invalid", async () => {
+    ForgeConfig.destroy();
+    const original = process.env.FORGE_TASK_TIMEOUT_MS;
+    process.env.FORGE_TASK_TIMEOUT_MS = "not-a-number";
+    try {
+      const { getIpcRequestTimeoutMs } = await import("./ChildSocketClient");
+      const timeout = getIpcRequestTimeoutMs();
+      expect(timeout).toBe(60 * 60 * 1000);
+    } finally {
+      if (original !== undefined) {
+        process.env.FORGE_TASK_TIMEOUT_MS = original;
+      } else {
+        delete process.env.FORGE_TASK_TIMEOUT_MS;
+      }
+    }
   });
 });
