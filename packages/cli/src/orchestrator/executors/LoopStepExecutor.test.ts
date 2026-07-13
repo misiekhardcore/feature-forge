@@ -3,9 +3,6 @@ import { describe, expect, it } from "vitest";
 import { makeMockEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
-import { createMutableState } from "../progress/AccumulatedState";
-import type { DisplayContribution, LoopContribution } from "../progress/DisplayContribution";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineResult } from "../RoutineResult";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
@@ -379,15 +376,8 @@ describe("LoopStepExecutor", () => {
   describe("getDisplayContribution", () => {
     const executor = new LoopStepExecutor();
 
-    function getLoop(
-      executor: LoopStepExecutor,
-      event: Parameters<LoopStepExecutor["getDisplayContribution"]>[0],
-    ): LoopContribution | undefined {
-      return executor.getDisplayContribution(event) as LoopContribution | undefined;
-    }
-
     it("returns iteration and maxIterations for loop-round-start events", () => {
-      const contrib = getLoop(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "loop-round-start",
         message: 'Loop "l" — round 2/5',
         details: { rounds: 2, maxIterations: 5 } as Partial<RoutineResult>,
@@ -399,7 +389,7 @@ describe("LoopStepExecutor", () => {
     });
 
     it("returns iteration and maxIterations for loop-round-complete events", () => {
-      const contrib = getLoop(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "loop-round-complete",
         message: 'Loop "l" — round 3 complete',
         details: { rounds: 3, maxIterations: 3 } as Partial<RoutineResult>,
@@ -411,7 +401,7 @@ describe("LoopStepExecutor", () => {
     });
 
     it("defaults maxIterations to 0 when not present in details", () => {
-      const contrib = getLoop(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "loop-round-start",
         message: "Loop started",
         details: { rounds: 1 },
@@ -422,53 +412,13 @@ describe("LoopStepExecutor", () => {
     });
 
     it("returns undefined for non-loop phase events", () => {
-      const contrib = getLoop(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: "Agent started",
         details: {},
       });
 
       expect(contrib).toBeUndefined();
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers a 'loop' handler that updates iteration and maxIterations", () => {
-      const executor = new LoopStepExecutor();
-      const registry = new DisplayContributionRegistry();
-
-      executor.registerDisplayHandler(registry);
-
-      expect(registry.has("loop")).toBe(true);
-
-      const contributions: DisplayContribution[] = [
-        { type: "loop", iteration: 1, maxIterations: 5, continueWhile: "result.passed" },
-        { type: "loop", iteration: 3, maxIterations: 5 },
-      ];
-
-      const state = createMutableState();
-      registry.apply(state, contributions);
-
-      expect(state.iteration).toBe(3);
-      expect(state.maxIterations).toBe(5);
-      expect(state.continueWhile).toBe("result.passed");
-    });
-
-    it("does not update non-loop fields in the state", () => {
-      const executor = new LoopStepExecutor();
-      const registry = new DisplayContributionRegistry();
-
-      executor.registerDisplayHandler(registry);
-
-      const contributions: DisplayContribution[] = [
-        { type: "agent", agentId: "a1", agentStatus: "done" },
-      ];
-
-      const state = createMutableState();
-      registry.apply(state, contributions);
-
-      expect(state.iteration).toBe(0);
-      expect(state.agentMap.size).toBe(0);
     });
   });
 });

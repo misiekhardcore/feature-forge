@@ -369,8 +369,8 @@ describe("ProgressRenderer", () => {
   describe("buildAgentMap", () => {
     it("maps contributions by agent id", () => {
       const map = ProgressRenderer.buildAgentMap([
-        { type: "agent", agentId: "a1", agentStatus: "done", agentPassed: true },
-        { type: "agent", agentId: "a2", agentStatus: "started" },
+        { agentId: "a1", agentStatus: "done", agentPassed: true },
+        { agentId: "a2", agentStatus: "started" },
       ]);
       expect(map.get("a1")?.status).toBe("done");
       expect(map.get("a1")?.passed).toBe(true);
@@ -380,8 +380,8 @@ describe("ProgressRenderer", () => {
 
     it("overwrites earlier contributions with later ones for same agent", () => {
       const map = ProgressRenderer.buildAgentMap([
-        { type: "agent", agentId: "a1", agentStatus: "started" },
-        { type: "agent", agentId: "a1", agentStatus: "done", agentPassed: true },
+        { agentId: "a1", agentStatus: "started" },
+        { agentId: "a1", agentStatus: "done", agentPassed: true },
       ]);
       expect(map.get("a1")?.status).toBe("done");
       expect(map.get("a1")?.passed).toBe(true);
@@ -389,8 +389,8 @@ describe("ProgressRenderer", () => {
 
     it("skips contributions without agentId or agentStatus", () => {
       const map = ProgressRenderer.buildAgentMap([
-        { type: "agent", agentId: "a1", agentStatus: "done" },
-        { type: "status", phase: "loop-round" },
+        { agentId: "a1", agentStatus: "done" },
+        { phase: "loop-round" },
       ]);
       expect(map.size).toBe(1);
     });
@@ -404,8 +404,8 @@ describe("ProgressRenderer", () => {
 
     it("picks the latest iteration values", () => {
       const info = ProgressRenderer.getIterationInfo([
-        { type: "loop", iteration: 0, maxIterations: 3 },
-        { type: "loop", iteration: 1, maxIterations: 3 },
+        { iteration: 0, maxIterations: 3 },
+        { iteration: 1, maxIterations: 3 },
       ]);
       expect(info).toEqual({ iteration: 1, maxIterations: 3 });
     });
@@ -418,8 +418,8 @@ describe("ProgressRenderer", () => {
 
     it("returns the latest branch", () => {
       const branch = ProgressRenderer.getBranch([
-        { type: "workspace", workspace: "/tmp/ws-abc", branch: "forge/ws-abc" },
-        { type: "workspace", workspace: "/tmp/ws-def", branch: "forge/ws-def" },
+        { branch: "forge/ws-abc" },
+        { branch: "forge/ws-def" },
       ]);
       expect(branch).toBe("forge/ws-def");
     });
@@ -432,8 +432,8 @@ describe("ProgressRenderer", () => {
 
     it("returns the latest workspace path", () => {
       const path = ProgressRenderer.getWorkspacePath([
-        { type: "workspace", workspace: "/tmp/ws-1" },
-        { type: "workspace", workspace: "/tmp/ws-2" },
+        { workspace: "/tmp/ws-1" },
+        { workspace: "/tmp/ws-2" },
       ]);
       expect(path).toBe("/tmp/ws-2");
     });
@@ -446,21 +446,22 @@ describe("ProgressRenderer", () => {
 
     it("returns the latest continueWhile expression", () => {
       const expr = ProgressRenderer.getContinueWhile([
-        { type: "loop", iteration: 0, maxIterations: 5, continueWhile: "result.passed" },
-        { type: "loop", iteration: 1, maxIterations: 5, continueWhile: "result.rounds < 5" },
+        { continueWhile: "result.passed" },
+        { continueWhile: "result.rounds < 5" },
       ]);
       expect(expr).toBe("result.rounds < 5");
     });
   });
 
   describe("buildResultComponent", () => {
-    function makeRenderer(contributions: DisplayContribution[] = []) {
+    function makeRenderer(contributions: Partial<DisplayContribution>[] = []) {
       const state = {
         routineName: "test-routine",
-        contributions:
-          contributions.length > 0
-            ? contributions
-            : [{ type: "agent" as const, agentId: "a1", agentStatus: "started" }],
+        contributions: contributions.map((c) => ({
+          agentId: "a1",
+          agentStatus: "started",
+          ...c,
+        })),
       };
       return new ProgressRenderer(state);
     }

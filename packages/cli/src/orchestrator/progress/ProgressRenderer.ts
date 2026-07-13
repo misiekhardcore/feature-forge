@@ -6,10 +6,7 @@ import type {
 import type { Component } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
-import type { AccumulatedState } from "./AccumulatedState";
-import { createMutableState } from "./AccumulatedState";
 import type { DisplayContribution } from "./DisplayContribution";
-import { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
@@ -170,10 +167,10 @@ export class ProgressRenderer {
    */
   static buildAgentMap(
     contributions: readonly DisplayContribution[],
-  ): Map<string, { status?: string; summary?: string; passed?: boolean }> {
-    const map = new Map<string, { status?: string; summary?: string; passed?: boolean }>();
+  ): Map<string, { status: string; summary?: string; passed?: boolean }> {
+    const map = new Map<string, { status: string; summary?: string; passed?: boolean }>();
     for (const c of contributions) {
-      if (c.type === "agent") {
+      if (c.agentId && c.agentStatus) {
         map.set(c.agentId, {
           status: c.agentStatus,
           summary: c.agentSummary,
@@ -197,10 +194,8 @@ export class ProgressRenderer {
     let iteration = 0;
     let maxIterations = 0;
     for (const c of contributions) {
-      if (c.type === "loop") {
-        iteration = c.iteration;
-        maxIterations = c.maxIterations;
-      }
+      if (c.iteration !== undefined) iteration = c.iteration;
+      if (c.maxIterations !== undefined) maxIterations = c.maxIterations;
     }
     return { iteration, maxIterations };
   }
@@ -211,11 +206,7 @@ export class ProgressRenderer {
   static getWorkspacePath(contributions: readonly DisplayContribution[]): string | undefined {
     let workspace: string | undefined;
     for (const c of contributions) {
-      if (c.type === "workspace") {
-        workspace = c.workspace;
-      } else if (c.type === "status" && c.workspace !== undefined) {
-        workspace = c.workspace;
-      }
+      if (c.workspace !== undefined) workspace = c.workspace;
     }
     return workspace;
   }
@@ -226,9 +217,7 @@ export class ProgressRenderer {
   static getBranch(contributions: readonly DisplayContribution[]): string | undefined {
     let branch: string | undefined;
     for (const c of contributions) {
-      if (c.type === "workspace") {
-        branch = c.branch;
-      }
+      if (c.branch !== undefined) branch = c.branch;
     }
     return branch;
   }
@@ -239,11 +228,7 @@ export class ProgressRenderer {
   static getContinueWhile(contributions: readonly DisplayContribution[]): string | undefined {
     let continueWhile: string | undefined;
     for (const c of contributions) {
-      if (c.type === "loop") {
-        if (c.continueWhile !== undefined) {
-          continueWhile = c.continueWhile;
-        }
-      }
+      if (c.continueWhile !== undefined) continueWhile = c.continueWhile;
     }
     return continueWhile;
   }
@@ -303,16 +288,12 @@ export class ProgressRenderer {
   // ── Instance (reads live state) ────────────────────────────
 
   private readonly state: RoutineProgressState;
-  private readonly registry: DisplayContributionRegistry;
 
   /**
    * @param state — Live progress state (typically the {@link RoutineTool} itself).
-   * @param registry — Registry whose handlers accumulate contributions
-   *   into rendering state. A no-op registry is used when none is provided.
    */
-  constructor(state: RoutineProgressState, registry?: DisplayContributionRegistry) {
+  constructor(state: RoutineProgressState) {
     this.state = state;
-    this.registry = registry ?? new DisplayContributionRegistry();
   }
 
   /**
@@ -321,23 +302,12 @@ export class ProgressRenderer {
    * Shows an accent spinner, the routine name, iteration counter (when
    * the routine has a loop), and an agent count (or "pending").
    */
-  /**
-   * Build an {@link AccumulatedState} from the current contributions
-   * using the registered handlers.
-   */
-  private buildState(): AccumulatedState {
-    const mutable = createMutableState();
-    this.registry.apply(mutable, this.state.contributions);
-    return mutable;
-  }
-
   buildCallComponent(theme: Theme): Component {
     const state = this.state;
     return {
       render: () => {
-        const acc = this.buildState();
-        const agentMap = acc.agentMap;
-        const { iteration, maxIterations } = acc;
+        const agentMap = ProgressRenderer.buildAgentMap(state.contributions);
+        const { iteration, maxIterations } = ProgressRenderer.getIterationInfo(state.contributions);
         const runningIcon = ProgressRenderer.statusIcon("running", theme);
         const parts = [`${runningIcon} ${state.routineName}`];
         if (maxIterations > 0) {
@@ -399,12 +369,11 @@ export class ProgressRenderer {
   renderToWidget(widget: ProgressWidget, theme: ThemeLike): void {
     const { state } = this;
 
-    const acc = this.buildState();
-    const agentMap = acc.agentMap;
-    const { iteration, maxIterations } = acc;
-    const workspace = acc.workspacePath;
-    const branch = acc.branch;
-    const continueWhile = acc.continueWhile;
+    const agentMap = ProgressRenderer.buildAgentMap(state.contributions);
+    const { iteration, maxIterations } = ProgressRenderer.getIterationInfo(state.contributions);
+    const workspace = ProgressRenderer.getWorkspacePath(state.contributions);
+    const branch = ProgressRenderer.getBranch(state.contributions);
+    const continueWhile = ProgressRenderer.getContinueWhile(state.contributions);
 
     const rows: string[] = [];
     for (const [label, agent] of agentMap) {

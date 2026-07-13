@@ -8,9 +8,6 @@ import { makeMockEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
-import { createMutableState } from "../progress/AccumulatedState";
-import type { AgentContribution, DisplayContribution } from "../progress/DisplayContribution";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 
@@ -794,25 +791,17 @@ describe("AgentStepExecutor", () => {
     });
   });
 
-  // Shared helper for tests that need a fully-wired executor.
-  function makeExecutor(): AgentStepExecutor {
-    const agent = makeMockAgent("output");
-    const supervisor = makeMockSupervisor(agent);
-    const specManager = makeMockSpecManager();
-    return new AgentStepExecutor(supervisor, specManager);
-  }
-
   describe("getDisplayContribution", () => {
-    function getAgent(
-      executor: AgentStepExecutor,
-      event: Parameters<AgentStepExecutor["getDisplayContribution"]>[0],
-    ): AgentContribution | undefined {
-      return executor.getDisplayContribution(event) as AgentContribution | undefined;
+    function makeExecutor(): AgentStepExecutor {
+      const agent = makeMockAgent("output");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      return new AgentStepExecutor(supervisor, specManager);
     }
 
     it("returns agentId and agentStatus for agent-started events", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
         details: { agentId: "builder" },
@@ -825,7 +814,7 @@ describe("AgentStepExecutor", () => {
 
     it("returns agentId and agentStatus for agent-done events", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
         details: { agentId: "reviewer", summary: "All good" },
@@ -839,7 +828,7 @@ describe("AgentStepExecutor", () => {
 
     it("extracts agentPassed from agent-done event details", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
         details: { agentId: "reviewer", summary: "3 critical", passed: false },
@@ -853,7 +842,7 @@ describe("AgentStepExecutor", () => {
 
     it("returns agentStatus undefined for agent-error phase (dead code)", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-error",
         message: 'Agent "builder" failed: something broke',
         details: { agentId: "builder" },
@@ -865,7 +854,7 @@ describe("AgentStepExecutor", () => {
 
     it("returns undefined for non-agent phase events", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "workspace-ready",
         message: "Workspace /tmp/ws ready",
         details: {},
@@ -876,7 +865,7 @@ describe("AgentStepExecutor", () => {
 
     it("returns undefined when event details lack agentId", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: "Agent started successfully",
         details: {},
@@ -893,7 +882,7 @@ describe("AgentStepExecutor", () => {
         toolName: "read",
         args: {},
       };
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-stream",
         message: 'Agent "builder" stream event',
         details: { agentId: "builder", event: streamPayload },
@@ -908,7 +897,7 @@ describe("AgentStepExecutor", () => {
 
     it("returns streamEvent undefined for non-stream agent events", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
         details: { agentId: "builder" },
@@ -920,7 +909,7 @@ describe("AgentStepExecutor", () => {
 
     it("extracts executionId from event details for agent-started phase", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
         details: { executionId: "exec-abc-123", agentId: "builder" },
@@ -933,7 +922,7 @@ describe("AgentStepExecutor", () => {
 
     it("extracts executionId and summary from agent-done event details", () => {
       const executor = makeExecutor();
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
         details: {
@@ -958,7 +947,7 @@ describe("AgentStepExecutor", () => {
         toolName: "read",
         args: {},
       };
-      const contrib = getAgent(executor, {
+      const contrib = executor.getDisplayContribution({
         phase: "agent-stream",
         message: 'Agent "builder" stream event',
         details: {
@@ -971,87 +960,6 @@ describe("AgentStepExecutor", () => {
       expect(contrib).toBeDefined();
       expect(contrib!.executionId).toBe("exec-stream-1");
       expect(contrib!.streamEvent).toBe(streamPayload);
-    });
-
-    // ── Type check: agent contributions carry type="agent" ──
-
-    it("returns contributions with type 'agent'", () => {
-      const executor = makeExecutor();
-      const contrib = executor.getDisplayContribution({
-        phase: "agent-started",
-        message: 'Agent "builder" started',
-        details: { agentId: "builder" },
-      });
-
-      expect(contrib).toBeDefined();
-      expect(contrib!.type).toBe("agent");
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers an 'agent' handler that updates agentMap", () => {
-      const executor = makeExecutor();
-      const registry = new DisplayContributionRegistry();
-
-      executor.registerDisplayHandler(registry);
-
-      expect(registry.has("agent")).toBe(true);
-
-      const contributions: DisplayContribution[] = [
-        { type: "agent", agentId: "a1", agentStatus: "started" },
-        { type: "agent", agentId: "a2", agentStatus: "done", agentPassed: true },
-      ];
-
-      const state = createMutableState();
-      registry.apply(state, contributions);
-
-      expect(state.agentMap.size).toBe(2);
-      expect(state.agentMap.get("a1")?.status).toBe("started");
-      expect(state.agentMap.get("a2")?.status).toBe("done");
-      expect(state.agentMap.get("a2")?.passed).toBe(true);
-    });
-
-    it("overwrites earlier agent entries with later ones", () => {
-      const executor = makeExecutor();
-      const registry = new DisplayContributionRegistry();
-
-      executor.registerDisplayHandler(registry);
-
-      const contributions: DisplayContribution[] = [
-        { type: "agent", agentId: "a1", agentStatus: "started" },
-        {
-          type: "agent",
-          agentId: "a1",
-          agentStatus: "done",
-          agentPassed: true,
-          agentSummary: "ok",
-        },
-      ];
-
-      const state = createMutableState();
-      registry.apply(state, contributions);
-
-      expect(state.agentMap.get("a1")?.status).toBe("done");
-      expect(state.agentMap.get("a1")?.passed).toBe(true);
-      expect(state.agentMap.get("a1")?.summary).toBe("ok");
-    });
-
-    it("does not update non-agent fields in the state", () => {
-      const executor = makeExecutor();
-      const registry = new DisplayContributionRegistry();
-
-      executor.registerDisplayHandler(registry);
-
-      const contributions: DisplayContribution[] = [
-        { type: "workspace", workspace: "/tmp/ws", branch: "main" },
-      ];
-
-      const state = createMutableState();
-      registry.apply(state, contributions);
-
-      // Agent handler should not have been called, state should be defaults
-      expect(state.agentMap.size).toBe(0);
-      expect(state.workspacePath).toBeUndefined();
     });
   });
 });

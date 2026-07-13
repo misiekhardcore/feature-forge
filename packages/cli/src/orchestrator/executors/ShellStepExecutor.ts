@@ -6,9 +6,7 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { logger } from "../../logging";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
-import type { MutableState } from "../progress/AccumulatedState";
 import type { DisplayContribution } from "../progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
@@ -117,13 +115,6 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
   /**
    * Extract PR URL from a shell-done event.
    */
-  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
-    // Shell contributions carry no structural state beyond phase/message.
-    registry.register("status", (_contribution, _state: MutableState) => {
-      // No accumulated state to update from shell events.
-    });
-  }
-
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (event.phase !== "shell-done") {
       return undefined;
@@ -133,7 +124,6 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       return undefined;
     }
     return {
-      type: "status",
       phase: event.phase,
       message: prUrl,
     };

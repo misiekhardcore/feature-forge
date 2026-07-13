@@ -1,93 +1,39 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-
 /**
- * Display contribution from an agent step executor.
+ * A DTO returned by {@link import("../StepExecutor").StepExecutor.getDisplayContribution}
+ * carrying display-relevant fields extracted from a
+ * {@link import("../RoutineProgress").RoutineProgressEvent}.
  *
- * Produced for agent-started, agent-done, and agent-stream events.
+ * All fields are optional — each executor populates only the subset
+ * it owns (agents track agentId/agentStatus, loops track iteration, etc.).
+ * The consumer merges contributions into an accumulated state snapshot
+ * for rendering.
  */
-export interface AgentContribution {
-  readonly type: "agent";
-  /** Unique execution identifier from the agent step. */
-  readonly executionId?: string;
-  /** Agent instruction id. */
-  readonly agentId: string;
-  /** Agent lifecycle status ("started" | "done"), undefined for stream-only events. */
-  readonly agentStatus?: string;
+export interface DisplayContribution {
+  /** Unique execution identifier from the agent step that produced this event. */
+  executionId?: string;
+  /** Agent instruction id, set when the event is agent-scoped. */
+  agentId?: string;
+  /** Agent lifecycle status ("started" | "done" | "error"). */
+  agentStatus?: string;
   /** Summary text from a completed agent step. */
-  readonly agentSummary?: string;
+  agentSummary?: string;
   /** Whether the agent's parsed result passed (undefined when not available). */
-  readonly agentPassed?: boolean;
-  /** Raw stream event payload from an agent-stream event. */
-  readonly streamEvent?: AgentEvent;
-  /** The event phase label (e.g. "agent-started"). */
-  readonly phase?: string;
-  /** Human-readable description of the current progress. */
-  readonly message?: string;
-}
-
-/**
- * Display contribution from a loop step executor.
- *
- * Produced for loop-round-start and loop-round-complete events.
- */
-export interface LoopContribution {
-  readonly type: "loop";
+  agentPassed?: boolean;
   /** Current iteration index (0-based). */
-  readonly iteration: number;
+  iteration?: number;
   /** Maximum number of loop iterations. */
-  readonly maxIterations: number;
-  /** The continueWhile expression from the loop instruction, if any. */
-  readonly continueWhile?: string;
-  /** The event phase label (e.g. "loop-round-start"). */
-  readonly phase?: string;
-  /** Human-readable description of the current progress. */
-  readonly message?: string;
-}
-
-/**
- * Display contribution from a workspace step executor.
- *
- * Produced for workspace-ready events.
- */
-export interface WorkspaceContribution {
-  readonly type: "workspace";
-  /** Workspace path on disk. */
-  readonly workspace: string;
+  maxIterations?: number;
+  /** Workspace path, if one has been provisioned. */
+  workspace?: string;
   /** Branch name associated with the workspace, if set. */
-  readonly branch?: string;
-  /** The event phase label (e.g. "workspace-ready"). */
-  readonly phase?: string;
+  branch?: string;
+  /** The event phase label (e.g. "agent-started"). */
+  phase?: string;
   /** Human-readable description of the current progress. */
-  readonly message?: string;
+  message?: string;
+  /** The `continueWhile` expression from the loop instruction, if any. */
+  continueWhile?: string;
+  /** Raw stream event payload from an agent-stream event. */
+  streamEvent?: AgentEvent;
 }
-
-/**
- * Display contribution from status-only events (cleanup, shell, git).
- *
- * Produced for cleanup-done, shell-done, and similar terminal events
- * that carry no structural state but may carry metadata like a PR URL.
- */
-export interface StatusContribution {
-  readonly type: "status";
-  /** The event phase label (e.g. "cleanup-done", "shell-done"). */
-  readonly phase?: string;
-  /** Human-readable description of the current progress. */
-  readonly message?: string;
-  /** PR URL extracted from a shell command output, if any. */
-  readonly prUrl?: string;
-  /** Workspace path reported by a cleanup event, if available. */
-  readonly workspace?: string;
-}
-
-/**
- * A discriminated union of all possible display contribution types.
- *
- * Each variant carries a `type` discriminant used by
- * {@link import("./DisplayContributionRegistry").DisplayContributionRegistry}
- * for dispatch.
- */
-export type DisplayContribution =
-  | AgentContribution
-  | LoopContribution
-  | WorkspaceContribution
-  | StatusContribution;

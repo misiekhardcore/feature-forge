@@ -8,9 +8,6 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
-import { createMutableState } from "../progress/AccumulatedState";
-import type { DisplayContribution, StatusContribution } from "../progress/DisplayContribution";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 
@@ -279,24 +276,19 @@ describe("CleanupStepExecutor", () => {
   });
 
   describe("getDisplayContribution", () => {
-    function getStatus(
-      executor: CleanupStepExecutor,
-      event: RoutineProgressEvent,
-    ): StatusContribution | undefined {
-      return executor.getDisplayContribution(event) as StatusContribution | undefined;
-    }
-
     it("returns phase, message, and workspace from cleanup-done event", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
       );
 
-      const contribution = getStatus(executor, {
+      const event: RoutineProgressEvent = {
         phase: "cleanup-done",
         message: "Cleanup completed",
         details: { workspace: "/fake/ws1" },
-      });
+      };
+
+      const contribution = executor.getDisplayContribution(event);
 
       expect(contribution).toBeDefined();
       expect(contribution!.phase).toBe("cleanup-done");
@@ -310,11 +302,13 @@ describe("CleanupStepExecutor", () => {
         stubWorktreeRegistry(),
       );
 
-      const contribution = getStatus(executor, {
+      const event: RoutineProgressEvent = {
         phase: "cleanup-done",
         message: "No workspaces cleaned",
         details: {},
-      });
+      };
+
+      const contribution = executor.getDisplayContribution(event);
 
       expect(contribution).toBeDefined();
       expect(contribution!.phase).toBe("cleanup-done");
@@ -350,32 +344,6 @@ describe("CleanupStepExecutor", () => {
       };
 
       expect(executor.getDisplayContribution(event)).toBeUndefined();
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers a 'status' handler that does not modify accumulated state", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-      );
-      const registry = new DisplayContributionRegistry();
-
-      executor.registerDisplayHandler(registry);
-
-      expect(registry.has("status")).toBe(true);
-
-      const contributions: DisplayContribution[] = [
-        { type: "status", phase: "cleanup-done", message: "Done" },
-      ];
-
-      const state = createMutableState();
-      registry.apply(state, contributions);
-
-      // Status handler should leave all structural fields at defaults.
-      expect(state.agentMap.size).toBe(0);
-      expect(state.workspacePath).toBeUndefined();
-      expect(state.continueWhile).toBeUndefined();
     });
   });
 });
