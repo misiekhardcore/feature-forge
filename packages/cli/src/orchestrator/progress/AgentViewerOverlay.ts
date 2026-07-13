@@ -8,7 +8,7 @@ import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { extractMessageText, getNestedString, getStatusIcon, serializeToolArgs } from "./helpers";
+import { StreamHelpers } from "./StreamHelpers";
 
 /**
  * Per-agent view entry managed by {@link AgentViewerOverlay}.
@@ -621,7 +621,10 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
+      const { char: icon, color: iconColor } = StreamHelpers.getStatusIcon(
+        entry.status,
+        entry.passed,
+      );
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -683,7 +686,7 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const { char: icon } = getStatusIcon(entry.status, entry.passed);
+    const { char: icon } = StreamHelpers.getStatusIcon(entry.status, entry.passed);
 
     // Header
     let statusLabel: string;
@@ -837,7 +840,7 @@ export class AgentViewerOverlay implements Component {
         const typed = event as Record<string, unknown>;
         if (pendingMessage) {
           // Extract latest content from the event's message.
-          pendingMessage.content = extractMessageText(typed["message"]);
+          pendingMessage.content = StreamHelpers.extractMessageText(typed["message"]);
         }
         if (event.type === "message_end") {
           flushMessage();
@@ -848,7 +851,7 @@ export class AgentViewerOverlay implements Component {
         const toolName = typeof typed["toolName"] === "string" ? typed["toolName"] : "unknown";
         const args =
           "args" in typed && typed["args"] !== undefined
-            ? serializeToolArgs(typed["args"])
+            ? StreamHelpers.serializeToolArgs(typed["args"])
             : undefined;
         pendingTool = { toolName, toolArgs: args, toolStatus: "running", toolResult: "" };
       } else if (event.type === "tool_execution_update") {
@@ -924,7 +927,8 @@ export class AgentViewerOverlay implements Component {
     const lines: string[] = [];
 
     const toolDisplayStatus = AgentViewerOverlay.mapToolStatusToDisplayStatus(turn.toolStatus);
-    const { char: resultIcon, color: resultIconColor } = getStatusIcon(toolDisplayStatus);
+    const { char: resultIcon, color: resultIconColor } =
+      StreamHelpers.getStatusIcon(toolDisplayStatus);
 
     const toolName = turn.toolName ?? "unknown";
     let statusLabel: string;
@@ -1202,13 +1206,13 @@ export class AgentViewerOverlay implements Component {
         return "turn end";
 
       case "message_start": {
-        const role = getNestedString(event, "message", "role");
+        const role = StreamHelpers.getNestedString(event, "message", "role");
         return role.slice(0, 80);
       }
 
       case "message_update":
       case "message_end": {
-        const text = extractMessageText(event.message);
+        const text = StreamHelpers.extractMessageText(event.message);
         return text.slice(0, 80);
       }
 
@@ -1218,7 +1222,7 @@ export class AgentViewerOverlay implements Component {
         // Serialize args into the stream line so they survive the
         // .stream file round-trip (replayed via parseStreamLine).
         if ("args" in event && event.args !== undefined) {
-          const serialized = serializeToolArgs(event.args);
+          const serialized = StreamHelpers.serializeToolArgs(event.args);
           return (toolName + " | " + serialized).slice(0, 240);
         }
         return toolName;

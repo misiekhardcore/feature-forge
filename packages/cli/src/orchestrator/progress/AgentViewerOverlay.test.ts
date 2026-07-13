@@ -14,7 +14,7 @@ import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockEventBus } from "../../test-utils";
 import type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
-import { getStatusIcon } from "./helpers";
+import { StreamHelpers } from "./StreamHelpers";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -384,27 +384,27 @@ describe("AgentViewerOverlay", () => {
 
   describe("statusIcon (via getStatusIcon helper)", () => {
     it("returns ✓ for done with passed: true", () => {
-      expect(getStatusIcon("done", true)).toEqual({ char: "✓", color: "success" });
+      expect(StreamHelpers.getStatusIcon("done", true)).toEqual({ char: "✓", color: "success" });
     });
 
     it("returns ✓ for done without explicit passed", () => {
-      expect(getStatusIcon("done")).toEqual({ char: "✓", color: "success" });
+      expect(StreamHelpers.getStatusIcon("done")).toEqual({ char: "✓", color: "success" });
     });
 
     it("returns ✗ for done with passed: false", () => {
-      expect(getStatusIcon("done", false)).toEqual({ char: "✗", color: "error" });
+      expect(StreamHelpers.getStatusIcon("done", false)).toEqual({ char: "✗", color: "error" });
     });
 
     it("returns ⏳ for started", () => {
-      expect(getStatusIcon("started")).toEqual({ char: "⏳", color: "warning" });
+      expect(StreamHelpers.getStatusIcon("started")).toEqual({ char: "⏳", color: "warning" });
     });
 
     it("returns ✗ for error", () => {
-      expect(getStatusIcon("error")).toEqual({ char: "✗", color: "error" });
+      expect(StreamHelpers.getStatusIcon("error")).toEqual({ char: "✗", color: "error" });
     });
 
     it("returns ○ for unknown status", () => {
-      expect(getStatusIcon("paused")).toEqual({ char: "○", color: "muted" });
+      expect(StreamHelpers.getStatusIcon("paused")).toEqual({ char: "○", color: "muted" });
     });
   });
 
