@@ -13,24 +13,6 @@ import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
  */
 export const DEFAULT_TASK_TIMEOUT_MS = Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000; // 1 hour
 
-function extractAssistantText(events: AgentEvent[]): string {
-  const parts: string[] = [];
-  for (const event of events) {
-    if (
-      event.type === "message_end" &&
-      event.message?.role === "assistant" &&
-      event.message.content
-    ) {
-      for (const block of event.message.content) {
-        if (block.type === "text" && block.text) {
-          parts.push(block.text);
-        }
-      }
-    }
-  }
-  return parts.join("\n\n");
-}
-
 /**
  * Concrete {@link SubprocessAgent} that wraps a pi subprocess spawned in RPC mode.
  *
@@ -75,9 +57,9 @@ export class PiSubprocessAgent extends SubprocessAgent {
   /**
    * Send a prompt (task) to the subagent and wait for completion.
    *
-   * Uses streaming pattern: subscribes to events via {@link onEvent},
-   * collects all events via {@link collectEvents}, and unsubscribes
-   * in a `finally` block to avoid memory leaks.
+   * Uses incremental onEvent listeners: subscribes internal + optional external
+   * listeners, sends the prompt, and awaits a promise that resolves when
+   * the agent_end event is received.
    *
    * Returns the extracted assistant text response.
    */
@@ -101,43 +83,81 @@ export class PiSubprocessAgent extends SubprocessAgent {
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
     const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
-    let unsubscribe: (() => void) | undefined;
+    const unsubs: (() => void)[] = [];
 
-    if (options?.onEvent) {
-      unsubscribe = this.rpcClient.onEvent(options.onEvent);
-    }
+    // Promise that resolves when agent_end is received, rejecting on timeout.
+    let cancelResultPromise: (() => void) | undefined;
+    let rejectResultPromise: ((reason: unknown) => void) | undefined;
+
+    const resultPromise = new Promise<string>((resolve, reject) => {
+      rejectResultPromise = reject;
+
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Task timed out after ${timeout}ms`));
+      }, timeout);
+
+      cancelResultPromise = () => {
+        clearTimeout(timeoutId);
+      };
+
+      let assistantText = "";
+
+      const internalOnEvent = (event: AgentEvent): void => {
+        if (
+          event.type === "message_end" &&
+          event.message?.role === "assistant" &&
+          event.message.content
+        ) {
+          const parts: string[] = [];
+          for (const block of event.message.content) {
+            if (block.type === "text" && block.text) {
+              parts.push(block.text);
+            }
+          }
+          if (parts.length > 0) {
+            assistantText = assistantText
+              ? `${assistantText}\n\n${parts.join("\n\n")}`
+              : parts.join("\n\n");
+          }
+        }
+
+        if (event.type === "agent_end") {
+          clearTimeout(timeoutId);
+          resolve(assistantText);
+        }
+      };
+
+      unsubs.push(this.rpcClient.onEvent(internalOnEvent));
+
+      if (options?.onEvent) {
+        unsubs.push(this.rpcClient.onEvent(options.onEvent));
+      }
+    });
+
+    // Safety net: if the timeout fires while prompt() is still in-flight, the
+    // rejection has no listener yet — Node would report an unhandled rejection.
+    // The rejection is surfaced through await resultPromise in the try block.
+    resultPromise.catch(() => {
+      // Silently handled — the rejection will be re-thrown on await.
+    });
 
     try {
-      const eventsPromise = this.rpcClient.collectEvents(timeout);
-      // Safety net: if prompt() throws before we await eventsPromise, the promise
-      // stays pending with a 60s internal timer. When it eventually rejects, nobody
-      // is listening — causing an unhandled rejection that Node.js v25+ converts to
-      // uncaughtException and crashes the entire pi process.
-      eventsPromise.catch((error) => {
-        // The primary error (from prompt() detecting the child died) is already
-        // caught by the outer catch block, logged as "Task execution failed",
-        // re-thrown, then caught by runAgent() which calls deliverError() to
-        // notify the calling agent. This delayed rejection is just the internal
-        // timeout from collectEvents — noise after the actionable error.
-        logger.warn("collectEvents promise rejected after task already failed", {
-          agentId: this.id,
-          error,
-        });
-      });
       await this.rpcClient.prompt(prompt, options?.images);
-      const events = await eventsPromise;
-
-      this.result = extractAssistantText(events);
+      this.result = await resultPromise;
       this._status = AgentStatus.Completed;
       return this.result;
     } catch (error) {
+      cancelResultPromise?.();
+      rejectResultPromise?.(error);
       logger.error("Task execution failed", { agentId: this.id, prompt, error });
       this._status = AgentStatus.Failed;
       this.error = error instanceof Error ? error : new Error(String(error));
       throw this.error;
     } finally {
       options?.signal?.removeEventListener("abort", onAbort);
-      unsubscribe?.();
+      for (const unsub of unsubs) {
+        unsub();
+      }
     }
   }
 
