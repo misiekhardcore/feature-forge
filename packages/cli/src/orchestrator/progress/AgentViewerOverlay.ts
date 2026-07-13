@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
 import {
@@ -626,7 +626,7 @@ export class AgentViewerOverlay implements Component {
     let toolCallIndex = 0;
 
     // In-progress state for grouping start/end event pairs.
-    let pendingMessage: { role: string; message: unknown; text: string } | undefined;
+    let pendingMessage: { role: string; message: AgentMessage; text: string } | undefined;
     let pendingTool:
       | {
           toolName: string;
@@ -697,22 +697,19 @@ export class AgentViewerOverlay implements Component {
       if (event.type === "message_start") {
         flushTool();
         const typed = event as Record<string, unknown>;
-        const msg =
-          typeof typed["message"] === "object" && typed["message"] !== null
-            ? typed["message"]
-            : undefined;
+        const msg = typeof typed["message"] === "object" && typed["message"] !== null ? typed["message"] : null;
         const role =
           typeof msg === "object" &&
           msg !== null &&
           typeof (msg as Record<string, unknown>)["role"] === "string"
             ? ((msg as Record<string, unknown>)["role"] as string)
             : "unknown";
-        pendingMessage = { role, message: msg, text: "" };
+        pendingMessage = { role, message: (msg as AgentMessage | null) ?? ({} as AgentMessage), text: "" };
       } else if (event.type === "message_update" || event.type === "message_end") {
         const typed = event as Record<string, unknown>;
         if (pendingMessage) {
           // Store the real message object for rich rendering, and extract text for UserMessageComponent.
-          pendingMessage.message = typed["message"];
+          pendingMessage.message = typed["message"] as AgentMessage;
           pendingMessage.text = AgentDisplayHelpers.extractMessageText(typed["message"]);
         }
         if (event.type === "message_end") {
