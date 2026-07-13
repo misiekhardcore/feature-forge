@@ -1386,7 +1386,10 @@ describe("AgentViewerOverlay", () => {
     it("shows unknown role for message turn without explicit role", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", { type: "message_start" } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: {},
+      } as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "message_end",
         message: { content: [{ type: "text", text: "No role here." }] },
@@ -1400,12 +1403,18 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("No role here.");
     });
 
-    it("shows unknown tool name for tool call without toolName", () => {
+    it("shows tool name for tool call from typed event", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", { type: "tool_execution_start" } as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "tool_execution_start",
+        toolName: "bash",
+        toolCallId: "call-1",
+      } as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_end",
+        toolName: "bash",
+        toolCallId: "call-1",
         isError: false,
         result: "done",
       } as unknown as AgentEvent);
@@ -1415,7 +1424,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("unknown");
+      expect(joined).toContain("done");
     });
 
     it("shows no conversation when no stream events were pushed", () => {
