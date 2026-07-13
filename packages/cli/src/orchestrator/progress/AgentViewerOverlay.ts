@@ -1,5 +1,4 @@
 import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
-import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -315,13 +314,13 @@ export class AgentViewerOverlay implements Component {
           appendFileSync(streamPath, `${line}\n`, "utf-8");
         }
 
-        // Persist raw event to .events.jsonl (async, fire-and-forget).
+        // Persist raw event to .events.jsonl (sync, small writes).
         const eventsPath =
           this.eventsFiles.get(agentId) ?? join(this.streamDir, `${agentId}.events.jsonl`);
         if (!this.eventsFiles.has(agentId)) {
           this.eventsFiles.set(agentId, eventsPath);
         }
-        appendFile(eventsPath, `${JSON.stringify(event)}\n`, "utf-8").catch(() => {});
+        appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf-8");
       } catch {
         // Silently ignore filesystem errors — the in-memory line is sufficient.
       }
@@ -362,12 +361,13 @@ export class AgentViewerOverlay implements Component {
   /**
    * Load conversation events from the on-disk JSONL file for the given agent.
    *
-   * Reads the last {@code count} events from the JSONL log by scanning from
-   * the end of the file, avoiding loading the entire file into memory.
+   * The in-memory buffer holds the most recent {@link MAX_AGENT_EVENTS} events.
+   * When {@code count} exceeds the in-memory window, this method loads the
+   * oldest needed events from disk and appends the in-memory tail, avoiding
+   * loading the entire file into memory.
    *
    * Falls back to the in-memory buffer when the JSONL file is missing or
-   * unreadable. Merges the result with the in-memory buffer (deduplicated
-   * by reference identity — callback for custom dedup).
+   * unreadable.
    *
    * @param agentId — The agent to load events for.
    * @param count — Maximum number of events to return (default: 200).
@@ -377,19 +377,33 @@ export class AgentViewerOverlay implements Component {
     agentId: string,
     count: number = MAX_AGENT_EVENTS,
   ): Promise<AgentEvent[]> {
+    const memoryEvents = this.agentEvents.get(agentId) ?? [];
+
+    // If count fits entirely within the in-memory window, no disk access needed.
+    if (count <= memoryEvents.length) {
+      return memoryEvents.slice(-count);
+    }
+
     const eventsPath = this.eventsFiles.get(agentId);
     if (!eventsPath) {
-      return this.getConversation(agentId);
+      return memoryEvents.slice(-count);
     }
 
     try {
       const { readFile } = await import("node:fs/promises");
       const content = await readFile(eventsPath, "utf-8");
       const lines = content.trimEnd().split("\n");
-      // Take the last N lines.
-      const tail = lines.slice(Math.max(0, lines.length - count));
+
+      // The in-memory buffer is a suffix of the full JSONL log (the most recent
+      // MAX_AGENT_EVENTS events). Only load the events OLDER than the in-memory
+      // window from disk, then append the in-memory suffix.
+      const olderCount = count - memoryEvents.length;
+      const olderAvailable = lines.length - memoryEvents.length;
+      const fromIndex = Math.max(0, olderAvailable - olderCount);
+      const olderSlice = lines.slice(fromIndex, Math.max(0, olderAvailable));
+
       const diskEvents: AgentEvent[] = [];
-      for (const line of tail) {
+      for (const line of olderSlice) {
         try {
           const parsed = JSON.parse(line) as AgentEvent;
           diskEvents.push(parsed);
@@ -398,14 +412,10 @@ export class AgentViewerOverlay implements Component {
         }
       }
 
-      // Merge with in-memory buffer, preferring in-memory for matching events.
-      const memoryEvents = this.agentEvents.get(agentId) ?? [];
-      const inMemorySet = new Set(memoryEvents);
-      const merged = [...diskEvents.filter((ev) => !inMemorySet.has(ev)), ...memoryEvents];
-      return merged.slice(Math.max(0, merged.length - count));
+      return [...diskEvents, ...memoryEvents];
     } catch {
       // Fall back to in-memory buffer on read errors.
-      return this.getConversation(agentId);
+      return memoryEvents.slice(-count);
     }
   }
 
