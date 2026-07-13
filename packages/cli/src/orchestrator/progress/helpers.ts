@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -9,28 +10,33 @@ import type { ThemeColor } from "@earendil-works/pi-coding-agent";
  */
 export class AgentDisplayHelpers {
   /**
-   * Extract concatenated text from a message object's content blocks.
+   * Extract text content from an {@link AgentMessage}.
    *
-   * Handles both arrays of {@code { type: "text", text: "..." }} blocks
-   * and plain string content.
+   * Only roles with text-bearing content fields (user, toolResult, assistant)
+   * produce output. Other roles return an empty string.
    */
-  static extractMessageText(message: unknown): string {
-    if (typeof message === "string") return message;
-    if (typeof message !== "object" || message === null) return "";
-    const msg = message as Record<string, unknown>;
-    const content = msg["content"];
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) return "";
-    const parts: string[] = [];
-    for (const block of content) {
-      if (typeof block === "object" && block !== null) {
-        const b = block as Record<string, unknown>;
-        if (b["type"] === "text" && typeof b["text"] === "string") {
-          parts.push(b["text"]);
+  static extractMessageText(message: AgentMessage): string {
+    if ("content" in message) {
+      const content = message.content;
+      if (typeof content === "string") return content;
+      if (Array.isArray(content)) {
+        const parts: string[] = [];
+        for (const block of content) {
+          if (
+            typeof block === "object" &&
+            block !== null &&
+            "type" in block &&
+            "text" in block &&
+            block.type === "text" &&
+            typeof block.text === "string"
+          ) {
+            parts.push(block.text);
+          }
         }
+        return parts.join(" ");
       }
     }
-    return parts.join(" ");
+    return "";
   }
 
   /**
@@ -76,18 +82,5 @@ export class AgentDisplayHelpers {
       // Fall through to string coercion.
     }
     return String(args);
-  }
-
-  /**
-   * Walk a dotted key path into a nested object and return a string value,
-   * or {@code ""} when any intermediate key is missing.
-   */
-  static getNestedString(root: unknown, ...keys: string[]): string {
-    let current: unknown = root;
-    for (const key of keys) {
-      if (typeof current !== "object" || current === null) return "";
-      current = (current as Record<string, unknown>)[key];
-    }
-    return typeof current === "string" ? current : "";
   }
 }

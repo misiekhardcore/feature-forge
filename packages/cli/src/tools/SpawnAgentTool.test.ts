@@ -26,8 +26,7 @@ describe("SpawnAgentTool", () => {
 
   it("includes skills and excludedSkills in parameters schema", () => {
     const tool = new SpawnAgentTool(null);
-    const params = tool.parameters as Record<string, unknown>;
-    const properties = params.properties as Record<string, unknown>;
+    const properties = tool.parameters.properties;
     expect(properties).toHaveProperty("skills");
     expect(properties).toHaveProperty("excludedSkills");
   });

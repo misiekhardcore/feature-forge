@@ -1,5 +1,4 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
+import type { TypedEventBus } from "./eventBus";
 import type { FlowContext } from "./FlowContext";
 import type { FlowInstruction } from "./FlowInstruction";
 import type { DisplayContribution } from "./progress/DisplayContribution";
@@ -21,7 +20,7 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
    * @param instruction — The instruction to execute (narrowed to the executor's type).
    * @param context — Immutable context carrying current results/workspaces/params.
    * @param executeStep — Dispatch callback for container executors (loop, parallel).
-   * @param eventBus — Event bus for streaming progress events.
+   * @param eventBus — Typed event bus for streaming progress events.
    * @param signal — Optional abort signal for cancelling long-running operations.
    * @returns A new context with this instruction's result recorded.
    */
@@ -33,7 +32,7 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext>;
 

@@ -21,7 +21,7 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { ShellInstruction } from "../FlowInstruction";
@@ -76,7 +76,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("/bin/sh");
@@ -102,7 +102,7 @@ describe("ShellStepExecutor", () => {
         prompt: "hello world",
         workspaces: new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
       });
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
@@ -119,7 +119,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("sh3")!.raw).toContain("warning: something");
     });
@@ -135,7 +135,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
       expect(result.results.get("sh4")!.raw).toContain("error output");
@@ -161,7 +161,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("sh6")!.parsed!.passed).toBe(false);
     });
@@ -177,7 +177,7 @@ describe("ShellStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
     });
@@ -200,7 +200,7 @@ describe("ShellStepExecutor", () => {
           instruction,
           context,
           vi.fn(),
-          makeMockEventBus(),
+          makeMockTypedEventBus(),
           controller.signal,
         );
 
@@ -222,7 +222,13 @@ describe("ShellStepExecutor", () => {
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
         await expect(
-          executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+          executor.execute(
+            instruction,
+            context,
+            vi.fn(),
+            makeMockTypedEventBus(),
+            controller.signal,
+          ),
         ).rejects.toThrow("This operation was aborted");
 
         // execFile should never be reached when signal is pre-aborted.
@@ -243,11 +249,11 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledTimes(2);
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenCalledTimes(2);
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           1,
           "feature-forge:shell-start",
           expect.objectContaining({
@@ -255,7 +261,7 @@ describe("ShellStepExecutor", () => {
             message: expect.stringContaining("echo hello") as string,
           }),
         );
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           2,
           "feature-forge:shell-done",
           expect.objectContaining({ phase: "shell-done" }),
@@ -274,11 +280,14 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         const result = await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenCalledTimes(1);
-        expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:shell-start", expect.anything());
+        expect(eventBus.raw.emit).toHaveBeenCalledTimes(1);
+        expect(eventBus.raw.emit).toHaveBeenCalledWith(
+          "feature-forge:shell-start",
+          expect.anything(),
+        );
         expect(result.results.get("sh2")!.parsed!.passed).toBe(false);
       });
 
@@ -294,7 +303,12 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-        const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
 
         expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
       });
@@ -311,15 +325,15 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           2,
           "feature-forge:shell-done",
           expect.objectContaining({
             details: expect.objectContaining({
-              prUrl: "https://github.com/owner/repo/pull/42",
+              passed: true,
             }),
           }),
         );
@@ -337,10 +351,10 @@ describe("ShellStepExecutor", () => {
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-        const eventBus = makeMockEventBus();
+        const eventBus = makeMockTypedEventBus();
         await executor.execute(instruction, context, vi.fn(), eventBus);
 
-        expect(eventBus.emit).toHaveBeenNthCalledWith(
+        expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
           2,
           "feature-forge:shell-done",
           expect.not.objectContaining({

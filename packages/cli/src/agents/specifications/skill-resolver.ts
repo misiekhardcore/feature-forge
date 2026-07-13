@@ -4,7 +4,7 @@ import * as path from "node:path";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-interface SkillMetadata {
+interface SkillMetadata extends Record<string, unknown> {
   name?: string;
 }
 

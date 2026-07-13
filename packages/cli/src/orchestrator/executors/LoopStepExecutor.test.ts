@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
 import type { RoutineResult } from "../RoutineResult";
@@ -17,7 +17,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch, makeMockEventBus());
+    return executor.execute(instruction, ctx, dispatch, makeMockTypedEventBus());
   };
   return dispatch;
 }
@@ -81,7 +81,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("counter")!.raw).toBe("val-round-3");
     expect(result.results.get("counter_count")!.raw).toBe("3");
@@ -104,7 +109,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("l")!.raw).toContain('"iterations":2');
     expect(result.results.get("check")!.parsed!.passed).toBe(true);
@@ -126,7 +136,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("l")!.raw).toContain('"iterations":1');
   });
@@ -162,7 +177,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
   });
@@ -182,7 +202,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("step")!.raw).toBe("build-round-2");
   });
@@ -204,7 +229,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("first")!.raw).toBe("a-round-2");
     expect(result.results.get("second")!.raw).toBe("a-round-2");
@@ -229,7 +259,7 @@ describe("LoopStepExecutor", () => {
       instruction,
       initial,
       makeDispatch(registry),
-      makeMockEventBus(),
+      makeMockTypedEventBus(),
     );
 
     expect(result.results.get("external")!.raw).toBe("keep me");
@@ -249,7 +279,7 @@ describe("LoopStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockTypedEventBus()),
     ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
@@ -274,7 +304,7 @@ describe("LoopStepExecutor", () => {
         instruction,
         context,
         makeDispatch(registry),
-        makeMockEventBus(),
+        makeMockTypedEventBus(),
         controller.signal,
       ),
     ).rejects.toThrow();
@@ -293,7 +323,12 @@ describe("LoopStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("l")!.parsed!.passed).toBe(true);
     expect(result.results.get("l")!.raw).toContain('"iterations":3');
@@ -315,39 +350,39 @@ describe("LoopStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
       await executor.execute(instruction, context, executeStep, eventBus);
 
       // 2 iterations × 2 events (start + complete) = 4 events.
-      expect(eventBus.emit).toHaveBeenCalledTimes(4);
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(4);
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         1,
         "feature-forge:loop-round-start",
         expect.objectContaining({
           phase: "loop-round-start",
-          details: expect.objectContaining({ rounds: 1 }),
+          details: expect.objectContaining({ round: 1 }),
         }),
       );
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         2,
         "feature-forge:loop-round-complete",
         expect.objectContaining({
           phase: "loop-round-complete",
-          details: expect.objectContaining({ rounds: 1 }),
+          details: expect.objectContaining({ round: 1 }),
         }),
       );
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         3,
         "feature-forge:loop-round-start",
         expect.objectContaining({
-          details: expect.objectContaining({ rounds: 2 }),
+          details: expect.objectContaining({ round: 2 }),
         }),
       );
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         4,
         "feature-forge:loop-round-complete",
         expect.objectContaining({
-          details: expect.objectContaining({ rounds: 2 }),
+          details: expect.objectContaining({ round: 2 }),
         }),
       );
     });
@@ -367,7 +402,12 @@ describe("LoopStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
-      const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+      const result = await executor.execute(
+        instruction,
+        context,
+        executeStep,
+        makeMockTypedEventBus(),
+      );
 
       expect(result.results.get("l")!.parsed!.passed).toBe(true);
     });

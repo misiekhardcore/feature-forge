@@ -1,6 +1,5 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../../logging";
+import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
@@ -29,7 +28,7 @@ export class ParallelStepExecutor extends StepExecutor<ParallelInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     const childInstructions = instruction.steps;

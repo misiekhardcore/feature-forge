@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
@@ -17,7 +17,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch, makeMockEventBus());
+    return executor.execute(instruction, ctx, dispatch, makeMockTypedEventBus());
   };
   return dispatch;
 }
@@ -101,7 +101,12 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("a")!.raw).toBe("child-a-out");
     expect(result.results.get("b")!.raw).toBe("child-b-out");
@@ -125,7 +130,12 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.workspaces.has("ws1")).toBe(true);
     expect(result.workspaces.has("ws2")).toBe(true);
@@ -150,7 +160,7 @@ describe("ParallelStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockTypedEventBus()),
     ).rejects.toThrow("step b failed");
   });
 
@@ -173,7 +183,7 @@ describe("ParallelStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockTypedEventBus()),
     ).rejects.toThrow("The operation was aborted");
   });
 
@@ -190,7 +200,7 @@ describe("ParallelStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
-      executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
+      executor.execute(instruction, context, makeDispatch(registry), makeMockTypedEventBus()),
     ).rejects.toThrow('No executor registered for step type "unknown"');
   });
 
@@ -215,7 +225,7 @@ describe("ParallelStepExecutor", () => {
         instruction,
         context,
         makeDispatch(registry),
-        makeMockEventBus(),
+        makeMockTypedEventBus(),
         controller.signal,
       ),
     ).rejects.toThrow();
@@ -233,7 +243,12 @@ describe("ParallelStepExecutor", () => {
 
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     const executeStep = makeDispatch(registry);
-    const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+    const result = await executor.execute(
+      instruction,
+      context,
+      executeStep,
+      makeMockTypedEventBus(),
+    );
 
     expect(result.results.get("empty")!.parsed!.passed).toBe(true);
   });
@@ -254,11 +269,11 @@ describe("ParallelStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
       await executor.execute(instruction, context, executeStep, eventBus);
 
-      expect(eventBus.emit).toHaveBeenCalledTimes(2);
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(2);
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         1,
         "feature-forge:parallel-start",
         expect.objectContaining({
@@ -266,7 +281,7 @@ describe("ParallelStepExecutor", () => {
           message: expect.stringContaining("block") as string,
         }),
       );
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         2,
         "feature-forge:parallel-done",
         expect.objectContaining({
@@ -291,12 +306,15 @@ describe("ParallelStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
 
       await expect(executor.execute(instruction, context, executeStep, eventBus)).rejects.toThrow();
 
-      expect(eventBus.emit).toHaveBeenCalledTimes(1);
-      expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:parallel-start", expect.anything());
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(1);
+      expect(eventBus.raw.emit).toHaveBeenCalledWith(
+        "feature-forge:parallel-start",
+        expect.anything(),
+      );
     });
 
     it("works with a mocked eventBus", async () => {
@@ -314,7 +332,12 @@ describe("ParallelStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const executeStep = makeDispatch(registry);
 
-      const result = await executor.execute(instruction, context, executeStep, makeMockEventBus());
+      const result = await executor.execute(
+        instruction,
+        context,
+        executeStep,
+        makeMockTypedEventBus(),
+      );
 
       expect(result.results.get("block")!.parsed!.passed).toBe(true);
     });

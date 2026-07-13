@@ -1,6 +1,5 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../logging";
+import type { TypedEventBus } from "./eventBus";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
@@ -32,7 +31,7 @@ export class RoutineExecutor {
      * can iterate executors for display-contribution extraction.
      */
     public readonly stepRegistry: StepExecutorRegistry,
-    public readonly eventBus: EventBus,
+    public readonly eventBus: TypedEventBus,
     store?: FlowStateStore,
   ) {
     this.store = store ?? new FlowStateStore();

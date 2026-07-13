@@ -1,3 +1,5 @@
+import { jsonParse } from "@feature-forge/shared";
+
 import { AgentSpecification, AgentSpecificationParams } from "./AgentSpecification";
 
 type DynamicAgentSpecificationParams = Omit<AgentSpecificationParams, "id"> &
@@ -23,11 +25,11 @@ export class DynamicAgentSpecification extends AgentSpecification {
    * the agent spec from the `FORGE_SPEC` environment variable.
    */
   static fromJSON(json: string): DynamicAgentSpecification {
-    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const parsed = jsonParse<DynamicAgentSpecificationParams | null>(json);
     if (typeof parsed !== "object" || parsed === null) {
       throw new Error("FORGE_SPEC must be a JSON object");
     }
-    return new DynamicAgentSpecification(parsed as DynamicAgentSpecificationParams);
+    return new DynamicAgentSpecification(parsed);
   }
 
   /**

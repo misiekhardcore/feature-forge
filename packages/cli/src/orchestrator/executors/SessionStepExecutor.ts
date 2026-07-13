@@ -1,5 +1,4 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
+import type { TypedEventBus } from "../eventBus";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, SessionInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
@@ -23,7 +22,7 @@ export class SessionStepExecutor extends StepExecutor<SessionInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    _eventBus: EventBus,
+    _eventBus: TypedEventBus,
     _signal?: AbortSignal,
   ): Promise<FlowContext> {
     const resolvedKey = context.resolve(instruction.key);

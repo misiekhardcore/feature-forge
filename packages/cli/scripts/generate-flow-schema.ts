@@ -2,6 +2,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { TObject } from "typebox";
+
 import {
   AgentInstructionSchema,
   CleanupInstructionSchema,
@@ -106,9 +108,9 @@ console.log(`Wrote flow-schema.json to ${outPath}`);
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function replaceStepsRef(containerSchema: unknown): Record<string, unknown> {
-  const clone = structuredClone(containerSchema) as Record<string, unknown>;
-  const props = clone.properties as Record<string, unknown> | undefined;
+function replaceStepsRef(containerSchema: TObject) {
+  const clone = structuredClone<TObject>(containerSchema);
+  const props = clone.properties;
   if (props?.steps) {
     props.steps = {
       type: "array",

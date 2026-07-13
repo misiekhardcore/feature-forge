@@ -1,8 +1,7 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../../logging";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
+import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
@@ -39,7 +38,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     signal?.throwIfAborted();
@@ -102,7 +101,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       phase: "cleanup-done",
       message: `Cleanup "${instruction.id}" done — ${cleaned.length} workspace(s)`,
       details: {
-        workspace: cleaned.length > 0 ? cleaned[0] : undefined,
+        errors: 0,
       },
     });
 

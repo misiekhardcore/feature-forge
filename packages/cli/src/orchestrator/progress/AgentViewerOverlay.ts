@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { EventBus, Theme } from "@earendil-works/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
   AssistantMessageComponent,
   ToolExecutionComponent,
@@ -14,6 +14,7 @@ import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import type { TypedEventBus } from "../eventBus";
 import { AgentDisplayHelpers } from "./helpers";
 
 /**
@@ -418,21 +419,12 @@ export class AgentViewerOverlay implements Component {
   /**
    * Format a stream event into a single-line human-readable description.
    *
-   * Accepts any object payload and dispatches based on {@code event.type}
-   * to {@link formatDetail}, which handles {@code Record<string, unknown>}
-   * payloads with guarded property access. Falls back to JSON
-   * serialization for non-object payloads.
+   * Dispatches based on {@code event.type} to {@link formatDetail}.
+   * Returns empty string for non-object payloads.
    */
-  static formatStreamEvent(event: unknown): string {
-    if (event !== null && typeof event === "object" && "type" in event) {
-      const typed = event as Record<string, unknown>;
-      const rawType = typed["type"];
-      const eventType = typeof rawType === "string" ? rawType : "unknown";
-      const detail = AgentViewerOverlay.formatDetail(typed, eventType);
-      return detail ? `${eventType}: ${detail}` : eventType;
-    }
-    const serialized = JSON.stringify(event);
-    return serialized.length > 120 ? serialized.slice(0, 117) + "..." : serialized;
+  static formatStreamEvent(event: AgentEvent): string {
+    const detail = AgentViewerOverlay.formatDetail(event);
+    return detail ? `${event.type}: ${detail}` : event.type;
   }
 
   // ── Private rendering ─────────────────────────────────────
@@ -627,9 +619,7 @@ export class AgentViewerOverlay implements Component {
 
     // In-progress state.  Uses pi's own types — no custom wrappers.
     let pendingMessage: AgentMessage | undefined;
-    let pendingToolStart:
-      | Extract<AgentEvent, { type: "tool_execution_start" }>
-      | undefined;
+    let pendingToolStart: Extract<AgentEvent, { type: "tool_execution_start" }> | undefined;
     let pendingToolResult: { text: string; isError: boolean } | undefined;
 
     const flushMessage = (): void => {
@@ -806,17 +796,11 @@ export class AgentViewerOverlay implements Component {
    * to replay buffered events, set the stream directory, and populate initial
    * agent entries from the supervisor.
    */
-  static wireOverlayEvents(params: { eventBus: EventBus; supervisor: AgentSupervisor }): {
+  static wireOverlayEvents(params: { eventBus: TypedEventBus; supervisor: AgentSupervisor }): {
     connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
     unsubs: Array<() => void>;
   } {
     const { eventBus, supervisor } = params;
-
-    const channels = [
-      "feature-forge:agent-stream",
-      "feature-forge:agent-started",
-      "feature-forge:agent-done",
-    ] as const;
 
     const eventBuffer: Array<{
       agentId: string;
@@ -848,50 +832,50 @@ export class AgentViewerOverlay implements Component {
       });
     };
 
-    const unsubs = channels.map((channel) =>
-      eventBus.on(channel, (data) => {
-        const payload = data as {
-          details?: {
-            agentId?: string;
-            event?: unknown;
-            passed?: boolean;
-            summary?: string;
-          };
-        };
-        const agentId = payload.details?.agentId;
+    const unsubs = [
+      eventBus.on("feature-forge:agent-stream", (payload) => {
+        const agentId = payload.details.agentId;
         if (!agentId) return;
 
-        if (channel === "feature-forge:agent-stream" && payload.details?.event) {
+        if (payload.details.event) {
           if (connected) {
-            viewer.pushStreamEvent(agentId, payload.details.event as AgentEvent);
+            viewer.pushStreamEvent(agentId, payload.details.event);
           } else {
-            eventBuffer.push({
-              agentId,
-              event: payload.details.event as AgentEvent,
-            });
-          }
-        } else if (
-          channel === "feature-forge:agent-started" ||
-          channel === "feature-forge:agent-done"
-        ) {
-          const mappedStatus = AgentViewerOverlay.mapStatus(
-            supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
-          );
-          const passed = payload.details?.passed;
-          const eventSummary = payload.details?.summary;
-          if (connected) {
-            deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
-          } else {
-            eventBuffer.push({
-              agentId,
-              status: mappedStatus,
-              passed,
-              summary: eventSummary,
-            });
+            eventBuffer.push({ agentId, event: payload.details.event });
           }
         }
       }),
-    );
+
+      eventBus.on("feature-forge:agent-started", (payload) => {
+        const agentId = payload.details.agentId;
+        if (!agentId) return;
+
+        const mappedStatus = AgentViewerOverlay.mapStatus(
+          supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+        );
+        if (connected) {
+          deliverStatusEvent(viewer, agentId, mappedStatus);
+        } else {
+          eventBuffer.push({ agentId, status: mappedStatus });
+        }
+      }),
+
+      eventBus.on("feature-forge:agent-done", (payload) => {
+        const agentId = payload.details.agentId;
+        if (!agentId) return;
+
+        const mappedStatus = AgentViewerOverlay.mapStatus(
+          supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+        );
+        const passed = payload.details.passed;
+        const eventSummary = payload.details.summary;
+        if (connected) {
+          deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
+        } else {
+          eventBuffer.push({ agentId, status: mappedStatus, passed, summary: eventSummary });
+        }
+      }),
+    ];
 
     let viewer!: AgentViewerOverlay;
 
@@ -934,8 +918,8 @@ export class AgentViewerOverlay implements Component {
    * Accepts a generic record so that callers do not need unsafe
    * {@code as AgentEvent} casts. All property access is guarded.
    */
-  private static formatDetail(event: Record<string, unknown>, eventType: string): string {
-    switch (eventType) {
+  private static formatDetail(event: AgentEvent): string {
+    switch (event.type) {
       case "agent_start":
         return "started";
       case "agent_end":
@@ -945,14 +929,12 @@ export class AgentViewerOverlay implements Component {
       case "turn_end":
         return "turn end";
 
-      case "message_start": {
-        const role = AgentDisplayHelpers.getNestedString(event, "message", "role");
-        return role.slice(0, 80);
-      }
+      case "message_start":
+        return event.message?.role?.slice(0, 80) ?? "";
 
       case "message_update":
       case "message_end": {
-        const text = AgentDisplayHelpers.extractMessageText(event.message);
+        const text = event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
         return text.slice(0, 80);
       }
 

@@ -24,6 +24,7 @@ import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
 import { FileLogger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
+import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
@@ -149,7 +150,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     flowsDir,
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
-    eventBus: pi.events,
+    eventBus: new TypedEventBus(pi.events),
   });
   await flowRegistrar.registerAll();
 };

@@ -21,7 +21,7 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { GitInstruction } from "../FlowInstruction";
@@ -74,7 +74,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(2);
       const addCall = execFileRaw.mock.calls[0];
@@ -102,7 +102,7 @@ describe("GitStepExecutor", () => {
         message: "chore: bump version",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const commitCall = execFileRaw.mock.calls[1];
       expect(commitCall[1]).toEqual(["commit", "-m", "chore: bump version"]);
@@ -120,7 +120,7 @@ describe("GitStepExecutor", () => {
         message: "feat: {{prompt}}",
       };
       const context = new FlowContext({ results: new Map(), prompt: "implement login" });
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const commitCall = execFileRaw.mock.calls[1];
       expect(commitCall[1]).toEqual(["commit", "-m", "feat: implement login"]);
@@ -137,7 +137,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("git");
@@ -157,7 +157,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("git-push")!.parsed!.passed).toBe(true);
       const raw = result.results.get("git-push")!.raw;
@@ -176,7 +176,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("git-push-empty")!.parsed!.passed).toBe(true);
       expect(result.results.get("git-push-empty")!.raw).toContain("push-current");
@@ -194,7 +194,7 @@ describe("GitStepExecutor", () => {
         cwd: "/bad/path",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("git-push-fail")!.parsed!.passed).toBe(false);
       expect(result.results.get("git-push-fail")!.raw).toContain("fatal:");
@@ -215,7 +215,7 @@ describe("GitStepExecutor", () => {
         prompt: "task",
         workspaces: new Map([["ws", new WorkspaceHandle("/resolved/ws", new Date())]]),
       });
-      await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw.mock.calls[0][2].cwd).toBe("/resolved/ws");
     });
@@ -233,7 +233,7 @@ describe("GitStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
       ).rejects.toThrow("fatal: not a git repository");
     });
 
@@ -284,7 +284,7 @@ describe("GitStepExecutor", () => {
         cwd: "/tmp/ws",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw).toHaveBeenCalledTimes(3);
       expect(execFileRaw.mock.calls[2][1]).toEqual(["rev-parse", "--verify", "HEAD"]);
@@ -340,7 +340,7 @@ describe("GitStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       await expect(
-        executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
       ).rejects.toThrow("nothing to commit");
     });
 
@@ -356,11 +356,11 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
       await executor.execute(instruction, context, vi.fn(), eventBus);
 
-      expect(eventBus.emit).toHaveBeenCalledTimes(2);
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(2);
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         1,
         "feature-forge:git-start",
         expect.objectContaining({
@@ -368,7 +368,7 @@ describe("GitStepExecutor", () => {
           message: expect.stringContaining("push-current") as string,
         }),
       );
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         2,
         "feature-forge:git-done",
         expect.objectContaining({ phase: "git-done" }),
@@ -387,15 +387,15 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
 
       await expect(executor.execute(instruction, context, vi.fn(), eventBus)).rejects.toThrow(
         "fatal: not a git repository",
       );
 
       // Only git-start was emitted.
-      expect(eventBus.emit).toHaveBeenCalledTimes(1);
-      expect(eventBus.emit).toHaveBeenCalledWith("feature-forge:git-start", expect.anything());
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(1);
+      expect(eventBus.raw.emit).toHaveBeenCalledWith("feature-forge:git-start", expect.anything());
     });
 
     describe("signal", () => {
@@ -416,7 +416,7 @@ describe("GitStepExecutor", () => {
           instruction,
           context,
           vi.fn(),
-          makeMockEventBus(),
+          makeMockTypedEventBus(),
           controller.signal,
         );
 
@@ -442,7 +442,7 @@ describe("GitStepExecutor", () => {
           instruction,
           context,
           vi.fn(),
-          makeMockEventBus(),
+          makeMockTypedEventBus(),
           controller.signal,
         );
 
@@ -463,19 +463,19 @@ describe("GitStepExecutor", () => {
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
 
       const result = await executor.execute(instruction, context, vi.fn(), eventBus);
 
       expect(result.results.get("git-push-soft-fail")!.parsed!.passed).toBe(false);
 
-      expect(eventBus.emit).toHaveBeenCalledTimes(2);
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(2);
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         1,
         "feature-forge:git-start",
         expect.anything(),
       );
-      expect(eventBus.emit).toHaveBeenNthCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenNthCalledWith(
         2,
         "feature-forge:git-done",
         expect.objectContaining({

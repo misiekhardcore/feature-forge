@@ -1,9 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../../logging";
+import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, GitInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
@@ -35,7 +34,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     signal?.throwIfAborted();
@@ -106,7 +105,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       eventBus.emit("feature-forge:git-done", {
         phase: "git-done",
         message: `Git "${instruction.id}": ${instruction.action} complete`,
-        details: {},
+        details: { passed: true, summary: result.parsed?.summary ?? result.raw },
       });
 
       return context.withResult(instruction.id, result);
@@ -134,7 +133,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       eventBus.emit("feature-forge:git-done", {
         phase: "git-done",
         message: `Git "${instruction.id}": ${instruction.action} failed`,
-        details: {},
+        details: { passed: false, summary: err.message },
       });
 
       const result: InstructionResult = {

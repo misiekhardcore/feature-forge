@@ -1,12 +1,10 @@
-import type { EventBus } from "@earendil-works/pi-coding-agent";
-
 import { logger } from "../../logging";
+import type { TypedEventBus } from "../eventBus";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
 import type { RoutineProgressEvent } from "../RoutineProgress";
-import type { RoutineResult } from "../RoutineResult";
 import { StepExecutor } from "../StepExecutor";
 import { collectAllIds } from "./helpers";
 
@@ -30,7 +28,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    eventBus: EventBus,
+    eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     const maxIterations = instruction.maxIterations;
@@ -69,10 +67,10 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
         phase: "loop-round-start",
         message: `Loop "${instruction.id}" — round ${iteration + 1}/${maxIterations}`,
         details: {
-          rounds: iteration + 1,
+          round: iteration + 1,
           maxIterations,
-          continueWhile: continueWhileExpr,
-        } as Partial<RoutineResult>,
+          ...(continueWhileExpr ? { continueWhile: continueWhileExpr } : {}),
+        },
       });
 
       // Execute each body step in sequence.
@@ -85,10 +83,10 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
         phase: "loop-round-complete",
         message: `Loop "${instruction.id}" — round ${iteration + 1} complete`,
         details: {
-          rounds: iteration + 1,
+          round: iteration + 1,
           maxIterations,
-          continueWhile: continueWhileExpr,
-        } as Partial<RoutineResult>,
+          ...(continueWhileExpr ? { continueWhile: continueWhileExpr } : {}),
+        },
       });
 
       if (accumulateFrom.length > 0) {

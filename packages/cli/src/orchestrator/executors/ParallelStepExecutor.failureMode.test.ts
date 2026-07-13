@@ -1,7 +1,7 @@
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import {
   type FlowInstruction,
@@ -21,7 +21,7 @@ function makeDispatch(
     if (!executor) {
       throw new Error(`No executor registered for step type "${instruction.type}"`);
     }
-    return executor.execute(instruction, ctx, dispatch, makeMockEventBus());
+    return executor.execute(instruction, ctx, dispatch, makeMockTypedEventBus());
   };
   return dispatch;
 }
@@ -109,7 +109,7 @@ describe("ParallelStepExecutor — failureMode", () => {
       };
 
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
 
       const result = await executor.execute(instruction, context, makeDispatch(registry), eventBus);
 
@@ -136,7 +136,7 @@ describe("ParallelStepExecutor — failureMode", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
       await expect(
-        executor.execute(instruction, context, makeDispatch(registry), makeMockEventBus()),
+        executor.execute(instruction, context, makeDispatch(registry), makeMockTypedEventBus()),
       ).rejects.toThrow("step b failed");
     });
   });
@@ -160,7 +160,7 @@ describe("ParallelStepExecutor — failureMode", () => {
       };
 
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
 
       const result = await executor.execute(instruction, context, makeDispatch(registry), eventBus);
 
@@ -174,7 +174,7 @@ describe("ParallelStepExecutor — failureMode", () => {
       expect(parsedRaw.failures).toBeDefined();
       expect(parsedRaw.failures.b).toBe("step b failed");
 
-      expect(eventBus.emit).toHaveBeenCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenCalledWith(
         "feature-forge:parallel-done",
         expect.objectContaining({
           phase: "parallel-done",
@@ -202,7 +202,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         instruction,
         context,
         makeDispatch(registry),
-        makeMockEventBus(),
+        makeMockTypedEventBus(),
       );
 
       const blockResult = result.results.get("block")!;
@@ -234,7 +234,7 @@ describe("ParallelStepExecutor — failureMode", () => {
         instruction,
         context,
         makeDispatch(registry),
-        makeMockEventBus(),
+        makeMockTypedEventBus(),
       );
 
       expect(result.results.get("op-a")!.raw).toBe("child-a-out");

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
@@ -62,7 +62,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext({ results: new Map(), prompt: "task" });
-    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     const expectedId = `ws-00000000`;
     expect(provider.created).toContain(`/test/${expectedId}`);
@@ -84,7 +84,7 @@ describe("WorkspaceStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
 
     await expect(
-      executor.execute(instruction, context, vi.fn(), makeMockEventBus()),
+      executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
     ).rejects.toThrow('Unknown workspace provider "current-dir"');
   });
 
@@ -100,7 +100,7 @@ describe("WorkspaceStepExecutor", () => {
       provider: "git-worktree",
     };
     const context = new FlowContext({ results: new Map(), prompt: "task" });
-    await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     expect(context.workspaces.size).toBe(0);
     expect(context.results.size).toBe(0);
@@ -122,7 +122,7 @@ describe("WorkspaceStepExecutor", () => {
     controller.abort();
 
     await expect(
-      executor.execute(instruction, context, vi.fn(), makeMockEventBus(), controller.signal),
+      executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus(), controller.signal),
     ).rejects.toThrow();
   });
 
@@ -142,7 +142,7 @@ describe("WorkspaceStepExecutor", () => {
       symlinks: ["custom-dir", "another-dir"],
     };
     const context = new FlowContext({ results: new Map(), prompt: "task" });
-    await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
       symlinks: ["custom-dir", "another-dir"],
@@ -163,18 +163,17 @@ describe("WorkspaceStepExecutor", () => {
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-      const eventBus = makeMockEventBus();
+      const eventBus = makeMockTypedEventBus();
       await executor.execute(instruction, context, vi.fn(), eventBus);
 
-      expect(eventBus.emit).toHaveBeenCalledTimes(1);
-      expect(eventBus.emit).toHaveBeenCalledWith(
+      expect(eventBus.raw.emit).toHaveBeenCalledTimes(1);
+      expect(eventBus.raw.emit).toHaveBeenCalledWith(
         "feature-forge:workspace-ready",
         expect.objectContaining({
           phase: "workspace-ready",
           message: expect.stringContaining("ws-") as string,
           details: expect.objectContaining({
-            workspace: expect.stringContaining("/test/ws-") as string,
-            branch: expect.stringContaining("forge/ws-") as string,
+            path: expect.stringContaining("/test/ws-") as string,
           }),
         }),
       );
@@ -193,7 +192,7 @@ describe("WorkspaceStepExecutor", () => {
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.workspaces.has("ws")).toBe(true);
     });
@@ -265,7 +264,7 @@ describe("WorkspaceStepExecutor", () => {
         provider: "git-worktree",
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       const handle = result.workspaces.get("ws");
       expect(handle).toBeDefined();

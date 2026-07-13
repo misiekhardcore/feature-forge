@@ -3,8 +3,9 @@ import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { SpecManager } from "../agents";
 import { AgentSupervisor, isSubprocessAgent } from "../agents";
@@ -124,7 +125,7 @@ export class ParentSocketServer {
         }
 
         try {
-          const message: SocketMessage = JSON.parse(trimmed) as SocketMessage;
+          const message: SocketMessage = jsonParse<SocketMessage>(trimmed);
           void this.handleMessage(socket, message);
         } catch (error) {
           this.sendError(socket, "unknown", `Invalid JSON: ${String(error)}`);
@@ -348,7 +349,7 @@ export class ParentSocketServer {
     agentId: string,
     executionId: string,
     label: string,
-    event: unknown,
+    event: AgentEvent,
   ): void {
     this.pi.events.emit("feature-forge:agent-stream", {
       phase: "agent-stream",

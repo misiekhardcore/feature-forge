@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { makeMockEventBus } from "../../test-utils";
+import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { SessionInstruction } from "../FlowInstruction";
 import { FlowStateStore } from "../FlowStateStore";
@@ -28,7 +28,7 @@ describe("SessionStepExecutor", () => {
       store,
     });
 
-    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     expect(result.store.get("base")).toBe("path/to/worktree");
   });
@@ -50,7 +50,7 @@ describe("SessionStepExecutor", () => {
       params: new Map([["param1", "value1"]]),
     });
 
-    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     expect(result.results.get("prev")?.raw).toBe("done");
     expect(result.prompt).toBe("original prompt");
@@ -78,7 +78,7 @@ describe("SessionStepExecutor", () => {
       ]),
     });
 
-    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     expect(result.store.get("base")).toBe("main");
   });
@@ -100,7 +100,7 @@ describe("SessionStepExecutor", () => {
       store,
     });
 
-    const result = await executor.execute(instruction, context, vi.fn(), makeMockEventBus());
+    const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
     expect(result.store.get("copied")).toBe("/tmp/existing");
   });
@@ -128,8 +128,8 @@ describe("SessionStepExecutor", () => {
       store,
     });
 
-    const result1 = await executor.execute(instruction1, context, vi.fn(), makeMockEventBus());
-    const result2 = await executor.execute(instruction2, result1, vi.fn(), makeMockEventBus());
+    const result1 = await executor.execute(instruction1, context, vi.fn(), makeMockTypedEventBus());
+    const result2 = await executor.execute(instruction2, result1, vi.fn(), makeMockTypedEventBus());
 
     expect(result2.store.get("ws")).toBe("/tmp/ws1");
     expect(result2.store.get("ref")).toBe("main");

@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import type { EventBus, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
@@ -9,6 +9,7 @@ import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";
+import type { TypedEventBus } from "./eventBus";
 import { FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
@@ -31,7 +32,7 @@ export class FlowRegistrar {
       flowsDir: string;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
-      eventBus: EventBus;
+      eventBus: TypedEventBus;
     },
   ) {}
 
@@ -92,7 +93,7 @@ export class FlowRegistrar {
       workspaceManager: WorkspaceManager;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
-      eventBus: EventBus;
+      eventBus: TypedEventBus;
     },
   ): Promise<void> {
     const {
