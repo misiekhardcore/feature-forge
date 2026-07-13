@@ -44,7 +44,7 @@ class ParseJsonExecutor extends StepExecutor {
   readonly type = "parsejson";
 
   async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
-    const iteration = context.iteration + 1;
+    const iteration = context.iteration;
     // Fails on odd iterations, passes on even.
     const passed = iteration >= 2;
     return context.withResult(instruction.id, {

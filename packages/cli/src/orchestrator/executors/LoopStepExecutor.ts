@@ -59,7 +59,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
         current = current.withResultsCleared(bodyIds);
       }
 
-      current = current.withIteration(iteration);
+      current = current.withIteration(iteration + 1);
 
       logger.debug("Loop iteration", { id: instruction.id, iteration, maxIterations });
 
@@ -130,10 +130,10 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
 
     // Record a summary result for the loop itself.
     const loopResult: InstructionResult = {
-      raw: JSON.stringify({ iterations: current.iteration + 1, maxIterations }),
+      raw: JSON.stringify({ iterations: current.iteration, maxIterations }),
       parsed: {
         passed: true,
-        summary: `Loop completed ${current.iteration + 1} iteration(s)`,
+        summary: `Loop completed ${current.iteration} iteration(s)`,
       },
     };
 
