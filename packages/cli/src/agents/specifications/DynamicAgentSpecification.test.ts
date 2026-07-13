@@ -81,6 +81,8 @@ describe("DynamicAgentSpecification", () => {
         disablePromptTemplates: false,
         disableContextFiles: false,
         ephemeral: true,
+        skills: [],
+        excludedSkills: [],
         cwd: undefined,
       });
     });

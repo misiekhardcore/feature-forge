@@ -24,6 +24,14 @@ describe("SpawnAgentTool", () => {
     expect(tool.parameters).toBeDefined();
   });
 
+  it("includes skills and excludedSkills in parameters schema", () => {
+    const tool = new SpawnAgentTool(null);
+    const params = tool.parameters as Record<string, unknown>;
+    const properties = params.properties as Record<string, unknown>;
+    expect(properties).toHaveProperty("skills");
+    expect(properties).toHaveProperty("excludedSkills");
+  });
+
   describe("without socket client", () => {
     it("returns not-available error", async () => {
       const tool = new SpawnAgentTool(null);

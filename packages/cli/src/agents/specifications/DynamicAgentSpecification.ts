@@ -42,6 +42,8 @@ export class DynamicAgentSpecification extends AgentSpecification {
       systemPrompt: this.systemPrompt,
       excludedTools: this.excludedTools,
       toolRestrictions: this.toolRestrictions,
+      skills: this.skills,
+      excludedSkills: this.excludedSkills,
       model: this.model,
       thinkingLevel: this.thinkingLevel,
       disableBuiltinTools: this.disableBuiltinTools,

@@ -34,6 +34,17 @@ export const SpawnAgentParameters = Type.Object({
         "Per-tool pattern restrictions. Each key is a tool name, value is a list of glob patterns (empty array = unrestricted).",
     }),
   ),
+  skills: Type.Optional(
+    Type.Readonly(Type.Array(Type.String()), {
+      description:
+        "Allowlist of skill names to load for this agent. Empty = use default discovery.",
+    }),
+  ),
+  excludedSkills: Type.Optional(
+    Type.Readonly(Type.Array(Type.String()), {
+      description: "Denylist of skill names to disable. Overrides skills.",
+    }),
+  ),
   model: Type.Optional(
     Type.String({
       description: 'Optional model preference (e.g. "claude-sonnet-4-5").',
