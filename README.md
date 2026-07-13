@@ -42,13 +42,18 @@ Feature Forge runs as a [pi](https://github.com/earendil-works/pi-coding-agent) 
 ## Development
 
 ```bash
-npm test          # Run tests (vitest, all packages)
-npm run check     # Run all checks (lint + format + test)
-npm run typecheck # Full TypeScript type safety check
-npm run changelog # Generate CHANGELOG.md
+npm test            # Run tests (vitest, all packages)
+npm run check       # Run all checks (lint + format + test)
+npm run typecheck   # Full TypeScript type safety check
+npm run lint        # Check code style (turbo, all packages)
+npm run lint:fix    # Auto-fix lint issues (turbo, all packages)
+npm run format      # Check formatting (turbo, all packages)
+npm run format:fix  # Auto-fix formatting (turbo, all packages)
+npm run fix         # Combined: lint:fix + format:fix — run before pushing
+npm run changelog   # Generate CHANGELOG.md
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, and [AGENTS.md](AGENTS.md) for coding conventions and project structure.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, and [AGENTS.md](AGENTS.md) for coding conventions, operational patterns, and project structure.
 
 ## License
 
