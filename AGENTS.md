@@ -7,14 +7,22 @@ Autonomous software engineering platform — idea-to-PR via structured discovery
 Run these in order. A change is not done until all pass cleanly.
 
 ```bash
-npm run lint          # eslint .
-npm run format        # prettier --check .
-npm run typecheck     # tsc --noEmit
+npm run lint          # turbo run lint
+npm run format        # turbo run format
+npm run typecheck     # turbo run typecheck
 npm run test          # vitest run
 npm test -- --coverage  # coverage with thresholds
 ```
 
 Or use the combined script: `npm run check` (lint → format → test — does NOT include typecheck or coverage).
+
+**Before pushing**, auto-fix formatting and lint issues:
+
+```bash
+npm run fix           # lint:fix + format:fix (turbo)
+```
+
+Then re-run validation to confirm nothing broke. **Never push without running `fix` first.**
 
 ### Known failures / exemptions
 
@@ -183,6 +191,7 @@ These are frequently repeated patterns and mistakes collected across sessions. F
 
 ### Worktree lifecycle
 
+- **All code changes MUST be made inside a git worktree** — never modify files directly in the main repo directory (the root `~/Projects/feature-forge`). Always create a worktree first with `wt switch --create <branch>`.
 - Always use `wt remove <branch>` to clean up worktrees — never run `git branch -d` directly; the worktree tool handles both worktree and branch deletion together.
 - Use `wt remove -D <branch>` when the branch has been pushed but the local worktree still tracks it as unmerged. Check with `wt list` first.
 - Do not attempt to delete a branch while a worktree is still attached — always go through `wt remove`.
@@ -195,7 +204,8 @@ These are frequently repeated patterns and mistakes collected across sessions. F
 
 ### Command execution
 
-- Chain destructive or sequential commands with `&&` in a single call to avoid partial execution on interruption, e.g., `prettier --write . && npm run check`.
+- Chain destructive or sequential commands with `&&` in a single call to avoid partial execution on interruption, e.g., `npm run fix && npm run check`.
+- **Always run `npm run fix` before pushing** — this runs `eslint --fix` and `prettier --write` across all packages via turbo, catching formatting/lint issues that automated hooks might miss.
 - Run the smallest, most targeted command first: `wt list | grep <branch>` instead of unfiltered `wt list`; `grep <pattern>` instead of grepping the full repo when scope is known.
 - Before pushing, verify the commit content: `git diff HEAD~1 --stat` to confirm only expected files changed.
 - Cache or reuse API responses where possible — a single `gh pr view <n> --json baseRefName,headRefName` covers both branch names in one call.

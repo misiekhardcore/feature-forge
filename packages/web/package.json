@@ -7,7 +7,9 @@
     "build": "echo 'web: nothing to build yet'",
     "test": "echo 'web: no tests yet'",
     "lint": "echo 'web: no source yet'",
+    "lint:fix": "echo 'web: no source yet'",
     "format": "echo 'web: no source yet'",
+    "format:fix": "echo 'web: no source yet'",
     "typecheck": "echo 'web: no source yet'"
   }
 }

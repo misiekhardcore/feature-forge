@@ -34,7 +34,10 @@ npm install
 | `npm test`           | Run tests (vitest, all packages)               |
 | `npm run test:watch` | Run tests in watch mode                        |
 | `npm run lint`       | Check code style (turbo, all packages)         |
+| `npm run lint:fix`   | Auto-fix lint issues (turbo, all packages)     |
 | `npm run format`     | Check formatting (turbo, all packages)         |
+| `npm run format:fix` | Auto-fix formatting (turbo, all packages)      |
+| `npm run fix`        | Combined: lint:fix + format:fix                |
 | `npm run typecheck`  | TypeScript type checking (turbo, all packages) |
 | `npm run check`      | Combined: lint + format + test (not typecheck) |
 | `npm run build`      | Build all packages via turbo                   |
