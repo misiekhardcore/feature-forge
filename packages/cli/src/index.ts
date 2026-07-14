@@ -82,18 +82,16 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
 
   // Load additional agent specs from directories configured in forge.config
-  const forgeConfig = ForgeConfig.getInstance();
-  if (forgeConfig) {
-    for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
-      const resolvedDir = path.resolve(process.cwd(), agentSpecDir);
-      try {
-        await specManager.loadFromDirectory(resolvedDir);
-      } catch (error) {
-        logger.warn("[feature-forge] Failed to load agent specs from config directory", {
-          dir: agentSpecDir,
-          error,
-        });
-      }
+  const forgeConfig = ForgeConfig.getInstance()!;
+  for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
+    const resolvedDir = path.resolve(process.cwd(), agentSpecDir);
+    try {
+      await specManager.loadFromDirectory(resolvedDir);
+    } catch (error) {
+      logger.warn("[feature-forge] Failed to load agent specs from config directory", {
+        dir: agentSpecDir,
+        error,
+      });
     }
   }
 
