@@ -370,11 +370,11 @@ describe("ForgeConfig", () => {
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(ForgeConfig.instance).toBe(instance);
+      expect(ForgeConfig.getInstance()).toBe(instance);
     });
 
     it("returns undefined when not initialized", () => {
-      expect(ForgeConfig.instance).toBeUndefined();
+      expect(ForgeConfig.getInstance()).toBeUndefined();
     });
   });
 

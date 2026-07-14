@@ -15,6 +15,7 @@ import * as path from "node:path";
 
 import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
+import { DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
 import type {
   DisplayConfig,
   ForgeConfig as ForgeConfigType,
@@ -104,15 +105,6 @@ export class ForgeConfig {
   // ── Singleton access ────────────────────────────────────────────────
 
   /**
-   * Get the singleton {@link ForgeConfig} instance.
-   *
-   * @throws {@link ConfigError} if {@link create} has not been called yet.
-   */
-  static get instance(): ForgeConfig {
-    return ForgeConfig.getInstance()!;
-  }
-
-  /**
    * Get the singleton {@link ForgeConfig} instance, or `undefined`
    * if not yet initialized.
    *
@@ -140,7 +132,7 @@ export class ForgeConfig {
    * Defaults to `.forge/logs` when config is loaded with defaults.
    */
   getLogDir(): string {
-    return this.getConfig().logDir ?? ".forge/logs";
+    return this.getConfig().logDir ?? DEFAULT_FORGE_CONFIG.logDir!;
   }
 
   /**
@@ -158,7 +150,7 @@ export class ForgeConfig {
    * Defaults to 3600000 (1 hour).
    */
   getTaskTimeoutMs(): number {
-    return this.getConfig().taskTimeoutMs ?? 60 * 60 * 1000;
+    return this.getConfig().taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs!;
   }
 
   /**
@@ -197,13 +189,7 @@ export class ForgeConfig {
    * or defaults.
    */
   getDisplayConfig(): DisplayConfig {
-    return (
-      this.getConfig().display ?? {
-        maxRawLength: 500,
-        maxAgentEvents: 200,
-        maxPreconnectBuffer: 2000,
-      }
-    );
+    return this.getConfig().display ?? DEFAULT_FORGE_CONFIG.display!;
   }
 
   /**
@@ -212,7 +198,7 @@ export class ForgeConfig {
    * Defaults to 500.
    */
   getDisplayMaxRawLength(): number {
-    return this.getDisplayConfig().maxRawLength ?? 500;
+    return this.getDisplayConfig().maxRawLength ?? DEFAULT_FORGE_CONFIG.display!.maxRawLength!;
   }
 
   /**
@@ -221,7 +207,7 @@ export class ForgeConfig {
    * Defaults to 200.
    */
   getDisplayMaxAgentEvents(): number {
-    return this.getDisplayConfig().maxAgentEvents ?? 200;
+    return this.getDisplayConfig().maxAgentEvents ?? DEFAULT_FORGE_CONFIG.display!.maxAgentEvents!;
   }
 
   /**
@@ -230,7 +216,10 @@ export class ForgeConfig {
    * Defaults to 2000.
    */
   getDisplayMaxPreconnectBuffer(): number {
-    return this.getDisplayConfig().maxPreconnectBuffer ?? 2000;
+    return (
+      this.getDisplayConfig().maxPreconnectBuffer ??
+      DEFAULT_FORGE_CONFIG.display!.maxPreconnectBuffer!
+    );
   }
 
   /**

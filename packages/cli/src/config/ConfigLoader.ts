@@ -318,24 +318,20 @@ export class ConfigLoader {
    * the same env vars from the parent process and use them as fallbacks
    * when ForgeConfig is not initialized in the child.
    */
-  static readonly FORGE_ENV_MAP: Record<string, string> = {
-    /** Agent task timeout in milliseconds. */
-    FORGE_TASK_TIMEOUT_MS: "taskTimeoutMs",
-    /** Logging verbosity level (silent, error, warn, info, debug). */
-    FORGE_LOG_LEVEL: "logLevel",
-    /** Directory for log files. */
-    FORGE_LOG_DIR: "logDir",
-  };
-
   /**
-   * Build a partial config overlay from known {@link FORGE_ENV_MAP} env vars.
+   * Build a partial config overlay from known FORGE_* environment variables.
    *
-   * Coerces env var strings to the correct types:
-   * - `taskTimeoutMs`: parsed as integer (min 1)
-   * - `logLevel`: validated against {@link LogLevel} enum values
-   * - `logDir`: used as-is (string)
+   * Each known env var is read, type-coerced, and added to the overlay.
+   * Invalid values (unparsable numbers, unknown log levels) are silently
+   * skipped — the config system falls back to defaults.
    *
-   * @returns Partial config object; empty when no known env vars are set.
+   * Current env vars (all one-to-one with ForgeConfigSchema fields):
+   * - FORGE_TASK_TIMEOUT_MS → taskTimeoutMs (number, parsed)
+   * - FORGE_LOG_LEVEL     → logLevel (string, validated against LogLevel enum)
+   * - FORGE_LOG_DIR       → logDir (string, used as-is)
+   *
+   * Internal plumbing (FORGE_PARENT_SOCKET, FORGE_SPEC) is handled directly
+   * in the files that use it — they are transport-level, not config values.
    */
   resolveForgeEnvOverlay(): Record<string, unknown> {
     const overlay: Record<string, unknown> = {};
@@ -359,6 +355,11 @@ export class ConfigLoader {
     const logDir = process.env.FORGE_LOG_DIR;
     if (logDir !== undefined) {
       overlay.logDir = logDir;
+    }
+
+    const worktreeSymlinks = process.env.FORGE_WORKTREE_SYMLINKS;
+    if (worktreeSymlinks !== undefined && worktreeSymlinks.length > 0) {
+      overlay.worktreeSymlinks = worktreeSymlinks.split(",").map((s) => s.trim());
     }
 
     return overlay;

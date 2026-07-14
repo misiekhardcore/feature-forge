@@ -43,9 +43,7 @@ export class Logger {
   protected resolveLogLevel(): LogLevel {
     if (this.level === undefined) {
       const config = ForgeConfig.getInstance();
-      this.level = config
-        ? (this.parseLogLevel(config.getLogLevel()) ?? DEFAULT_LOG_LEVEL)
-        : (this.parseLogLevel(process.env.FORGE_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL);
+      this.level = this.parseLogLevel(config?.getLogLevel()) ?? DEFAULT_LOG_LEVEL;
     }
     return this.level;
   }

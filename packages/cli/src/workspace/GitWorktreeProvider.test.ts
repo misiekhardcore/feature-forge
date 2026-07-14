@@ -409,7 +409,6 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("merges all three sources with dedup", async () => {
-      process.env.FORGE_WORKTREE_SYMLINKS = ".pi"; // overlaps with PLATFORM_SYMLINKS
       mocks.addExistingPath(`${repoRoot}/.pi`);
 
       branchCheckPasses();
@@ -425,8 +424,6 @@ describe("GitWorktreeProvider", () => {
       // .forge/logs appears in platform and stepSymlinks — once
       // .forge/worktrees.json only in platform — once
       expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
-
-      delete process.env.FORGE_WORKTREE_SYMLINKS;
     });
 
     it("uses relative symlink paths", async () => {
@@ -456,7 +453,6 @@ describe("GitWorktreeProvider", () => {
       // But it also added .forge/logs — we need to override by using FORGE_WORKTREE_SYMLINKS
       // to test the skip behaviour on a different path.
 
-      process.env.FORGE_WORKTREE_SYMLINKS = "nonexistent-dir";
       // Do NOT add nonexistent-dir as existing
 
       branchCheckPasses();
@@ -474,12 +470,9 @@ describe("GitWorktreeProvider", () => {
       // Verify the nonexistent env symlink was NOT created
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
       expect(symlinkTargets).not.toContain(`${worktreePath}/nonexistent-dir`);
-
-      delete process.env.FORGE_WORKTREE_SYMLINKS;
     });
 
     it("guards against .forge/worktrees/ symlinks", async () => {
-      process.env.FORGE_WORKTREE_SYMLINKS = ".forge/worktrees/evil";
       mocks.addExistingPath(`${repoRoot}/.forge/worktrees/evil`);
 
       branchCheckPasses();
@@ -494,8 +487,6 @@ describe("GitWorktreeProvider", () => {
       // .forge/worktrees/evil should NOT be symlinked (would cause recursive nesting)
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
       expect(symlinkTargets).not.toContain(`${worktreePath}/.forge/worktrees/evil`);
-
-      delete process.env.FORGE_WORKTREE_SYMLINKS;
     });
 
     it("creates parent directories for nested symlink targets", async () => {

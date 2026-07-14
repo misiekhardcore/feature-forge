@@ -1,7 +1,7 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 
-import { ForgeConfig } from "../config";
+import { DEFAULT_FORGE_CONFIG, ForgeConfig } from "../config";
 import { Logger } from "./Logger";
 import { LogLevel } from "./LogLevel";
 
@@ -51,20 +51,8 @@ export class FileLogger extends Logger {
     return path.join(logDir, `${Date.now()}-${process.pid}.log`);
   }
 
-  /**
-   * Resolve the log directory from config or fall back to env var.
-   *
-   * Priority:
-   * 1. ForgeConfig (if initialized)
-   * 2. FORGE_LOG_DIR environment variable
-   * 3. `.forge/logs` relative to current working directory
-   */
   private static resolveLogDir(): string {
-    const config = ForgeConfig.getInstance();
-    if (config) {
-      return config.getLogDir();
-    }
-    return process.env.FORGE_LOG_DIR ?? path.join(process.cwd(), ".forge", "logs");
+    return ForgeConfig.getInstance()?.getLogDir() ?? DEFAULT_FORGE_CONFIG.logDir!;
   }
 
   /** Lazily-initialised write stream — no file created until first write. */

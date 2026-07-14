@@ -3,7 +3,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 
-import { ForgeConfig } from "../../config";
+import { DEFAULT_FORGE_CONFIG, ForgeConfig } from "../../config";
 import { logger } from "../../logging";
 import { AgentSpecification } from "../specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
@@ -13,19 +13,14 @@ import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
  *
  * Priority:
  * 1. ForgeConfig.taskTimeoutMs (if initialized)
- * 2. FORGE_TASK_TIMEOUT_MS environment variable
- * 3. 1 hour default
- *
- * Evaluated lazily so it works correctly when ForgeConfig is initialized
- * after module load time.
+ * 2. DEFAULT_FORGE_CONFIG.taskTimeoutMs (built-in default)
  */
 export function getDefaultTaskTimeoutMs(): number {
   const config = ForgeConfig.getInstance();
   if (config) {
     return config.getTaskTimeoutMs();
   }
-  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
-  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
+  return DEFAULT_FORGE_CONFIG.taskTimeoutMs!;
 }
 
 /**

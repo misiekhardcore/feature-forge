@@ -4,6 +4,7 @@ import { connect, type Socket } from "node:net";
 import { jsonParse } from "@feature-forge/shared";
 
 import { ForgeConfig } from "../config";
+import { DEFAULT_FORGE_CONFIG } from "../config";
 import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } from "./messages";
@@ -11,24 +12,19 @@ import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } f
 /**
  * Resolve the default timeout for IPC requests (ms).
  *
- * Shares the same resolution logic as {@link getDefaultTaskTimeoutMs}
- * so both layers stay synchronized by default.
- *
  * Priority:
  * 1. ForgeConfig.taskTimeoutMs (if initialized)
- * 2. FORGE_TASK_TIMEOUT_MS environment variable
- * 3. 1 hour default
+ * 2. DEFAULT_FORGE_CONFIG.taskTimeoutMs (built-in default)
  *
- * Evaluated lazily so it works correctly when ForgeConfig is initialized
- * after module load time.
+ * Kept as a free function so it can be used in tests without
+ * initializing the full ForgeConfig singleton.
  */
 export function getIpcRequestTimeoutMs(): number {
   const config = ForgeConfig.getInstance();
   if (config) {
     return config.getTaskTimeoutMs();
   }
-  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
-  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
+  return DEFAULT_FORGE_CONFIG.taskTimeoutMs!;
 }
 
 /**
