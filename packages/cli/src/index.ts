@@ -18,6 +18,7 @@ import {
   WorktreeListCommand,
 } from "./commands";
 import { activateForgeSkills } from "./extensions/forge-skills";
+import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
@@ -153,6 +154,8 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     eventBus: new TypedEventBus(pi.events),
   });
   await flowRegistrar.registerAll();
+
+  registerDevTestCommands(pi);
 };
 
 export default featureForgeExtension;

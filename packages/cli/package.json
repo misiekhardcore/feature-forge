@@ -33,7 +33,8 @@
     "@earendil-works/pi-ai": "0.79.10",
     "@earendil-works/pi-coding-agent": "0.79.8",
     "@earendil-works/pi-tui": "0.79.8",
-    "@feature-forge/shared": "*"
+    "@feature-forge/shared": "*",
+    "@feature-forge/debug": "*"
   },
   "devDependencies": {
     "ajv": "^8.20.0",
