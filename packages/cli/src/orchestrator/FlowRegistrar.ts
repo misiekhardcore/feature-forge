@@ -29,11 +29,10 @@ export class FlowRegistrar {
       supervisor: InMemoryAgentSupervisor;
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
-      flowsDir: string;
+      flowDirs: readonly string[];
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
-      additionalFlowDirs?: readonly string[];
     },
   ) {}
 
@@ -49,34 +48,16 @@ export class FlowRegistrar {
       supervisor,
       specManager,
       workspaceManager,
-      flowsDir,
+      flowDirs,
       knownProviders,
       stepExecutorRegistry,
       eventBus,
     } = this.params;
 
-    const builtinDirs = await this.discoverFlowDirectories(flowsDir);
-
-    for (const flowName of builtinDirs) {
-      await this.registerFlow(flowName, path.join(flowsDir, flowName), {
-        pi,
-        cmdRegistry,
-        toolRegistry,
-        supervisor,
-        specManager,
-        workspaceManager,
-        knownProviders,
-        stepExecutorRegistry,
-        eventBus,
-      });
-    }
-
-    // Register flows from additional directories (configured via forge.config)
-    const additionalDirs = this.params.additionalFlowDirs ?? [];
-    for (const extraDir of additionalDirs) {
-      const extraFlowNames = await this.discoverFlowDirectories(extraDir);
-      for (const flowName of extraFlowNames) {
-        await this.registerFlow(flowName, path.join(extraDir, flowName), {
+    for (const flowDir of flowDirs) {
+      const flowNames = await this.discoverFlowDirectories(flowDir);
+      for (const flowName of flowNames) {
+        await this.registerFlow(flowName, path.join(flowDir, flowName), {
           pi,
           cmdRegistry,
           toolRegistry,

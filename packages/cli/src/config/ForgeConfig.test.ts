@@ -327,7 +327,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getFlowDirectories()).toEqual(["extra-flows"]);
+      expect(instance.getFlowDirectories()).toEqual([join(tempDir, "extra-flows")]);
     });
 
     it("returns empty array when flow directories not configured", async () => {
@@ -348,7 +348,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getAgentSpecDirectories()).toEqual(["extra-agent-specs"]);
+      expect(instance.getAgentSpecDirectories()).toEqual([join(tempDir, "extra-agent-specs")]);
     });
 
     it("returns empty array when agent spec directories not configured", async () => {

@@ -84,9 +84,8 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Load additional agent specs from directories configured in forge.config
   const forgeConfig = ForgeConfig.getInstance()!;
   for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
-    const resolvedDir = path.resolve(process.cwd(), agentSpecDir);
     try {
-      await specManager.loadFromDirectory(resolvedDir);
+      await specManager.loadFromDirectory(agentSpecDir);
     } catch (error) {
       logger.warn("[feature-forge] Failed to load agent specs from config directory", {
         dir: agentSpecDir,
@@ -168,13 +167,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
-  const flowsDir = path.join(__dirname, "flows");
-  const additionalFlowDirs: string[] = [];
-  if (forgeConfig) {
-    for (const flowDir of forgeConfig.getFlowDirectories()) {
-      additionalFlowDirs.push(path.resolve(process.cwd(), flowDir));
-    }
-  }
+  const flowDirs = [path.join(__dirname, "flows"), ...forgeConfig.getFlowDirectories()];
   const flowRegistrar = new FlowRegistrar({
     pi,
     cmdRegistry,
@@ -182,11 +175,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     supervisor,
     specManager,
     workspaceManager,
-    flowsDir,
+    flowDirs,
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
     eventBus: new TypedEventBus(pi.events),
-    additionalFlowDirs,
   });
   await flowRegistrar.registerAll();
 

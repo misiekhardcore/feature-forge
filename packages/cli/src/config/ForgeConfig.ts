@@ -11,6 +11,8 @@
  * ```
  */
 
+import * as path from "node:path";
+
 import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import type {
@@ -173,15 +175,17 @@ export class ForgeConfig {
   /**
    * Return the configured additional flow directories.
    */
-  getFlowDirectories(): readonly string[] {
-    return this.getSpecDirectories().flows ?? [];
+  getFlowDirectories(): string[] {
+    const flows = this.getSpecDirectories().flows ?? [];
+    return flows.map((dir) => path.resolve(ForgeConfig.cwd ?? process.cwd(), dir));
   }
 
   /**
    * Return the configured additional agent spec directories.
    */
-  getAgentSpecDirectories(): readonly string[] {
-    return this.getSpecDirectories().agents ?? [];
+  getAgentSpecDirectories(): string[] {
+    const dirs = this.getSpecDirectories().agents ?? [];
+    return dirs.map((dir) => path.resolve(ForgeConfig.cwd ?? process.cwd(), dir));
   }
 
   // ── Display configuration accessors ────────────────────────────────
