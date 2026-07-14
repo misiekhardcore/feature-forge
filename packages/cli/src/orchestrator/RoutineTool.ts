@@ -216,7 +216,6 @@ export class RoutineTool
               tui,
               theme,
               onDone: () => {
-                overlayUnsubs?.forEach((u) => u());
                 viewer.dispose();
                 done();
               },

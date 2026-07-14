@@ -8,6 +8,7 @@ import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
@@ -321,8 +322,11 @@ export class AgentViewerOverlay implements Component {
           this.eventsFiles.set(agentId, eventsPath);
         }
         appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf-8");
-      } catch {
-        // Silently ignore filesystem errors — the in-memory line is sufficient.
+      } catch (error) {
+        logger.debug("Failed to persist stream event to disk", {
+          agentId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -407,14 +411,24 @@ export class AgentViewerOverlay implements Component {
         try {
           const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
-        } catch {
-          // Skip malformed lines.
+        } catch (error) {
+          logger.debug("Skipping malformed event JSONL line", {
+            agentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
       return [...diskEvents, ...memoryEvents];
-    } catch {
-      // Fall back to in-memory buffer on read errors.
+    } catch (error) {
+      logger.debug(
+        "Failed to load conversation events from disk, falling back to in-memory buffer",
+        {
+          agentId,
+          count,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       return memoryEvents.slice(-count);
     }
   }
@@ -463,9 +477,9 @@ export class AgentViewerOverlay implements Component {
           if (!this.agents.has(agentId)) {
             this.update({ id: agentId, status: "done", summary: "Agent completed" });
           }
-          // No replay is needed — events are ingested in real time
-          // via pushStreamEvent. The stream file serves as an append-only
-          // log for debugging, not as a re-ingestion source.
+          // Stream files are not replayed — they hold formatted display lines
+          // for debugging only. The events.jsonl branch below handles
+          // re-ingestion of raw events into the in-memory buffer.
         } else if (entry.endsWith(".events.jsonl")) {
           const agentId = entry.slice(0, -13);
           const filePath = join(streamDir, entry);
@@ -487,13 +501,20 @@ export class AgentViewerOverlay implements Component {
               }
               this.agentEvents.set(agentId, merged);
             }
-          } catch {
-            // Silently skip unreadable or malformed event files.
+          } catch (error) {
+            logger.debug("Failed to prepopulate events from JSONL file, skipping", {
+              agentId,
+              filePath,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
         }
       }
-    } catch {
-      // Directory may not exist or be inaccessible.
+    } catch (error) {
+      logger.debug("Failed to scan stream directory for prepopulation", {
+        streamDir,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
