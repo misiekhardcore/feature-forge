@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../../agents/agents/Agent";
@@ -3548,7 +3548,7 @@ describe("AgentViewerOverlay", () => {
       const content = readFileSync(jsonlPath, "utf-8");
       const lines = content.trimEnd().split("\n");
       expect(lines).toHaveLength(1);
-      const parsed = JSON.parse(lines[0]);
+      const parsed = jsonParse<AgentEvent>(lines[0]);
       expect(parsed.type).toBe("message_start");
 
       overlay.dispose();
@@ -3572,8 +3572,8 @@ describe("AgentViewerOverlay", () => {
       const content = readFileSync(jsonlPath, "utf-8");
       const lines = content.trimEnd().split("\n");
       expect(lines).toHaveLength(2);
-      expect(JSON.parse(lines[0]).type).toBe("message_start");
-      expect(JSON.parse(lines[1]).type).toBe("tool_execution_start");
+      expect(jsonParse<AgentEvent>(lines[0]).type).toBe("message_start");
+      expect(jsonParse<AgentEvent>(lines[1]).type).toBe("tool_execution_start");
 
       overlay.dispose();
     });

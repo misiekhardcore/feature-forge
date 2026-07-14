@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
@@ -68,7 +68,7 @@ function createLineReader() {
     if (newlineIndex !== -1) {
       const line = buffer.slice(0, newlineIndex).trim();
       buffer = buffer.slice(newlineIndex + 1);
-      return Promise.resolve(JSON.parse(line));
+      return Promise.resolve(jsonParse(line));
     }
 
     return new Promise((resolve, reject) => {
@@ -79,7 +79,7 @@ function createLineReader() {
           const line = buffer.slice(0, idx).trim();
           buffer = buffer.slice(idx + 1);
           socket.removeListener("data", handler);
-          resolve(JSON.parse(line));
+          resolve(jsonParse(line));
         }
       };
       socket.on("data", handler);

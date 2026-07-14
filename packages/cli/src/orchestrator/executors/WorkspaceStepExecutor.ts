@@ -90,7 +90,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     if (event.phase !== "workspace-ready") {
       return undefined;
     }
-    const details = event.details as { path?: string; branch?: string };
+    const details = event.details;
     if (typeof details.path !== "string") {
       return undefined;
     }

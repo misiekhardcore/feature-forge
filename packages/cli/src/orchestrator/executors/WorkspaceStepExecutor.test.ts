@@ -233,11 +233,11 @@ describe("WorkspaceStepExecutor", () => {
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const event = {
         phase: "agent-started",
         message: "Agent started",
         details: {},
-      };
+      } as unknown as RoutineProgressEvent;
 
       expect(executor.getDisplayContribution(event)).toBeUndefined();
     });
@@ -248,11 +248,11 @@ describe("WorkspaceStepExecutor", () => {
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const event = {
         phase: "workspace-ready",
         message: "Workspace created",
         details: {},
-      };
+      } as unknown as RoutineProgressEvent;
 
       expect(executor.getDisplayContribution(event)).toBeUndefined();
     });

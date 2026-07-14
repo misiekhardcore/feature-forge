@@ -370,11 +370,11 @@ describe("ShellStepExecutor", () => {
       it("returns contribution with prUrl from shell-done event", () => {
         const executor = new ShellStepExecutor();
 
-        const event: RoutineProgressEvent = {
+        const event = {
           phase: "shell-done",
           message: "Shell completed",
-          details: { prUrl: "https://github.com/owner/repo/pull/42" },
-        };
+          details: { prUrl: "https://github.com/owner/repo/pull/42", passed: true, summary: "" },
+        } satisfies RoutineProgressEvent;
 
         const contribution = executor.getDisplayContribution(event);
 
@@ -386,11 +386,11 @@ describe("ShellStepExecutor", () => {
       it("returns undefined for shell-done events without prUrl", () => {
         const executor = new ShellStepExecutor();
 
-        const event: RoutineProgressEvent = {
+        const event = {
           phase: "shell-done",
           message: "Shell completed",
-          details: {},
-        };
+          details: { passed: true, summary: "" },
+        } satisfies RoutineProgressEvent;
 
         expect(executor.getDisplayContribution(event)).toBeUndefined();
       });
@@ -398,11 +398,11 @@ describe("ShellStepExecutor", () => {
       it("returns undefined for non-shell-done events", () => {
         const executor = new ShellStepExecutor();
 
-        const event: RoutineProgressEvent = {
+        const event = {
           phase: "shell-start",
           message: "Shell started",
           details: {},
-        };
+        } satisfies RoutineProgressEvent;
 
         expect(executor.getDisplayContribution(event)).toBeUndefined();
       });

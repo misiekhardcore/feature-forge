@@ -8,7 +8,6 @@ import type { Component } from "@earendil-works/pi-tui";
 import type { RoutineResult } from "../RoutineResult";
 import { createAccumulatedState } from "./AccumulatedState";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
-import type { DisplayContribution } from "./DisplayContribution";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
@@ -151,88 +150,6 @@ export class ProgressRenderer {
     const iter = subtitle ? ` ${subtitle}` : "";
     const tagText = tags.length > 0 ? ` · ${tags.join(" · ")}` : "";
     return `${runningIcon} ${title}${iter}${tagText}`;
-  }
-
-  /**
-   * Build a {@link Map} of agent id → {status, summary, passed} from accumulated contributions.
-   *
-   * Later contributions for the same agent id overwrite earlier ones,
-   * so the map always reflects the most recent status for each agent.
-   */
-  static buildAgentMap(
-    contributions: readonly DisplayContribution[],
-  ): Map<string, { status: string; summary?: string; passed?: boolean }> {
-    const map = new Map<string, { status: string; summary?: string; passed?: boolean }>();
-    for (const c of contributions) {
-      if (c.type === "agent" && c.agentId && c.agentStatus) {
-        map.set(c.agentId, {
-          status: c.agentStatus,
-          summary: c.agentSummary,
-          passed: c.agentPassed,
-        });
-      }
-    }
-    return map;
-  }
-
-  /**
-   * Extract the latest iteration info from accumulated contributions.
-   *
-   * Returns `{ iteration: 0, maxIterations: 0 }` when no loop contributions
-   * have been accumulated yet.
-   */
-  static getIterationInfo(contributions: readonly DisplayContribution[]): {
-    iteration: number;
-    maxIterations: number;
-  } {
-    let iteration = 0;
-    let maxIterations = 0;
-    for (const c of contributions) {
-      if (c.type === "loop") {
-        iteration = c.iteration;
-        maxIterations = c.maxIterations;
-      }
-    }
-    return { iteration, maxIterations };
-  }
-
-  /**
-   * Extract the latest workspace path from accumulated contributions.
-   */
-  static getWorkspacePath(contributions: readonly DisplayContribution[]): string | undefined {
-    let workspace: string | undefined;
-    for (const c of contributions) {
-      if ((c.type === "workspace" || c.type === "status") && c.workspace !== undefined) {
-        workspace = c.workspace;
-      }
-    }
-    return workspace;
-  }
-
-  /**
-   * Extract the latest branch name from accumulated contributions.
-   */
-  static getBranch(contributions: readonly DisplayContribution[]): string | undefined {
-    let branch: string | undefined;
-    for (const c of contributions) {
-      if (c.type === "workspace" && c.branch !== undefined) {
-        branch = c.branch;
-      }
-    }
-    return branch;
-  }
-
-  /**
-   * Extract the latest continueWhile expression from accumulated contributions.
-   */
-  static getContinueWhile(contributions: readonly DisplayContribution[]): string | undefined {
-    let continueWhile: string | undefined;
-    for (const c of contributions) {
-      if (c.type === "loop" && c.continueWhile !== undefined) {
-        continueWhile = c.continueWhile;
-      }
-    }
-    return continueWhile;
   }
 
   /**

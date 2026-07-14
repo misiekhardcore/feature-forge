@@ -16,6 +16,7 @@ import { logger } from "../logging";
 import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { AgentViewerOverlay, DisplayContributionRegistry } from "./progress";
+import { createAccumulatedState } from "./progress/AccumulatedState";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 import { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -93,6 +94,9 @@ export class RoutineTool
   /** Tool-row invalidation handle for renderCall/renderResult. */
   private readonly toolRowState: ToolRowInvalidation = { invalidate: undefined };
 
+  /** Registry of display contribution handlers for accumulated state. */
+  private readonly displayRegistry: DisplayContributionRegistry;
+
   /** Rendering delegate — builds TUI components and widget content from live state. */
   private readonly renderer: ProgressRenderer;
 
@@ -112,12 +116,12 @@ export class RoutineTool
     // Wire the display contribution registry so ProgressRenderer can
     // build an accumulated snapshot via registry.apply() instead of
     // iterating contributions manually.
-    const displayRegistry = new DisplayContributionRegistry();
+    this.displayRegistry = new DisplayContributionRegistry();
     for (const stepExecutor of this.executor.stepRegistry.getAll().values()) {
-      stepExecutor.registerDisplayHandler(displayRegistry);
+      stepExecutor.registerDisplayHandler(this.displayRegistry);
     }
 
-    this.renderer = new ProgressRenderer(this, displayRegistry);
+    this.renderer = new ProgressRenderer(this, this.displayRegistry);
   }
 
   // ── RoutineProgressState getters ───────────────────────────
@@ -256,7 +260,9 @@ export class RoutineTool
       this.renderProgress(widget, ctx);
 
       if (onUpdate) {
-        const iterInfo = ProgressRenderer.getIterationInfo(this._contributions);
+        const acc = createAccumulatedState();
+        this.displayRegistry.apply(acc, this._contributions);
+        const resultDetails = event.details as Partial<RoutineResult>;
         onUpdate({
           content: [
             {
@@ -265,10 +271,10 @@ export class RoutineTool
             },
           ],
           details: {
-            routine: event.details.routine ?? this._routineName,
-            passed: event.details.passed ?? false,
-            rounds: event.details.rounds ?? iterInfo.iteration + 1,
-            workspace: event.details.workspace,
+            routine: resultDetails.routine ?? this._routineName,
+            passed: resultDetails.passed ?? false,
+            rounds: resultDetails.rounds ?? acc.iteration + 1,
+            workspace: resultDetails.workspace,
             results: {},
             summary: event.message,
             session: this.executor.store.toObject(),

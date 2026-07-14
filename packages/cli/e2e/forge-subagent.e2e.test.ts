@@ -12,6 +12,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 
+import { jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../src/agents";
@@ -141,7 +142,7 @@ describe("forge-subagent E2E", () => {
     const response = await new Promise<unknown>((resolve, reject) => {
       client.once("data", (chunk: Buffer) => {
         try {
-          resolve(JSON.parse(chunk.toString().trim()));
+          resolve(jsonParse(chunk.toString().trim()));
         } catch (error) {
           reject(Error(error instanceof Error ? error.message : String(error)));
         }
@@ -203,7 +204,7 @@ describe("forge-subagent E2E", () => {
     const response = await new Promise<unknown>((resolve, reject) => {
       client.once("data", (chunk: Buffer) => {
         try {
-          resolve(JSON.parse(chunk.toString().trim()));
+          resolve(jsonParse(chunk.toString().trim()));
         } catch (error) {
           reject(Error(error instanceof Error ? error.message : String(error)));
         }

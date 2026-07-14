@@ -1,9 +1,11 @@
+import { TextContent } from "@earendil-works/pi-ai";
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
+import { jsonParse } from "@feature-forge/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
@@ -168,7 +170,7 @@ describe("RoutineTool", () => {
       );
 
       expect(result.content).toHaveLength(1);
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -234,7 +236,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -268,7 +270,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -305,7 +307,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -369,7 +371,7 @@ describe("RoutineTool", () => {
       expect(onUpdateCalls.length).toBeGreaterThanOrEqual(1);
       const firstUpdate = onUpdateCalls[0];
       expect(firstUpdate.content[0].type).toBe("text");
-      expect((firstUpdate.content[0] as { text: string }).text).toContain("workspace-ready");
+      expect((firstUpdate.content[0] as TextContent).text).toContain("workspace-ready");
       expect(firstUpdate.details.routine).toBe("build");
     });
 
@@ -397,7 +399,7 @@ describe("RoutineTool", () => {
       // Should not throw even though no _onUpdate is provided.
       const result = await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -435,7 +437,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -753,7 +755,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });

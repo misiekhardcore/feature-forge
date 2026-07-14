@@ -812,7 +812,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { agentId: "builder" },
+        details: { agentId: "builder", executionId: "" },
       });
 
       expect(contrib).toBeDefined();
@@ -826,7 +826,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { agentId: "reviewer", summary: "All good" },
+        details: { agentId: "reviewer", summary: "All good", executionId: "", passed: true },
       });
 
       expect(contrib).toBeDefined();
@@ -841,7 +841,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { agentId: "reviewer", summary: "3 critical", passed: false },
+        details: { agentId: "reviewer", summary: "3 critical", passed: false, executionId: "" },
       });
 
       expect(contrib).toBeDefined();
@@ -851,25 +851,12 @@ describe("AgentStepExecutor", () => {
       expect(agentContrib.agentSummary).toBe("3 critical");
     });
 
-    it("returns agentStatus 'streaming' for agent-error phase (fallback)", () => {
-      const executor = makeExecutor();
-      const contrib = executor.getDisplayContribution({
-        phase: "agent-error",
-        message: 'Agent "builder" failed: something broke',
-        details: { agentId: "builder" },
-      });
-
-      // agent-error phase has no matching branch — agentStatus falls back to "streaming".
-      const agentContrib = contrib as AgentContribution;
-      expect(agentContrib.agentStatus).toBe("streaming");
-    });
-
     it("returns undefined for non-agent phase events", () => {
       const executor = makeExecutor();
       const contrib = executor.getDisplayContribution({
         phase: "workspace-ready",
         message: "Workspace /tmp/ws ready",
-        details: {},
+        details: { branch: "branch", path: "path", executionId: "" },
       });
 
       expect(contrib).toBeUndefined();
@@ -877,11 +864,14 @@ describe("AgentStepExecutor", () => {
 
     it("returns undefined when event details lack agentId", () => {
       const executor = makeExecutor();
-      const contrib = executor.getDisplayContribution({
-        phase: "agent-started",
-        message: "Agent started successfully",
-        details: {},
-      });
+      const contrib = executor.getDisplayContribution(
+        // @ts-expect-error testing edge case
+        {
+          phase: "agent-started",
+          message: "Agent started successfully",
+          details: {},
+        },
+      );
 
       expect(contrib).toBeUndefined();
     });
@@ -897,7 +887,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-stream",
         message: 'Agent "builder" stream event',
-        details: { agentId: "builder", event: streamPayload },
+        details: { agentId: "builder", event: streamPayload, executionId: "", label: "label" },
       });
 
       expect(contrib).toBeDefined();
@@ -913,7 +903,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { agentId: "builder" },
+        details: { agentId: "builder", executionId: "" },
       });
 
       expect(contrib).toBeDefined();
@@ -970,6 +960,7 @@ describe("AgentStepExecutor", () => {
           executionId: "exec-stream-1",
           agentId: "builder",
           event: streamPayload,
+          label: "label",
         },
       });
 

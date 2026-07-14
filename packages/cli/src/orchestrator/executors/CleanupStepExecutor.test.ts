@@ -290,11 +290,11 @@ describe("CleanupStepExecutor", () => {
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const event = {
         phase: "cleanup-done",
         message: "Cleanup completed",
-        details: { workspace: "/fake/ws1" },
-      };
+        details: { workspace: "/fake/ws1", executionId: "" },
+      } satisfies RoutineProgressEvent;
 
       const contribution = executor.getDisplayContribution(event);
 
@@ -311,11 +311,11 @@ describe("CleanupStepExecutor", () => {
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const event = {
         phase: "cleanup-done",
         message: "No workspaces cleaned",
         details: {},
-      };
+      } satisfies RoutineProgressEvent;
 
       const contribution = executor.getDisplayContribution(event);
 
@@ -347,11 +347,11 @@ describe("CleanupStepExecutor", () => {
         stubWorktreeRegistry(),
       );
 
-      const event: RoutineProgressEvent = {
+      const event = {
         phase: "agent-started",
         message: "Agent started",
-        details: {},
-      };
+        details: { agentId: "", executionId: "" },
+      } satisfies RoutineProgressEvent;
 
       expect(executor.getDisplayContribution(event)).toBeUndefined();
     });

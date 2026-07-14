@@ -6,7 +6,7 @@ import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
 import { createAccumulatedState } from "../progress/AccumulatedState";
 import type { DisplayContribution } from "../progress/DisplayContribution";
 import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
-import type { RoutineResult } from "../RoutineResult";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { LoopStepExecutor } from "./LoopStepExecutor";
@@ -423,8 +423,8 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "loop-round-start",
         message: 'Loop "l" — round 2/5',
-        details: { round: 2, maxIterations: 5 } as unknown as Partial<RoutineResult>,
-      });
+        details: { round: 2, maxIterations: 5 },
+      } satisfies RoutineProgressEvent);
 
       expect(contrib).toBeDefined();
       expect(contrib!.type).toBe("loop");
@@ -441,8 +441,8 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "loop-round-complete",
         message: 'Loop "l" — round 3 complete',
-        details: { round: 3, maxIterations: 3 } as unknown as Partial<RoutineResult>,
-      });
+        details: { round: 3, maxIterations: 3 },
+      } satisfies RoutineProgressEvent);
 
       expect(contrib).toBeDefined();
       expect(contrib!.type).toBe("loop");
@@ -459,8 +459,9 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "loop-round-start",
         message: "Loop started",
-        details: { round: 1 } as unknown as Partial<RoutineResult>,
-      });
+        // @ts-expect-error checking edge case
+        details: { round: 1 },
+      } satisfies RoutineProgressEvent);
 
       expect(contrib).toBeDefined();
       const loopContrib = contrib! as DisplayContribution & { type: "loop"; maxIterations: number };
@@ -471,8 +472,8 @@ describe("LoopStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: "Agent started",
-        details: {},
-      });
+        details: { agentId: "", executionId: "" },
+      } satisfies RoutineProgressEvent);
 
       expect(contrib).toBeUndefined();
     });

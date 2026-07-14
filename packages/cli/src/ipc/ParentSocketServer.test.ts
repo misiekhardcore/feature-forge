@@ -2,7 +2,7 @@ import { connect, type Socket } from "node:net";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
@@ -99,7 +99,7 @@ function readResponse(socket: Socket, timeout = 2000): Promise<unknown> {
     const handler = (chunk: Buffer) => {
       clearTimeout(timer);
       const lines = chunk.toString("utf-8").trim().split("\n");
-      resolve(JSON.parse(lines[0]));
+      resolve(jsonParse(lines[0]));
     };
     socket.once("data", handler);
   });
