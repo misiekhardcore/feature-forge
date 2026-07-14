@@ -26,8 +26,6 @@ import { FileLogger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
-import { AgentViewerOverlay } from "./orchestrator/progress";
-export { AgentViewerOverlay };
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
@@ -155,16 +153,16 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     eventBus: new TypedEventBus(pi.events),
   });
   await flowRegistrar.registerAll();
-
   // ── Dev test extension ────────────────────────────────────────
-  // When FEATURE_FORGE_DEV is set, auto-load the AgentViewerOverlay
-  // test extension so the user gets /test-viewer etc. without -e.
+  // When FEATURE_FORGE_DEV is set, register AgentViewerOverlay test commands
+  // for visual TUI testing. Uses a relative import so jiti handles TypeScript
+  // resolution without triggering the cli barrel's directory imports.
   if (process.env.FEATURE_FORGE_DEV) {
     try {
       const { default: registerTestCommands } = await import("@feature-forge/agent-viewer-test");
       registerTestCommands(pi);
     } catch {
-      // Silently skip if the test package is not installed.
+      // Silently skip — the test package may not be installed.
     }
   }
 };

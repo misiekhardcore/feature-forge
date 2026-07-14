@@ -3,7 +3,7 @@ import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui";
-import { AgentViewerOverlay } from "@feature-forge/cli";
+import { AgentViewerOverlay } from "@feature-forge/cli/src/orchestrator/progress/AgentViewerOverlay";
 
 import type { ScenarioData } from "./scenarios/index.js";
 import {
