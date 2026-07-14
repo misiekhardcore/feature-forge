@@ -143,13 +143,19 @@ packages/
 
 ### TypeScript
 
-- **strict mode** (`strict: true` in tsconfig) — no `any` casts. Use `unknown` + type guards instead.
+- **strict mode** (`strict: true` in tsconfig) — no `any` casts. Use `unknown` + type guards instead. Avoid `as unknown as` type casting if not strictly nesessary (e.g. for mocks).
 - **ES2022 target**, **ESNext modules**, **bundler module resolution**.
 - **No path aliases** — all internal imports are relative.
 - **No explicit file extensions** in imports (bundler handles resolution).
 - Barrel imports for sibling directories (`from "../base"`, `from "../specifications"`).
 - `import type` for type-only imports.
 - Underscore prefix (`_`) for intentionally unused parameters/variables.
+
+### Config system
+
+- **No backwards compatibility fallbacks** -- config consumers must use `ForgeConfig.getInstance()` directly. Do NOT use `tryGetInstance()` with fallback values. The config system is always initialized at extension startup, so a thrown error is the correct signal if something is wrong.
+- **Module-level constants that read from ForgeConfig should be lazy functions** (not eagerly evaluated at import time) so they work in tests where ForgeConfig is initialized in `beforeAll` hooks.
+- **Tests must initialize ForgeConfig** via `await ForgeConfig.create()` before using any code that reads config values, and clean up with `ForgeConfig.destroy()` in `afterAll`.
 
 ### Classes & naming
 
@@ -228,3 +234,5 @@ These are frequently repeated patterns and mistakes collected across sessions. F
 - `vi.mock` + `vi.hoisted` pattern: `vi.hoisted()` sets up mock state before `vi.mock()` factory runs (avoids TDZ). Mock constructors must be plain `function`, not arrow functions.
 - Use `MockAgent` + `makeMockFactory` for supervisor/command tests to avoid RpcClient dependency.
 - Update the self-learning memory (`.pi/self-learning-memory/`) when you discover a new repeating pattern or avoid a mistake — future sessions benefit from historical context.
+- use OOP and not functional programming
+- do not care about backwards compatibility

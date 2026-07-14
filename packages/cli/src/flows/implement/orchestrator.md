@@ -43,6 +43,47 @@ You have access to these sub-agent types via routine tools:
    it is complete.
 4. Present the plan (subtasks + AC checklist) to the user before proceeding.
 
+#### Plan format requirements
+
+A plan is the contract passed to `run_build_loop()`. The build agent reads it to
+write code; the review and verify agents receive only the `task` string. Every
+plan must describe the work at a level of detail that lets the builder code
+without making ambiguous or wrong decisions at the type, API, or data level.
+
+Each subtask plan must include:
+
+**Files** — list every file `create`, `modify`, or `delete`.
+
+**Types** — for every data structure the builder must construct (mock events,
+message payloads, API params), specify the exact TypeScript discriminated
+union variants, interfaces, or type aliases from the project's dependency
+tree. Reference the source module path so the builder can `import type` them.
+Include concrete examples of how to construct each variant (e.g. `{ type:
+"text", text: "..." }` for `TextContent`, `{ type: "toolCall", id: "...",
+name: "...", arguments: {...} }` for `ToolCall`).
+
+**API calls** — for every external API the builder must call (pi extension
+methods, AgentViewerOverlay methods, TUI component constructors), specify:
+the method signature, which parameters to pass, the expected return type, and
+how to wire callbacks like `onDone`.
+
+**Scenarios / mock data** — enumerate each distinct input the builder must
+produce. For mock events: list the event sequence (ordered `AgentEvent`
+discriminated union variants), the fields each variant must carry, and the
+expected visual behaviour.
+
+**Build order with validation gates** — split the work into logical sections
+with a `npx tsc --noEmit` (or equivalent) validation checkpoint after each
+section. The first section must be the imports + guard so everything else can
+reference resolved types. If the file is not included in the project tsconfig,
+isolate it: `npx tsc --noEmit --strict <file> --skipLibCheck`.
+
+**Dependencies** — for each subtask, list which earlier subtask's output it
+depends on. A subtask must not start until all its dependencies are complete.
+
+**Non-goals** — explicitly call out what the subtask should NOT do, based on
+issue non-goals, CORE.md watch-outs, or user guidance from prior sessions.
+
 ### Phase 2: Loop
 
 For each subtask in sequence, call `run_build_loop(workspace, task, plan)` where
