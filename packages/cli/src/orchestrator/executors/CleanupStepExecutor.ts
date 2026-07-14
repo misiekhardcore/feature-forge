@@ -5,6 +5,7 @@ import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
@@ -129,12 +130,22 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   /**
    * Extract display contribution from a cleanup-done event.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("status", (state, contribution) => {
+      if (contribution.type !== "status") return;
+      if (contribution.workspace !== undefined) {
+        state.workspace = contribution.workspace;
+      }
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
     if (event.phase !== "cleanup-done") {
       return undefined;
     }
     const workspace = event.details.workspace;
     return {
+      type: "status",
       phase: event.phase,
       message: event.message,
       ...(typeof workspace === "string" ? { workspace } : {}),

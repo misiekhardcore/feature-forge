@@ -5,7 +5,7 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import type { TypedEventBus } from "../eventBus";
@@ -405,7 +405,7 @@ export class AgentViewerOverlay implements Component {
       const diskEvents: AgentEvent[] = [];
       for (const line of olderSlice) {
         try {
-          const parsed = JSON.parse(line) as AgentEvent;
+          const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
         } catch {
           // Skip malformed lines.

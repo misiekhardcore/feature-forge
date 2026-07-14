@@ -74,7 +74,7 @@ export interface ForgeChannels {
   "feature-forge:workspace-ready": {
     phase: "workspace-ready";
     message: string;
-    details: { executionId?: string; path: string };
+    details: { executionId?: string; path: string; branch: string };
   };
 
   "feature-forge:loop-round-start": {

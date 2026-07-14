@@ -1,9 +1,11 @@
+import { TextContent } from "@earendil-works/pi-ai";
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
+import { jsonParse } from "@feature-forge/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
@@ -16,7 +18,8 @@ import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
-import type { DisplayContribution } from "./progress/DisplayContribution";
+import type { AgentContribution, DisplayContribution } from "./progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
@@ -167,7 +170,7 @@ describe("RoutineTool", () => {
       );
 
       expect(result.content).toHaveLength(1);
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -233,7 +236,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -267,7 +270,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -304,7 +307,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -368,7 +371,7 @@ describe("RoutineTool", () => {
       expect(onUpdateCalls.length).toBeGreaterThanOrEqual(1);
       const firstUpdate = onUpdateCalls[0];
       expect(firstUpdate.content[0].type).toBe("text");
-      expect((firstUpdate.content[0] as { text: string }).text).toContain("workspace-ready");
+      expect((firstUpdate.content[0] as TextContent).text).toContain("workspace-ready");
       expect(firstUpdate.details.routine).toBe("build");
     });
 
@@ -396,7 +399,7 @@ describe("RoutineTool", () => {
       // Should not throw even though no _onUpdate is provided.
       const result = await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -434,7 +437,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -589,6 +592,19 @@ describe("RoutineTool", () => {
           new (class extends StepExecutor {
             readonly type = "agent";
 
+            override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+              registry.register("agent", (state, contribution) => {
+                if (contribution.type !== "agent") return;
+                if (contribution.agentId && contribution.agentStatus) {
+                  state.agentMap.set(contribution.agentId, {
+                    status: contribution.agentStatus,
+                    summary: contribution.agentSummary,
+                    passed: contribution.agentPassed,
+                  });
+                }
+              });
+            }
+
             override getDisplayContribution(
               event: RoutineProgressEvent,
             ): DisplayContribution | undefined {
@@ -600,8 +616,14 @@ describe("RoutineTool", () => {
                   ? "started"
                   : event.phase === "agent-done"
                     ? "done"
-                    : undefined;
-              return { agentId, agentStatus, phase: event.phase, message: event.message };
+                    : "streaming";
+              return {
+                type: "agent",
+                agentId,
+                agentStatus,
+                phase: event.phase,
+                message: event.message,
+              };
             }
 
             async execute(
@@ -733,7 +755,7 @@ describe("RoutineTool", () => {
         {} as ExtensionContext,
       );
 
-      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
     });
@@ -773,6 +795,7 @@ describe("RoutineTool", () => {
               const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
               if (!agentId) return undefined;
               return {
+                type: "agent",
                 executionId: event.details.executionId,
                 agentId,
                 agentStatus:
@@ -780,7 +803,7 @@ describe("RoutineTool", () => {
                     ? "started"
                     : event.phase === "agent-done"
                       ? "done"
-                      : undefined,
+                      : "streaming",
                 streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
                 phase: event.phase,
                 message: event.message,
@@ -848,8 +871,12 @@ describe("RoutineTool", () => {
 
       // Contributions should include executionId from the emitted events.
       const contributions = tool.contributions;
-      const startedContribution = contributions.find((c) => c.agentStatus === "started");
-      const doneContribution = contributions.find((c) => c.agentStatus === "done");
+      const startedContribution = contributions.find(
+        (c): c is AgentContribution => c.type === "agent" && c.agentStatus === "started",
+      );
+      const doneContribution = contributions.find(
+        (c): c is AgentContribution => c.type === "agent" && c.agentStatus === "done",
+      );
 
       expect(startedContribution).toBeDefined();
       expect(startedContribution!.executionId).toBe("exec-test-99");

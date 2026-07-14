@@ -8,6 +8,9 @@ import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
+import { createAccumulatedState } from "../progress/AccumulatedState";
+import type { AgentContribution } from "../progress/DisplayContribution";
+import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 
@@ -809,12 +812,13 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { agentId: "builder" },
+        details: { agentId: "builder", executionId: "" },
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.agentId).toBe("builder");
-      expect(contrib!.agentStatus).toBe("started");
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.agentId).toBe("builder");
+      expect(agentContrib.agentStatus).toBe("started");
     });
 
     it("returns agentId and agentStatus for agent-done events", () => {
@@ -822,13 +826,14 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { agentId: "reviewer", summary: "All good" },
+        details: { agentId: "reviewer", summary: "All good", executionId: "", passed: true },
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.agentId).toBe("reviewer");
-      expect(contrib!.agentStatus).toBe("done");
-      expect(contrib!.agentSummary).toBe("All good");
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.agentId).toBe("reviewer");
+      expect(agentContrib.agentStatus).toBe("done");
+      expect(agentContrib.agentSummary).toBe("All good");
     });
 
     it("extracts agentPassed from agent-done event details", () => {
@@ -836,25 +841,14 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-done",
         message: 'Agent "reviewer" completed',
-        details: { agentId: "reviewer", summary: "3 critical", passed: false },
+        details: { agentId: "reviewer", summary: "3 critical", passed: false, executionId: "" },
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.agentStatus).toBe("done");
-      expect(contrib!.agentPassed).toBe(false);
-      expect(contrib!.agentSummary).toBe("3 critical");
-    });
-
-    it("returns agentStatus undefined for agent-error phase (dead code)", () => {
-      const executor = makeExecutor();
-      const contrib = executor.getDisplayContribution({
-        phase: "agent-error",
-        message: 'Agent "builder" failed: something broke',
-        details: { agentId: "builder" },
-      });
-
-      // agent-error phase has no matching branch — agentStatus is undefined.
-      expect(contrib!.agentStatus).toBeUndefined();
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.agentStatus).toBe("done");
+      expect(agentContrib.agentPassed).toBe(false);
+      expect(agentContrib.agentSummary).toBe("3 critical");
     });
 
     it("returns undefined for non-agent phase events", () => {
@@ -862,7 +856,7 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "workspace-ready",
         message: "Workspace /tmp/ws ready",
-        details: {},
+        details: { branch: "branch", path: "path", executionId: "" },
       });
 
       expect(contrib).toBeUndefined();
@@ -870,11 +864,14 @@ describe("AgentStepExecutor", () => {
 
     it("returns undefined when event details lack agentId", () => {
       const executor = makeExecutor();
-      const contrib = executor.getDisplayContribution({
-        phase: "agent-started",
-        message: "Agent started successfully",
-        details: {},
-      });
+      const contrib = executor.getDisplayContribution(
+        // @ts-expect-error testing edge case
+        {
+          phase: "agent-started",
+          message: "Agent started successfully",
+          details: {},
+        },
+      );
 
       expect(contrib).toBeUndefined();
     });
@@ -890,14 +887,15 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-stream",
         message: 'Agent "builder" stream event',
-        details: { agentId: "builder", event: streamPayload },
+        details: { agentId: "builder", event: streamPayload, executionId: "", label: "label" },
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.agentId).toBe("builder");
-      expect(contrib!.agentStatus).toBeUndefined();
-      expect(contrib!.streamEvent).toBe(streamPayload);
-      expect(contrib!.phase).toBe("agent-stream");
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.agentId).toBe("builder");
+      expect(agentContrib.agentStatus).toBe("streaming");
+      expect(agentContrib.streamEvent).toBe(streamPayload);
+      expect(agentContrib.phase).toBe("agent-stream");
     });
 
     it("returns streamEvent undefined for non-stream agent events", () => {
@@ -905,11 +903,12 @@ describe("AgentStepExecutor", () => {
       const contrib = executor.getDisplayContribution({
         phase: "agent-started",
         message: 'Agent "builder" (build) started',
-        details: { agentId: "builder" },
+        details: { agentId: "builder", executionId: "" },
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.streamEvent).toBeUndefined();
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.streamEvent).toBeUndefined();
     });
 
     it("extracts executionId from event details for agent-started phase", () => {
@@ -921,8 +920,9 @@ describe("AgentStepExecutor", () => {
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.executionId).toBe("exec-abc-123");
-      expect(contrib!.agentId).toBe("builder");
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.executionId).toBe("exec-abc-123");
+      expect(agentContrib.agentId).toBe("builder");
     });
 
     it("extracts executionId and summary from agent-done event details", () => {
@@ -938,10 +938,11 @@ describe("AgentStepExecutor", () => {
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.executionId).toBe("exec-xyz-789");
-      expect(contrib!.agentId).toBe("reviewer");
-      expect(contrib!.agentStatus).toBe("done");
-      expect(contrib!.agentSummary).toBe("All tests passed");
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.executionId).toBe("exec-xyz-789");
+      expect(agentContrib.agentId).toBe("reviewer");
+      expect(agentContrib.agentStatus).toBe("done");
+      expect(agentContrib.agentSummary).toBe("All tests passed");
     });
 
     it("extracts executionId from agent-stream event details", () => {
@@ -959,12 +960,96 @@ describe("AgentStepExecutor", () => {
           executionId: "exec-stream-1",
           agentId: "builder",
           event: streamPayload,
+          label: "label",
         },
       });
 
       expect(contrib).toBeDefined();
-      expect(contrib!.executionId).toBe("exec-stream-1");
-      expect(contrib!.streamEvent).toBe(streamPayload);
+      const agentContrib = contrib as AgentContribution;
+      expect(agentContrib.executionId).toBe("exec-stream-1");
+      expect(agentContrib.streamEvent).toBe(streamPayload);
+    });
+  });
+
+  describe("registerDisplayHandler", () => {
+    function makeExecutor(): AgentStepExecutor {
+      const agent = makeMockAgent("output");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      return new AgentStepExecutor(supervisor, specManager);
+    }
+
+    it("registers an agent handler that updates agentMap in accumulated state", () => {
+      const executor = makeExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+      registry.apply(state, [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "started",
+          phase: "test",
+          message: "test",
+        },
+        {
+          type: "agent",
+          agentId: "reviewer",
+          agentStatus: "done",
+          agentSummary: "All OK",
+          agentPassed: true,
+          phase: "test",
+          message: "test",
+        },
+      ]);
+
+      expect(state.agentMap.size).toBe(2);
+      expect(state.agentMap.get("builder")?.status).toBe("started");
+      expect(state.agentMap.get("reviewer")?.status).toBe("done");
+      expect(state.agentMap.get("reviewer")?.summary).toBe("All OK");
+      expect(state.agentMap.get("reviewer")?.passed).toBe(true);
+    });
+
+    it("skips contributions that do not match known types", () => {
+      const executor = makeExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+      registry.apply(state, [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "done",
+          phase: "test",
+          message: "test",
+        },
+        { type: "status", phase: "test", message: "test" },
+      ]);
+
+      expect(state.agentMap.size).toBe(1);
+      expect(state.agentMap.get("builder")?.status).toBe("done");
+    });
+
+    it("overwrites a previous handler when a new one is registered for the same type", () => {
+      const executor = makeExecutor();
+      const registry = new DisplayContributionRegistry();
+
+      // Register twice — second should overwrite first
+      executor.registerDisplayHandler(registry);
+      registry.register("agent", (state) => {
+        state.agentMap.set("overwritten", { status: "done" });
+      });
+
+      const state = createAccumulatedState();
+      registry.apply(state, [
+        { type: "agent", agentId: "builder", agentStatus: "done", phase: "test", message: "test" },
+      ]);
+
+      // The overwritten handler runs, not the original one
+      expect(state.agentMap.has("builder")).toBe(false);
+      expect(state.agentMap.get("overwritten")?.status).toBe("done");
     });
   });
 });

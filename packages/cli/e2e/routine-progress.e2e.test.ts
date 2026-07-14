@@ -105,14 +105,16 @@ describe("routine progress display (e2e)", () => {
       for (const exec of executor.stepRegistry.getAll().values()) {
         const contrib: DisplayContribution | undefined = exec.getDisplayContribution(event);
         if (!contrib) continue;
-        if (contrib.agentId && contrib.agentStatus) {
+        if (contrib.type === "agent" && contrib.agentId && contrib.agentStatus) {
           agentState.set(contrib.agentId, {
             status: contrib.agentStatus,
             summary: contrib.agentSummary,
           });
         }
-        if (contrib.iteration !== undefined) capturedIteration = contrib.iteration;
-        if (contrib.maxIterations !== undefined) capturedMaxIterations = contrib.maxIterations;
+        if (contrib.type === "loop") {
+          if (contrib.iteration !== undefined) capturedIteration = contrib.iteration;
+          if (contrib.maxIterations !== undefined) capturedMaxIterations = contrib.maxIterations;
+        }
       }
     };
 

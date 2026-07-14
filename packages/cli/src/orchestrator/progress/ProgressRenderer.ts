@@ -6,8 +6,9 @@ import type {
 import type { Component } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
+import { createAccumulatedState } from "./AccumulatedState";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
-import type { DisplayContribution } from "./DisplayContribution";
+import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
@@ -152,80 +153,6 @@ export class ProgressRenderer {
   }
 
   /**
-   * Build a {@link Map} of agent id → {status, summary, passed} from accumulated contributions.
-   *
-   * Later contributions for the same agent id overwrite earlier ones,
-   * so the map always reflects the most recent status for each agent.
-   */
-  static buildAgentMap(
-    contributions: readonly DisplayContribution[],
-  ): Map<string, { status: string; summary?: string; passed?: boolean }> {
-    const map = new Map<string, { status: string; summary?: string; passed?: boolean }>();
-    for (const c of contributions) {
-      if (c.agentId && c.agentStatus) {
-        map.set(c.agentId, {
-          status: c.agentStatus,
-          summary: c.agentSummary,
-          passed: c.agentPassed,
-        });
-      }
-    }
-    return map;
-  }
-
-  /**
-   * Extract the latest iteration info from accumulated contributions.
-   *
-   * Returns `{ iteration: 0, maxIterations: 0 }` when no loop contributions
-   * have been accumulated yet.
-   */
-  static getIterationInfo(contributions: readonly DisplayContribution[]): {
-    iteration: number;
-    maxIterations: number;
-  } {
-    let iteration = 0;
-    let maxIterations = 0;
-    for (const c of contributions) {
-      if (c.iteration !== undefined) iteration = c.iteration;
-      if (c.maxIterations !== undefined) maxIterations = c.maxIterations;
-    }
-    return { iteration, maxIterations };
-  }
-
-  /**
-   * Extract the latest workspace path from accumulated contributions.
-   */
-  static getWorkspacePath(contributions: readonly DisplayContribution[]): string | undefined {
-    let workspace: string | undefined;
-    for (const c of contributions) {
-      if (c.workspace !== undefined) workspace = c.workspace;
-    }
-    return workspace;
-  }
-
-  /**
-   * Extract the latest branch name from accumulated contributions.
-   */
-  static getBranch(contributions: readonly DisplayContribution[]): string | undefined {
-    let branch: string | undefined;
-    for (const c of contributions) {
-      if (c.branch !== undefined) branch = c.branch;
-    }
-    return branch;
-  }
-
-  /**
-   * Extract the latest continueWhile expression from accumulated contributions.
-   */
-  static getContinueWhile(contributions: readonly DisplayContribution[]): string | undefined {
-    let continueWhile: string | undefined;
-    for (const c of contributions) {
-      if (c.continueWhile !== undefined) continueWhile = c.continueWhile;
-    }
-    return continueWhile;
-  }
-
-  /**
    * Build a human-readable result suffix from routine result details.
    *
    * Priority (highest first):
@@ -280,12 +207,17 @@ export class ProgressRenderer {
   // ── Instance (reads live state) ────────────────────────────
 
   private readonly state: RoutineProgressState;
+  private readonly registry: DisplayContributionRegistry;
 
   /**
    * @param state — Live progress state (typically the {@link RoutineTool} itself).
+   * @param registry — Registry of handlers that apply contributions to an
+   *   {@link AccumulatedState}. Step executors register their handlers via
+   *   {@link registerDisplayHandler} when the registry is wired up.
    */
-  constructor(state: RoutineProgressState) {
+  constructor(state: RoutineProgressState, registry: DisplayContributionRegistry) {
     this.state = state;
+    this.registry = registry;
   }
 
   /**
@@ -298,14 +230,14 @@ export class ProgressRenderer {
     const state = this.state;
     return {
       render: () => {
-        const agentMap = ProgressRenderer.buildAgentMap(state.contributions);
-        const { iteration, maxIterations } = ProgressRenderer.getIterationInfo(state.contributions);
+        const acc = createAccumulatedState();
+        this.registry.apply(acc, state.contributions);
         const runningIcon = ProgressRenderer.statusIcon("running", theme);
         const parts = [`${runningIcon} ${state.routineName}`];
-        if (maxIterations > 0) {
-          parts.push(theme.fg("muted", ` ${iteration + 1}/${maxIterations}`));
+        if (acc.maxIterations > 0) {
+          parts.push(theme.fg("muted", ` ${acc.iteration + 1}/${acc.maxIterations}`));
         }
-        const agentCount = agentMap.size;
+        const agentCount = acc.agentMap.size;
         if (agentCount > 0) {
           parts.push(theme.fg("muted", ` · ${agentCount} agent${agentCount > 1 ? "s" : ""}`));
         } else {
@@ -361,26 +293,24 @@ export class ProgressRenderer {
   renderToWidget(widget: ProgressWidget, theme: ThemeLike): void {
     const { state } = this;
 
-    const agentMap = ProgressRenderer.buildAgentMap(state.contributions);
-    const { iteration, maxIterations } = ProgressRenderer.getIterationInfo(state.contributions);
-    const workspace = ProgressRenderer.getWorkspacePath(state.contributions);
-    const branch = ProgressRenderer.getBranch(state.contributions);
-    const continueWhile = ProgressRenderer.getContinueWhile(state.contributions);
+    const acc = createAccumulatedState();
+    this.registry.apply(acc, state.contributions);
 
     const rows: string[] = [];
-    for (const [label, agent] of agentMap) {
+    for (const [label, agent] of acc.agentMap) {
       const icon = ProgressRenderer.statusIcon(agent.status, theme, agent.passed);
       rows.push(ProgressRenderer.formatAgentRow(icon, label, agent.summary));
     }
 
-    const subtitle = maxIterations > 0 ? `iteration ${iteration + 1}/${maxIterations}` : undefined;
+    const subtitle =
+      acc.maxIterations > 0 ? `iteration ${acc.iteration + 1}/${acc.maxIterations}` : undefined;
 
     const metadata: string[] = [];
-    if (continueWhile) {
-      metadata.push(`while: ${continueWhile}`);
+    if (acc.continueWhile) {
+      metadata.push(`while: ${acc.continueWhile}`);
     }
 
-    const pathLine = [workspace, branch].filter(Boolean).join(" · ");
+    const pathLine = [acc.workspace, acc.branch].filter(Boolean).join(" · ");
 
     const widgetLines = ProgressRenderer.buildWidgetLines({
       theme,
@@ -392,14 +322,14 @@ export class ProgressRenderer {
     });
 
     const tags: string[] = [];
-    for (const [label, agent] of agentMap) {
+    for (const [label, agent] of acc.agentMap) {
       tags.push(`${ProgressRenderer.statusIcon(agent.status, theme, agent.passed)} ${label}`);
     }
 
     const statusText = ProgressRenderer.buildStatusLine({
       theme,
       title: state.routineName,
-      subtitle: maxIterations > 0 ? `${iteration + 1}/${maxIterations}` : undefined,
+      subtitle: acc.maxIterations > 0 ? `${acc.iteration + 1}/${acc.maxIterations}` : undefined,
       tags,
     });
 

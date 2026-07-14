@@ -1,6 +1,10 @@
+export type { AccumulatedState } from "./AccumulatedState";
+export { createAccumulatedState } from "./AccumulatedState";
 export type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
 export { AgentViewerOverlay } from "./AgentViewerOverlay";
 export type { DisplayContribution } from "./DisplayContribution";
+export type { ContributionHandler } from "./DisplayContributionRegistry";
+export { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 export { NoOpProgressReporter } from "./NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./ProgressEvent";
 export type { BuildStatusLineParams, BuildWidgetLinesParams, ThemeLike } from "./ProgressRenderer";

@@ -11,7 +11,7 @@ import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowRegistrar } from "./FlowRegistrar";
-import type { StepExecutorRegistry } from "./StepExecutorRegistry";
+import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Hoisted mock state ───────────────────────────────────────
 
@@ -106,7 +106,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
     flowsDir: overrides.flowsDir ?? "/flows",
     knownProviders: overrides.knownProviders ?? new Set(),
-    stepExecutorRegistry: overrides.stepExecutorRegistry ?? ({} as StepExecutorRegistry),
+    stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
   };
 }

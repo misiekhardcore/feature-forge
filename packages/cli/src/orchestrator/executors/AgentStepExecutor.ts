@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { SpecManager } from "../../agents/SpecManager";
@@ -9,6 +11,7 @@ import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
 import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
@@ -160,28 +163,52 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
    * Reads the agentId from {@code event.details.agentId} and maps the
    * phase to a lifecycle status.
    */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("agent", (state, contribution) => {
+      if (contribution.type !== "agent") return;
+      if (contribution.agentId && contribution.agentStatus) {
+        state.agentMap.set(contribution.agentId, {
+          status: contribution.agentStatus,
+          summary: contribution.agentSummary,
+          passed: contribution.agentPassed,
+        });
+      }
+    });
+  }
+
   override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (!event.phase.startsWith("agent-")) {
+    if (
+      event.phase !== "agent-started" &&
+      event.phase !== "agent-done" &&
+      event.phase !== "agent-stream"
+    ) {
       return undefined;
     }
-    const agentId = event.details.agentId;
+    const { agentId, executionId } = event.details;
     if (!agentId) {
       return undefined;
     }
-    const agentStatus =
+    const agentStatus: string =
       event.phase === "agent-started"
         ? "started"
         : event.phase === "agent-done"
           ? "done"
-          : undefined;
-    const streamEvent = event.phase === "agent-stream" ? event.details.event : undefined;
-    const executionId = event.details.executionId;
+          : "streaming";
+    const details = event.details as {
+      executionId?: string;
+      agentId: string;
+      summary?: string;
+      passed?: boolean;
+      event?: AgentEvent;
+    };
+    const streamEvent = event.phase === "agent-stream" ? details.event : undefined;
     return {
+      type: "agent",
       executionId,
       agentId,
       agentStatus,
-      agentSummary: event.details.summary,
-      agentPassed: event.details.passed,
+      agentSummary: details.summary,
+      agentPassed: details.passed,
       streamEvent,
       phase: event.phase,
       message: event.message,

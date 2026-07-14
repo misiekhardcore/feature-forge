@@ -1,3 +1,4 @@
+import { jsonParse } from "@feature-forge/shared";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
@@ -170,7 +171,7 @@ describe("ParallelStepExecutor — failureMode", () => {
       const blockResult = result.results.get("block")!;
       expect(blockResult.parsed?.passed).toBe(true);
 
-      const parsedRaw = JSON.parse(blockResult.raw);
+      const parsedRaw = jsonParse<{ failures: Record<string, string> }>(blockResult.raw);
       expect(parsedRaw.failures).toBeDefined();
       expect(parsedRaw.failures.b).toBe("step b failed");
 
@@ -242,7 +243,7 @@ describe("ParallelStepExecutor — failureMode", () => {
       const blockResult = result.results.get("block")!;
       expect(blockResult.parsed?.passed).toBe(false);
 
-      const parsedRaw = JSON.parse(blockResult.raw);
+      const parsedRaw = jsonParse<{ failures: Record<string, string> }>(blockResult.raw);
       expect(parsedRaw.failures.b).toBe("step b failed");
     });
   });
