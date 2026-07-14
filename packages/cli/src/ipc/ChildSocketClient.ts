@@ -23,10 +23,11 @@ import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } f
  * after module load time.
  */
 export function getIpcRequestTimeoutMs(): number {
-  const configInstance = ForgeConfig.getInstance();
-  if (configInstance) {
-    return configInstance.getTaskTimeoutMs();
+  const config = ForgeConfig.getInstance();
+  if (config) {
+    return config.getTaskTimeoutMs();
   }
+  return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
   return Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000;
 }
 

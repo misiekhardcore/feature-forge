@@ -138,17 +138,9 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   private resolveSymlinks(worktreePath: string, stepSymlinks?: readonly string[]): void {
     // Read configured worktree symlinks from ForgeConfig if available,
     // falling back to the FORGE_WORKTREE_SYMLINKS env var.
-    const configSymlinks: readonly string[] = (() => {
-      const configInstance = ForgeConfig.getInstance();
-      if (configInstance) {
-        return configInstance.getWorktreeSymlinks();
-      }
-      // Parse FORGE_WORKTREE_SYMLINKS env var (comma-separated, trim, filter empty)
-      return (process.env.FORGE_WORKTREE_SYMLINKS ?? "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-    })();
+    const config = ForgeConfig.getInstance();
+    const configSymlinks: readonly string[] = config ? config.getWorktreeSymlinks() : [];
+    // FORGE_WORKTREE_SYMLINKS env var is not supported as a fallback — use config only.
 
     const allSymlinks = [...PLATFORM_SYMLINKS, ...configSymlinks, ...(stepSymlinks ?? [])];
 

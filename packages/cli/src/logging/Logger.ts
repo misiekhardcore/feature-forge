@@ -19,13 +19,12 @@ import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
  */
 export class Logger {
   protected static instance: Logger | null = null;
-  protected level: LogLevel;
+  protected level!: LogLevel;
 
   protected constructor() {
     if (!Logger.instance) {
       Logger.instance = this;
     }
-    this.level = this.resolveLogLevel();
   }
 
   /**
@@ -41,14 +40,14 @@ export class Logger {
    * 2. FORGE_LOG_LEVEL environment variable
    * 3. DEFAULT_LOG_LEVEL
    */
-  private resolveLogLevel(): LogLevel {
-    const configInstance = ForgeConfig.getInstance();
-    if (configInstance) {
-      // ForgeConfig.LogLevel is a string enum — parseLogLevel handles
-      // the conversion to numeric LogLevel via the shared key names.
-      return this.parseLogLevel(configInstance.getLogLevel()) ?? DEFAULT_LOG_LEVEL;
+  protected resolveLogLevel(): LogLevel {
+    if (this.level === undefined) {
+      const config = ForgeConfig.getInstance();
+      this.level = config
+        ? (this.parseLogLevel(config.getLogLevel()) ?? DEFAULT_LOG_LEVEL)
+        : (this.parseLogLevel(process.env.FORGE_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL);
     }
-    return this.parseLogLevel(process.env.FORGE_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL;
+    return this.level;
   }
 
   /**
@@ -90,7 +89,7 @@ export class Logger {
   }
 
   static getLogLevel(): LogLevel {
-    return Logger.getRequiredInstance().level;
+    return Logger.getRequiredInstance().resolveLogLevel();
   }
 
   /**

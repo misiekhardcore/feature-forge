@@ -60,9 +60,9 @@ export class FileLogger extends Logger {
    * 3. `.forge/logs` relative to current working directory
    */
   private static resolveLogDir(): string {
-    const configInstance = ForgeConfig.getInstance();
-    if (configInstance) {
-      return configInstance.getLogDir();
+    const config = ForgeConfig.getInstance();
+    if (config) {
+      return config.getLogDir();
     }
     return process.env.FORGE_LOG_DIR ?? path.join(process.cwd(), ".forge", "logs");
   }
@@ -113,7 +113,7 @@ export class FileLogger extends Logger {
       return;
     }
 
-    if (!this.shouldLog(level, this.level)) {
+    if (!this.shouldLog(level, this.resolveLogLevel())) {
       return;
     }
 

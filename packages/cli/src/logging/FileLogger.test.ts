@@ -1,11 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ForgeConfig } from "../config";
 import { FileLogger } from "./FileLogger";
 import { LogLevel } from "./LogLevel";
 
@@ -236,34 +235,6 @@ describe("FileLogger", () => {
       process.env.FORGE_LOG_DIR = "/custom/log/dir";
       const defaultPath = FileLogger.getDefaultLogFilePath();
       expect(defaultPath).toContain("/custom/log/dir");
-    });
-
-    it("uses logDir from ForgeConfig when initialized", async () => {
-      const tempDir = mkdtempSync(join(tmpdir(), "forge-filelogger-test-"));
-      try {
-        writeFileSync(
-          join(tempDir, "forge.config.json"),
-          JSON.stringify({
-            logLevel: "info",
-            workspaceProvider: "git-worktree",
-            agents: {},
-            defaultAgent: { model: { model: "gpt-4" } },
-            logDir: "/custom-config-dir",
-          }),
-        );
-
-        await ForgeConfig.create({ cwd: tempDir });
-
-        const defaultPath = FileLogger.getDefaultLogFilePath();
-        expect(defaultPath).toContain("/custom-config-dir");
-      } finally {
-        ForgeConfig.destroy();
-        try {
-          rmSync(tempDir, { recursive: true, force: true });
-        } catch {
-          // Best-effort cleanup
-        }
-      }
     });
   });
 

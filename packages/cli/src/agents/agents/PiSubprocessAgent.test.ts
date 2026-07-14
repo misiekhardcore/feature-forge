@@ -1,10 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { ForgeConfig } from "../../config";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { onEventCallbacks, fireEvent } = vi.hoisted(() => {
   const callbacks: Array<(event: unknown) => void> = [];
@@ -56,7 +50,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
 import { AgentStatus } from "@feature-forge/shared";
 
 import { makeMessageEvent, makeSpec } from "../../test-utils";
-import { getDefaultTaskTimeoutMs, PiSubprocessAgent } from "./PiSubprocessAgent";
+import { PiSubprocessAgent } from "./PiSubprocessAgent";
 
 describe("PiSubprocessAgent", () => {
   let agent: PiSubprocessAgent;
@@ -419,73 +413,5 @@ describe("PiSubprocessAgent", () => {
         { triggerTurn: false },
       );
     });
-  });
-});
-
-describe("getDefaultTaskTimeoutMs", () => {
-  afterEach(() => {
-    ForgeConfig.destroy();
-  });
-
-  it("returns timeout from ForgeConfig when initialized", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "forge-timeout-test-"));
-    try {
-      writeFileSync(
-        join(tempDir, "forge.config.json"),
-        JSON.stringify({
-          logLevel: "info",
-          workspaceProvider: "git-worktree",
-          agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
-          taskTimeoutMs: 5000,
-        }),
-      );
-
-      await ForgeConfig.create({ cwd: tempDir });
-
-      const timeout = getDefaultTaskTimeoutMs();
-      expect(timeout).toBe(5000);
-    } finally {
-      ForgeConfig.destroy();
-    }
-  });
-
-  it("falls back to 1 hour default when ForgeConfig is not initialized", () => {
-    ForgeConfig.destroy();
-
-    const timeout = getDefaultTaskTimeoutMs();
-    expect(timeout).toBe(60 * 60 * 1000);
-  });
-
-  it("uses FORGE_TASK_TIMEOUT_MS env var when ForgeConfig is not initialized", () => {
-    ForgeConfig.destroy();
-    const original = process.env.FORGE_TASK_TIMEOUT_MS;
-    process.env.FORGE_TASK_TIMEOUT_MS = "15000";
-    try {
-      const timeout = getDefaultTaskTimeoutMs();
-      expect(timeout).toBe(15000);
-    } finally {
-      if (original !== undefined) {
-        process.env.FORGE_TASK_TIMEOUT_MS = original;
-      } else {
-        delete process.env.FORGE_TASK_TIMEOUT_MS;
-      }
-    }
-  });
-
-  it("falls back to 1 hour default when FORGE_TASK_TIMEOUT_MS is invalid", () => {
-    ForgeConfig.destroy();
-    const original = process.env.FORGE_TASK_TIMEOUT_MS;
-    process.env.FORGE_TASK_TIMEOUT_MS = "not-a-number";
-    try {
-      const timeout = getDefaultTaskTimeoutMs();
-      expect(timeout).toBe(60 * 60 * 1000);
-    } finally {
-      if (original !== undefined) {
-        process.env.FORGE_TASK_TIMEOUT_MS = original;
-      } else {
-        delete process.env.FORGE_TASK_TIMEOUT_MS;
-      }
-    }
   });
 });
