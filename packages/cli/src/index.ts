@@ -17,7 +17,6 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
-import { registerDevTestCommands } from "./extensions/dev-test/index.js";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
@@ -154,9 +153,6 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     eventBus: new TypedEventBus(pi.events),
   });
   await flowRegistrar.registerAll();
-
-  // When FEATURE_FORGE_DEV is set, register test commands for AgentViewerOverlay visual testing.
-  registerDevTestCommands(pi);
 };
 
 export default featureForgeExtension;
