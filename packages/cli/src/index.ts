@@ -17,7 +17,7 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
-import { registerDevTestCommands } from "./extensions/dev-test-commands";
+import { registerDevTestCommands } from "./extensions/dev-test/index.js";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";

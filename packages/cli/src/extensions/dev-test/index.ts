@@ -3,8 +3,8 @@ import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui";
-import { AgentViewerOverlay } from "@feature-forge/cli/src/orchestrator/progress/AgentViewerOverlay";
 
+import { AgentViewerOverlay } from "../../orchestrator/progress/AgentViewerOverlay";
 import type { ScenarioData } from "./scenarios/index.js";
 import {
   builderScenario,
@@ -16,14 +16,10 @@ import {
   toolArgsScenario,
 } from "./scenarios/index.js";
 
-// ── Helpers ─────────────────────────────────────────────────
+// ── Scheduling ──────────────────────────────────────────────
 
-const DEFAULT_EVENT_DELAY = 300; // ms between consecutive events
+const DEFAULT_EVENT_DELAY = 300;
 
-/**
- * Schedule a scenario's events on the given viewer with timed delays
- * so the user sees a realistic streaming effect.
- */
 function scheduleScenario(
   viewer: AgentViewerOverlay,
   scenario: ScenarioData,
@@ -32,34 +28,26 @@ function scheduleScenario(
   eventDelay = DEFAULT_EVENT_DELAY,
 ): void {
   viewer.update({ id: scenario.agentId, status: "started" });
-
   for (let i = 0; i < scenario.events.length; i++) {
     const delay = baseDelay + (i + 1) * eventDelay;
     const event = scenario.events[i];
-    if (!event) continue;
-    timers.push(
-      setTimeout(() => {
-        viewer.pushStreamEvent(scenario.agentId, event);
-      }, delay),
-    );
+    timers.push(setTimeout(() => viewer.pushStreamEvent(scenario.agentId, event), delay));
   }
-
   const finalDelay = baseDelay + (scenario.events.length + 1) * eventDelay;
   timers.push(
-    setTimeout(() => {
-      viewer.update({
-        id: scenario.agentId,
-        status: scenario.status,
-        summary: scenario.summary,
-        passed: scenario.passed,
-      });
-    }, finalDelay),
+    setTimeout(
+      () =>
+        viewer.update({
+          id: scenario.agentId,
+          status: scenario.status,
+          summary: scenario.summary,
+          passed: scenario.passed,
+        }),
+      finalDelay,
+    ),
   );
 }
 
-/**
- * Create a pre-populated AgentViewerOverlay.
- */
 function createViewer(
   tui: TUI,
   theme: Theme,
@@ -82,24 +70,18 @@ function createViewer(
     cwd,
     markdownTheme: getMarkdownTheme(),
   });
-
-  if (streamDir) {
-    viewer.setStreamDir(streamDir);
-  }
-
+  if (streamDir) viewer.setStreamDir(streamDir);
   const offset = scenarios.length <= 1 ? 0 : 600;
   for (let i = 0; i < scenarios.length; i++) {
     const sc = scenarios[i];
     if (sc) scheduleScenario(viewer, sc, timers, i * offset, resolvedDelay);
   }
-
   return viewer;
 }
 
-// ── Extension factory ───────────────────────────────────────
+// ── Command registration ───────────────────────────────────
 
-export default function (pi: ExtensionAPI): void {
-  // Guard: extension is dead code unless FEATURE_FORGE_DEV is set.
+export function registerDevTestCommands(pi: ExtensionAPI): void {
   if (!process.env.FEATURE_FORGE_DEV) return;
 
   pi.registerCommand("test-viewer", {
@@ -173,7 +155,7 @@ export default function (pi: ExtensionAPI): void {
             timers,
             [conversationScenario()],
             streamDir,
-            0, // push all events immediately, no delay
+            0,
           );
         },
         { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },

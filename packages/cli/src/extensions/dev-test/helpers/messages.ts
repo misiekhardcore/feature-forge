@@ -3,39 +3,15 @@ import type {
   TextContent,
   ToolCall,
   ToolResultMessage,
-  UserMessage,
 } from "@earendil-works/pi-ai/base";
 
-/**
- * Create a TextContent block.
- */
 export function textBlock(text: string): TextContent {
   return { type: "text", text };
 }
 
-/**
- * Create a UserMessage with the given text.
- */
-export function userMsg(text: string, ts = Date.now()): UserMessage {
-  return {
-    role: "user",
-    content: [textBlock(text)],
-    timestamp: ts,
-  };
-}
-
-/**
- * Create an AssistantMessage with optional tool calls appended to the content.
- */
-export function assistantMsg(
-  text: string,
-  toolCalls?: ToolCall[],
-  ts = Date.now(),
-): AssistantMessage {
+export function assistantMsg(text: string, toolCalls?: ToolCall[]): AssistantMessage {
   const content: AssistantMessage["content"] = [textBlock(text)];
-  if (toolCalls) {
-    content.push(...toolCalls);
-  }
+  if (toolCalls) content.push(...toolCalls);
   return {
     role: "assistant",
     content,
@@ -51,19 +27,15 @@ export function assistantMsg(
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
     },
     stopReason: "stop",
-    timestamp: ts,
+    timestamp: Date.now(),
   };
 }
 
-/**
- * Create a ToolResultMessage.
- */
 export function toolResultMsg(
   toolCallId: string,
   toolName: string,
   content: string,
   isError = false,
-  ts = Date.now(),
 ): ToolResultMessage {
   return {
     role: "toolResult",
@@ -71,13 +43,6 @@ export function toolResultMsg(
     toolName,
     content: [textBlock(content)],
     isError,
-    timestamp: ts,
+    timestamp: Date.now(),
   };
-}
-
-/**
- * Create a ToolCall content block (used inside AssistantMessage.content).
- */
-export function toolCallBlock(id: string, name: string, args: Record<string, unknown>): ToolCall {
-  return { type: "toolCall", id, name, arguments: args };
 }
