@@ -26,6 +26,8 @@ import { FileLogger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
+import { AgentViewerOverlay } from "./orchestrator/progress";
+export { AgentViewerOverlay };
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
   DestroyAgentTool,
