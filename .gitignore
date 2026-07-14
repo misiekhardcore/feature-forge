@@ -12,8 +12,10 @@ coverage/
 # Project memory artifacts
 .claude/
 
-# Worktree runtime state
-.forge/
+# Worktree runtime state — ignore children by default; allow skills dir
+.forge/*
+!.forge/skills/
+!.forge/skills/**
 .lavish/
 
 # pi coding agent runtime (symlinked per worktree)
