@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -83,6 +83,9 @@ export interface AgentViewerOverlayParams {
 const OVERLAY_OPTIONS = {
   anchor: "center" as const,
   width: "100%" as const,
+  // The maxHeight percentage of terminal height. The overlay's visual
+  // content area after borders, margins and padding is roughly this
+  // minus 4 rows (2 border + 2 margin lines).
   maxHeight: "95%" as const,
   margin: 1,
 };
@@ -463,9 +466,34 @@ export class AgentViewerOverlay implements Component {
           if (!this.agents.has(agentId)) {
             this.update({ id: agentId, status: "done", summary: "Agent completed" });
           }
-          // No replay is needed — events are ingested in real time
-          // via pushStreamEvent. The stream file serves as an append-only
-          // log for debugging, not as a re-ingestion source.
+        } else if (entry.endsWith(".events.jsonl")) {
+          const agentId = entry.slice(0, -13);
+          const filePath = join(streamDir, entry);
+          this.eventsFiles.set(agentId, filePath);
+          // Load events from disk into the in-memory buffer so the
+          // detail view shows conversation history for completed agents.
+          try {
+            const fileContent = readFileSync(filePath, "utf-8");
+            const existing = this.agentEvents.get(agentId) ?? [];
+            for (const line of fileContent.trimEnd().split("\n")) {
+              if (!line) continue;
+              try {
+                existing.push(jsonParse<AgentEvent>(line));
+              } catch {
+                // Skip malformed lines.
+              }
+            }
+            // Cap at MAX_AGENT_EVENTS to match pushStreamEvent behaviour.
+            if (existing.length > MAX_AGENT_EVENTS) {
+              existing.splice(0, existing.length - MAX_AGENT_EVENTS);
+            }
+            this.agentEvents.set(agentId, existing);
+          } catch {
+            // Silently ignore read errors.
+          }
+          if (!this.agents.has(agentId)) {
+            this.update({ id: agentId, status: "done", summary: "Agent completed" });
+          }
         }
       }
     } catch {
@@ -765,7 +793,7 @@ export class AgentViewerOverlay implements Component {
         this.viewMode = "detail";
         this.selectedAgentId = agentId;
         this.autoScroll = true;
-        this.scrollOffset = this.computeScrollMax();
+        this.scrollOffset = 0;
         this.tui.requestRender();
       }
     }
