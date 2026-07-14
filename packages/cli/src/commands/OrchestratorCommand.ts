@@ -52,9 +52,15 @@ export class OrchestratorCommand extends Command {
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
     const userTask = args.trim() || "(no task provided)";
 
+    const orchestrator = this.flow.orchestrator;
+    if (!orchestrator) {
+      ctx.ui.notify(`${this.flow.name} has no orchestrator configured.`, "error");
+      return;
+    }
+
     if (!this.spec) {
       this.spec = this.specManager.resolve({
-        spec: this.flow.orchestrator.systemPrompt,
+        spec: orchestrator.systemPrompt,
       });
     }
 
@@ -62,7 +68,7 @@ export class OrchestratorCommand extends Command {
       this.agent = await this.supervisor.mountInSession(this.spec);
     }
 
-    this.agent.mount(this.pi, this.resolveTask(userTask));
+    this.agent.mount(this.pi, this.resolveTask(userTask, orchestrator));
 
     ctx.ui.notify(`${this.flow.name} orchestrator loaded.`, "info");
   }
@@ -72,10 +78,13 @@ export class OrchestratorCommand extends Command {
    * args. `{{prompt}}` maps to the (fallback-guarded) user task; any other
    * `{{key}}` is resolved from `flow.orchestrator.promptParams`.
    */
-  private resolveTask(userTask: string): string {
-    const template = this.flow.orchestrator.prompt ?? "";
+  private resolveTask(
+    userTask: string,
+    orchestrator: NonNullable<FlowDefinition["orchestrator"]>,
+  ): string {
+    const template = orchestrator.prompt ?? "";
     const params: Record<string, string> = {
-      ...(this.flow.orchestrator.promptParams ?? {}),
+      ...(orchestrator.promptParams ?? {}),
       prompt: userTask,
     };
 

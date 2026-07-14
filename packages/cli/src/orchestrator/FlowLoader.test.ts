@@ -52,9 +52,9 @@ describe("validateStructure", () => {
     expect(() => FlowLoader.validateStructure(makeValidFlow({ name: "" }))).toThrow();
   });
 
-  it("throws for missing orchestrator", () => {
+  it("accepts missing orchestrator (optional)", () => {
     const { orchestrator: _, ...rest } = makeValidFlow();
-    expect(() => FlowLoader.validateStructure(rest)).toThrow();
+    expect(() => FlowLoader.validateStructure(rest)).not.toThrow();
   });
 
   it("throws for missing routines", () => {
@@ -469,6 +469,35 @@ describe("validateSemantics", () => {
       expect(errors).toHaveLength(1);
       expect(errors[0]).toContain("accumulateFrom");
       expect(errors[0]).toContain("without parseJson: true");
+    });
+
+    it("accepts accumulateFrom targeting a routine ref instruction", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: {
+            main: {
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  accumulateFrom: ["call-review"],
+                  steps: [
+                    {
+                      type: "routine",
+                      id: "call-review",
+                      target: "/review",
+                      routine: "inspect",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+      expect(errors).toEqual([]);
     });
 
     it("accepts a loop without accumulateFrom", () => {

@@ -296,8 +296,9 @@ export class FlowLoader {
     const reachableIds = new Set<string>();
     FlowLoader.collectAllIds(loop.steps, reachableIds);
 
-    const parseJsonIds = new Set<string>();
-    FlowLoader.collectIdsByFlag(loop.steps, "parseJson", parseJsonIds);
+    const accuableIds = new Set<string>();
+    FlowLoader.collectIdsByFlag(loop.steps, "parseJson", accuableIds);
+    FlowLoader.collectIdsByType(loop.steps, "routine", accuableIds);
 
     for (const targetId of loop.accumulateFrom) {
       if (!reachableIds.has(targetId)) {
@@ -305,10 +306,11 @@ export class FlowLoader {
           `accumulateFrom references unknown id "${targetId}" in loop ` +
             `"${path.join(" → ")}" (not found in loop body)`,
         );
-      } else if (!parseJsonIds.has(targetId)) {
+      } else if (!accuableIds.has(targetId)) {
         errors.push(
           `accumulateFrom id "${targetId}" points to an instruction ` +
-            `without parseJson: true in loop "${path.join(" → ")}"`,
+            `without parseJson: true or without being a routine ref in loop ` +
+            `"${path.join(" → ")}"`,
         );
       }
     }
@@ -334,6 +336,21 @@ export class FlowLoader {
       }
       if (isContainerInstruction(instruction)) {
         FlowLoader.collectIdsByFlag(instruction.steps, flag, ids);
+      }
+    }
+  }
+
+  private static collectIdsByType(
+    instructions: FlowInstruction[],
+    type: FlowInstruction["type"],
+    ids: Set<string>,
+  ): void {
+    for (const instruction of instructions) {
+      if (instruction.type === type) {
+        ids.add(instruction.id);
+      }
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.collectIdsByType(instruction.steps, type, ids);
       }
     }
   }

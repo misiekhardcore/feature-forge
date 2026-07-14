@@ -11,12 +11,14 @@ import {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
+  isRoutineRefInstruction,
   LoopInstructionSchema,
   makeLoopInstruction,
   makeParallelInstruction,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -562,9 +564,9 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("rejects missing orchestrator", () => {
+  it("accepts missing orchestrator (optional)", () => {
     const { orchestrator: _, ...rest } = validFlow;
-    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
+    expect(Value.Check(FlowDefinitionSchema, rest)).toBe(true);
   });
 
   it("rejects orchestrator with empty systemPrompt", () => {
@@ -754,6 +756,139 @@ describe("isLoopInstruction", () => {
     expect(
       isLoopInstruction({ type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" }),
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RoutineRefInstructionSchema
+// ---------------------------------------------------------------------------
+
+describe("RoutineRefInstructionSchema", () => {
+  it("validates a minimal routine ref instruction", () => {
+    const valid = { type: "routine", id: "r1", target: "flow-a", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, valid)).toBe(true);
+  });
+
+  it("validates with all optional fields", () => {
+    const valid = {
+      type: "routine",
+      id: "r1",
+      target: "flow-a",
+      routine: "build",
+      input: { task: "test", plan: "test-plan" },
+      output_as: "build_result",
+      timeout: 120,
+      on_error: "continue",
+    };
+    expect(Value.Check(RoutineRefInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects missing target", () => {
+    const invalid = { type: "routine", id: "r1", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty target", () => {
+    const invalid = { type: "routine", id: "r1", target: "", routine: "build" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects missing routine", () => {
+    const invalid = { type: "routine", id: "r1", target: "flow-a" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty routine", () => {
+    const invalid = { type: "routine", id: "r1", target: "flow-a", routine: "" };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects negative timeout", () => {
+    const invalid = {
+      type: "routine",
+      id: "r1",
+      target: "flow-a",
+      routine: "build",
+      timeout: -1,
+    };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects empty output_as", () => {
+    const invalid = {
+      type: "routine",
+      id: "r1",
+      target: "flow-a",
+      routine: "build",
+      output_as: "",
+    };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("rejects invalid on_error value", () => {
+    const invalid = {
+      type: "routine",
+      id: "r1",
+      target: "flow-a",
+      routine: "build",
+      on_error: "retry",
+    };
+    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("accepts on_error: fail", () => {
+    const valid = {
+      type: "routine",
+      id: "r1",
+      target: "flow-a",
+      routine: "build",
+      on_error: "fail",
+    };
+    expect(Value.Check(RoutineRefInstructionSchema, valid)).toBe(true);
+  });
+
+  it("recognizes routine type in the union", () => {
+    expect(
+      Value.Check(FlowInstructionSchema, {
+        type: "routine",
+        id: "r1",
+        target: "flow-a",
+        routine: "build",
+      }),
+    ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isRoutineRefInstruction
+// ---------------------------------------------------------------------------
+
+describe("isRoutineRefInstruction", () => {
+  it("returns true for routine instructions", () => {
+    expect(
+      isRoutineRefInstruction({ type: "routine", id: "r1", target: "flow-a", routine: "build" }),
+    ).toBe(true);
+  });
+
+  it("returns false for agent instructions", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "agent",
+        id: "a1",
+        systemPrompt: "build",
+        prompt: "do it",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for parallel instructions", () => {
+    expect(isRoutineRefInstruction({ type: "parallel", id: "p1", steps: [] })).toBe(false);
+  });
+
+  it("returns false for loop instructions", () => {
+    expect(isRoutineRefInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(
+      false,
+    );
   });
 });
 

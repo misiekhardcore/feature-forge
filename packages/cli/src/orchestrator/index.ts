@@ -5,6 +5,7 @@ export {
   GitStepExecutor,
   LoopStepExecutor,
   ParallelStepExecutor,
+  RoutineRefStepExecutor,
   SessionStepExecutor,
   ShellStepExecutor,
   WorkspaceStepExecutor,
@@ -25,6 +26,7 @@ export type {
   ParallelInstruction,
   RoutineDefinition,
   RoutineParam,
+  RoutineRefInstruction,
   SessionInstruction,
   ShellInstruction,
   WorkspaceInstruction,
@@ -39,18 +41,21 @@ export {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
+  isRoutineRefInstruction,
   LoopInstructionSchema,
   makeLoopInstruction,
   makeParallelInstruction,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
 export { FlowRegistrar } from "./FlowRegistrar";
+export { MaxDepthExceededError } from "./MaxDepthExceededError";
 export type { DisplayContribution } from "./progress/DisplayContribution";
 export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEvent";

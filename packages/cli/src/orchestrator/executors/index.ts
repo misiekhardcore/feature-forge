@@ -3,6 +3,7 @@ export { CleanupStepExecutor } from "./CleanupStepExecutor";
 export { GitStepExecutor } from "./GitStepExecutor";
 export { LoopStepExecutor } from "./LoopStepExecutor";
 export { ParallelStepExecutor } from "./ParallelStepExecutor";
+export { RoutineRefStepExecutor } from "./RoutineRefStepExecutor";
 export { SessionStepExecutor } from "./SessionStepExecutor";
 export { ShellStepExecutor } from "./ShellStepExecutor";
 export { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";

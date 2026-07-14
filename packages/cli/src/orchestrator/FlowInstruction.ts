@@ -80,6 +80,15 @@ export const ShellInstructionSchema = defineInstruction("shell", {
   cwd: Type.String({ minLength: 1 }),
 });
 
+export const RoutineRefInstructionSchema = defineInstruction("routine", {
+  target: Type.String({ minLength: 1 }),
+  routine: Type.String({ minLength: 1 }),
+  input: Type.Optional(Type.Record(Type.String(), Type.String())),
+  output_as: Type.Optional(Type.String({ minLength: 1 })),
+  timeout: Type.Optional(Type.Integer({ minimum: 1 })),
+  on_error: Type.Optional(Type.Union([Type.Literal("fail"), Type.Literal("continue")])),
+});
+
 // ── Parallel failure mode ──────────────────────────────────
 
 export const ParallelFailureModeSchema = Type.Union([
@@ -133,6 +142,7 @@ const FlowInstructionUnion = Type.Union([
   GitInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
+  RoutineRefInstructionSchema,
 ]);
 
 // Patch container schemas so `steps` validates recursively.
@@ -173,6 +183,8 @@ export const RoutineParamSchema = Type.Object({
 
 const RoutineDefinitionSchema = Type.Object({
   params: Type.Array(RoutineParamSchema),
+  input_schema: Type.Optional(Type.String()),
+  output_schema: Type.Optional(Type.String()),
   // steps placeholder — Type.Any() avoids the circular FlowInstructionUnion reference
   // during Type.Record's internal Clone. The real validator is patched onto the
   // cloned copy stored inside the TRecord below.
@@ -184,7 +196,7 @@ export const FlowDefinitionSchema = Type.Object({
   params: Type.Optional(Type.Array(RoutineParamSchema)),
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
-  orchestrator: OrchestratorConfigSchema,
+  orchestrator: Type.Optional(OrchestratorConfigSchema),
   routines: Type.Record(Type.String(), RoutineDefinitionSchema),
 });
 
@@ -236,6 +248,8 @@ export type SessionInstruction = Type.Static<typeof SessionInstructionSchema>;
 
 export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
 
+export type RoutineRefInstruction = Type.Static<typeof RoutineRefInstructionSchema>;
+
 /** Instructions that contain nested `steps` arrays. */
 export type ContainerInstruction = ParallelInstruction | LoopInstruction;
 
@@ -247,7 +261,8 @@ export type FlowInstruction =
   | CleanupInstruction
   | GitInstruction
   | ShellInstruction
-  | SessionInstruction;
+  | SessionInstruction
+  | RoutineRefInstruction;
 
 export type OrchestratorConfig = Type.Static<typeof OrchestratorConfigSchema>;
 
@@ -255,6 +270,8 @@ export type RoutineParam = Type.Static<typeof RoutineParamSchema>;
 
 export type RoutineDefinition = {
   params: RoutineParam[];
+  input_schema?: string;
+  output_schema?: string;
   steps: FlowInstruction[];
 };
 
@@ -275,6 +292,10 @@ export function isLoopInstruction(instr: FlowInstruction): instr is LoopInstruct
 
 export function isContainerInstruction(instr: FlowInstruction): instr is ContainerInstruction {
   return instr.type === "parallel" || instr.type === "loop";
+}
+
+export function isRoutineRefInstruction(instr: FlowInstruction): instr is RoutineRefInstruction {
+  return instr.type === "routine";
 }
 
 // ── Helper constructors ────────────────────────────────────────

@@ -135,6 +135,27 @@ describe("OrchestratorCommand", () => {
     expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "task [extra]");
   });
 
+  it("logs an error and returns early when orchestrator is undefined", async () => {
+    const flow: FlowDefinition = {
+      ...baseFlow,
+      orchestrator: undefined,
+    };
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, flow);
+
+    const ctx = makeMockCtx();
+    await cmd.handler("some task", ctx);
+
+    // Should notify error without resolving spec or mounting agent
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      "test-flow has no orchestrator configured.",
+      "error",
+    );
+    expect(specManager.resolve).not.toHaveBeenCalled();
+    expect(supervisor.mountInSession).not.toHaveBeenCalled();
+    expect(hoisted.agentMock.mount).not.toHaveBeenCalled();
+  });
+
   it("caches the spec and in-session agent across handler calls", async () => {
     const flow: FlowDefinition = {
       ...baseFlow,

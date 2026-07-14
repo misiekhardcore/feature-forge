@@ -36,7 +36,7 @@ describe("createStepExecutorRegistry", () => {
     expect(typeof registry.get).toBe("function");
   });
 
-  it("registers all 7 built-in executors", () => {
+  it("registers all 9 built-in executors", () => {
     const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
@@ -45,7 +45,7 @@ describe("createStepExecutorRegistry", () => {
       worktreeRegistry,
     );
 
-    expect(registry.types().size).toBe(8);
+    expect(registry.types().size).toBe(9);
   });
 
   it("registers leaf executors with correct types", () => {
@@ -62,6 +62,8 @@ describe("createStepExecutorRegistry", () => {
     expect(registry.has("cleanup")).toBe(true);
     expect(registry.has("git")).toBe(true);
     expect(registry.has("shell")).toBe(true);
+    expect(registry.has("session")).toBe(true);
+    expect(registry.has("routine")).toBe(true);
   });
 
   it("registers container executors with correct types", () => {
@@ -101,7 +103,7 @@ describe("createStepExecutorRegistry", () => {
     );
 
     // All leaf types must be present when container executors are used
-    const leafTypes = ["workspace", "agent", "cleanup", "git", "shell"];
+    const leafTypes = ["workspace", "agent", "cleanup", "git", "shell", "session", "routine"];
     for (const leafType of leafTypes) {
       expect(registry.has(leafType)).toBe(true);
     }
