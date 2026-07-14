@@ -20,7 +20,7 @@ import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
  * after module load time.
  */
 export function getDefaultTaskTimeoutMs(): number {
-  const configInstance = ForgeConfig.tryGetInstance();
+  const configInstance = ForgeConfig.getInstance();
   if (configInstance) {
     return configInstance.getTaskTimeoutMs();
   }

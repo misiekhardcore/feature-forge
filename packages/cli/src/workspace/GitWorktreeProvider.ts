@@ -139,7 +139,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     // Read configured worktree symlinks from ForgeConfig if available,
     // falling back to the FORGE_WORKTREE_SYMLINKS env var.
     const configSymlinks: readonly string[] = (() => {
-      const configInstance = ForgeConfig.tryGetInstance();
+      const configInstance = ForgeConfig.getInstance();
       if (configInstance) {
         return configInstance.getWorktreeSymlinks();
       }

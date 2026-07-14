@@ -84,6 +84,26 @@ export const AgentConfigSchema = Type.Object({
 });
 
 /**
+ * Display-related configuration for the agent viewer overlay.
+ *
+ * Controls memory-bounded event buffering and raw output truncation
+ * in the TUI's agent viewer.
+ *
+ * All values are optional -- defaults are defined in
+ * {@link DEFAULT_FORGE_CONFIG}.
+ */
+export const DisplayConfigSchema = Type.Object({
+  /** Maximum characters of raw agent output to display per entry. Defaults to 500. */
+  maxRawLength: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 500 }))),
+
+  /** Maximum events kept in memory per agent (sliding window FIFO). Defaults to 200. */
+  maxAgentEvents: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 200 }))),
+
+  /** Maximum events buffered before connect() is called (burst protection). Defaults to 2000. */
+  maxPreconnectBuffer: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 2000 }))),
+});
+
+/**
  * Complete configuration schema for the Feature Forge CLI.
  *
  * To extend this schema, add a new `Type.Readonly(...)` field with a JSDoc
@@ -116,6 +136,9 @@ export const ForgeConfigSchema = Type.Object({
 
   /** Additional directories for flows and agent specs. */
   specDirectories: Type.Readonly(Type.Optional(SpecDirectoriesSchema)),
+
+  /** Display configuration for the agent viewer overlay. */
+  display: Type.Readonly(Type.Optional(DisplayConfigSchema)),
 });
 
 // ── Derived TypeScript types ───────────────────────────────────────
@@ -128,6 +151,9 @@ export type AgentConfig = Type.Static<typeof AgentConfigSchema>;
 
 /** TypeScript type derived from {@link SpecDirectoriesSchema}. */
 export type SpecDirectories = Type.Static<typeof SpecDirectoriesSchema>;
+
+/** TypeScript type derived from {@link DisplayConfigSchema}. */
+export type DisplayConfig = Type.Static<typeof DisplayConfigSchema>;
 
 /**
  * TypeScript type derived from {@link ForgeConfigSchema}.

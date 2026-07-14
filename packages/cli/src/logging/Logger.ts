@@ -42,7 +42,7 @@ export class Logger {
    * 3. DEFAULT_LOG_LEVEL
    */
   private resolveLogLevel(): LogLevel {
-    const configInstance = ForgeConfig.tryGetInstance();
+    const configInstance = ForgeConfig.getInstance();
     if (configInstance) {
       // ForgeConfig.LogLevel is a string enum — parseLogLevel handles
       // the conversion to numeric LogLevel via the shared key names.

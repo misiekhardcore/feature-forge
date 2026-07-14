@@ -373,12 +373,12 @@ describe("ForgeConfig", () => {
       expect(ForgeConfig.instance).toBe(instance);
     });
 
-    it("throws ConfigError when not initialized", () => {
-      expect(() => ForgeConfig.instance).toThrow(ConfigError);
+    it("returns undefined when not initialized", () => {
+      expect(ForgeConfig.instance).toBeUndefined();
     });
   });
 
-  describe("tryGetInstance", () => {
+  describe("getInstance (nullable)", () => {
     it("returns the singleton instance when initialized", async () => {
       await fs.writeFile(
         join(tempDir, "forge.config.json"),
@@ -391,11 +391,11 @@ describe("ForgeConfig", () => {
       );
 
       await ForgeConfig.create({ cwd: tempDir });
-      expect(ForgeConfig.tryGetInstance()).toBeDefined();
+      expect(ForgeConfig.getInstance()).toBeDefined();
     });
 
     it("returns undefined when not initialized", () => {
-      expect(ForgeConfig.tryGetInstance()).toBeUndefined();
+      expect(ForgeConfig.getInstance()).toBeUndefined();
     });
 
     it("returns undefined after destroy", async () => {
@@ -411,7 +411,7 @@ describe("ForgeConfig", () => {
 
       await ForgeConfig.create({ cwd: tempDir });
       ForgeConfig.destroy();
-      expect(ForgeConfig.tryGetInstance()).toBeUndefined();
+      expect(ForgeConfig.getInstance()).toBeUndefined();
     });
   });
 

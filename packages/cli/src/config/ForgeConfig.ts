@@ -13,7 +13,11 @@
 
 import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
-import type { ForgeConfig as ForgeConfigType, SpecDirectories } from "./ForgeConfigSchema";
+import type {
+  DisplayConfig,
+  ForgeConfig as ForgeConfigType,
+  SpecDirectories,
+} from "./ForgeConfigSchema";
 import { LogLevel } from "./ForgeConfigSchema";
 
 /**
@@ -103,30 +107,18 @@ export class ForgeConfig {
    * @throws {@link ConfigError} if {@link create} has not been called yet.
    */
   static get instance(): ForgeConfig {
-    return ForgeConfig.getInstance();
+    return ForgeConfig.getInstance()!;
   }
 
   /**
-   * Get the singleton instance, or `undefined` if not yet initialized.
+   * Get the singleton {@link ForgeConfig} instance, or `undefined`
+   * if not yet initialized.
    *
-   * Safe to call before {@link create} — returns `undefined` instead of
-   * throwing. Useful for consumers that want to read config if available
-   * but fall back to other sources (e.g., env vars) when not.
+   * Returns `undefined` when {@link create} has not been called yet
+   * (e.g., during early startup or in tests that don't need config).
    */
-  static tryGetInstance(): ForgeConfig | undefined {
+  static getInstance(): ForgeConfig | undefined {
     return ForgeConfig._instance ?? undefined;
-  }
-
-  /**
-   * Get the singleton {@link ForgeConfig} instance.
-   *
-   * @throws {@link ConfigError} if {@link create} has not been called yet.
-   */
-  static getInstance(): ForgeConfig {
-    if (!ForgeConfig._instance) {
-      throw new ConfigError("ForgeConfig not initialized. Call ForgeConfig.create() first.");
-    }
-    return ForgeConfig._instance;
   }
 
   // ── Typed accessor methods ──────────────────────────────────────────
@@ -190,6 +182,51 @@ export class ForgeConfig {
    */
   getAgentSpecDirectories(): readonly string[] {
     return this.getSpecDirectories().agents ?? [];
+  }
+
+  // ── Display configuration accessors ────────────────────────────────
+
+  /**
+   * Return the display configuration block.
+   *
+   * Returns a frozen object with all three fields populated from config
+   * or defaults.
+   */
+  getDisplayConfig(): DisplayConfig {
+    return (
+      this.getConfig().display ?? {
+        maxRawLength: 500,
+        maxAgentEvents: 200,
+        maxPreconnectBuffer: 2000,
+      }
+    );
+  }
+
+  /**
+   * Return the maximum characters of raw agent output to display per entry.
+   *
+   * Defaults to 500.
+   */
+  getDisplayMaxRawLength(): number {
+    return this.getDisplayConfig().maxRawLength ?? 500;
+  }
+
+  /**
+   * Return the maximum events kept in memory per agent (sliding window FIFO).
+   *
+   * Defaults to 200.
+   */
+  getDisplayMaxAgentEvents(): number {
+    return this.getDisplayConfig().maxAgentEvents ?? 200;
+  }
+
+  /**
+   * Return the maximum events buffered before connect() is called (burst protection).
+   *
+   * Defaults to 2000.
+   */
+  getDisplayMaxPreconnectBuffer(): number {
+    return this.getDisplayConfig().maxPreconnectBuffer ?? 2000;
   }
 
   /**

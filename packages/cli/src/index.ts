@@ -82,7 +82,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
 
   // Load additional agent specs from directories configured in forge.config
-  const forgeConfig = ForgeConfig.tryGetInstance();
+  const forgeConfig = ForgeConfig.getInstance();
   if (forgeConfig) {
     for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
       const resolvedDir = path.resolve(process.cwd(), agentSpecDir);

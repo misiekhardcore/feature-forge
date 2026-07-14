@@ -9,6 +9,7 @@ import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-wo
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { ForgeConfig } from "../../config";
 import { logger } from "../../logging";
 import { ToolRegistry } from "../../registry/ToolRegistry";
 import type { TypedEventBus } from "../eventBus";
@@ -46,16 +47,27 @@ export interface AgentViewerEntry {
 export type ViewMode = "list" | "detail";
 
 /**
- * Maximum raw events kept in memory per agent (sliding window FIFO).
+ * Maximum characters of raw agent output to display per entry.
+ */
+function getDisplayMaxRawLength(): number {
+  return ForgeConfig.getInstance().getDisplayMaxRawLength();
+}
+
+/**
+ * Maximum events kept in memory per agent (sliding window FIFO).
  * Older events are evicted but persist on disk via JSONL for lazy loading.
  */
-const MAX_AGENT_EVENTS = 200;
+function getDisplayMaxAgentEvents(): number {
+  return ForgeConfig.getInstance().getDisplayMaxAgentEvents();
+}
 
 /**
  * Maximum events buffered before {@link connect} is called.
  * Prevents unbounded memory from a burst of pre-connect events.
  */
-const MAX_PRECONNECT_BUFFER = 2000;
+function getDisplayMaxPreconnectBuffer(): number {
+  return ForgeConfig.getInstance().getDisplayMaxPreconnectBuffer();
+}
 
 /**
  * Parameters for constructing an {@link AgentViewerOverlay}.
@@ -378,8 +390,9 @@ export class AgentViewerOverlay implements Component {
     // Append the raw event to the in-memory buffer (capped FIFO sliding window).
     const events = this.agentEvents.get(agentId) ?? [];
     events.push(event);
-    if (events.length > MAX_AGENT_EVENTS) {
-      const removeCount = events.length - MAX_AGENT_EVENTS;
+    const maxAgentEvents = getDisplayMaxAgentEvents();
+    if (events.length > maxAgentEvents) {
+      const removeCount = events.length - maxAgentEvents;
       events.splice(0, removeCount);
     }
     this.agentEvents.set(agentId, events);
@@ -402,7 +415,7 @@ export class AgentViewerOverlay implements Component {
    * Return the raw stream events for an agent, in insertion order.
    *
    * Only returns events currently held in the in-memory sliding window
-   * (up to {@link MAX_AGENT_EVENTS} per agent). Use
+   * (up to {@link getDisplayMaxAgentEvents} per agent). Use
    * {@link loadConversationEvents} for disk-backed history beyond the
    * window.
    */
@@ -448,7 +461,7 @@ export class AgentViewerOverlay implements Component {
    */
   async loadConversationEvents(
     agentId: string,
-    count: number = MAX_AGENT_EVENTS,
+    count: number = getDisplayMaxAgentEvents(),
   ): Promise<AgentEvent[]> {
     const memoryEvents = this.agentEvents.get(agentId) ?? [];
 
@@ -542,7 +555,7 @@ export class AgentViewerOverlay implements Component {
    *   registered but the file is never replayed.
    * - {@code *.messages.jsonl} — finalized messages (pi's appendMessage
    *   semantics). Loaded into {@link agentMessages}, capped to
-   *   {@link MAX_AGENT_EVENTS}, keeping the most recent messages.
+   *   {@link getDisplayMaxAgentEvents}, keeping the most recent messages.
    * - {@code *.events.jsonl} — raw events (diagnostics). The path is
    *   registered for lazy {@link loadConversationEvents} access but the
    *   file is NOT loaded into memory at startup.
@@ -607,7 +620,7 @@ export class AgentViewerOverlay implements Component {
    *
    * Each line is a serialized {@link AgentMessage}. Messages are merged with
    * any already-cached entries (disk messages first/older, in-memory entries
-   * last/newer) and capped to {@link MAX_AGENT_EVENTS} keeping the most
+   * last/newer) and capped to {@link getDisplayMaxAgentEvents} keeping the most
    * recent. Malformed lines are skipped.
    */
   private loadMessagesFromDiskIntoCache(agentId: string, filePath: string): void {
@@ -632,8 +645,9 @@ export class AgentViewerOverlay implements Component {
       // Disk messages are older (written first); in-memory entries are newer
       // (from live pushStreamEvent calls during this session).
       const merged = [...disk, ...existing];
-      if (merged.length > MAX_AGENT_EVENTS) {
-        merged.splice(0, merged.length - MAX_AGENT_EVENTS);
+      const maxAgentEvents = getDisplayMaxAgentEvents();
+      if (merged.length > maxAgentEvents) {
+        merged.splice(0, merged.length - maxAgentEvents);
       }
       this.agentMessages.set(agentId, merged);
     } catch (error) {
@@ -747,7 +761,7 @@ export class AgentViewerOverlay implements Component {
    * special handling here — its message and toolResults are duplicates.
    *
    * Applies the same FIFO sliding window cap as agentEvents
-   * (MAX_AGENT_EVENTS) to prevent unbounded memory growth.
+   * (getDisplayMaxAgentEvents()) to prevent unbounded memory growth.
    */
   private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
     const message = AgentViewerOverlay.extractMessageFromEvent(event);
@@ -759,8 +773,9 @@ export class AgentViewerOverlay implements Component {
 
     // Apply FIFO sliding window cap to keep agentMessages in sync
     // with agentEvents bounds.
-    if (messages.length > MAX_AGENT_EVENTS) {
-      messages.splice(0, messages.length - MAX_AGENT_EVENTS);
+    const maxAgentEvents = getDisplayMaxAgentEvents();
+    if (messages.length > maxAgentEvents) {
+      messages.splice(0, messages.length - maxAgentEvents);
     }
 
     this.agentMessages.set(agentId, messages);
@@ -909,7 +924,11 @@ export class AgentViewerOverlay implements Component {
       }
 
       if (entry.raw !== undefined) {
-        for (const rawLine of entry.raw.split("\n")) {
+        const truncated =
+          entry.raw.length > getDisplayMaxRawLength()
+            ? entry.raw.slice(0, getDisplayMaxRawLength()) + "..."
+            : entry.raw;
+        for (const rawLine of truncated.split("\n")) {
           lines.push(theme.fg("muted", rawLine));
         }
       }
@@ -1109,8 +1128,9 @@ export class AgentViewerOverlay implements Component {
     }> = [];
 
     const capEventBuffer = (): void => {
-      if (eventBuffer.length > MAX_PRECONNECT_BUFFER) {
-        eventBuffer.splice(0, eventBuffer.length - MAX_PRECONNECT_BUFFER);
+      const maxPreconnectBuffer = getDisplayMaxPreconnectBuffer();
+      if (eventBuffer.length > maxPreconnectBuffer) {
+        eventBuffer.splice(0, eventBuffer.length - maxPreconnectBuffer);
       }
     };
 

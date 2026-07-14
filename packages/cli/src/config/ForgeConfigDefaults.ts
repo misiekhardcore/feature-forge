@@ -35,6 +35,11 @@ export const DEFAULT_FORGE_CONFIG: ForgeConfig = Object.freeze({
   worktreeSymlinks: [],
   taskTimeoutMs: 60 * 60 * 1000,
   specDirectories: { flows: [], agents: [] },
+  display: {
+    maxRawLength: 500,
+    maxAgentEvents: 200,
+    maxPreconnectBuffer: 2000,
+  },
 });
 
 /**
@@ -80,5 +85,6 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     worktreeSymlinks: overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
     specDirectories: overrides.specDirectories ?? DEFAULT_FORGE_CONFIG.specDirectories,
+    display: overrides.display ?? DEFAULT_FORGE_CONFIG.display,
   };
 }

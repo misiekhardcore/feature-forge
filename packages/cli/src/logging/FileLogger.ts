@@ -60,7 +60,7 @@ export class FileLogger extends Logger {
    * 3. `.forge/logs` relative to current working directory
    */
   private static resolveLogDir(): string {
-    const configInstance = ForgeConfig.tryGetInstance();
+    const configInstance = ForgeConfig.getInstance();
     if (configInstance) {
       return configInstance.getLogDir();
     }
