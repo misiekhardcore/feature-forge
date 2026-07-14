@@ -17,6 +17,7 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
+import { registerDevTestCommands } from "./extensions/dev-test-commands";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
@@ -153,18 +154,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     eventBus: new TypedEventBus(pi.events),
   });
   await flowRegistrar.registerAll();
-  // ── Dev test extension ────────────────────────────────────────
-  // When FEATURE_FORGE_DEV is set, register AgentViewerOverlay test commands
-  // for visual TUI testing. Uses a relative import so jiti handles TypeScript
-  // resolution without triggering the cli barrel's directory imports.
-  if (process.env.FEATURE_FORGE_DEV) {
-    try {
-      const { default: registerTestCommands } = await import("@feature-forge/agent-viewer-test");
-      registerTestCommands(pi);
-    } catch {
-      // Silently skip — the test package may not be installed.
-    }
-  }
+
+  // When FEATURE_FORGE_DEV is set, register test commands for AgentViewerOverlay visual testing.
+  registerDevTestCommands(pi);
 };
 
 export default featureForgeExtension;
