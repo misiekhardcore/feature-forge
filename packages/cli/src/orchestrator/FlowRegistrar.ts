@@ -3,13 +3,14 @@ import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { InMemoryAgentSupervisor, SpecManager } from "../agents";
+import { AgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
 import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";
 import type { TypedEventBus } from "./eventBus";
+import type { FlowDefinition } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
@@ -26,13 +27,18 @@ export class FlowRegistrar {
       pi: ExtensionAPI;
       cmdRegistry: CommandRegistry;
       toolRegistry: ToolRegistry;
-      supervisor: InMemoryAgentSupervisor;
+      supervisor: AgentSupervisor;
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
       flowsDir: string;
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
+      /**
+       * Optional map to populate with loaded flow definitions, keyed by command.
+       * Allows lookup of flow definitions without requiring an orchestrator.
+       */
+      flowMap?: Map<string, FlowDefinition>;
     },
   ) {}
 
@@ -88,7 +94,7 @@ export class FlowRegistrar {
       pi: ExtensionAPI;
       cmdRegistry: CommandRegistry;
       toolRegistry: ToolRegistry;
-      supervisor: InMemoryAgentSupervisor;
+      supervisor: AgentSupervisor;
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
       knownProviders: ReadonlySet<string>;
@@ -108,31 +114,7 @@ export class FlowRegistrar {
       eventBus,
     } = ctx;
 
-    // Skip flows without an orchestrator markdown file.
-    const orchestratorFile = path.join(flowDir, "orchestrator.md");
-    try {
-      await fs.access(orchestratorFile);
-    } catch (error) {
-      logger.warn(`[feature-forge] Orchestrator persona file not found for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    // Register the orchestrator persona as a spec in the shared registry before
-    // loading the flow definition, so the spec name participates in FlowLoader's
-    // semantic validation. The persona stays co-located with its flow but is
-    // loaded by the same `SpecLoader`. See ADR 0007.
-    try {
-      await specManager.loadFromDirectory(flowDir);
-    } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    // Load and validate the flow definition with an up-to-date spec snapshot.
+    // 1. Load flow.json first — always, even for library-only flows (no orchestrator).
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
@@ -146,30 +128,58 @@ export class FlowRegistrar {
           store.set(param.name, param.default);
         }
       }
+
+      // 2. Populate flowMap if provided.
+      this.params.flowMap?.set(flow.command, flow);
     } catch (error) {
-      logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, { error });
+      logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, {
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
       return;
     }
 
-    // Construct the orchestrator command with pi (needed for the base Command
-    // class and agent mounting), then register it through the CommandRegistry
-    // so it follows the same registration path as all other commands.
-    const orchestratorCommand = new OrchestratorCommand(
-      supervisor,
-      pi,
-      specManager,
-      workspaceManager,
-      flow,
-    );
+    // 3. Check whether an orchestrator markdown file exists.
+    const orchestratorFile = path.join(flowDir, "orchestrator.md");
+    let hasOrchestrator = false;
     try {
-      cmdRegistry.registerInstance(orchestratorCommand);
-    } catch (error) {
-      logger.warn(
-        `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
-        {
-          error,
-        },
-      );
+      await fs.access(orchestratorFile);
+      hasOrchestrator = true;
+    } catch {
+      // Library-only flow — no orchestrator, but tools are still registered below.
+    }
+
+    // 4. If orchestrator is present and the flow defines one, register command.
+    let specsLoaded = false;
+    if (hasOrchestrator && flow.orchestrator) {
+      try {
+        await specManager.loadFromDirectory(flowDir);
+        specsLoaded = true;
+      } catch (error) {
+        logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+        // Do not return — tools are still registered below even without an orchestrator command.
+      }
+
+      if (specsLoaded) {
+        const orchestratorCommand = new OrchestratorCommand(
+          supervisor,
+          pi,
+          specManager,
+          workspaceManager,
+          flow,
+        );
+        try {
+          cmdRegistry.registerInstance(orchestratorCommand);
+        } catch (error) {
+          logger.warn(
+            `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
+            {
+              error: error instanceof Error ? error : new Error(String(error)),
+            },
+          );
+        }
+      }
     }
 
     // Register routine tools for this flow.
@@ -186,7 +196,7 @@ export class FlowRegistrar {
         toolRegistry.registerInstance(routineTool);
       } catch (error) {
         logger.warn(`[feature-forge] Failed to register RoutineTool "${routineTool.name}"`, {
-          error,
+          error: error instanceof Error ? error : new Error(String(error)),
         });
       }
     }
@@ -195,7 +205,9 @@ export class FlowRegistrar {
     try {
       toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor, supervisor));
     } catch (error) {
-      logger.warn("[feature-forge] Failed to register set_flow_param", { error });
+      logger.warn("[feature-forge] Failed to register set_flow_param", {
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
     }
   }
 }
