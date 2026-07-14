@@ -1190,6 +1190,17 @@ describe("AgentViewerOverlay", () => {
       const tui = makeTui();
       const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("builder", "done"));
+      // Push enough events to exceed viewport height (fallback=20).
+      for (let i = 0; i < 25; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "message_start",
+          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+        });
+        overlay.pushStreamEvent("builder", {
+          type: "message_end",
+          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+        });
+      }
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.scrollOffset = 0;
@@ -3221,17 +3232,17 @@ describe("AgentViewerOverlay", () => {
     it("does not resume auto-scroll on ArrowDown when not at bottom", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", {
-        type: "message_start",
-        message: { role: "assistant" },
-      } as unknown as AgentEvent);
-      overlay.pushStreamEvent("builder", {
-        type: "message_end",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: "Hello" }],
-        },
-      } as unknown as AgentEvent);
+      // Push enough events to exceed viewport height (fallback=20).
+      for (let i = 0; i < 25; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "message_start",
+          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+        } as unknown as AgentEvent);
+        overlay.pushStreamEvent("builder", {
+          type: "message_end",
+          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+        } as unknown as AgentEvent);
+      }
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.autoScroll = false;
@@ -3245,6 +3256,17 @@ describe("AgentViewerOverlay", () => {
     it("auto-scrolls to bottom when new stream event arrives in detail view", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
+      // Push enough events to exceed viewport height (fallback=20).
+      for (let i = 0; i < 25; i++) {
+        overlay.pushStreamEvent("builder", {
+          type: "message_start",
+          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+        } as unknown as AgentEvent);
+        overlay.pushStreamEvent("builder", {
+          type: "message_end",
+          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+        } as unknown as AgentEvent);
+      }
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.autoScroll = true;

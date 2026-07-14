@@ -553,6 +553,25 @@ export class AgentViewerOverlay implements Component {
 
   // ── Private rendering ─────────────────────────────────────
 
+  /** Compute available overlay content height in rows.
+   *
+   * Mirrors the TUI's resolveOverlayLayout logic for maxHeight=95%, margin=1.
+   * Subtracts 4 for border decorations (top + bottom + 2 margin lines inside border)
+   * to return the height available for actual content lines.
+   * Falls back to a reasonable default (20 rows) when terminal dimensions are
+   * unavailable (e.g., in tests).
+   */
+  private computeViewportHeight(): number {
+    const termHeight = this.tui?.terminal?.rows;
+    if (!termHeight || termHeight < 1) return 20;
+    const margin = 1;
+    const availHeight = termHeight - margin * 2;
+    const rawMaxHeight = Math.floor(0.95 * termHeight);
+    const maxHeight = Math.max(1, Math.min(rawMaxHeight, availHeight));
+    // Subtract border and interior margins (top border, top margin, bottom margin, bottom border)
+    return Math.max(1, maxHeight - 4);
+  }
+
   private addBorder(lines: string[], contentWidth: number): string[] {
     const { theme } = this;
     const inner = Math.max(contentWidth - 2, 10);
@@ -720,9 +739,12 @@ export class AgentViewerOverlay implements Component {
       theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
     );
 
-    // Clamp scroll offset to visible range and keep state in sync.
-    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
-    const visibleLines = lines.slice(this.scrollOffset);
+    // Compute viewport window and clamp scroll offset.
+    const viewportHeight = this.computeViewportHeight();
+    const maxOffset = Math.max(0, lines.length - viewportHeight);
+    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
+    const viewportEnd = Math.min(this.scrollOffset + viewportHeight, lines.length);
+    const visibleLines = lines.slice(this.scrollOffset, viewportEnd);
 
     const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
@@ -816,7 +838,8 @@ export class AgentViewerOverlay implements Component {
     const footerLines = 1;
 
     const totalLines = baseHeaderLines + summaryLines + totalConversationBlock + footerLines;
-    return Math.max(0, totalLines - 1);
+    const viewportHeight = this.computeViewportHeight();
+    return Math.max(0, totalLines - viewportHeight);
   }
 
   /**
