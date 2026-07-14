@@ -15,7 +15,7 @@ import { Value } from "typebox/value";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { resolveConfig } from "./ForgeConfigDefaults";
 import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
-import { ForgeConfigSchema } from "./ForgeConfigSchema";
+import { ForgeConfigSchema, LogLevel } from "./ForgeConfigSchema";
 
 /**
  * JSON-native shape produced by {@link Value.Decode} before conversion
@@ -96,7 +96,12 @@ export class ConfigLoader {
     }
 
     const decoded = Value.Decode(ForgeConfigSchema, parsed);
-    return this.toResolvedConfig(decoded);
+
+    // Merge env var overlay — env vars take priority over config file
+    const envOverlay = this.resolveForgeEnvOverlay();
+    const merged = { ...decoded, ...envOverlay };
+
+    return this.toResolvedConfig(merged);
   }
 
   /**
@@ -122,8 +127,8 @@ export class ConfigLoader {
       }
     }
 
-    // No config file found — return defaults
-    return resolveConfig({});
+    // No config file found — return defaults (with env var overlay)
+    return resolveConfig(this.resolveForgeEnvOverlay());
   }
 
   /**
@@ -173,7 +178,7 @@ export class ConfigLoader {
     const filePath = (await this.pickFirstExistingPath([forgeConfigPath, rootConfigPath])) ?? null;
 
     if (!filePath) {
-      return resolveConfig({});
+      return resolveConfig(this.resolveForgeEnvOverlay());
     }
 
     let parsed: unknown;
@@ -186,11 +191,11 @@ export class ConfigLoader {
           `[feature-forge] Invalid JSON in ${filePath}: ${(parseError as Error).message}. ` +
             "Falling back to default configuration.",
         );
-        return resolveConfig({});
+        return resolveConfig(this.resolveForgeEnvOverlay());
       }
     } catch {
       // File not found — return defaults silently
-      return resolveConfig({});
+      return resolveConfig(this.resolveForgeEnvOverlay());
     }
 
     // Resolve environment variable references in the parsed content
@@ -208,7 +213,13 @@ export class ConfigLoader {
     }
 
     const decoded = Value.Decode(ForgeConfigSchema, resolved);
-    return this.toResolvedConfig(decoded);
+
+    // Merge env var overlay — env vars take priority over config file
+    // values for the same keys (taskTimeoutMs, logLevel, logDir).
+    const envOverlay = this.resolveForgeEnvOverlay();
+    const merged = { ...decoded, ...envOverlay };
+
+    return this.toResolvedConfig(merged);
   }
 
   /**
@@ -297,6 +308,60 @@ export class ConfigLoader {
     }
 
     return result;
+  }
+
+  /**
+   * Known FORGE_* environment variables mapped to config field paths.
+   *
+   * These are read at config-load time and merged into the resolved config
+   * (taking priority over values from config files). Subprocesses inherit
+   * the same env vars from the parent process and use them as fallbacks
+   * when ForgeConfig is not initialized in the child.
+   */
+  static readonly FORGE_ENV_MAP: Record<string, string> = {
+    /** Agent task timeout in milliseconds. */
+    FORGE_TASK_TIMEOUT_MS: "taskTimeoutMs",
+    /** Logging verbosity level (silent, error, warn, info, debug). */
+    FORGE_LOG_LEVEL: "logLevel",
+    /** Directory for log files. */
+    FORGE_LOG_DIR: "logDir",
+  };
+
+  /**
+   * Build a partial config overlay from known {@link FORGE_ENV_MAP} env vars.
+   *
+   * Coerces env var strings to the correct types:
+   * - `taskTimeoutMs`: parsed as integer (min 1)
+   * - `logLevel`: validated against {@link LogLevel} enum values
+   * - `logDir`: used as-is (string)
+   *
+   * @returns Partial config object; empty when no known env vars are set.
+   */
+  resolveForgeEnvOverlay(): Record<string, unknown> {
+    const overlay: Record<string, unknown> = {};
+
+    const timeoutMs = process.env.FORGE_TASK_TIMEOUT_MS;
+    if (timeoutMs !== undefined) {
+      const parsed = Number(timeoutMs);
+      if (Number.isFinite(parsed) && parsed >= 1) {
+        overlay.taskTimeoutMs = parsed;
+      }
+    }
+
+    const logLevel = process.env.FORGE_LOG_LEVEL;
+    if (logLevel !== undefined) {
+      const validLevels = Object.values(LogLevel) as string[];
+      if (validLevels.includes(logLevel)) {
+        overlay.logLevel = logLevel;
+      }
+    }
+
+    const logDir = process.env.FORGE_LOG_DIR;
+    if (logDir !== undefined) {
+      overlay.logDir = logDir;
+    }
+
+    return overlay;
   }
 
   /**
