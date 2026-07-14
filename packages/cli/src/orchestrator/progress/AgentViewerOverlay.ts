@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -466,6 +466,30 @@ export class AgentViewerOverlay implements Component {
           // No replay is needed — events are ingested in real time
           // via pushStreamEvent. The stream file serves as an append-only
           // log for debugging, not as a re-ingestion source.
+        } else if (entry.endsWith(".events.jsonl")) {
+          const agentId = entry.slice(0, -13);
+          const filePath = join(streamDir, entry);
+          this.eventsFiles.set(agentId, filePath);
+          try {
+            const content = readFileSync(filePath, "utf-8");
+            const lines = content.trimEnd().split("\n");
+            const events: AgentEvent[] = [];
+            for (const line of lines) {
+              if (!line) continue;
+              const parsed = jsonParse<AgentEvent>(line);
+              events.push(parsed);
+            }
+            if (events.length > 0) {
+              const existing = this.agentEvents.get(agentId) ?? [];
+              const merged = [...existing, ...events];
+              if (merged.length > MAX_AGENT_EVENTS) {
+                merged.splice(0, merged.length - MAX_AGENT_EVENTS);
+              }
+              this.agentEvents.set(agentId, merged);
+            }
+          } catch {
+            // Silently skip unreadable or malformed event files.
+          }
         }
       }
     } catch {
