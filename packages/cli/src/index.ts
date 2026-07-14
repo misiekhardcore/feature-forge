@@ -155,6 +155,18 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     eventBus: new TypedEventBus(pi.events),
   });
   await flowRegistrar.registerAll();
+
+  // ── Dev test extension ────────────────────────────────────────
+  // When FEATURE_FORGE_DEV is set, auto-load the AgentViewerOverlay
+  // test extension so the user gets /test-viewer etc. without -e.
+  if (process.env.FEATURE_FORGE_DEV) {
+    try {
+      const { default: registerTestCommands } = await import("@feature-forge/agent-viewer-test");
+      registerTestCommands(pi);
+    } catch {
+      // Silently skip if the test package is not installed.
+    }
+  }
 };
 
 export default featureForgeExtension;
