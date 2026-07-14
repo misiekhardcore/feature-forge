@@ -139,7 +139,9 @@ export class ConversationRenderer {
         case "tool_execution_update":
           if (pendingToolStart) {
             pendingToolResult = {
-              text: (pendingToolResult?.text ?? "") + String(event.partialResult ?? ""),
+              text:
+                (pendingToolResult?.text ?? "") +
+                AgentDisplayHelpers.serializeToolResultText(event.partialResult),
               isError: false,
             };
           }
@@ -147,7 +149,7 @@ export class ConversationRenderer {
 
         case "tool_execution_end":
           pendingToolResult = {
-            text: String(event.result ?? ""),
+            text: AgentDisplayHelpers.serializeToolResultText(event.result),
             isError: event.isError,
           };
           flushTool();
