@@ -1,8 +1,8 @@
 {
-  "name": "@feature-forge/agent-viewer-test",
+  "name": "@feature-forge/debug",
   "version": "0.1.0",
   "private": true,
-  "description": "Development test extension for AgentViewerOverlay TUI rendering",
+  "description": "Development debugging tools for feature-forge",
   "type": "module",
   "scripts": {
     "build": "echo 'nothing to build'",

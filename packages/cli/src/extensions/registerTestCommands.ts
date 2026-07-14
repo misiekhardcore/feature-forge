@@ -3,7 +3,7 @@ import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui";
-import type { ScenarioData } from "@feature-forge/agent-viewer-test";
+import type { ScenarioData } from "@feature-forge/debug";
 import {
   builderScenario,
   conversationScenario,
@@ -12,7 +12,7 @@ import {
   manyTurnsScenario,
   reviewerScenario,
   toolArgsScenario,
-} from "@feature-forge/agent-viewer-test";
+} from "@feature-forge/debug";
 
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 
