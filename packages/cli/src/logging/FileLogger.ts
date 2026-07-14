@@ -1,9 +1,8 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 
-import { DEFAULT_FORGE_CONFIG, ForgeConfig } from "../config";
+import { ForgeConfig, LogLevel } from "../config";
 import { Logger } from "./Logger";
-import { LogLevel } from "./LogLevel";
 
 /** Shape of a single log entry written to the JSON Lines file. */
 interface LogEntry {
@@ -47,12 +46,7 @@ export class FileLogger extends Logger {
   }
 
   static getDefaultLogFilePath(): string {
-    const logDir = FileLogger.resolveLogDir();
-    return path.join(logDir, `${Date.now()}-${process.pid}.log`);
-  }
-
-  private static resolveLogDir(): string {
-    return ForgeConfig.getInstance()?.getLogDir() ?? DEFAULT_FORGE_CONFIG.logDir!;
+    return path.join(ForgeConfig.getInstance().getLogDir(), `${Date.now()}-${process.pid}.log`);
   }
 
   /** Lazily-initialised write stream — no file created until first write. */
@@ -101,13 +95,13 @@ export class FileLogger extends Logger {
       return;
     }
 
-    if (!this.shouldLog(level, this.resolveLogLevel())) {
+    if (!this.shouldLog(level, ForgeConfig.getInstance().getLogLevel())) {
       return;
     }
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
-      level: LogLevel[level].toLowerCase(),
+      level: level.toLowerCase(),
       message,
     };
     if (data !== undefined) {

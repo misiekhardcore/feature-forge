@@ -26,8 +26,8 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
  * Every consumer should treat this as immutable. Spread or clone before
  * mutating for a specific session.
  */
-export const DEFAULT_FORGE_CONFIG: ForgeConfig = Object.freeze({
-  logLevel: LogLevel.Info,
+export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
+  logLevel: LogLevel.INFO,
   workspaceProvider: WorkspaceProviderKind.GitWorktree,
   agents: new Map<string, AgentConfig>(),
   defaultAgent: DEFAULT_AGENT_CONFIG,

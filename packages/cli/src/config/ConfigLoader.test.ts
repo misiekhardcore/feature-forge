@@ -53,7 +53,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.loadFromFile(filePath);
 
-      expect(config.logLevel).toBe(LogLevel.Debug);
+      expect(config.logLevel).toBe(LogLevel.DEBUG);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
       expect(config.agents.size).toBe(1);
       expect(config.agents.get("builder")?.maxTurns).toBe(50);
@@ -81,7 +81,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.loadFromFile(filePath);
 
-      expect(config.logLevel).toBe(LogLevel.Debug);
+      expect(config.logLevel).toBe(LogLevel.DEBUG);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
       expect(config.agents.size).toBe(1);
       expect(config.agents.get("builder")?.maxTurns).toBe(50);
@@ -105,7 +105,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.loadFromFile(filePath);
 
-      expect(config.logLevel).toBe(LogLevel.Info);
+      expect(config.logLevel).toBe(LogLevel.INFO);
       expect(config.defaultAgent.model?.model).toBe("claude-sonnet-4-5");
     });
 
@@ -241,7 +241,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.load({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.Debug);
+      expect(config.logLevel).toBe(LogLevel.DEBUG);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
     });
 
@@ -262,7 +262,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.load({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.Debug);
+      expect(config.logLevel).toBe(LogLevel.DEBUG);
     });
 
     it("prefers .json over .yaml when both exist (extension order)", async () => {
@@ -292,7 +292,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.load({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.Error);
+      expect(config.logLevel).toBe(LogLevel.ERROR);
     });
 
     it("returns default config when no config file exists", async () => {
@@ -324,7 +324,7 @@ describe("ConfigLoader", () => {
         const loader = new ConfigLoader();
         const config = await loader.load();
 
-        expect(config.logLevel).toBe(LogLevel.Debug);
+        expect(config.logLevel).toBe(LogLevel.DEBUG);
       } finally {
         spy.mockRestore();
       }
@@ -347,7 +347,7 @@ describe("ConfigLoader", () => {
       });
       const config = await loader.load({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.Warn);
+      expect(config.logLevel).toBe(LogLevel.WARN);
     });
 
     it("throws when discovered config file fails validation", async () => {
@@ -483,7 +483,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.forRoot({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.Debug);
+      expect(config.logLevel).toBe(LogLevel.DEBUG);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
     });
 
@@ -514,7 +514,7 @@ describe("ConfigLoader", () => {
       const config = await loader.forRoot({ cwd: tempDir });
 
       // Should prefer .forge/config.json
-      expect(config.logLevel).toBe(LogLevel.Error);
+      expect(config.logLevel).toBe(LogLevel.ERROR);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
     });
 
@@ -585,7 +585,7 @@ describe("ConfigLoader", () => {
       const config = await loader.forRoot({ cwd: tempDir });
 
       // .forge/config.json is found first, so forge.config.json is never read
-      expect(config.logLevel).toBe(LogLevel.Warn);
+      expect(config.logLevel).toBe(LogLevel.WARN);
     });
 
     it("resolves env vars in the loaded config", async () => {
@@ -604,7 +604,7 @@ describe("ConfigLoader", () => {
       const loader = new ConfigLoader();
       const config = await loader.forRoot({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.Error);
+      expect(config.logLevel).toBe(LogLevel.ERROR);
       vi.unstubAllEnvs();
     });
 
@@ -644,7 +644,7 @@ describe("ConfigLoader", () => {
         const loader = new ConfigLoader();
         const config = await loader.forRoot();
 
-        expect(config.logLevel).toBe(LogLevel.Warn);
+        expect(config.logLevel).toBe(LogLevel.WARN);
       } finally {
         spy.mockRestore();
       }

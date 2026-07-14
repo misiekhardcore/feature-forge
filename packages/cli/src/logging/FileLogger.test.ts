@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { LogLevel } from "../config";
 import { FileLogger } from "./FileLogger";
 import { Logger } from "./Logger";
-import { LogLevel } from "./LogLevel";
 
 describe("FileLogger", () => {
   let filePath: string;

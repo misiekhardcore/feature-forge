@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
+import { LogLevel } from "../config";
+import { DEFAULT_LOG_LEVEL } from "./LogLevel";
 
 describe("LogLevel", () => {
   describe("enum", () => {

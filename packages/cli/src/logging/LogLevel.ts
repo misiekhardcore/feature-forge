@@ -5,12 +5,8 @@
  * `candidate <= threshold` means the candidate meets or exceeds
  * the threshold severity.
  */
-export enum LogLevel {
-  ERROR,
-  WARN,
-  INFO,
-  DEBUG,
-}
+
+import { LogLevel } from "../config";
 
 /** Default log level when no configuration is provided — logs everything. */
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.DEBUG;

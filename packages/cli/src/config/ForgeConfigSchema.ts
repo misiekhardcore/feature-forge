@@ -17,11 +17,11 @@ import { Type } from "typebox";
  * Logging verbosity levels, ordered from least to most verbose.
  */
 export enum LogLevel {
-  Silent = "silent",
-  Error = "error",
-  Warn = "warn",
-  Info = "info",
-  Debug = "debug",
+  SILENT = "silent",
+  ERROR = "error",
+  WARN = "warn",
+  INFO = "info",
+  DEBUG = "debug",
 }
 
 /**
@@ -113,7 +113,7 @@ export const DisplayConfigSchema = Type.Object({
  * is represented as a {@link ReadonlyMap}.
  */
 export const ForgeConfigSchema = Type.Object({
-  /** Logging verbosity. Defaults to {@link LogLevel.Info}. */
+  /** Logging verbosity. Defaults to {@link LogLevel.INFO}. */
   logLevel: Type.Readonly(Type.Enum(LogLevel)),
 
   /** Workspace provider to use when creating agent workspaces. */

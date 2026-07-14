@@ -119,7 +119,7 @@ describe("ForgeConfig", () => {
       const instance = await ForgeConfig.create({ cwd: tempDir });
       const config = instance.getConfig();
 
-      expect(config.logLevel).toBe(LogLevel.Warn);
+      expect(config.logLevel).toBe(LogLevel.WARN);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
       expect(config.agents.get("builder")?.maxTurns).toBe(50);
     });
@@ -169,7 +169,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getConfig().logLevel).toBe(LogLevel.Error);
+      expect(instance.getConfig().logLevel).toBe(LogLevel.ERROR);
 
       // Update the file
       await fs.writeFile(
@@ -183,7 +183,7 @@ describe("ForgeConfig", () => {
       );
 
       await ForgeConfig.reload({ cwd: tempDir });
-      expect(instance.getConfig().logLevel).toBe(LogLevel.Debug);
+      expect(instance.getConfig().logLevel).toBe(LogLevel.DEBUG);
     });
 
     it("falls back to defaults when the file is removed before reload", async () => {
@@ -198,7 +198,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getConfig().logLevel).toBe(LogLevel.Error);
+      expect(instance.getConfig().logLevel).toBe(LogLevel.ERROR);
 
       // Remove the file
       await fs.rm(join(tempDir, "forge.config.json"));
@@ -221,7 +221,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getLogLevel()).toBe(LogLevel.Error);
+      expect(instance.getLogLevel()).toBe(LogLevel.ERROR);
     });
 
     it("returns the configured log directory", async () => {
@@ -448,7 +448,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance1 = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance1.getConfig().logLevel).toBe(LogLevel.Debug);
+      expect(instance1.getConfig().logLevel).toBe(LogLevel.DEBUG);
 
       ForgeConfig.destroy();
 
@@ -464,7 +464,7 @@ describe("ForgeConfig", () => {
       );
 
       const instance2 = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance2.getConfig().logLevel).toBe(LogLevel.Warn);
+      expect(instance2.getConfig().logLevel).toBe(LogLevel.WARN);
       expect(instance2).not.toBe(instance1);
     });
   });

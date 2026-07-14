@@ -1,8 +1,4 @@
-import { ForgeConfig } from "../config";
-// ForgeConfig's LogLevel is string-based ("info", "debug", etc.) while
-// the Logger's LogLevel is numeric. The parseLogLevel method handles
-// the conversion for both env var strings and config strings.
-import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
+import { ForgeConfig, LogLevel } from "../config";
 
 /**
  * Abstract base class for loggers.
@@ -30,22 +26,11 @@ export class Logger {
   /**
    * Return the active logger instance, or `null` if not initialized.
    */
-  static getInstance(): Logger | null {
-    return Logger.instance;
-  }
-
-  /**
-   * Resolve the effective log level by checking, in order:
-   * 1. ForgeConfig (if initialized)
-   * 2. FORGE_LOG_LEVEL environment variable
-   * 3. DEFAULT_LOG_LEVEL
-   */
-  protected resolveLogLevel(): LogLevel {
-    if (this.level === undefined) {
-      const config = ForgeConfig.getInstance();
-      this.level = this.parseLogLevel(config?.getLogLevel()) ?? DEFAULT_LOG_LEVEL;
+  static getInstance(): Logger {
+    if (!Logger.instance) {
+      throw new Error("Logger not initialized. Call Logger.initialize() or a subclass first.");
     }
-    return this.level;
+    return Logger.instance;
   }
 
   /**
@@ -69,25 +54,12 @@ export class Logger {
     Logger.instance = null;
   }
 
-  /**
-   * Return the active logger singleton, or throw if not initialized.
-   *
-   * @throws Error if no logger instance has been created via
-   *   {@link initialize} or a subclass's initialize().
-   */
-  static getRequiredInstance(): Logger {
-    if (!Logger.instance) {
-      throw new Error("Logger not initialized. Call Logger.initialize() or a subclass first.");
-    }
-    return Logger.instance;
-  }
-
   static setLogLevel(level: LogLevel): void {
-    Logger.getRequiredInstance().level = level;
+    Logger.getInstance().level = level;
   }
 
   static getLogLevel(): LogLevel {
-    return Logger.getRequiredInstance().resolveLogLevel();
+    return ForgeConfig.getInstance().getLogLevel();
   }
 
   /**
@@ -138,22 +110,6 @@ export class Logger {
     if (Logger.instance && Logger.instance !== this) {
       Logger.instance.debug(message, data);
     }
-  }
-
-  /**
-   * Parse a log level from a raw string value.
-   *
-   * Case-insensitive. Returns `undefined` for unrecognised input so
-   * callers can fall back to {@link DEFAULT_LOG_LEVEL}.
-   */
-  protected parseLogLevel(raw: string | undefined): LogLevel | undefined {
-    if (!raw) return undefined;
-    const normalised = raw.toLowerCase().trim();
-    const key = normalised.toUpperCase();
-    if (key in LogLevel) {
-      return LogLevel[key as keyof typeof LogLevel];
-    }
-    return undefined;
   }
 
   /**

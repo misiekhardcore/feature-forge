@@ -23,7 +23,7 @@ describe("DEFAULT_AGENT_CONFIG", () => {
 
 describe("DEFAULT_FORGE_CONFIG", () => {
   it("has default log level Info", () => {
-    expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(LogLevel.Info);
+    expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(LogLevel.INFO);
   });
 
   it("has default workspace provider GitWorktree", () => {
@@ -62,15 +62,15 @@ describe("DEFAULT_FORGE_CONFIG", () => {
 describe("resolveConfig", () => {
   it("returns defaults when called with empty overrides", () => {
     const config = resolveConfig({});
-    expect(config.logLevel).toBe(LogLevel.Info);
+    expect(config.logLevel).toBe(LogLevel.INFO);
     expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
     expect(config.agents.size).toBe(0);
     expect(config.defaultAgent.model?.model).toBe("gpt-4");
   });
 
   it("overrides logLevel", () => {
-    const config = resolveConfig({ logLevel: LogLevel.Debug });
-    expect(config.logLevel).toBe(LogLevel.Debug);
+    const config = resolveConfig({ logLevel: LogLevel.DEBUG });
+    expect(config.logLevel).toBe(LogLevel.DEBUG);
   });
 
   it("overrides workspaceProvider", () => {
@@ -149,9 +149,9 @@ describe("resolveConfig", () => {
   });
 
   it("never mutates the DEFAULT constants", () => {
-    const config = resolveConfig({ logLevel: LogLevel.Debug });
-    expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(LogLevel.Info);
-    expect(config.logLevel).toBe(LogLevel.Debug);
+    const config = resolveConfig({ logLevel: LogLevel.DEBUG });
+    expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(LogLevel.INFO);
+    expect(config.logLevel).toBe(LogLevel.DEBUG);
   });
 
   it("creates a fresh agents map each call", () => {
