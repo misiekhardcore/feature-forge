@@ -17,7 +17,10 @@ type FlowContextParams = {
   readonly iteration?: number;
   /** Flow-global session that persists across routine calls. */
   readonly store?: FlowStateStore;
-  /** Nesting depth — incremented each time a routine calls another routine. */
+  /**
+   * Nesting depth — incremented each time a routine calls another routine.
+   * Must be a non-negative integer when provided.
+   */
   readonly depth?: number;
 };
 
@@ -42,7 +45,10 @@ export class FlowContext {
   readonly iteration: number;
   /** Flow-global session that persists across routine calls. */
   readonly store: FlowStateStore;
-  /** Nesting depth — incremented each time a routine calls another routine. */
+  /**
+   * Nesting depth — incremented each time a routine calls another routine.
+   * Always a non-negative integer; defaults to 0.
+   */
   readonly depth: number;
 
   constructor(params: FlowContextParams) {
@@ -53,7 +59,30 @@ export class FlowContext {
     this.feedback = params.feedback;
     this.iteration = params.iteration ?? 0;
     this.store = params.store ?? new FlowStateStore();
-    this.depth = params.depth ?? 0;
+    this.depth = FlowContext.validateDepth(params.depth);
+  }
+
+  // ── Depth validation ──────────────────────────────────────
+
+  /**
+   * Validate depth and return the value (or default 0).
+   * Called from the constructor — throws only on invalid input.
+   */
+  private static validateDepth(depth: number | undefined): number {
+    const value = depth ?? 0;
+    if (depth !== undefined && (!Number.isInteger(value) || value < 0)) {
+      throw new RangeError(`depth must be a non-negative integer, got ${depth}`);
+    }
+    return value;
+  }
+
+  /**
+   * Assert that {@link n} is a valid depth. Throws on invalid input.
+   */
+  private static requireValidDepth(n: number): void {
+    if (!Number.isInteger(n) || n < 0) {
+      throw new RangeError(`depth must be a non-negative integer, got ${n}`);
+    }
   }
 
   // ── Mutations (return new FlowContext) ────────────────────
@@ -160,9 +189,7 @@ export class FlowContext {
   }
 
   withDepth(n: number): FlowContext {
-    if (!Number.isInteger(n) || n < 0) {
-      throw new RangeError(`depth must be a non-negative integer, got ${n}`);
-    }
+    FlowContext.requireValidDepth(n);
     return new FlowContext({
       results: this.results,
       prompt: this.prompt,

@@ -502,6 +502,39 @@ describe("FlowContext", () => {
       expect(ctx.depth).toBe(3);
     });
 
+    it("throws RangeError for negative depth in constructor", () => {
+      expect(
+        () =>
+          new FlowContext({
+            results: new Map(),
+            prompt: "task",
+            depth: -1,
+          }),
+      ).toThrow(RangeError);
+    });
+
+    it("throws RangeError for non-integer depth in constructor", () => {
+      expect(
+        () =>
+          new FlowContext({
+            results: new Map(),
+            prompt: "task",
+            depth: 1.5,
+          }),
+      ).toThrow(RangeError);
+    });
+
+    it("throws RangeError for NaN depth in constructor", () => {
+      expect(
+        () =>
+          new FlowContext({
+            results: new Map(),
+            prompt: "task",
+            depth: NaN,
+          }),
+      ).toThrow(RangeError);
+    });
+
     it("propagates depth through withResult", () => {
       const ctx = new FlowContext({
         results: new Map(),

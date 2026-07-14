@@ -62,6 +62,21 @@ export interface WorkspaceContribution {
   message: string;
 }
 
+/** Contribution from a "routine-ref" step — tracks routine reference lifecycle (start/done/error). */
+export interface RoutineRefContribution {
+  readonly type: "routine-ref";
+  /** Target flow name. */
+  target: string;
+  /** Target routine name within the flow. */
+  routine: string;
+  /** Lifecycle status of the referenced routine. */
+  status: "started" | "done" | "error";
+  /** The event phase label (e.g. "routine-ref-start"). */
+  phase: string;
+  /** Human-readable description of the current progress. */
+  message: string;
+}
+
 /** Contribution for generic status updates — cleanup, shell, or other non-agent/non-loop events. */
 export interface StatusContribution {
   readonly type: "status";
@@ -77,4 +92,5 @@ export type DisplayContribution =
   | AgentContribution
   | LoopContribution
   | WorkspaceContribution
+  | RoutineRefContribution
   | StatusContribution;

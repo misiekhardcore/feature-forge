@@ -18,6 +18,8 @@ export interface AccumulatedState {
   branch?: string;
   /** Loop continueWhile expression, if the routine uses a loop. */
   continueWhile?: string;
+  /** Routine reference entries in "target:routine" format, in arrival order. */
+  routineRefs?: string[];
 }
 
 /**
@@ -34,5 +36,6 @@ export function createAccumulatedState(): AccumulatedState {
     workspace: undefined,
     branch: undefined,
     continueWhile: undefined,
+    routineRefs: undefined,
   };
 }

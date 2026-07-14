@@ -1,3 +1,4 @@
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { TextContent } from "@earendil-works/pi-ai";
 import type {
   AgentToolResult,
@@ -794,9 +795,10 @@ describe("RoutineTool", () => {
               if (!event.phase.startsWith("agent-")) return undefined;
               const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
               if (!agentId) return undefined;
+              const details = event.details as { executionId?: string; event?: AgentEvent };
               return {
                 type: "agent",
-                executionId: event.details.executionId,
+                executionId: details.executionId,
                 agentId,
                 agentStatus:
                   event.phase === "agent-started"
@@ -804,7 +806,7 @@ describe("RoutineTool", () => {
                     : event.phase === "agent-done"
                       ? "done"
                       : "streaming",
-                streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
+                streamEvent: event.phase === "agent-stream" ? details.event : undefined,
                 phase: event.phase,
                 message: event.message,
               };

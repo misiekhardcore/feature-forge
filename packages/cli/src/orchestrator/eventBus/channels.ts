@@ -100,4 +100,22 @@ export interface ForgeChannels {
     message: string;
     details: { executionId?: string };
   };
+
+  "feature-forge:routine-ref-start": {
+    phase: "routine-ref-start";
+    message: string;
+    details: { instructionId: string; target: string; routine: string };
+  };
+
+  "feature-forge:routine-ref-done": {
+    phase: "routine-ref-done";
+    message: string;
+    details: { instructionId: string; target: string; routine: string; passed?: boolean };
+  };
+
+  "feature-forge:routine-ref-error": {
+    phase: "routine-ref-error";
+    message: string;
+    details: { instructionId: string; target: string; routine: string };
+  };
 }

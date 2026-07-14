@@ -7,6 +7,7 @@ import { TypedEventBus } from "./eventBus";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
+import { MaxDepthExceededError } from "./MaxDepthExceededError";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -645,6 +646,154 @@ describe("RoutineExecutor", () => {
       const result = await executor.run("main", {}, "task");
 
       expect(result.results["step1"].raw).toBe("depth:0");
+    });
+
+    it("accepts explicit depth 0 via parameter", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class DepthInspector extends StepExecutor {
+        readonly type = "depth-inspector";
+        async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+          return context.withResult(instruction.id, {
+            raw: `depth:${context.depth}`,
+          });
+        }
+      }
+
+      registry.register(() => new DepthInspector());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "depth-inspector", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const result = await executor.run("main", {}, "task", undefined, 0);
+
+      expect(result.results["step1"].raw).toBe("depth:0");
+    });
+
+    it("throws RangeError for negative depth", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "any";
+            async execute(i: FlowInstruction, ctx: FlowContext): Promise<FlowContext> {
+              return ctx.withResult(i.id, { raw: "" });
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: { params: [], steps: [{ type: "any", id: "s1" } as unknown as FlowInstruction] },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
+      await expect(executor.run("main", {}, "task", undefined, -1)).rejects.toThrow(RangeError);
+    });
+
+    it("throws RangeError for NaN depth", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "any";
+            async execute(i: FlowInstruction, ctx: FlowContext): Promise<FlowContext> {
+              return ctx.withResult(i.id, { raw: "" });
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: { params: [], steps: [{ type: "any", id: "s1" } as unknown as FlowInstruction] },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
+      await expect(executor.run("main", {}, "task", undefined, NaN)).rejects.toThrow(RangeError);
+    });
+
+    it("throws MaxDepthExceededError when depth >= MAX_NESTING_DEPTH", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "any";
+            async execute(i: FlowInstruction, ctx: FlowContext): Promise<FlowContext> {
+              return ctx.withResult(i.id, { raw: "" });
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: { params: [], steps: [{ type: "any", id: "s1" } as unknown as FlowInstruction] },
+        },
+      };
+
+      const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
+      await expect(executor.run("main", {}, "task", undefined, 10)).rejects.toThrow(
+        MaxDepthExceededError,
+      );
+    });
+
+    it("allows depth exactly MAX_NESTING_DEPTH - 1", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class DepthInspector extends StepExecutor {
+        readonly type = "depth-inspector";
+        async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+          return context.withResult(instruction.id, {
+            raw: `depth:${context.depth}`,
+          });
+        }
+      }
+
+      registry.register(() => new DepthInspector());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "depth-inspector", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const result = await executor.run("main", {}, "task", undefined, 9);
+
+      expect(result.results["step1"].raw).toBe("depth:9");
     });
 
     it.each([3, 7])("propagates depth %d from run() call to the context", async (expectedDepth) => {

@@ -4,6 +4,7 @@ import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
+import { MaxDepthExceededError } from "./MaxDepthExceededError";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
@@ -43,8 +44,8 @@ export class RoutineExecutor {
    * @param routineName — Must exist in {@link flow.routines}.
    * @param params — Key-value pairs exposed as `{{PARAM}}` tokens.
    * @param task — Top-level task description, exposed as `{{prompt}}`.
-   * @param depth — Optional nesting depth (incremented each time a routine calls another routine).
    * @param signal — Optional abort signal for cancelling the routine mid-execution.
+   * @param depth — Optional nesting depth (incremented each time a routine calls another routine).
    *   When aborted, an {@link AbortError} propagates uncaught to the caller.
    * @returns Structured result with per-instruction outputs.
    */
@@ -63,6 +64,11 @@ export class RoutineExecutor {
         `Routine "${routineName}" not found in flow "${this.flow.name}". ` +
           `Available: ${Object.keys(this.flow.routines).join(", ")}`,
       );
+    }
+
+    // Guard against excessive nesting before creating the context.
+    if (depth !== undefined && depth >= MaxDepthExceededError.MAX_NESTING_DEPTH) {
+      throw new MaxDepthExceededError(depth);
     }
 
     logger.info("Starting routine", {

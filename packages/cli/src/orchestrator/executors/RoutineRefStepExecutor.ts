@@ -1,6 +1,9 @@
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, RoutineRefInstruction } from "../FlowInstruction";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -17,6 +20,52 @@ import { StepExecutor } from "../StepExecutor";
  */
 export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> {
   readonly type = "routine";
+
+  /**
+   * Register a handler that appends routine reference entries
+   * (in "target:routine" format) to {@code state.routineRefs}.
+   */
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("routine-ref", (state, contribution) => {
+      if (contribution.type !== "routine-ref") return;
+      const entry = `${contribution.target}:${contribution.routine}`;
+      state.routineRefs ??= [];
+      state.routineRefs.push(entry);
+    });
+  }
+
+  /**
+   * Extract routine-ref display info from a progress event.
+   */
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (
+      event.phase !== "routine-ref-start" &&
+      event.phase !== "routine-ref-done" &&
+      event.phase !== "routine-ref-error"
+    ) {
+      return undefined;
+    }
+    const details = event.details as {
+      instructionId: string;
+      target: string;
+      routine: string;
+      passed?: boolean;
+    };
+    const status =
+      event.phase === "routine-ref-start"
+        ? "started"
+        : event.phase === "routine-ref-done"
+          ? "done"
+          : "error";
+    return {
+      type: "routine-ref",
+      target: details.target,
+      routine: details.routine,
+      status,
+      phase: event.phase,
+      message: event.message,
+    };
+  }
 
   async execute(
     _instruction: RoutineRefInstruction,
