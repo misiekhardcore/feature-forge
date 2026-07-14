@@ -17,6 +17,8 @@ type FlowContextParams = {
   readonly iteration?: number;
   /** Flow-global session that persists across routine calls. */
   readonly store?: FlowStateStore;
+  /** Nesting depth — incremented each time a routine calls another routine. */
+  readonly depth?: number;
 };
 
 /**
@@ -40,6 +42,8 @@ export class FlowContext {
   readonly iteration: number;
   /** Flow-global session that persists across routine calls. */
   readonly store: FlowStateStore;
+  /** Nesting depth — incremented each time a routine calls another routine. */
+  readonly depth: number;
 
   constructor(params: FlowContextParams) {
     this.results = params.results;
@@ -49,6 +53,7 @@ export class FlowContext {
     this.feedback = params.feedback;
     this.iteration = params.iteration ?? 0;
     this.store = params.store ?? new FlowStateStore();
+    this.depth = params.depth ?? 0;
   }
 
   // ── Mutations (return new FlowContext) ────────────────────
@@ -64,6 +69,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -78,6 +84,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -92,6 +99,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -104,6 +112,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -116,6 +125,7 @@ export class FlowContext {
       feedback: feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -128,6 +138,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: n,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -144,6 +155,23 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
+    });
+  }
+
+  withDepth(n: number): FlowContext {
+    if (!Number.isInteger(n) || n < 0) {
+      throw new RangeError(`depth must be a non-negative integer, got ${n}`);
+    }
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+      depth: n,
     });
   }
 

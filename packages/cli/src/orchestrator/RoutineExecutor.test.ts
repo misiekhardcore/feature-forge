@@ -607,4 +607,78 @@ describe("RoutineExecutor", () => {
       await expect(executor.run("gamma", {}, "task")).rejects.toThrow("alpha, beta");
     });
   });
+
+  // -----------------------------------------------------------------------
+  // depth propagation
+  // -----------------------------------------------------------------------
+
+  describe("depth", () => {
+    it("defaults to 0 when depth is not provided", async () => {
+      const registry = new StepExecutorRegistry();
+
+      class DepthInspector extends StepExecutor {
+        readonly type = "depth-inspector";
+        async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+          return context.withResult(instruction.id, {
+            raw: `depth:${context.depth}`,
+          });
+        }
+      }
+
+      registry.register(() => new DepthInspector());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "depth-inspector", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.results["step1"].raw).toBe("depth:0");
+    });
+
+    it.each([3, 7])("propagates depth %d from run() call to the context", async (expectedDepth) => {
+      const registry = new StepExecutorRegistry();
+
+      class DepthInspector extends StepExecutor {
+        readonly type = "depth-inspector";
+        async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+          return context.withResult(instruction.id, {
+            raw: `depth:${context.depth}`,
+          });
+        }
+      }
+
+      registry.register(() => new DepthInspector());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "depth-flow",
+        command: "/depth",
+        orchestrator: { systemPrompt: "t" },
+        routines: {
+          main: {
+            params: [],
+            steps: [{ type: "depth-inspector", id: "step1" } as unknown as FlowInstruction],
+          },
+        },
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const result = await executor.run("main", {}, "task", undefined, expectedDepth);
+
+      expect(result.results["step1"].raw).toBe(`depth:${expectedDepth}`);
+    });
+  });
 });

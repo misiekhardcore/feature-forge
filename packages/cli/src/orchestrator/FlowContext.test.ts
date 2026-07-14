@@ -481,6 +481,130 @@ describe("FlowContext", () => {
   });
 
   // -----------------------------------------------------------------------
+  // depth
+  // -----------------------------------------------------------------------
+
+  describe("depth", () => {
+    it("defaults to 0 when not provided", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      expect(ctx.depth).toBe(0);
+    });
+
+    it("accepts a depth value in the constructor", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 3,
+      });
+      expect(ctx.depth).toBe(3);
+    });
+
+    it("propagates depth through withResult", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withResult("a", makeResult());
+      expect(next.depth).toBe(2);
+    });
+
+    it("propagates depth through withWorkspace", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withWorkspace("ws", makeHandle("/tmp/ws"));
+      expect(next.depth).toBe(2);
+    });
+
+    it("propagates depth through withWorkspaceCleared", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      }).withWorkspace("ws", makeHandle("/tmp/ws"));
+      const next = ctx.withWorkspaceCleared("ws");
+      expect(next.depth).toBe(2);
+    });
+
+    it("propagates depth through withParams", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withParams({ plan: "x" });
+      expect(next.depth).toBe(2);
+    });
+
+    it("propagates depth through withFeedback", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withFeedback("fix this");
+      expect(next.depth).toBe(2);
+    });
+
+    it("propagates depth through withIteration", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withIteration(5);
+      expect(next.depth).toBe(2);
+    });
+
+    it("propagates depth through withResultsCleared", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      })
+        .withResult("a", makeResult())
+        .withResult("b", makeResult());
+      const next = ctx.withResultsCleared(new Set(["a"]));
+      expect(next.depth).toBe(2);
+    });
+
+    it("withDepth creates a new context at the given depth", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      const next = ctx.withDepth(5);
+      expect(next.depth).toBe(5);
+      // Original unchanged
+      expect(ctx.depth).toBe(2);
+    });
+
+    it("throws RangeError for negative depth", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      expect(() => ctx.withDepth(-1)).toThrow(RangeError);
+    });
+
+    it("throws RangeError for non-integer depth", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      expect(() => ctx.withDepth(1.5)).toThrow(RangeError);
+      expect(() => ctx.withDepth(NaN)).toThrow(RangeError);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Immutability — chaining
   // -----------------------------------------------------------------------
 

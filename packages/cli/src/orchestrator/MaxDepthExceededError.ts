@@ -4,7 +4,7 @@
 export class MaxDepthExceededError extends Error {
   static readonly MAX_NESTING_DEPTH = 10;
 
-  readonly name = "MaxDepthExceededError" as const;
+  readonly name = "MaxDepthExceededError";
 
   constructor(depth: number, options?: ErrorOptions) {
     super(

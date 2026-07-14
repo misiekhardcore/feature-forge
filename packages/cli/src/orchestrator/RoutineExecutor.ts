@@ -43,6 +43,7 @@ export class RoutineExecutor {
    * @param routineName — Must exist in {@link flow.routines}.
    * @param params — Key-value pairs exposed as `{{PARAM}}` tokens.
    * @param task — Top-level task description, exposed as `{{prompt}}`.
+   * @param depth — Optional nesting depth (incremented each time a routine calls another routine).
    * @param signal — Optional abort signal for cancelling the routine mid-execution.
    *   When aborted, an {@link AbortError} propagates uncaught to the caller.
    * @returns Structured result with per-instruction outputs.
@@ -52,6 +53,7 @@ export class RoutineExecutor {
     params: FlowParams,
     task: string,
     signal?: AbortSignal,
+    depth?: number,
     routineDefOverride?: RoutineDefinition,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined =
@@ -83,6 +85,7 @@ export class RoutineExecutor {
       results: new Map(),
       prompt: task,
       store: this.store,
+      depth: depth ?? 0,
     });
 
     // Recursive step dispatcher — passes itself to executors so container
