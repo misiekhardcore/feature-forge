@@ -385,6 +385,13 @@ export class AgentViewerOverlay implements Component {
       const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
       if (!msg) continue;
       AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
+      // For turn_end events, also push tool results so they can be matched
+      // to ToolExecutionComponent instances by toolCallId during rendering.
+      if (evt.type === "turn_end") {
+        for (const result of evt.toolResults) {
+          messages.push(result);
+        }
+      }
     }
     return messages;
   }
@@ -647,6 +654,14 @@ export class AgentViewerOverlay implements Component {
     const messages = this.agentMessages.get(agentId) ?? [];
 
     AgentViewerOverlay.mergeMessageIntoList(messages, event, message);
+
+    // For turn_end events, also push the tool results so they can be matched
+    // to ToolExecutionComponent instances by toolCallId during rendering.
+    if (event.type === "turn_end") {
+      for (const result of event.toolResults) {
+        messages.push(result);
+      }
+    }
 
     // Apply FIFO sliding window cap to keep agentMessages in sync
     // with agentEvents bounds.
