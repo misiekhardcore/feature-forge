@@ -1137,7 +1137,7 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.viewMode).toBe("detail");
       expect(overlay.selectedAgentId).toBe("agent-b");
       // Auto-scroll enabled and scrollOffset set to max on entering detail view.
-      expect(overlay.autoScroll).toBe(true);
+      expect(overlay.autoScroll).toBe(false);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 

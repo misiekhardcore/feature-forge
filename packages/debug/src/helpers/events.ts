@@ -11,6 +11,18 @@ export function agentStartEvent(): AgentEvent {
 export function agentEndEvent(): AgentEvent {
   return { type: "agent_end", messages: [] };
 }
+
+export function userMessageStartEvent(text: string): AgentEvent {
+  return {
+    type: "message_start",
+    message: {
+      role: "user",
+      content: [{ type: "text", text }],
+      timestamp: Date.now(),
+    },
+  };
+}
+
 export function turnStartEvent(): AgentEvent {
   return { type: "turn_start" };
 }

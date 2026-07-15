@@ -11,6 +11,7 @@ import {
   toolExecutionStartEvent,
   turnEndEvent,
   turnStartEvent,
+  userMessageStartEvent,
 } from "../helpers/events.js";
 import { assistantMsg, toolResultMsg } from "../helpers/messages.js";
 
@@ -37,6 +38,7 @@ export function builderScenario(): ScenarioData {
     agentId: "builder",
     events: [
       agentStartEvent(),
+      userMessageStartEvent("Check the forge config and write an output file based on it."),
       turnStartEvent(),
       toolExecutionStartEvent("call-b-1", "read", { path: "forge.config.ts" }),
       toolExecutionEndEvent(
@@ -64,6 +66,7 @@ export function reviewerScenario(): ScenarioData {
     agentId: "reviewer",
     events: [
       agentStartEvent(),
+      userMessageStartEvent("Run the linter and report any issues found."),
       turnStartEvent(),
       toolExecutionStartEvent("call-r-1", "bash", { command: "npx eslint src/" }),
       toolExecutionEndEvent("call-r-1", "bash", "3 errors, 5 warnings found in src/", false),
@@ -103,6 +106,7 @@ export function conversationScenario(): ScenarioData {
     agentId: "researcher",
     events: [
       agentStartEvent(),
+      userMessageStartEvent("Find all registerHandler calls in the codebase and summarize the patterns."),
       turnStartEvent(),
       messageStartEvent(initial),
       messageUpdateEvent(updated, textDeltaEvent(0, " for relevant patterns", updated)),
@@ -122,6 +126,15 @@ export function manyTurnsScenario(): ScenarioData {
   const events: AgentEvent[] = [agentStartEvent()];
   for (let i = 0; i < 35; i++) {
     events.push(turnStartEvent());
+
+    // Every 5th turn starts with a user message to test user message rendering.
+    if (i % 5 === 0) {
+      events.push(
+        userMessageStartEvent(
+          `User requests: please process turn ${i + 1} and report the results.`,
+        ),
+      );
+    }
 
     const turnType = i % 4;
     if (turnType === 0) {
@@ -227,6 +240,7 @@ export function toolArgsScenario(): ScenarioData {
     agentId: "tool-args-demo",
     events: [
       agentStartEvent(),
+      userMessageStartEvent("Run these three tools: count TypeScript lines, read the overlay source, and write a build report."),
       turnStartEvent(),
       toolExecutionStartEvent("call-ta-1", "bash", {
         command: "find . -type f -name '*.ts' | xargs wc -l | sort -rn | head -20",
