@@ -19,7 +19,7 @@ import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay"
 // ── Guard ───────────────────────────────────────────────────
 
 export function registerDevTestCommands(pi: ExtensionAPI): void {
-  if (!process.env.FEATURE_FORGE_DEV) return;
+  if (!process.env.FORGE_DEV) return;
 
   const DEFAULT_EVENT_DELAY = 200;
 
