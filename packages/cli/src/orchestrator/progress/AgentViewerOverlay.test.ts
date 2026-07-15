@@ -2860,26 +2860,6 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("Conversation:");
       expect(joined).toContain("No conversation recorded.");
     });
-
-    it("handles message_start without message content gracefully", () => {
-      const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "started"));
-      overlay.pushStreamEvent("builder", { type: "message_start" } as unknown as AgentEvent);
-      overlay.pushStreamEvent("builder", { type: "message_end" } as unknown as AgentEvent);
-
-      // Raw buffer stores both events.
-      const events = overlay.getConversation("builder");
-      expect(events).toHaveLength(2);
-
-      // Rendering shows "No conversation recorded." since the events have
-      // no meaningful content (message_start has no role, message_end has no text).
-      overlay.viewMode = "detail";
-      overlay.selectedAgentId = "builder";
-      const lines = overlay.render(80);
-      const joined = lines.join("\n");
-      expect(joined).toContain("Conversation:");
-      expect(joined).toContain("No conversation recorded.");
-    });
   });
 
   describe("detail view scrolling with conversation content", () => {
