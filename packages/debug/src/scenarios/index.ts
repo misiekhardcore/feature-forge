@@ -122,26 +122,102 @@ export function manyTurnsScenario(): ScenarioData {
   const events: AgentEvent[] = [agentStartEvent()];
   for (let i = 0; i < 35; i++) {
     events.push(turnStartEvent());
-    events.push(
-      toolExecutionStartEvent(`call-mt-${i}`, "bash", {
-        command: `echo "Iteration ${i + 1} of 35"`,
-      }),
-    );
-    events.push(
-      toolExecutionEndEvent(`call-mt-${i}`, "bash", `Iteration ${i + 1} complete`, false),
-    );
-    events.push(
-      turnEndEvent(assistantMsg(`Completed iteration ${i + 1}.`), [
-        toolResultMsg(`call-mt-${i}`, "bash", "ok"),
-      ]),
-    );
+
+    const turnType = i % 4;
+    if (turnType === 0) {
+      // bash tool call
+      events.push(
+        toolExecutionStartEvent(`call-mt-${i}`, "bash", {
+          command: `find src -name '*.ts' | head -${i + 5}`,
+        }),
+      );
+      events.push(
+        toolExecutionEndEvent(`call-mt-${i}`, "bash", `Found ${i + 5} TypeScript files`, false),
+      );
+      events.push(
+        turnEndEvent(assistantMsg(`Bash turn ${i + 1} done.`), [
+          toolResultMsg(`call-mt-${i}`, "bash", "ok"),
+        ]),
+      );
+    } else if (turnType === 1) {
+      // read tool call
+      events.push(
+        toolExecutionStartEvent(`call-mt-${i}`, "read", {
+          path: `src/config-${i}.ts`,
+          offset: 0,
+          limit: 50,
+        }),
+      );
+      events.push(
+        toolExecutionEndEvent(`call-mt-${i}`, "read", `Read ${i + 10} lines from config`, false),
+      );
+      events.push(
+        turnEndEvent(assistantMsg(`Read turn ${i + 1} done.`), [
+          toolResultMsg(`call-mt-${i}`, "read", "ok"),
+        ]),
+      );
+    } else if (turnType === 2) {
+      // streaming assistant message (no tools)
+      const msg = assistantMsg(
+        `Analysis shows steady progress across all monitored dimensions. ` +
+          `Throughput improved and latency reduced compared to previous runs. ` +
+          `Overall stability remains high with no critical issues detected.`,
+      );
+      events.push(messageStartEvent(msg));
+      const deltaMsg = assistantMsg(
+        `Analysis shows steady progress across all monitored dimensions. ` +
+          `Throughput improved and latency reduced compared to previous runs. ` +
+          `Overall stability remains high with no critical issues detected. ` +
+          `Additional validation confirms all edge cases are handled correctly.`,
+      );
+      events.push(
+        messageUpdateEvent(
+          deltaMsg,
+          textDeltaEvent(
+            0,
+            " Additional validation confirms all edge cases are handled correctly.",
+            deltaMsg,
+          ),
+        ),
+      );
+      events.push(messageEndEvent(deltaMsg));
+      events.push(turnEndEvent(assistantMsg(`Analysis complete for turn ${i + 1}.`), []));
+    } else {
+      // dual bash + grep tool calls in one turn
+      events.push(
+        toolExecutionStartEvent(`call-mt-${i}-a`, "bash", {
+          command: `echo "Processing step ${i + 1}"`,
+        }),
+      );
+      events.push(toolExecutionEndEvent(`call-mt-${i}-a`, "bash", `Step ${i + 1} output`, false));
+      events.push(
+        toolExecutionStartEvent(`call-mt-${i}-b`, "grep", {
+          pattern: "registerHandler",
+          path: `src/step-${i}.ts`,
+        }),
+      );
+      events.push(
+        toolExecutionEndEvent(
+          `call-mt-${i}-b`,
+          "grep",
+          `Found 3 matches in src/step-${i}.ts`,
+          false,
+        ),
+      );
+      events.push(
+        turnEndEvent(assistantMsg(`Dual tool turn ${i + 1} done.`), [
+          toolResultMsg(`call-mt-${i}-a`, "bash", "ok"),
+          toolResultMsg(`call-mt-${i}-b`, "grep", "3 matches"),
+        ]),
+      );
+    }
   }
   events.push(agentEndEvent());
   return {
     agentId: "scroll-test",
     events,
     status: "done",
-    summary: "35-turn scroll test",
+    summary: "35-turn scroll test with mixed tool calls, streaming messages, and reports",
     passed: true,
   };
 }

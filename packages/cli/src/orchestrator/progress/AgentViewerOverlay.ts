@@ -790,6 +790,18 @@ export class AgentViewerOverlay implements Component {
     this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
     const viewportEnd = Math.min(this.scrollOffset + viewportHeight, lines.length);
     const visibleLines = lines.slice(this.scrollOffset, viewportEnd);
+    console.error(
+      "DEBUG renderDetail: totalLines=" +
+        lines.length +
+        " viewportHeight=" +
+        viewportHeight +
+        " maxOffset=" +
+        maxOffset +
+        " scrollOffset=" +
+        this.scrollOffset +
+        " viewportEnd=" +
+        viewportEnd,
+    );
 
     const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
@@ -839,10 +851,14 @@ export class AgentViewerOverlay implements Component {
   }
 
   private handleDetailInput(data: string): void {
+    console.error(
+      "DEBUG handleDetailInput key=" + JSON.stringify(data) + " scrollOffset=" + this.scrollOffset,
+    );
     if (matchesKey(data, Key.up)) {
       this.autoScroll = false;
       this.scrollOffset = Math.max(0, this.scrollOffset - 1);
       this.tui.requestRender();
+      console.error("DEBUG ArrowUp: new scrollOffset=" + this.scrollOffset);
     } else if (matchesKey(data, Key.down)) {
       const maxOffset = this.computeScrollMax();
       this.scrollOffset = Math.min(this.scrollOffset + 1, maxOffset);
@@ -862,6 +878,7 @@ export class AgentViewerOverlay implements Component {
     if (!this.selectedAgentId) return 0;
     const entry = this.agents.get(this.selectedAgentId);
     if (!entry) return 0;
+    console.error("DEBUG computeScrollMax for " + this.selectedAgentId);
 
     // Replicate the line structure of renderDetail without full rendering
     // to compute the maximum valid scroll offset.
