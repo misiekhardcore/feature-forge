@@ -52,13 +52,13 @@ export class ConversationRenderer {
   render(events: AgentEvent[], width: number): string[] {
     const lines: string[] = [];
     let toolCallIndex = 0;
+    // Width is already the inner content width (minus overlay border/margin).
+    const innerWidth = Math.max(10, width);
 
     // In-progress state — local to this render call.
     let pendingMessage: AgentMessage | undefined;
     let pendingToolStart: Extract<AgentEvent, { type: "tool_execution_start" }> | undefined;
     let pendingToolResult: { text: string; isError: boolean } | undefined;
-
-    const innerWidth = Math.max(10, width - 4);
 
     const flushMessage = (): void => {
       if (!pendingMessage) return;
@@ -66,8 +66,11 @@ export class ConversationRenderer {
       if (pendingMessage.role === "user") {
         const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
         if (text.length > 0) {
+          // Blank line between turns, matching pi's interactive mode behavior
+          // (adds Spacer(1) to the outer chatContainer between messages).
+          if (lines.length > 0) lines.push("");
           const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
-          for (const line of rendered) lines.push(`  ${line}`);
+          for (const line of rendered) lines.push(line);
         }
       } else if (pendingMessage.role === "assistant") {
         const rendered = new AssistantMessageComponent(
@@ -75,12 +78,12 @@ export class ConversationRenderer {
           false,
           this.markdownTheme,
         ).render(innerWidth);
-        for (const line of rendered) lines.push(`  ${line}`);
+        for (const line of rendered) lines.push(line);
       } else {
         // Custom, system, toolResult, and other roles — extract text.
         const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
         if (text.length > 0) {
-          lines.push(`  ${this.theme.fg("muted", text.slice(0, 240))}`);
+          lines.push(this.theme.fg("muted", text));
         }
       }
       pendingMessage = undefined;
@@ -109,7 +112,7 @@ export class ConversationRenderer {
         component.setExpanded(true);
       }
       const rendered = component.render(innerWidth);
-      for (const line of rendered) lines.push(`  ${line}`);
+      for (const line of rendered) lines.push(line);
       pendingToolStart = undefined;
       pendingToolResult = undefined;
     };
@@ -139,7 +142,9 @@ export class ConversationRenderer {
         case "tool_execution_update":
           if (pendingToolStart) {
             pendingToolResult = {
-              text: (pendingToolResult?.text ?? "") + String(event.partialResult ?? ""),
+              text:
+                (pendingToolResult?.text ?? "") +
+                AgentDisplayHelpers.serializeToolResultText(event.partialResult),
               isError: false,
             };
           }
@@ -147,20 +152,14 @@ export class ConversationRenderer {
 
         case "tool_execution_end":
           pendingToolResult = {
-            text: String(event.result ?? ""),
+            text: AgentDisplayHelpers.serializeToolResultText(event.result),
             isError: event.isError,
           };
           flushTool();
           break;
 
         case "turn_start":
-          lines.push(`  ${this.theme.fg("muted", "─".repeat(Math.min(width - 4, 40)))}`);
-          break;
-
         case "turn_end":
-          lines.push("");
-          break;
-
         case "agent_start":
         case "agent_end":
           // Lifecycle events are reflected in the agent list view.

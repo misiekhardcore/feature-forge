@@ -24,7 +24,7 @@ describe("getStatusIcon", () => {
   });
 
   it('returns warning icon for "started" status', () => {
-    expect(AgentDisplayHelpers.getStatusIcon("started")).toEqual({ char: "⏳", color: "warning" });
+    expect(AgentDisplayHelpers.getStatusIcon("started")).toEqual({ char: "⟳", color: "accent" });
   });
 
   it('returns error icon for "error" status', () => {
@@ -67,6 +67,139 @@ describe("extractMessageText", () => {
   it("handles blocks without text property", () => {
     const msg = { role: "user", content: [{ type: "image" }], timestamp: 0 } as AgentMessage;
     expect(AgentDisplayHelpers.extractMessageText(msg)).toBe("");
+  });
+});
+
+describe("serializeToolResultText", () => {
+  it("returns empty string for null", () => {
+    expect(AgentDisplayHelpers.serializeToolResultText(null)).toBe("");
+  });
+
+  it("returns empty string for undefined", () => {
+    expect(AgentDisplayHelpers.serializeToolResultText(undefined)).toBe("");
+  });
+
+  it("returns plain string as-is", () => {
+    expect(AgentDisplayHelpers.serializeToolResultText("hello world")).toBe("hello world");
+  });
+
+  it("extracts text from AgentToolResult content array", () => {
+    const result = {
+      content: [
+        { type: "text", text: "File read successfully." },
+        { type: "text", text: "Line count: 42" },
+      ],
+      isError: false,
+    };
+    const text = AgentDisplayHelpers.serializeToolResultText(result);
+    expect(text).toBe("File read successfully.\nLine count: 42");
+  });
+
+  it("skips non-text content blocks in AgentToolResult", () => {
+    const result = {
+      content: [
+        { type: "text", text: "hello" },
+        { type: "tool_use", id: "t1", name: "read" },
+        { type: "text", text: "world" },
+      ],
+    };
+    expect(AgentDisplayHelpers.serializeToolResultText(result)).toBe("hello\nworld");
+  });
+
+  it("filters out blocks where text is not a string", () => {
+    const result = {
+      content: [
+        { type: "text", text: "valid" },
+        { type: "text", text: 123 },
+      ],
+    };
+    expect(AgentDisplayHelpers.serializeToolResultText(result)).toBe("valid");
+  });
+
+  it("returns first text block when text field is missing in some blocks", () => {
+    const result = {
+      content: [{ type: "text" }, { type: "text", text: "found" }],
+    };
+    expect(AgentDisplayHelpers.serializeToolResultText(result)).toBe("found");
+  });
+
+  it("serializes a plain object as formatted JSON", () => {
+    const result = AgentDisplayHelpers.serializeToolResultText({ key: "value", num: 42 });
+    expect(result).toContain('"key"');
+    expect(result).toContain("value");
+    expect(result).toContain('"num"');
+    expect(result).toContain("42");
+  });
+
+  it("serializes an array as JSON", () => {
+    const result = AgentDisplayHelpers.serializeToolResultText(["a", "b", "c"]);
+    expect(result).toContain('"a"');
+    expect(result).toContain('"b"');
+  });
+
+  it("serializes an Error object as JSON (own enumerable properties)", () => {
+    const error = new Error("something broke");
+    const result = AgentDisplayHelpers.serializeToolResultText(error);
+    // Error has no enumerable own properties by default.
+    expect(result).toBe("{}");
+  });
+
+  it("handles circular references by falling back to String()", () => {
+    const obj: Record<string, unknown> = { name: "circle" };
+    obj.self = obj;
+    const result = AgentDisplayHelpers.serializeToolResultText(obj);
+    expect(result).toBe("[object Object]");
+  });
+
+  it("handles content array with only non-text blocks (falls back to JSON)", () => {
+    const result = {
+      content: [{ type: "tool_use", id: "t1" }],
+    };
+    const text = AgentDisplayHelpers.serializeToolResultText(result);
+    expect(text).toContain("tool_use");
+    expect(text).toContain("t1");
+  });
+
+  it("handles empty content array (falls back to JSON)", () => {
+    const result = { content: [] };
+    const text = AgentDisplayHelpers.serializeToolResultText(result);
+    expect(text).toContain('"content"');
+    expect(text).toContain("[]");
+  });
+
+  it("returns string representation for boolean values", () => {
+    expect(AgentDisplayHelpers.serializeToolResultText(true)).toBe("true");
+    expect(AgentDisplayHelpers.serializeToolResultText(false)).toBe("false");
+  });
+
+  it("returns string representation for numeric values", () => {
+    expect(AgentDisplayHelpers.serializeToolResultText(0)).toBe("0");
+    expect(AgentDisplayHelpers.serializeToolResultText(42)).toBe("42");
+  });
+
+  it("handles a deeply nested object without circular refs (JSON)", () => {
+    const nested = { level1: { level2: { level3: "deep" } } };
+    const result = AgentDisplayHelpers.serializeToolResultText(nested);
+    expect(result).toContain("deep");
+    expect(result).toContain("level3");
+  });
+
+  it("handles content with mixed text and non-text blocks gracefully", () => {
+    const result = {
+      content: [
+        { type: "text", text: "first" },
+        { type: "image", source: { url: "https://example.com/img.png" } },
+        { type: "text", text: "last" },
+      ],
+    };
+    expect(AgentDisplayHelpers.serializeToolResultText(result)).toBe("first\nlast");
+  });
+
+  it("handles content array where block is null (skipped gracefully)", () => {
+    const result = {
+      content: [{ type: "text", text: "works" }, null],
+    };
+    expect(AgentDisplayHelpers.serializeToolResultText(result)).toBe("works");
   });
 });
 

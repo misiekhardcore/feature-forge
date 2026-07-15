@@ -1,13 +1,14 @@
-import { appendFileSync, mkdirSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
@@ -41,11 +42,6 @@ export interface AgentViewerEntry {
  * - `"detail"`: shows detailed information for a single selected agent.
  */
 export type ViewMode = "list" | "detail";
-
-/**
- * Maximum characters of raw agent output to display per entry.
- */
-const DEFAULT_MAX_RAW_LENGTH = 500;
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).
@@ -83,7 +79,7 @@ export interface AgentViewerOverlayParams {
 const OVERLAY_OPTIONS = {
   anchor: "center" as const,
   width: "100%" as const,
-  maxHeight: "95%" as const,
+  maxHeight: "85%" as const,
   margin: 1,
 };
 
@@ -321,8 +317,11 @@ export class AgentViewerOverlay implements Component {
           this.eventsFiles.set(agentId, eventsPath);
         }
         appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf-8");
-      } catch {
-        // Silently ignore filesystem errors — the in-memory line is sufficient.
+      } catch (error) {
+        logger.debug("Failed to persist stream event to disk", {
+          agentId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -407,14 +406,24 @@ export class AgentViewerOverlay implements Component {
         try {
           const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
-        } catch {
-          // Skip malformed lines.
+        } catch (error) {
+          logger.debug("Skipping malformed event JSONL line", {
+            agentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
       return [...diskEvents, ...memoryEvents];
-    } catch {
-      // Fall back to in-memory buffer on read errors.
+    } catch (error) {
+      logger.debug(
+        "Failed to load conversation events from disk, falling back to in-memory buffer",
+        {
+          agentId,
+          count,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       return memoryEvents.slice(-count);
     }
   }
@@ -463,13 +472,44 @@ export class AgentViewerOverlay implements Component {
           if (!this.agents.has(agentId)) {
             this.update({ id: agentId, status: "done", summary: "Agent completed" });
           }
-          // No replay is needed — events are ingested in real time
-          // via pushStreamEvent. The stream file serves as an append-only
-          // log for debugging, not as a re-ingestion source.
+          // Stream files are not replayed — they hold formatted display lines
+          // for debugging only. The events.jsonl branch below handles
+          // re-ingestion of raw events into the in-memory buffer.
+        } else if (entry.endsWith(".events.jsonl")) {
+          const agentId = entry.slice(0, -13);
+          const filePath = join(streamDir, entry);
+          this.eventsFiles.set(agentId, filePath);
+          try {
+            const content = readFileSync(filePath, "utf-8");
+            const lines = content.trimEnd().split("\n");
+            const events: AgentEvent[] = [];
+            for (const line of lines) {
+              if (!line) continue;
+              const parsed = jsonParse<AgentEvent>(line);
+              events.push(parsed);
+            }
+            if (events.length > 0) {
+              const existing = this.agentEvents.get(agentId) ?? [];
+              const merged = [...existing, ...events];
+              if (merged.length > MAX_AGENT_EVENTS) {
+                merged.splice(0, merged.length - MAX_AGENT_EVENTS);
+              }
+              this.agentEvents.set(agentId, merged);
+            }
+          } catch (error) {
+            logger.debug("Failed to prepopulate events from JSONL file, skipping", {
+              agentId,
+              filePath,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
-    } catch {
-      // Directory may not exist or be inaccessible.
+    } catch (error) {
+      logger.debug("Failed to scan stream directory for prepopulation", {
+        streamDir,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -553,34 +593,65 @@ export class AgentViewerOverlay implements Component {
 
   // ── Private rendering ─────────────────────────────────────
 
-  private addBorder(lines: string[], contentWidth: number): string[] {
-    const { theme } = this;
-    const inner = Math.max(contentWidth - 2, 10);
+  /** Compute available overlay content height in rows.
+   *
+   * Mirrors the TUI's resolveOverlayLayout logic for maxHeight=95%, margin=1.
+   * Subtracts 4 for border decorations (top + bottom + 2 margin lines inside border)
+   * to return the height available for actual content lines.
+   * Falls back to a reasonable default (20 rows) when terminal dimensions are
+   * unavailable (e.g., in tests).
+   */
+  private computeViewportHeight(): number {
+    const termHeight = this.tui?.terminal?.rows;
+    if (!termHeight || termHeight < 1) return 15;
+    const rawMaxHeight = Math.ceil(
+      this.percentToNumber(AgentViewerOverlay.overlayOptions.maxHeight) * termHeight,
+    );
+    const maxHeight = Math.max(1, rawMaxHeight);
+    // Subtract 5 for addBorder wrapper: top border, top margin, bottom margin, bottom border.
+    return Math.max(1, maxHeight - 5);
+  }
 
-    const top = theme.fg("warning", "┌" + "─".repeat(inner) + "┐");
-    const bot = theme.fg("warning", "└" + "─".repeat(inner) + "┘");
+  private percentToNumber(percent: `${number}%`) {
+    return Number(percent.slice(0, -1)) / 100;
+  }
+
+  private addBorder(lines: string[], outerWidth: number): string[] {
+    const { theme } = this;
+    // Content width inside the border after subtracting 2 for the `|` border
+    // chars on each side, and 2 for the single-space margins inside each border.
+    const contentWidth = Math.max(0, outerWidth - 4);
+
+    const top = theme.fg(
+      "warning",
+      "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐",
+    );
+    const bot = theme.fg(
+      "warning",
+      "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘",
+    );
     const leftBorder = theme.fg("warning", "│");
     const rightBorder = theme.fg("warning", "│");
-
-    // Content area between left and right margin spaces.
-    const contentArea = Math.max(inner - 2, 0);
 
     const result: string[] = [];
 
     // Top border
     result.push(top);
 
-    // 1-line top margin (blank line with borders + margin spaces)
-    result.push(leftBorder + " " + " ".repeat(contentArea) + " " + rightBorder);
+    // Top blank margin (1 line inside border)
+    result.push(leftBorder + " ".repeat(contentWidth + 2) + rightBorder);
 
     for (const raw of lines) {
-      const visible = this.stripAnsi(raw);
-      const pad = visible.length < contentArea ? " ".repeat(contentArea - visible.length) : "";
-      result.push(leftBorder + " " + raw + pad + " " + rightBorder);
+      // Normalize every line to exactly contentWidth visible chars using
+      // pi-tui's truncateToWidth which handles ANSI/OSC sequences correctly.
+      // Empty-string ellipsis avoids appending "..." on truncation;
+      // pad=true ensures short lines are space-padded to contentWidth.
+      const normalized = truncateToWidth(raw, contentWidth, "", true);
+      result.push(leftBorder + " " + normalized + " " + rightBorder);
     }
 
-    // 1-line bottom margin (blank line with borders + margin spaces)
-    result.push(leftBorder + " " + " ".repeat(contentArea) + " " + rightBorder);
+    // Bottom blank margin (1 line inside border)
+    result.push(leftBorder + " ".repeat(contentWidth + 2) + rightBorder);
 
     // Bottom border
     result.push(bot);
@@ -593,12 +664,11 @@ export class AgentViewerOverlay implements Component {
     const lines: string[] = [];
 
     // Header
-    lines.push(theme.fg("accent", "⟳ Agent Viewer"));
-    const separatorWidth = Math.min(width, 60);
-    lines.push(theme.fg("muted", "─".repeat(separatorWidth)));
+    lines.push(theme.fg("accent", "Agent Viewer"));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width)));
 
     if (this.agents.size === 0) {
-      lines.push(`  ${theme.fg("muted", "no agents running")}`);
+      lines.push(theme.fg("muted", "no agents running"));
       const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
       return this.addBorder(wrapped, width);
     }
@@ -614,32 +684,23 @@ export class AgentViewerOverlay implements Component {
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
-      const roleSuffix = entry.role ? ` ${theme.fg("muted", `(${entry.role})`)}` : "";
-      const elapsedSuffix = entry.elapsed ? ` ${theme.fg("muted", entry.elapsed)}` : "";
+      const roleSuffix = entry.role ? theme.fg("muted", `(${entry.role})`) : "";
+      const elapsedSuffix = entry.elapsed ? theme.fg("muted", entry.elapsed) : "";
       lines.push(`${cursor} ${theme.fg(iconColor, icon)} ${idStyled}${roleSuffix}${elapsedSuffix}`);
 
       // Show last stream line for started agents (truncated to fit width).
       const lastLine = this.lastLines.get(id);
       if (lastLine) {
-        const maxLastLineWidth = Math.max(10, width - 4);
-        const truncatedLastLine =
-          lastLine.length > maxLastLineWidth
-            ? lastLine.slice(0, maxLastLineWidth - 3) + "..."
-            : lastLine;
-        lines.push(`    ${theme.fg("muted", truncatedLastLine)}`);
+        lines.push(theme.fg("muted", lastLine));
       }
 
       if (entry.summary) {
-        lines.push(`    ${theme.fg("muted", entry.summary)}`);
+        lines.push(theme.fg("muted", entry.summary));
       }
 
       if (entry.raw !== undefined) {
-        const truncated =
-          entry.raw.length > DEFAULT_MAX_RAW_LENGTH
-            ? entry.raw.slice(0, DEFAULT_MAX_RAW_LENGTH) + "..."
-            : entry.raw;
-        for (const rawLine of truncated.split("\n")) {
-          lines.push(`      ${theme.fg("muted", rawLine)}`);
+        for (const rawLine of entry.raw.split("\n")) {
+          lines.push(theme.fg("muted", rawLine));
         }
       }
     }
@@ -663,50 +724,46 @@ export class AgentViewerOverlay implements Component {
 
     const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
     if (!entry) {
-      lines.push(theme.fg("accent", "⟳ Agent Detail"));
-      lines.push(theme.fg("muted", "─".repeat(Math.min(width, 60))));
-      lines.push(`  ${theme.fg("muted", "agent not found")}`);
+      lines.push(theme.fg("accent", "Agent Detail"));
+      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+      lines.push(theme.fg("muted", "agent not found"));
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
       const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
       return this.addBorder(wrapped, width);
     }
 
-    const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
+    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+      entry.status,
+      entry.passed,
+    );
+    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
+      entry.status,
+      entry.passed,
+    );
 
     // Header
-    let statusLabel: string;
-    switch (entry.status) {
-      case "started":
-        statusLabel = "running";
-        break;
-      case "done":
-        statusLabel = entry.passed === false ? "failed" : "completed";
-        break;
-      default:
-        statusLabel = entry.status;
-        break;
-    }
     lines.push(
-      `${theme.fg("accent", "⟳")} ${icon} ${theme.fg("accent", entry.id)}${theme.fg("muted", ` — ${statusLabel}`)}`,
+      `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
     );
-    const separatorWidth = Math.min(width, 60);
-    lines.push(theme.fg("muted", "─".repeat(separatorWidth)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
 
     // Summary
     if (entry.summary) {
       lines.push(theme.fg("accent", "Summary:"));
-      lines.push(`  ${entry.summary}`);
+      lines.push("");
+      lines.push(entry.summary);
       lines.push("");
     }
 
     // Conversation header
     lines.push(theme.fg("accent", "Conversation:"));
+    lines.push("");
 
     const events = this.getConversation(entry.id);
     const conversationLines = this.renderConversationTurns(events, width);
     if (conversationLines.length === 0) {
-      lines.push(`  ${theme.fg("muted", "No conversation recorded.")}`);
+      lines.push(theme.fg("muted", "No conversation recorded."));
       lines.push("");
     } else {
       for (const convLine of conversationLines) {
@@ -720,9 +777,12 @@ export class AgentViewerOverlay implements Component {
       theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
     );
 
-    // Clamp scroll offset to visible range and keep state in sync.
-    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, lines.length - 1)));
-    const visibleLines = lines.slice(this.scrollOffset);
+    // Compute viewport window and clamp scroll offset.
+    const viewportHeight = this.computeViewportHeight();
+    const maxOffset = Math.max(0, lines.length - viewportHeight);
+    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
+    const viewportEnd = Math.min(this.scrollOffset + viewportHeight, lines.length);
+    const visibleLines = lines.slice(this.scrollOffset, viewportEnd);
 
     const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
@@ -736,15 +796,7 @@ export class AgentViewerOverlay implements Component {
    * state-machine grouping and pi component dispatch.
    */
   private renderConversationTurns(events: AgentEvent[], width: number): string[] {
-    return this.conversationRenderer.render(events, width);
-  }
-
-  /**
-   * Strip ANSI escape sequences to measure visible length.
-   */
-  private stripAnsi(text: string): string {
-    // eslint-disable-next-line no-control-regex
-    return text.replace(/\x1b\[[0-9;]*m/g, "");
+    return this.conversationRenderer.render(events, width - 4);
   }
 
   private handleListInput(data: string): void {
@@ -765,7 +817,7 @@ export class AgentViewerOverlay implements Component {
         this.viewMode = "detail";
         this.selectedAgentId = agentId;
         this.autoScroll = true;
-        this.scrollOffset = this.computeScrollMax();
+        this.scrollOffset = 0;
         this.tui.requestRender();
       }
     }
@@ -801,7 +853,7 @@ export class AgentViewerOverlay implements Component {
     // Base header: agent line + separator = 2
     const baseHeaderLines = 2;
     // Summary section: "Summary:" + content + empty line = 3
-    const summaryLines = entry.summary ? 3 : 0;
+    const summaryLines = entry.summary ? 4 : 0;
     // Conversation block: "Conversation:" header + turn lines + trailing empty line.
     // Use cached line count unless pushStreamEvent dirtied it.
     if (this.conversationLinesDirty) {
@@ -811,12 +863,13 @@ export class AgentViewerOverlay implements Component {
       ).length;
       this.conversationLinesDirty = false;
     }
-    const totalConversationBlock = 1 + this.cachedConversationLineCount + 1;
+    const totalConversationBlock = 2 + this.cachedConversationLineCount + 1;
     // Help text: 1
     const footerLines = 1;
 
     const totalLines = baseHeaderLines + summaryLines + totalConversationBlock + footerLines;
-    return Math.max(0, totalLines - 1);
+    const viewportHeight = this.computeViewportHeight();
+    return Math.max(0, totalLines - viewportHeight);
   }
 
   /**
@@ -971,21 +1024,20 @@ export class AgentViewerOverlay implements Component {
         return "turn end";
 
       case "message_start":
-        return event.message?.role?.slice(0, 80) ?? "";
+        return event.message?.role ?? "";
 
       case "message_update":
       case "message_end": {
-        const text = event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
-        return text.slice(0, 80);
+        return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
       }
 
       case "tool_execution_start": {
-        const toolName = event.toolName.slice(0, 80);
+        const toolName = event.toolName;
         // Serialize args into the stream line so they survive the
         // .stream file round-trip (replayed via parseStreamLine).
         if ("args" in event && event.args !== undefined) {
           const serialized = AgentDisplayHelpers.serializeToolArgs(event.args);
-          return (toolName + " | " + serialized).slice(0, 240);
+          return toolName + " | " + serialized;
         }
         return toolName;
       }
@@ -993,7 +1045,7 @@ export class AgentViewerOverlay implements Component {
       case "tool_execution_end": {
         const name = event.toolName;
         const status = event.isError ? " (error)" : " (ok)";
-        return (name + status).slice(0, 80);
+        return name + status;
       }
 
       case "tool_execution_update": {
@@ -1004,8 +1056,7 @@ export class AgentViewerOverlay implements Component {
             : typeof event.partialResult === "object" && event.partialResult !== null
               ? JSON.stringify(event.partialResult)
               : "";
-        const truncated = partial.length > 60 ? partial.slice(0, 57) + "..." : partial;
-        return (name + ": " + truncated).slice(0, 80);
+        return name + ": " + partial;
       }
 
       default:

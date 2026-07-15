@@ -135,7 +135,7 @@ describe("routine progress display (e2e)", () => {
 
     const mockTheme = { fg: (_c: string, t: string) => t };
     const rows = [...agentState].map(
-      ([l, a]) => `${a.status === "done" ? "✓" : "⏳"} ${l}${a.summary ? ` — ${a.summary}` : ""}`,
+      ([l, a]) => `${a.status === "done" ? "✓" : "→"} ${l}${a.summary ? ` — ${a.summary}` : ""}`,
     );
     const lines = ProgressRenderer.buildWidgetLines({
       theme: mockTheme,
@@ -152,7 +152,7 @@ describe("routine progress display (e2e)", () => {
       theme: mockTheme,
       title: "run_build_loop",
       subtitle: `${capturedIteration + 1}/${capturedMaxIterations}`,
-      tags: [...agentState].map(([l, a]) => `${a.status === "done" ? "✓" : "⏳"} ${l}`),
+      tags: [...agentState].map(([l, a]) => `${a.status === "done" ? "✓" : "→"} ${l}`),
     });
     expect(status).toContain("run_build_loop");
     expect(status).toContain("mock");

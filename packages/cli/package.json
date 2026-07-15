@@ -21,7 +21,7 @@
     "format": "prettier . --check",
     "format:fix": "prettier . --write",
     "typecheck": "tsc --noEmit",
-    "test:watch": "vitest",
+    "test:watch": "vitest --watch",
     "test:e2e": "vitest run --project cli-e2e",
     "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts",
     "flow:validate": "npx tsx scripts/validate-flow.ts",

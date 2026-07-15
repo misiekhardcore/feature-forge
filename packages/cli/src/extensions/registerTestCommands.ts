@@ -21,7 +21,7 @@ import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay"
 export function registerDevTestCommands(pi: ExtensionAPI): void {
   if (!process.env.FEATURE_FORGE_DEV) return;
 
-  const DEFAULT_EVENT_DELAY = 300;
+  const DEFAULT_EVENT_DELAY = 200;
 
   function scheduleScenario(
     viewer: AgentViewerOverlay,
@@ -74,7 +74,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       markdownTheme: getMarkdownTheme(),
     });
     if (streamDir) viewer.setStreamDir(streamDir);
-    const offset = scenarios.length <= 1 ? 0 : 600;
+    const offset = scenarios.length <= 1 ? 0 : 200;
     for (let i = 0; i < scenarios.length; i++) {
       const sc = scenarios[i];
       if (sc) scheduleScenario(viewer, sc, timers, i * offset, resolvedDelay);

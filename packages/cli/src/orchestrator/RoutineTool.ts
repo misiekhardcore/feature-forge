@@ -196,24 +196,26 @@ export class RoutineTool
     // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
     let viewerDismiss: (() => void) | undefined;
     let overlayCleanup: (() => void) | undefined;
+    let overlayUnsubs: Array<() => void> | undefined;
     if (ctx.hasUI) {
       const streamDir = SharedStreamDir.get();
       const typedBus = new TypedEventBus(this.executor.eventBus);
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus: typedBus,
+        supervisor: this.supervisor,
+      });
+      overlayUnsubs = unsubs;
+
       ctx.ui
         .custom<void>(
           (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
-            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-              eventBus: typedBus,
-              supervisor: this.supervisor,
-            });
-
             const viewer = new AgentViewerOverlay({
               tui,
               theme,
               onDone: () => {
-                unsubs.forEach((u) => u());
                 viewer.dispose();
                 done();
               },
@@ -224,7 +226,6 @@ export class RoutineTool
             connect(viewer, streamDir);
 
             overlayCleanup = () => {
-              unsubs.forEach((u) => u());
               viewer.dispose();
             };
 
@@ -301,6 +302,7 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
+      overlayUnsubs?.forEach((u) => u());
       viewerDismiss?.();
       overlayCleanup?.();
       unsubscribers.forEach((u) => u());

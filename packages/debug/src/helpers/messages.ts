@@ -3,10 +3,20 @@ import type {
   TextContent,
   ToolCall,
   ToolResultMessage,
+  UserMessage,
 } from "@earendil-works/pi-ai/base";
 
 export function textBlock(text: string): TextContent {
   return { type: "text", text };
+}
+
+export function userMsg(text: string): UserMessage {
+  const content: UserMessage["content"] = [textBlock(text)];
+  return {
+    role: "user",
+    content,
+    timestamp: Date.now(),
+  };
 }
 
 export function assistantMsg(text: string, toolCalls?: ToolCall[]): AssistantMessage {
