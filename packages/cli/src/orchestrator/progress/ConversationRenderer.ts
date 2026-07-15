@@ -7,68 +7,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 
-/**
- * Type guard to verify if a part is a text block.
- */
-function isTextPart(part: unknown): part is { type: "text"; text: string } {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    "type" in part &&
-    (part as Record<string, unknown>).type === "text" &&
-    "text" in part &&
-    typeof (part as Record<string, unknown>).text === "string"
-  );
-}
-
-/**
- * Extracts text content from various content formats used in messages and tool results.
- */
-function extractText(content: unknown): string {
-  if (!content) return "";
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    const text = content
-      .filter(isTextPart)
-      .map((part) => part.text)
-      .join("\n");
-    if (text) return text;
-  }
-  return "";
-}
-
-/**
- * Extracts the text content from an AgentMessage.
- */
-function extractUserText(message: AgentMessage): string {
-  if ("content" in message) {
-    return extractText((message as { content: unknown }).content);
-  }
-  return "";
-}
-
-/**
- * Converts a tool execution result into a displayable string.
- * Handles AgentToolResult shapes (objects with a content array) as well as primitives.
- */
-function extractResultText(result: unknown): string {
-  if (result === null || result === undefined) return "";
-  if (typeof result === "string") return result;
-
-  if (typeof result === "object" && result !== null && "content" in result) {
-    const content = (result as Record<string, unknown>).content;
-    if (Array.isArray(content)) {
-      const text = extractText(content);
-      if (text) return text;
-    }
-  }
-
-  try {
-    return JSON.stringify(result, null, 2);
-  } catch {
-    return "Unserializable tool result";
-  }
-}
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
 /**
  * Renders a flat list of {@link AgentEvent} objects into styled conversation
@@ -100,7 +39,7 @@ export class ConversationRenderer {
    * Renders a user message and adds it to the container.
    */
   private renderUserMessage(message: AgentMessage, container: Container): void {
-    const text = extractUserText(message);
+    const text = AgentDisplayHelpers.extractMessageText(message);
     if (text.length === 0) return;
 
     if (container.children.length > 0) {
@@ -183,7 +122,12 @@ export class ConversationRenderer {
           if (component) {
             component.updateResult(
               {
-                content: [{ type: "text", text: extractResultText(event.partialResult) }],
+                content: [
+                  {
+                    type: "text",
+                    text: AgentDisplayHelpers.serializeToolResultText(event.partialResult),
+                  },
+                ],
                 isError: false,
               },
               true,
@@ -197,7 +141,9 @@ export class ConversationRenderer {
           if (component) {
             component.updateResult(
               {
-                content: [{ type: "text", text: extractResultText(event.result) }],
+                content: [
+                  { type: "text", text: AgentDisplayHelpers.serializeToolResultText(event.result) },
+                ],
                 isError: event.isError,
               },
               false,
