@@ -52,8 +52,10 @@ export class RoutineExecutor {
     params: FlowParams,
     task: string,
     signal?: AbortSignal,
+    routineDefOverride?: RoutineDefinition,
   ): Promise<RoutineResult> {
-    const routine: RoutineDefinition | undefined = this.flow.routines[routineName];
+    const routine: RoutineDefinition | undefined =
+      routineDefOverride ?? this.flow.routines[routineName];
     if (!routine) {
       throw new Error(
         `Routine "${routineName}" not found in flow "${this.flow.name}". ` +
