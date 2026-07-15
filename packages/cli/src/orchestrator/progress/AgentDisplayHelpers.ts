@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { Message, TextContent } from "@earendil-works/pi-ai";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -17,26 +18,39 @@ export class AgentDisplayHelpers {
    */
   static extractMessageText(message: AgentMessage): string {
     if ("content" in message) {
-      const content = message.content;
-      if (typeof content === "string") return content;
-      if (Array.isArray(content)) {
-        const parts: string[] = [];
-        for (const block of content) {
-          if (
-            typeof block === "object" &&
-            block !== null &&
-            "type" in block &&
-            "text" in block &&
-            block.type === "text" &&
-            typeof block.text === "string"
-          ) {
-            parts.push(block.text);
-          }
-        }
-        return parts.join(" ");
-      }
+      return AgentDisplayHelpers.extractContetText(message.content);
     }
     return "";
+  }
+
+  /**
+   * Extracts text content from various content formats used in messages and tool results.
+   */
+  static extractContetText(content: Message["content"]): string {
+    if (!content) return "";
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      const text = content
+        .filter((part) => AgentDisplayHelpers.isTextPart(part))
+        .map((part) => part.text)
+        .join("\n");
+      if (text) return text;
+    }
+    return "";
+  }
+
+  /**
+   * Type guard to verify if a part is a text block.
+   */
+  static isTextPart(part: Message["content"][number]): part is TextContent {
+    return (
+      typeof part === "object" &&
+      part !== null &&
+      "type" in part &&
+      part.type === "text" &&
+      "text" in part &&
+      typeof part.text === "string"
+    );
   }
 
   static getHorizontalLine(width: number) {

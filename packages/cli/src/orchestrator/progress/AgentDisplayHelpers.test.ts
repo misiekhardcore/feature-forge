@@ -56,7 +56,7 @@ describe("extractMessageText", () => {
       ],
       timestamp: 0,
     } as AgentMessage;
-    expect(AgentDisplayHelpers.extractMessageText(message)).toBe("hello world");
+    expect(AgentDisplayHelpers.extractMessageText(message)).toBe("hello\nworld");
   });
 
   it("returns empty string when content array is empty", () => {
