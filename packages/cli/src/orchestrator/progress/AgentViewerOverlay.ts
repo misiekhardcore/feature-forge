@@ -382,16 +382,18 @@ export class AgentViewerOverlay implements Component {
 
     const messages: AgentMessage[] = [];
     for (const evt of events) {
-      const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
-      if (!msg) continue;
-      AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
-      // For turn_end events, also push tool results so they can be matched
-      // to ToolExecutionComponent instances by toolCallId during rendering.
+      // turn_end: push toolResults directly. The assistant message is
+      // already extracted from the preceding message_end event.
       if (evt.type === "turn_end") {
         for (const result of evt.toolResults) {
           messages.push(result);
         }
+        continue;
       }
+
+      const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
+      if (!msg) continue;
+      AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
     }
     return messages;
   }
@@ -601,15 +603,17 @@ export class AgentViewerOverlay implements Component {
   /**
    * Extract an AgentMessage from an event if it carries one.
    *
-   * Returns the message for message\_start, message\_update, message\_end,
-   * and turn\_end events. Returns undefined for all other event types.
+   * Returns the message for message\_start, message\_update, and
+   * message\_end events. For turn\_end, the message is a duplicate
+   * of the preceding message\_end — only toolResults carry new data.
+   *
+   * Returns undefined for all other event types.
    */
   static extractMessageFromEvent(event: AgentEvent): AgentMessage | undefined {
     switch (event.type) {
       case "message_start":
       case "message_update":
       case "message_end":
-      case "turn_end":
         return event.message;
       default:
         return undefined;
@@ -621,7 +625,8 @@ export class AgentViewerOverlay implements Component {
    * for message_update and message_end events by replacing the last entry.
    *
    * Used by {@link appendMessageFromEvent} and {@link getConversationMessages}
-   * to keep dedup logic in one place.
+   * to keep dedup logic in one place. turn\_end events are handled separately
+   * in each caller — only toolResults are pushed, not the duplicate message.
    */
   private static mergeMessageIntoList(
     messages: AgentMessage[],
@@ -630,16 +635,6 @@ export class AgentViewerOverlay implements Component {
   ): void {
     if (event.type === "message_update" || event.type === "message_end") {
       if (messages.length > 0) {
-        messages[messages.length - 1] = message;
-      } else {
-        messages.push(message);
-      }
-    } else if (event.type === "turn_end" && message.role === "assistant") {
-      // turn_end carries the complete assistant message with toolCall content
-      // blocks. If the last message is also an assistant message (from a prior
-      // message_end), replace it to avoid duplicates.
-      const last = messages.length > 0 ? messages[messages.length - 1] : undefined;
-      if (last && last.role === "assistant") {
         messages[messages.length - 1] = message;
       } else {
         messages.push(message);
@@ -657,20 +652,27 @@ export class AgentViewerOverlay implements Component {
    * (MAX_AGENT_EVENTS) to prevent unbounded memory growth.
    */
   private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
+    // turn_end events: push toolResults directly. The assistant message
+    // is already extracted from the preceding message_end event.
+    if (event.type === "turn_end") {
+      const messages = this.agentMessages.get(agentId) ?? [];
+      for (const result of event.toolResults) {
+        messages.push(result);
+      }
+      // Apply FIFO sliding window cap.
+      if (messages.length > MAX_AGENT_EVENTS) {
+        messages.splice(0, messages.length - MAX_AGENT_EVENTS);
+      }
+      this.agentMessages.set(agentId, messages);
+      return;
+    }
+
     const message = AgentViewerOverlay.extractMessageFromEvent(event);
     if (!message) return;
 
     const messages = this.agentMessages.get(agentId) ?? [];
 
     AgentViewerOverlay.mergeMessageIntoList(messages, event, message);
-
-    // For turn_end events, also push the tool results so they can be matched
-    // to ToolExecutionComponent instances by toolCallId during rendering.
-    if (event.type === "turn_end") {
-      for (const result of event.toolResults) {
-        messages.push(result);
-      }
-    }
 
     // Apply FIFO sliding window cap to keep agentMessages in sync
     // with agentEvents bounds.
