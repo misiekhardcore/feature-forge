@@ -1337,12 +1337,9 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done"));
       overlay.pushStreamEvent("builder", {
-        type: "message_start",
-        message: { role: "assistant" },
-      } as unknown as AgentEvent);
-      overlay.pushStreamEvent("builder", {
-        type: "message_end",
+        type: "turn_end",
         message: { role: "assistant", content: [{ type: "text", text: "Done." }] },
+        toolResults: [],
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";

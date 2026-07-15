@@ -601,9 +601,8 @@ export class AgentViewerOverlay implements Component {
   /**
    * Extract an AgentMessage from an event if it carries one.
    *
-   * Returns the message for events that have a `message` field
-   * (message\_start, message\_update, message\_end, turn\_end).
-   * Returns undefined for all other event types.
+   * Returns the message for message\_start, message\_update, message\_end,
+   * and turn\_end events. Returns undefined for all other event types.
    */
   static extractMessageFromEvent(event: AgentEvent): AgentMessage | undefined {
     switch (event.type) {
@@ -631,6 +630,16 @@ export class AgentViewerOverlay implements Component {
   ): void {
     if (event.type === "message_update" || event.type === "message_end") {
       if (messages.length > 0) {
+        messages[messages.length - 1] = message;
+      } else {
+        messages.push(message);
+      }
+    } else if (event.type === "turn_end" && message.role === "assistant") {
+      // turn_end carries the complete assistant message with toolCall content
+      // blocks. If the last message is also an assistant message (from a prior
+      // message_end), replace it to avoid duplicates.
+      const last = messages.length > 0 ? messages[messages.length - 1] : undefined;
+      if (last && last.role === "assistant") {
         messages[messages.length - 1] = message;
       } else {
         messages.push(message);
