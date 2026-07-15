@@ -289,7 +289,13 @@ export class RoutineTool
     );
 
     try {
-      const result = await this.executor.run(this._routineName, routineParams, prompt, signal);
+      const result = await this.executor.run(
+        this._routineName,
+        routineParams,
+        prompt,
+        signal,
+        this.routineDef,
+      );
 
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
