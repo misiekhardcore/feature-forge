@@ -832,7 +832,7 @@ export class AgentViewerOverlay implements Component {
         this.viewMode = "detail";
         this.selectedAgentId = agentId;
         this.autoScroll = true;
-        this.scrollOffset = this.computeScrollMax();
+        this.scrollOffset = 0;
         this.tui.requestRender();
       }
     }
