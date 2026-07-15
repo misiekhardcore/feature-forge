@@ -81,6 +81,7 @@ function makeOverlay(overrides: Partial<AgentViewerOverlayParams> = {}): AgentVi
     theme: makeTheme(),
     onDone: vi.fn(),
     markdownTheme: makeMarkdownTheme(),
+    cwd: "/test/cwd",
     ...overrides,
   });
 }
@@ -94,12 +95,18 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(0);
     });
 
-    it("accepts tui, theme, onDone, and markdownTheme", () => {
+    it("accepts tui, theme, onDone, markdownTheme, and cwd", () => {
       const tui = makeTui();
       const theme = makeTheme();
       const onDone = vi.fn();
       const markdownTheme = makeMarkdownTheme();
-      const overlay = new AgentViewerOverlay({ tui, theme, onDone, markdownTheme });
+      const overlay = new AgentViewerOverlay({
+        tui,
+        theme,
+        onDone,
+        markdownTheme,
+        cwd: "/custom/cwd",
+      });
 
       expect(overlay.entryCount).toBe(0);
 

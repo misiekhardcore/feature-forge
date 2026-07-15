@@ -1,9 +1,28 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ToolCall } from "@earendil-works/pi-ai";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { AssistantMessageComponent, UserMessageComponent } from "@earendil-works/pi-coding-agent";
-import { Container, type MarkdownTheme, Spacer } from "@earendil-works/pi-tui";
+import {
+  AssistantMessageComponent,
+  ToolExecutionComponent,
+  UserMessageComponent,
+} from "@earendil-works/pi-coding-agent";
+import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 
 import { extractMessageText } from "./AgentDisplayHelpers";
+
+/**
+ * Parameters for constructing a {@link ConversationRenderer}.
+ */
+export interface ConversationRendererParams {
+  /** Theme for colouring UI elements. */
+  theme: Theme;
+  /** Markdown theme for rendering markdown content. */
+  markdownTheme: MarkdownTheme;
+  /** TUI instance for requesting re-renders. */
+  tui: TUI;
+  /** Current working directory — passed to tool execution components. */
+  cwd: string;
+}
 
 /**
  * Renders an array of {@link AgentMessage} objects into styled conversation
@@ -12,21 +31,28 @@ import { extractMessageText } from "./AgentDisplayHelpers";
  * Messages are dispatched by their `role` field matching pi's rendering
  * logic:
  * - "user" messages → {@link UserMessageComponent}
- * - "assistant" messages → {@link AssistantMessageComponent}
- * - "toolResult" messages are skipped (their content is already embedded
- *   within the preceding assistant message as tool call blocks)
+ * - "assistant" messages → {@link AssistantMessageComponent} with
+ *   additional per-toolCall {@link ToolExecutionComponent} instances
+ *   appended to the container
+ * - "toolResult" messages match against pending tool execution
+ *   components by {@code toolCallId} and call {@code updateResult}
+ *   to display results inline
  *
  * Each {@link render} call is stateless — the class holds only its
- * injected dependencies (theme, markdownTheme) and produces output
+ * injected dependencies (theme, markdownTheme, tui, cwd) and produces output
  * purely from the given message list.
  */
 export class ConversationRenderer {
   private readonly theme: Theme;
   private readonly markdownTheme: MarkdownTheme;
+  private readonly tui: TUI;
+  private readonly cwd: string;
 
-  constructor(theme: Theme, markdownTheme: MarkdownTheme) {
-    this.theme = theme;
-    this.markdownTheme = markdownTheme;
+  constructor(params: ConversationRendererParams) {
+    this.theme = params.theme;
+    this.markdownTheme = params.markdownTheme;
+    this.tui = params.tui;
+    this.cwd = params.cwd;
   }
 
   /**
@@ -47,8 +73,10 @@ export class ConversationRenderer {
    *
    * Dispatches on `message.role` matching pi's rendering logic:
    * - "user" → {@link UserMessageComponent}
-   * - "assistant" → {@link AssistantMessageComponent}
-   * - "toolResult" → skipped (displayed as part of the assistant message context)
+   * - "assistant" → {@link AssistantMessageComponent} plus individual
+   *   {@link ToolExecutionComponent} instances for each toolCall content block
+   * - "toolResult" → matched against pending tool execution components by
+   *   {@code toolCallId}; updates the component with the result payload
    *
    * @param messages — Agent messages in chronological order.
    * @param width — Available render width in characters.
@@ -56,6 +84,7 @@ export class ConversationRenderer {
    */
   render(messages: AgentMessage[], width: number): string[] {
     const container = new Container();
+    const pendingTools = new Map<string, ToolExecutionComponent>();
 
     for (const message of messages) {
       if (message.role === "user") {
@@ -77,7 +106,73 @@ export class ConversationRenderer {
           }
         }
         container.addChild(component);
-      } else if (message.role !== "toolResult") {
+
+        // Extract toolCall blocks from the assistant message content and
+        // create a ToolExecutionComponent for each one.
+        const content = message.content;
+        if (!Array.isArray(content)) {
+          continue;
+        }
+        const toolCalls = content.filter(
+          (block): block is ToolCall =>
+            typeof block === "object" &&
+            block !== null &&
+            "type" in block &&
+            block.type === "toolCall",
+        );
+
+        for (const toolCall of toolCalls) {
+          const resolvedArgs: Record<string, unknown> =
+            typeof toolCall.arguments === "string"
+              ? (JSON.parse(toolCall.arguments) as Record<string, unknown>)
+              : (toolCall.arguments ?? {});
+          const toolComponent = new ToolExecutionComponent(
+            toolCall.name,
+            toolCall.id,
+            resolvedArgs,
+            undefined,
+            undefined,
+            this.tui,
+            this.cwd,
+          );
+          toolComponent.setExpanded(true);
+          container.addChild(toolComponent);
+          pendingTools.set(toolCall.id, toolComponent);
+        }
+
+        // When the assistant message has an error or aborted stop reason,
+        // mark all pending tool components from this message as errors.
+        if ("stopReason" in message) {
+          const assistantMsg = message as { stopReason: unknown };
+          if (assistantMsg.stopReason === "error" || assistantMsg.stopReason === "aborted") {
+            for (const toolCall of toolCalls) {
+              const component_ = pendingTools.get(toolCall.id);
+              if (component_) {
+                component_.updateResult({ isError: true, content: [] });
+                pendingTools.delete(toolCall.id);
+              }
+            }
+          }
+        }
+      } else if (message.role === "toolResult") {
+        // Match toolResult messages against pending tool execution components.
+        if (!("toolCallId" in message)) {
+          continue;
+        }
+        const toolResult = message as {
+          toolCallId: string;
+          content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+          isError: boolean;
+        };
+        const pendingComponent = pendingTools.get(toolResult.toolCallId);
+        if (pendingComponent) {
+          pendingComponent.updateResult({
+            content: toolResult.content,
+            isError: toolResult.isError,
+          });
+          pendingTools.delete(toolResult.toolCallId);
+        }
+      } else {
         // Fallback for messages with unrecognized roles: extract text as plain
         // content if available.
         const text = extractMessageText(message);
@@ -88,8 +183,6 @@ export class ConversationRenderer {
           container.addChild(new UserMessageComponent(text, this.markdownTheme));
         }
       }
-      // role === "toolResult" — skipped; tool results are embedded within
-      // the preceding assistant message's content as tool call blocks.
     }
 
     return container.render(width);

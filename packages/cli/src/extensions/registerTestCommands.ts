@@ -70,6 +70,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
         onDone();
       },
       markdownTheme: getMarkdownTheme(),
+      cwd: process.cwd(),
     });
     if (streamDir) viewer.setStreamDir(streamDir);
     const offset = scenarios.length <= 1 ? 0 : 200;

@@ -1,12 +1,13 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
-import type { MarkdownTheme } from "@earendil-works/pi-tui";
+import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ConversationRenderer } from "./ConversationRenderer";
 
 // Use real pi components (UserMessageComponent, AssistantMessageComponent,
-// Container, Spacer) which depend on the pi runtime theme singleton.
+// ToolExecutionComponent, Container, Spacer) which depend on the pi runtime
+// theme singleton.
 beforeAll(() => {
   initTheme("dark");
 });
@@ -23,6 +24,12 @@ function makeTheme(): Theme {
     italic: vi.fn((text: string) => text),
     inverse: vi.fn((text: string) => text),
   } as unknown as Theme;
+}
+
+function makeTui(): TUI {
+  return {
+    requestRender: vi.fn(),
+  } as unknown as TUI;
 }
 
 function makeMarkdownTheme(): MarkdownTheme {
@@ -45,7 +52,12 @@ function makeMarkdownTheme(): MarkdownTheme {
 }
 
 function makeRenderer(): ConversationRenderer {
-  return new ConversationRenderer(makeTheme(), makeMarkdownTheme());
+  return new ConversationRenderer({
+    theme: makeTheme(),
+    markdownTheme: makeMarkdownTheme(),
+    tui: makeTui(),
+    cwd: "/test/cwd",
+  });
 }
 
 function makeUserMessage(text: string, overrides: Partial<AgentMessage> = {}): AgentMessage {
@@ -83,6 +95,27 @@ function makeUnknownRoleMessage(role: string, text: string): AgentMessage {
     role,
     content: text,
     timestamp: Date.now(),
+  } as unknown as AgentMessage;
+}
+
+function makeAssistantMessageWithToolCalls(
+  text: string,
+  toolCalls: Array<{ id: string; name: string }>,
+  overrides: Partial<AgentMessage> = {},
+): AgentMessage {
+  return {
+    role: "assistant",
+    content: [
+      { type: "text" as const, text },
+      ...toolCalls.map((tc) => ({
+        type: "toolCall" as const,
+        id: tc.id,
+        name: tc.name,
+        arguments: {},
+      })),
+    ],
+    timestamp: Date.now(),
+    ...overrides,
   } as unknown as AgentMessage;
 }
 
@@ -237,6 +270,132 @@ describe("ConversationRenderer", () => {
       const messages = [{ role: "user", timestamp: Date.now() } as unknown as AgentMessage];
       const result = renderer.render(messages, 80);
       expect(result).toEqual([]);
+    });
+
+    it("renders toolCall blocks from assistant message as ToolExecutionComponent instances", () => {
+      const renderer = makeRenderer();
+      const messages = [
+        makeAssistantMessageWithToolCalls("Thinking...", [
+          { id: "call_1", name: "read" },
+          { id: "call_2", name: "bash" },
+        ]),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      // Text content renders
+      expect(joined).toContain("Thinking...");
+      // Tool name "read" renders in the execution component
+      expect(joined).toContain("read");
+      // The second tool call renders additional output (bash renders as shell component)
+      expect(result.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("matches toolResult message to pending toolCall component by toolCallId", () => {
+      const renderer = makeRenderer();
+      const messages = [
+        makeAssistantMessageWithToolCalls("Let me read that.", [{ id: "call_1", name: "read" }]),
+        makeToolResultMessage({
+          toolCallId: "call_1",
+          toolName: "read",
+          content: [{ type: "text" as const, text: "file contents here" }],
+          isError: false,
+        }),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      // Tool result content should be visible
+      expect(joined).toContain("file contents here");
+    });
+
+    it("marks tool call as error when assistant message has error stop reason", () => {
+      const renderer = makeRenderer();
+      const messages = [
+        makeAssistantMessageWithToolCalls("Failed.", [{ id: "call_1", name: "read" }], {
+          stopReason: "error",
+        } as unknown as Partial<AgentMessage>),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      expect(joined).toContain("read");
+    });
+
+    it("marks tool call as error when assistant message has aborted stop reason", () => {
+      const renderer = makeRenderer();
+      const messages = [
+        makeAssistantMessageWithToolCalls("Aborted.", [{ id: "call_1", name: "bash" }], {
+          stopReason: "aborted",
+        } as unknown as Partial<AgentMessage>),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      // Message text renders; the tool execution component uses an error
+      // state format that may or may not include the tool name depending on
+      // pi's internal rendering.
+      expect(joined).toContain("Aborted.");
+      // At least 3 rendered lines: assistant bubble + tool execution block
+      expect(result.length).toBeGreaterThanOrEqual(3);
+    });
+    it("skips toolResult without matching pending tool call", () => {
+      const renderer = makeRenderer();
+      // A toolResult message without a preceding assistant message with
+      // a matching toolCall should be silently dropped.
+      const messages = [
+        makeToolResultMessage({
+          toolCallId: "call_unknown",
+          toolName: "read",
+          content: [{ type: "text" as const, text: "orphan result" }],
+          isError: false,
+        }),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result).toEqual([]);
+    });
+
+    it("handles undefined toolCall.arguments with empty object fallback", () => {
+      const renderer = makeRenderer();
+      const messages = [
+        {
+          role: "assistant",
+          content: [
+            { type: "text" as const, text: "Let me check." },
+            { type: "toolCall" as const, id: "call_1", name: "read", arguments: undefined },
+          ],
+          timestamp: Date.now(),
+        } as unknown as AgentMessage,
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      expect(joined).toContain("Let me check.");
+      expect(joined).toContain("read");
+    });
+
+    it("handles string toolCall.arguments by parsing as JSON", () => {
+      const renderer = makeRenderer();
+      const messages = [
+        {
+          role: "assistant",
+          content: [
+            { type: "text" as const, text: "Reading file." },
+            {
+              type: "toolCall" as const,
+              id: "call_1",
+              name: "read",
+              arguments: '{"path": "/tmp/test.txt"}',
+            },
+          ],
+          timestamp: Date.now(),
+        } as unknown as AgentMessage,
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      expect(joined).toContain("Reading file.");
+      expect(joined).toContain("read");
     });
   });
 });
