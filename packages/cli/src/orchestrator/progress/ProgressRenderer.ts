@@ -7,7 +7,7 @@ import type { Component } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
 import { createAccumulatedState } from "./AccumulatedState";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { getHorizontalLine, getStatusIcon } from "./AgentDisplayHelpers";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
@@ -74,7 +74,7 @@ export class ProgressRenderer {
    * - anything else → muted grey ○
    */
   static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
-    const { char, color } = AgentDisplayHelpers.getStatusIcon(status, passed);
+    const { char, color } = getStatusIcon(status, passed);
     return theme.fg(color, char);
   }
 
@@ -110,7 +110,7 @@ export class ProgressRenderer {
 
     // Separator
     const separatorWidth = Math.min(60, Math.max(title.length + (subtitle?.length ?? 0) + 8, 20));
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(separatorWidth)));
+    lines.push(theme.fg("muted", getHorizontalLine(separatorWidth)));
 
     // Rows
     if (rows.length > 0) {

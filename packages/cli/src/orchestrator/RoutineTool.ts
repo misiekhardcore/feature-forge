@@ -219,7 +219,6 @@ export class RoutineTool
                 viewer.dispose();
                 done();
               },
-              cwd: ctx.cwd,
               markdownTheme: getMarkdownTheme(),
             });
 

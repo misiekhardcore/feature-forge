@@ -55,7 +55,6 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
     tui: TUI,
     theme: Theme,
     onDone: () => void,
-    cwd: string,
     timers: ReturnType<typeof setTimeout>[],
     scenarios: ScenarioData[],
     streamDir?: string,
@@ -70,7 +69,6 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
         viewer.dispose();
         onDone();
       },
-      cwd,
       markdownTheme: getMarkdownTheme(),
     });
     if (streamDir) viewer.setStreamDir(streamDir);
@@ -91,7 +89,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
           const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(tui, theme, () => done(undefined), ctx.cwd, timers, [
+          return createViewer(tui, theme, () => done(undefined), timers, [
             emptyScenario(),
             builderScenario(),
             reviewerScenario(),
@@ -113,9 +111,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
           const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(tui, theme, () => done(undefined), ctx.cwd, timers, [
-            manyTurnsScenario(),
-          ]);
+          return createViewer(tui, theme, () => done(undefined), timers, [manyTurnsScenario()]);
         },
         { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
       );
@@ -130,9 +126,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
           const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(tui, theme, () => done(undefined), ctx.cwd, timers, [
-            toolArgsScenario(),
-          ]);
+          return createViewer(tui, theme, () => done(undefined), timers, [toolArgsScenario()]);
         },
         { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
       );
@@ -151,7 +145,6 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
             tui,
             theme,
             () => done(undefined),
-            ctx.cwd,
             timers,
             [conversationScenario()],
             streamDir,

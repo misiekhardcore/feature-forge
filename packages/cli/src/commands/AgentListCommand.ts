@@ -41,7 +41,6 @@ export class AgentListCommand extends Command {
                 viewer.dispose();
                 done();
               },
-              cwd: ctx.cwd,
               markdownTheme: getMarkdownTheme(),
             });
 

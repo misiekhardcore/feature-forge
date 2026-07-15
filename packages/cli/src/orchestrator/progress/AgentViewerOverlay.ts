@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -10,7 +10,13 @@ import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import {
+  extractMessageText,
+  getHorizontalLine,
+  getStatusIcon,
+  getStatusLabel,
+  serializeToolArgs,
+} from "./AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
 
 /**
@@ -65,8 +71,7 @@ export interface AgentViewerOverlayParams {
   theme: Theme;
   /** Callback invoked when the user presses Escape in list view. */
   onDone: () => void;
-  /** Current working directory from the extension context. */
-  cwd: string;
+
   /** Markdown theme for rendering markdown content. */
   markdownTheme: MarkdownTheme;
 }
@@ -116,13 +121,6 @@ export class AgentViewerOverlay implements Component {
   private readonly onDone: () => void;
 
   /**
-   * Base directory for resolving relative paths when rendering
-   * tool execution components (passed through to
-   * {@link ConversationRenderer}).
-   */
-  private readonly cwd: string;
-
-  /**
    * Theme used when rendering markdown blocks within the conversation
    * view — headings, code blocks, lists (passed through to
    * {@link ConversationRenderer}).
@@ -157,6 +155,9 @@ export class AgentViewerOverlay implements Component {
   /** Maps agent id → raw stream events in insertion order. */
   private agentEvents = new Map<string, AgentEvent[]>();
 
+  /** Maps agent id → extracted AgentMessage objects in order. */
+  private agentMessages = new Map<string, AgentMessage[]>();
+
   /** Cached line count of the last renderConversationTurns call. Invalidated by pushStreamEvent. */
   private cachedConversationLineCount = 0;
 
@@ -167,20 +168,14 @@ export class AgentViewerOverlay implements Component {
   private readonly conversationRenderer: ConversationRenderer;
 
   /**
-   * @param params — Configuration object with tui, theme, onDone, cwd, and markdownTheme.
+   * @param params — Configuration object with tui, theme, onDone, and markdownTheme.
    */
   constructor(params: AgentViewerOverlayParams) {
     this.tui = params.tui;
     this.theme = params.theme;
     this.onDone = params.onDone;
-    this.cwd = params.cwd;
     this.markdownTheme = params.markdownTheme;
-    this.conversationRenderer = new ConversationRenderer(
-      params.theme,
-      params.markdownTheme,
-      params.tui,
-      params.cwd,
-    );
+    this.conversationRenderer = new ConversationRenderer(params.theme, params.markdownTheme);
   }
 
   /**
@@ -334,6 +329,9 @@ export class AgentViewerOverlay implements Component {
     }
     this.agentEvents.set(agentId, events);
 
+    // Extract AgentMessage from the event and update the messages list.
+    this.appendMessageFromEvent(agentId, event);
+
     // Invalidate cached line count so computeScrollMax re-renders.
     this.conversationLinesDirty = true;
 
@@ -355,6 +353,20 @@ export class AgentViewerOverlay implements Component {
    */
   getConversation(agentId: string): AgentEvent[] {
     return this.agentEvents.get(agentId) ?? [];
+  }
+
+  /**
+   * Return the extracted {@link AgentMessage} objects for an agent, in order.
+   *
+   * Messages are extracted from {@link pushStreamEvent} calls and from
+   * the JSONL file during {@link prepopulateStreamFiles}. The list contains
+   * one entry per logical message (message updates replace the prior entry).
+   *
+   * @param agentId — The agent to get messages for.
+   * @returns An array of messages, most recent last. Empty array for unknown agents.
+   */
+  getConversationMessages(agentId: string): AgentMessage[] {
+    return this.agentMessages.get(agentId) ?? [];
   }
 
   /**
@@ -495,6 +507,17 @@ export class AgentViewerOverlay implements Component {
                 merged.splice(0, merged.length - MAX_AGENT_EVENTS);
               }
               this.agentEvents.set(agentId, merged);
+
+              // Extract AgentMessages from the merged events.
+              const messages: AgentMessage[] = [];
+              for (const evt of merged) {
+                const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
+                if (!msg) continue;
+                AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
+              }
+              if (messages.length > 0) {
+                this.agentMessages.set(agentId, messages);
+              }
             }
           } catch (error) {
             logger.debug("Failed to prepopulate events from JSONL file, skipping", {
@@ -526,6 +549,7 @@ export class AgentViewerOverlay implements Component {
     this.eventsFiles.clear();
     this.lastLines.clear();
     this.agentEvents.clear();
+    this.agentMessages.clear();
     this.clearMemory();
   }
 
@@ -556,6 +580,72 @@ export class AgentViewerOverlay implements Component {
     if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
     const hours = Math.floor(minutes / 60);
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  }
+
+  /**
+   * Extract an AgentMessage from an event if it carries one.
+   *
+   * Returns the message for events that have a `message` field
+   * (message\_start, message\_update, message\_end, turn\_end).
+   * Returns undefined for all other event types.
+   */
+  static extractMessageFromEvent(event: AgentEvent): AgentMessage | undefined {
+    switch (event.type) {
+      case "message_start":
+      case "message_update":
+      case "message_end":
+      case "turn_end":
+        return event.message;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Merge an extracted AgentMessage into a message list, handling deduplication
+   * for message_update and message_end events by replacing the last entry.
+   *
+   * Shared between {@link appendMessageFromEvent} and
+   * {@link prepopulateStreamFiles} to keep dedup logic in one place.
+   */
+  private static mergeMessageIntoList(
+    messages: AgentMessage[],
+    event: AgentEvent,
+    message: AgentMessage,
+  ): void {
+    if (event.type === "message_update" || event.type === "message_end") {
+      if (messages.length > 0) {
+        messages[messages.length - 1] = message;
+      } else {
+        messages.push(message);
+      }
+    } else {
+      messages.push(message);
+    }
+  }
+
+  /**
+   * Extract and append AgentMessages from a raw event to the in-memory list,
+   * handling message updates by replacing the most recent entry.
+   *
+   * Applies the same FIFO sliding window cap as agentEvents
+   * (MAX_AGENT_EVENTS) to prevent unbounded memory growth.
+   */
+  private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
+    const message = AgentViewerOverlay.extractMessageFromEvent(event);
+    if (!message) return;
+
+    const messages = this.agentMessages.get(agentId) ?? [];
+
+    AgentViewerOverlay.mergeMessageIntoList(messages, event, message);
+
+    // Apply FIFO sliding window cap to keep agentMessages in sync
+    // with agentEvents bounds.
+    if (messages.length > MAX_AGENT_EVENTS) {
+      messages.splice(0, messages.length - MAX_AGENT_EVENTS);
+    }
+
+    this.agentMessages.set(agentId, messages);
   }
 
   // ── Static helpers ────────────────────────────────────────
@@ -622,14 +712,8 @@ export class AgentViewerOverlay implements Component {
     // chars on each side, and 2 for the single-space margins inside each border.
     const contentWidth = Math.max(0, outerWidth - 4);
 
-    const top = theme.fg(
-      "warning",
-      "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐",
-    );
-    const bot = theme.fg(
-      "warning",
-      "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘",
-    );
+    const top = theme.fg("warning", "┌" + getHorizontalLine(contentWidth + 2) + "┐");
+    const bot = theme.fg("warning", "└" + getHorizontalLine(contentWidth + 2) + "┘");
     const leftBorder = theme.fg("warning", "│");
     const rightBorder = theme.fg("warning", "│");
 
@@ -665,7 +749,7 @@ export class AgentViewerOverlay implements Component {
 
     // Header
     lines.push(theme.fg("accent", "Agent Viewer"));
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width)));
 
     if (this.agents.size === 0) {
       lines.push(theme.fg("muted", "no agents running"));
@@ -677,12 +761,9 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
-        entry.status,
-        entry.passed,
-      );
+      const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
 
-      const cursor = isSelected ? theme.fg("accent", "→") : " ";
+      const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
       const roleSuffix = entry.role ? theme.fg("muted", `(${entry.role})`) : "";
       const elapsedSuffix = entry.elapsed ? theme.fg("muted", entry.elapsed) : "";
@@ -733,7 +814,7 @@ export class AgentViewerOverlay implements Component {
     const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
     if (!entry) {
       lines.push(theme.fg("accent", "Agent Detail"));
-      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+      lines.push(theme.fg("muted", getHorizontalLine(width - 4)));
       lines.push(theme.fg("muted", "agent not found"));
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
@@ -741,20 +822,14 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
-      entry.status,
-      entry.passed,
-    );
-    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
-      entry.status,
-      entry.passed,
-    );
+    const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
+    const { label, color: statusColor } = getStatusLabel(entry.status, entry.passed);
 
     // Header
     lines.push(
       `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
     );
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+    lines.push(theme.fg("muted", getHorizontalLine(width - 4)));
 
     // Summary
     if (entry.summary) {
@@ -768,8 +843,8 @@ export class AgentViewerOverlay implements Component {
     lines.push(theme.fg("accent", "Conversation:"));
     lines.push("");
 
-    const events = this.getConversation(entry.id);
-    const conversationLines = this.renderConversationTurns(events, width);
+    const messages = this.getConversationMessages(entry.id);
+    const conversationLines = this.renderConversationTurns(messages, width);
     if (conversationLines.length === 0) {
       lines.push(theme.fg("muted", "No conversation recorded."));
       lines.push("");
@@ -798,13 +873,12 @@ export class AgentViewerOverlay implements Component {
 
   // ── Private conversation rendering ───────────────────────
   /**
-   * Render a list of raw stream events as styled conversation lines.
+   * Render a list of messages as styled conversation lines.
    *
-   * Delegates to {@link ConversationRenderer} which handles the
-   * state-machine grouping and pi component dispatch.
+   * Delegates to {@link ConversationRenderer} which dispatches by role.
    */
-  private renderConversationTurns(events: AgentEvent[], width: number): string[] {
-    return this.conversationRenderer.render(events, width - 4);
+  private renderConversationTurns(messages: AgentMessage[], width: number): string[] {
+    return this.conversationRenderer.render(messages, width - 4);
   }
 
   private handleListInput(data: string): void {
@@ -866,7 +940,7 @@ export class AgentViewerOverlay implements Component {
     // Use cached line count unless pushStreamEvent dirtied it.
     if (this.conversationLinesDirty) {
       this.cachedConversationLineCount = this.renderConversationTurns(
-        this.getConversation(this.selectedAgentId),
+        this.getConversationMessages(this.selectedAgentId),
         this.lastRenderWidth,
       ).length;
       this.conversationLinesDirty = false;
@@ -1036,7 +1110,7 @@ export class AgentViewerOverlay implements Component {
 
       case "message_update":
       case "message_end": {
-        return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
+        return event.message ? extractMessageText(event.message) : "";
       }
 
       case "tool_execution_start": {
@@ -1044,7 +1118,7 @@ export class AgentViewerOverlay implements Component {
         // Serialize args into the stream line so they survive the
         // .stream file round-trip (replayed via parseStreamLine).
         if ("args" in event && event.args !== undefined) {
-          const serialized = AgentDisplayHelpers.serializeToolArgs(event.args);
+          const serialized = serializeToolArgs(event.args);
           return toolName + " | " + serialized;
         }
         return toolName;

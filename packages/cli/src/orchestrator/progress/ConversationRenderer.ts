@@ -1,45 +1,39 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import {
-  AssistantMessageComponent,
-  ToolExecutionComponent,
-  UserMessageComponent,
-} from "@earendil-works/pi-coding-agent";
-import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
+import { AssistantMessageComponent, UserMessageComponent } from "@earendil-works/pi-coding-agent";
+import { Container, type MarkdownTheme, Spacer } from "@earendil-works/pi-tui";
 
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { extractMessageText } from "./AgentDisplayHelpers";
 
 /**
- * Renders a flat list of {@link AgentEvent} objects into styled conversation
+ * Renders an array of {@link AgentMessage} objects into styled conversation
  * lines using pi's built-in components.
  *
- * Groups related start/end events (message_start → message_end,
- * tool_execution_start → tool_execution_end) into visual blocks. Pending
- * state (in-progress messages / tool calls without a matching end event)
- * is flushed at the end of the stream.
+ * Messages are dispatched by their `role` field matching pi's rendering
+ * logic:
+ * - "user" messages → {@link UserMessageComponent}
+ * - "assistant" messages → {@link AssistantMessageComponent}
+ * - "toolResult" messages are skipped (their content is already embedded
+ *   within the preceding assistant message as tool call blocks)
  *
  * Each {@link render} call is stateless — the class holds only its
- * injected dependencies (theme, markdownTheme, tui, cwd) and produces
- * output purely from the given event list.
+ * injected dependencies (theme, markdownTheme) and produces output
+ * purely from the given message list.
  */
 export class ConversationRenderer {
   private readonly theme: Theme;
   private readonly markdownTheme: MarkdownTheme;
-  private readonly tui: TUI;
-  private readonly cwd: string;
 
-  constructor(theme: Theme, markdownTheme: MarkdownTheme, tui: TUI, cwd: string) {
+  constructor(theme: Theme, markdownTheme: MarkdownTheme) {
     this.theme = theme;
     this.markdownTheme = markdownTheme;
-    this.tui = tui;
-    this.cwd = cwd;
   }
 
   /**
    * Renders a user message and adds it to the container.
    */
   private renderUserMessage(message: AgentMessage, container: Container): void {
-    const text = AgentDisplayHelpers.extractMessageText(message);
+    const text = extractMessageText(message);
     if (text.length === 0) return;
 
     if (container.children.length > 0) {
@@ -49,118 +43,53 @@ export class ConversationRenderer {
   }
 
   /**
-   * Render a list of raw stream events as styled conversation lines.
+   * Render a list of {@link AgentMessage} objects as styled conversation lines.
    *
-   * Dispatches on {@code AgentEvent.type} covering all 10 variants
-   * in a discriminated switch. Messages are rendered via
-   * {@link UserMessageComponent} (role "user"),
-   * {@link AssistantMessageComponent} (role "assistant"), or plain text
-   * extraction (all other roles). Tool calls are rendered via
-   * {@link ToolExecutionComponent}.
+   * Dispatches on `message.role` matching pi's rendering logic:
+   * - "user" → {@link UserMessageComponent}
+   * - "assistant" → {@link AssistantMessageComponent}
+   * - "toolResult" → skipped (displayed as part of the assistant message context)
    *
-   * @param events — Stream events in insertion order.
+   * @param messages — Agent messages in chronological order.
    * @param width — Available render width in characters.
    * @returns Styled lines ready for display (no border added).
    */
-  render(events: AgentEvent[], width: number): string[] {
+  render(messages: AgentMessage[], width: number): string[] {
     const container = new Container();
-    const pendingTools = new Map<string, ToolExecutionComponent>();
-    let lastAssistant: AssistantMessageComponent | undefined;
 
-    for (const event of events) {
-      switch (event.type) {
-        case "message_start": {
-          if (event.message.role === "assistant") {
-            const component = new AssistantMessageComponent(undefined, false, this.markdownTheme);
-            container.addChild(component);
-            lastAssistant = component;
-          } else {
-            // Reset lastAssistant so subsequent updates don't target the previous assistant message
-            lastAssistant = undefined;
-          }
-          if (event.message.role === "user") {
-            this.renderUserMessage(event.message, container);
-          }
-          break;
+    for (const message of messages) {
+      if (message.role === "user") {
+        this.renderUserMessage(message, container);
+      } else if (message.role === "assistant") {
+        // Skip assistant messages without content — the underlying component
+        // requires at least an empty content array.
+        if (!message.content || (Array.isArray(message.content) && message.content.length === 0)) {
+          continue;
         }
+        const component = new AssistantMessageComponent(message, false, this.markdownTheme);
 
-        case "message_update": {
-          if (event.message && event.message.role === "assistant") {
-            lastAssistant?.updateContent(event.message);
+        if (container.children.length > 0) {
+          // Add a spacer only when the previous child is not already an assistant
+          // message (assistant blocks already have internal spacing).
+          const lastChild = container.children[container.children.length - 1];
+          if (!(lastChild instanceof AssistantMessageComponent)) {
+            container.addChild(new Spacer(1));
           }
-          break;
         }
-
-        case "message_end": {
-          if (event.message.role === "assistant") {
-            if (lastAssistant) {
-              lastAssistant?.updateContent(event.message);
-            }
-          } else {
-            this.renderUserMessage(event.message, container);
+        container.addChild(component);
+      } else if (message.role !== "toolResult") {
+        // Fallback for messages with unrecognized roles: extract text as plain
+        // content if available.
+        const text = extractMessageText(message);
+        if (text.length > 0) {
+          if (container.children.length > 0) {
+            container.addChild(new Spacer(1));
           }
-          break;
+          container.addChild(new UserMessageComponent(text, this.markdownTheme));
         }
-
-        case "tool_execution_start": {
-          const component = new ToolExecutionComponent(
-            event.toolName,
-            event.toolCallId,
-            event.args,
-            undefined,
-            undefined,
-            this.tui,
-            this.cwd,
-          );
-          component.markExecutionStarted();
-          container.addChild(component);
-          pendingTools.set(event.toolCallId, component);
-          break;
-        }
-
-        case "tool_execution_update": {
-          const component = pendingTools.get(event.toolCallId);
-          if (component) {
-            component.updateResult(
-              {
-                content: [
-                  {
-                    type: "text",
-                    text: AgentDisplayHelpers.serializeToolResultText(event.partialResult),
-                  },
-                ],
-                isError: false,
-              },
-              true,
-            );
-          }
-          break;
-        }
-
-        case "tool_execution_end": {
-          const component = pendingTools.get(event.toolCallId);
-          if (component) {
-            component.updateResult(
-              {
-                content: [
-                  { type: "text", text: AgentDisplayHelpers.serializeToolResultText(event.result) },
-                ],
-                isError: event.isError,
-              },
-              false,
-            );
-            component.setExpanded(true);
-          }
-          break;
-        }
-
-        case "turn_start":
-        case "turn_end":
-        case "agent_start":
-        case "agent_end":
-          // Lifecycle events are reflected in the agent list view.
-          break;
       }
+      // role === "toolResult" — skipped; tool results are embedded within
+      // the preceding assistant message's content as tool call blocks.
     }
 
     return container.render(width);
