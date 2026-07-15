@@ -3,7 +3,7 @@
   "title": "Feature Forge Flow Definition",
   "description": "Self-contained flow definition. Declares a slash command, orchestrator config, and named deterministic routines.",
   "type": "object",
-  "required": ["$schema", "name", "command", "orchestrator", "routines"],
+  "required": ["$schema", "name", "command", "routines"],
   "properties": {
     "$schema": {
       "type": "string",
@@ -18,7 +18,14 @@
       "minLength": 1
     },
     "orchestrator": {
-      "$ref": "#/$defs/OrchestratorConfig"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OrchestratorConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "routines": {
       "type": "object",
@@ -31,6 +38,12 @@
             "items": {
               "$ref": "#/$defs/RoutineParam"
             }
+          },
+          "input_schema": {
+            "type": "string"
+          },
+          "output_schema": {
+            "type": "string"
           },
           "steps": {
             "type": "array",
@@ -333,6 +346,56 @@
         }
       }
     },
+    "RoutineRefInstruction": {
+      "type": "object",
+      "required": ["id", "type", "target", "routine"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "routine"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "routine": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "string"
+            }
+          }
+        },
+        "output_as": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "on_error": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "fail"
+            },
+            {
+              "type": "string",
+              "const": "continue"
+            }
+          ]
+        }
+      }
+    },
     "FlowInstruction": {
       "anyOf": [
         {
@@ -358,6 +421,9 @@
         },
         {
           "$ref": "#/$defs/ShellInstruction"
+        },
+        {
+          "$ref": "#/$defs/RoutineRefInstruction"
         }
       ]
     }

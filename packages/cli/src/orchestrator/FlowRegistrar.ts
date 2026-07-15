@@ -35,10 +35,11 @@ export class FlowRegistrar {
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
       /**
-       * Optional map to populate with loaded flow definitions, keyed by command.
-       * Allows lookup of flow definitions without requiring an orchestrator.
+       * Map to populate with loaded flow definitions, keyed by command.
+       * Allows lookup of flow definitions by {@link RoutineRefStepExecutor}
+       * for type: "routine" instruction resolution.
        */
-      flowMap?: Map<string, FlowDefinition>;
+      flowMap: Map<string, FlowDefinition>;
     },
   ) {}
 
@@ -114,10 +115,39 @@ export class FlowRegistrar {
       eventBus,
     } = ctx;
 
-    // 1. Load flow.json first — always, even for library-only flows (no orchestrator).
+    // 1. Check whether an orchestrator markdown file exists.
+    // Must check this first — we need to load the orchestrator persona as a spec
+    // before loading the flow definition, so the spec name participates in
+    // FlowLoader semantic validation.
+    const orchestratorFile = path.join(flowDir, "orchestrator.md");
+    let hasOrchestrator = false;
+    try {
+      await fs.access(orchestratorFile);
+      hasOrchestrator = true;
+    } catch {
+      // Library-only flow — no orchestrator, but tools are still registered below.
+    }
+
+    // Register the orchestrator persona as a spec before loading the flow definition
+    // so the spec name participates in FlowLoader semantic validation.
+    let specsLoaded = false;
+    if (hasOrchestrator) {
+      try {
+        await specManager.loadFromDirectory(flowDir);
+        specsLoaded = true;
+      } catch (error) {
+        logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+        // Do not return — tools are still registered below even without an orchestrator command.
+      }
+    }
+
+    // 2. Capture knownSpecs AFTER loading the orchestrator persona, so the flow's
+    //    own spec is available during semantic validation of agent instructions.
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
-    let flow;
+    let flow: FlowDefinition;
     const store = new FlowStateStore();
     try {
       flow = await flowLoader.load("flow");
@@ -129,8 +159,8 @@ export class FlowRegistrar {
         }
       }
 
-      // 2. Populate flowMap if provided.
-      this.params.flowMap?.set(flow.command, flow);
+      // 3. Populate flowMap for routine-reference resolution.
+      this.params.flowMap.set(flow.command, flow);
     } catch (error) {
       logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, {
         error: error instanceof Error ? error : new Error(String(error)),
@@ -138,47 +168,24 @@ export class FlowRegistrar {
       return;
     }
 
-    // 3. Check whether an orchestrator markdown file exists.
-    const orchestratorFile = path.join(flowDir, "orchestrator.md");
-    let hasOrchestrator = false;
-    try {
-      await fs.access(orchestratorFile);
-      hasOrchestrator = true;
-    } catch {
-      // Library-only flow — no orchestrator, but tools are still registered below.
-    }
-
     // 4. If orchestrator is present and the flow defines one, register command.
-    let specsLoaded = false;
-    if (hasOrchestrator && flow.orchestrator) {
+    if (specsLoaded && flow.orchestrator) {
+      const orchestratorCommand = new OrchestratorCommand(
+        supervisor,
+        pi,
+        specManager,
+        workspaceManager,
+        flow,
+      );
       try {
-        await specManager.loadFromDirectory(flowDir);
-        specsLoaded = true;
+        cmdRegistry.registerInstance(orchestratorCommand);
       } catch (error) {
-        logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
-          error: error instanceof Error ? error : new Error(String(error)),
-        });
-        // Do not return — tools are still registered below even without an orchestrator command.
-      }
-
-      if (specsLoaded) {
-        const orchestratorCommand = new OrchestratorCommand(
-          supervisor,
-          pi,
-          specManager,
-          workspaceManager,
-          flow,
+        logger.warn(
+          `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
+          {
+            error: error instanceof Error ? error : new Error(String(error)),
+          },
         );
-        try {
-          cmdRegistry.registerInstance(orchestratorCommand);
-        } catch (error) {
-          logger.warn(
-            `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
-            {
-              error: error instanceof Error ? error : new Error(String(error)),
-            },
-          );
-        }
       }
     }
 

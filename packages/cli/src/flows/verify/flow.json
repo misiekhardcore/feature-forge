@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+  "name": "verify",
+  "command": "/verify",
+  "routines": {
+    "check": {
+      "params": [
+        {
+          "name": "build_output",
+          "description": "The raw output from the build step",
+          "required": true
+        }
+      ],
+      "steps": [
+        {
+          "type": "agent",
+          "id": "verify",
+          "systemPrompt": "verify",
+          "parseJson": true,
+          "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{build_output}}"
+        }
+      ]
+    }
+  }
+}

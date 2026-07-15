@@ -13,6 +13,7 @@ import {
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -47,6 +48,7 @@ const defs: Record<string, unknown> = {
   GitInstruction: GitInstructionSchema,
   SessionInstruction: SessionInstructionSchema,
   ShellInstruction: ShellInstructionSchema,
+  RoutineRefInstruction: RoutineRefInstructionSchema,
 };
 
 defs.FlowInstruction = {
@@ -59,6 +61,7 @@ defs.FlowInstruction = {
     { $ref: "#/$defs/GitInstruction" },
     { $ref: "#/$defs/SessionInstruction" },
     { $ref: "#/$defs/ShellInstruction" },
+    { $ref: "#/$defs/RoutineRefInstruction" },
   ],
 };
 
@@ -71,12 +74,14 @@ const schema = {
     "Self-contained flow definition. " +
     "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: ["$schema", "name", "command", "orchestrator", "routines"],
+  required: ["$schema", "name", "command", "routines"],
   properties: {
     $schema: FlowDefinitionSchema.properties.$schema,
     name: { type: "string", minLength: 1 },
     command: { type: "string", minLength: 1 },
-    orchestrator: { $ref: "#/$defs/OrchestratorConfig" },
+    orchestrator: {
+      anyOf: [{ $ref: "#/$defs/OrchestratorConfig" }, { type: "null" }],
+    },
     routines: {
       type: "object",
       additionalProperties: {
@@ -84,6 +89,8 @@ const schema = {
         required: ["params", "steps"],
         properties: {
           params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
+          input_schema: { type: "string" },
+          output_schema: { type: "string" },
           steps: {
             type: "array",
             items: { $ref: "#/$defs/FlowInstruction" },

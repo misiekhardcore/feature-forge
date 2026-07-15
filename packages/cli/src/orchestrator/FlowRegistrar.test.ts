@@ -1,8 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { InMemoryAgentSupervisor } from "../agents";
-import type { SpecManager } from "../agents/SpecManager";
+import type { AgentSupervisor, SpecManager } from "../agents";
 import { logger } from "../logging";
 import type { CommandRegistry, ToolRegistry } from "../registry";
 import { makeMockPi, makeMockTypedEventBus } from "../test-utils";
@@ -75,14 +74,14 @@ interface FlowRegistrarParams {
   pi: ExtensionAPI;
   cmdRegistry: CommandRegistry;
   toolRegistry: ToolRegistry;
-  supervisor: InMemoryAgentSupervisor;
+  supervisor: AgentSupervisor;
   specManager: SpecManager;
   workspaceManager: WorkspaceManager;
   flowsDir: string;
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
   eventBus: TypedEventBus;
-  flowMap?: Map<string, FlowDefinition>;
+  flowMap: Map<string, FlowDefinition>;
 }
 
 function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {
@@ -97,7 +96,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     pi,
     cmdRegistry,
     toolRegistry,
-    supervisor: overrides.supervisor ?? ({} as InMemoryAgentSupervisor),
+    supervisor: overrides.supervisor ?? ({} as AgentSupervisor),
     specManager:
       overrides.specManager ??
       ({
@@ -109,7 +108,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
-    flowMap: overrides.flowMap,
+    flowMap: overrides.flowMap ?? new Map(),
   };
 }
 
@@ -429,14 +428,6 @@ describe("FlowRegistrar", () => {
       expect(flowMap.get("/a")?.name).toBe("flow-a");
       expect(flowMap.get("/a")?.params).toEqual([{ name: "model", default: "claude" }]);
       expect(flowMap.get("/b")?.name).toBe("flow-b");
-    });
-
-    it("does not crash when flowMap is not provided", async () => {
-      setupSingleFlow();
-
-      const params = makeParams({ flowMap: undefined });
-      const registrar = new FlowRegistrar(params);
-      await expect(registrar.registerAll()).resolves.toBeUndefined();
     });
 
     it("registers orchestrator commands even when a flow has no routines", async () => {

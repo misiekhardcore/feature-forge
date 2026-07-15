@@ -45,13 +45,16 @@ import { makeMockTypedEventBus } from "../test-utils";
 
 // ── Helpers ──────────────────────────────────────────────────
 
-/** Collect all parseJson: true agent IDs within a list of instructions (recursive). */
+/** Collect all parseJson: true agent IDs and routine ref IDs within a list of instructions (recursive). */
 function collectParseJsonIds(
   instructions: FlowInstruction[],
   ids = new Set<string>(),
 ): Set<string> {
   for (const instr of instructions) {
     if (instr.type === "agent" && instr.parseJson) {
+      ids.add(instr.id);
+    }
+    if (instr.type === "routine") {
       ids.add(instr.id);
     }
     if (isContainerInstruction(instr)) {
@@ -133,158 +136,190 @@ function collectFromRoutines(routines: FlowDefinition["routines"]): {
   return { agentTasks, loops, specRefs };
 }
 
-// ── Tests ────────────────────────────────────────────────────
+// ── Test factory ──────────────────────────────────────────────
 
-describe("flow round-trip", () => {
-  const flowsDir = path.join(__dirname, "implement");
-  const specsDir = path.join(__dirname, "..", "agents", "declarative-specs");
+interface FlowTestContext {
+  flow: FlowDefinition;
+  knownSpecs: ReadonlySet<string>;
+  /** Additional params to merge into the test context for placeholder resolution. */
+  additionalParams?: Record<string, string>;
+}
 
-  // Load known spec names once for the whole suite.
-  let knownSpecs!: ReadonlySet<string>;
-  let loader!: FlowLoader;
-  let flow!: FlowDefinition;
+async function loadFlow(
+  flowsDir: string,
+  name: string,
+  specsDir: string,
+): Promise<FlowTestContext> {
+  const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
+  await specManager.loadFromDirectory(specsDir);
+  const knownSpecs = specManager.specNames();
 
-  beforeAll(async () => {
-    const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
-    await specManager.loadFromDirectory(specsDir);
-    knownSpecs = specManager.specNames();
+  const loader = new FlowLoader({ flowsDir, knownSpecs });
+  const flow = await loader.load(name);
 
-    // Load the single shipped flow. When more flows are added,
-    // this iterates all .json files excluding flow-schema.json.
-    // Using a single describe block per flow gives clean failure
-    // output with the flow name in the describe header.
-    loader = new FlowLoader({ flowsDir: flowsDir, knownSpecs });
-    flow = await loader.load("flow");
+  return { flow, knownSpecs };
+}
+
+function runCommonTests(name: string, ctx: () => FlowTestContext): void {
+  // ── 1. Structural + semantic validation (implied by load success) ──
+
+  it("loads without validation errors", () => {
+    const { flow } = ctx();
+    expect(flow.name).toBe(name);
+    expect(Object.keys(flow.routines).length).toBeGreaterThan(0);
   });
 
-  describe("implement", () => {
-    // ── 1. Structural + semantic validation (implied by load success) ──
+  // ── 2. No unresolved placeholders in any task ──────────────────
 
-    it("loads without validation errors", () => {
-      expect(flow.name).toBe("implement");
-      expect(Object.keys(flow.routines).length).toBeGreaterThan(0);
-    });
+  it("resolves all agent instruction tasks with no {{...}} survivors", () => {
+    const { flow, additionalParams } = ctx();
+    const ctxInner = new FlowContext({
+      results: new Map(),
+      prompt: "test-task",
+    })
+      .withParams({ plan: "test-plan", workspace: "/tmp/test-workspace", ...additionalParams })
+      .withFeedback("test-feedback");
 
-    // ── 2. No unresolved placeholders in any task ──────────────────
+    const { agentTasks } = collectFromRoutines(flow.routines);
 
-    it("resolves orchestrator.systemPrompt with no {{...}} survivors", () => {
-      const ctx = new FlowContext({
+    for (const task of agentTasks) {
+      const resolved = ctxInner.resolve(task);
+      expect(resolved, `unresolved placeholder in task: "${task.slice(0, 80)}..."`).not.toMatch(
+        /\{\{/,
+      );
+    }
+  });
+
+  // ── 3. Every agent.systemPrompt references a known spec ───────────────
+
+  it("references only known agent specs", () => {
+    const { flow, knownSpecs } = ctx();
+    const { specRefs } = collectFromRoutines(flow.routines);
+
+    for (const spec of specRefs) {
+      expect(knownSpecs.has(spec), `unknown spec "${spec}" — not in declarative-specs`).toBe(true);
+    }
+  });
+
+  // ── 4. Orchestrator.systemPrompt resolves cleanly (if present) ────
+
+  it("skips orchestrator-specific tests when absent", () => {
+    const { flow } = ctx();
+    if (flow.orchestrator) {
+      expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
+
+      const ctxOrch = new FlowContext({
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
-      expect(resolved).not.toMatch(/\{\{/);
-    });
-
-    it("resolves all agent instruction tasks with no {{...}} survivors", () => {
-      const ctx = new FlowContext({
-        results: new Map(),
-        prompt: "test-task",
-      })
-        .withParams({ plan: "test-plan", workspace: "/tmp/test-workspace" })
-        .withFeedback("test-feedback");
-
-      const { agentTasks } = collectFromRoutines(flow.routines);
-
-      for (const task of agentTasks) {
-        const resolved = ctx.resolve(task);
-        expect(resolved, `unresolved placeholder in task: "${task.slice(0, 80)}..."`).not.toMatch(
-          /\{\{/,
-        );
-      }
-    });
-
-    // ── 3. Every agent.systemPrompt references a known spec ───────────────
-
-    it("references only known agent specs", () => {
-      const { specRefs } = collectFromRoutines(flow.routines);
-
-      for (const spec of specRefs) {
-        expect(knownSpecs.has(spec), `unknown spec "${spec}" — not in declarative-specs`).toBe(
-          true,
-        );
-      }
-    });
-
-    // ── 4. Orchestrator.systemPrompt resolves cleanly ──────────────────
-
-    it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
-      expect(flow.orchestrator!.systemPrompt.length).toBeGreaterThan(0);
-
-      const ctx = new FlowContext({
-        results: new Map(),
-        prompt: "test-task",
-      });
-      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
+      const resolved = ctxOrch.resolve(flow.orchestrator.systemPrompt);
 
       expect(resolved).not.toMatch(/\{\{/);
       expect(resolved).not.toMatch(/\}\}/);
-    });
+    } else {
+      expect(flow.orchestrator).toBeUndefined();
+    }
+  });
 
-    // ── 5. continueWhile parses and evaluates ────────────────────
+  // ── 5. continueWhile parses and evaluates ────────────────────
 
-    it("continueWhile expressions parse and evaluate for all states", () => {
-      const { loops } = collectFromRoutines(flow.routines);
+  it("continueWhile expressions parse and evaluate for all states", () => {
+    const { flow } = ctx();
+    const { loops } = collectFromRoutines(flow.routines);
 
-      for (const loop of loops) {
-        if (!loop.continueWhile) continue;
+    for (const loop of loops) {
+      if (!loop.continueWhile) continue;
 
-        // 5a. Parse must succeed (no syntax error).
-        const expr = loop.continueWhile;
-        expect(() => ExpressionEvaluator.parseExpression(expr)).not.toThrow();
+      // 5a. Parse must succeed (no syntax error).
+      const expr = loop.continueWhile;
+      expect(() => ExpressionEvaluator.parseExpression(expr)).not.toThrow();
 
-        const parseJsonIds = [...collectParseJsonIds(loop.steps)];
+      const parseJsonIds = [...collectParseJsonIds(loop.steps)];
 
-        // 5b. With all results passing, the loop should exit (expression → false).
-        if (parseJsonIds.length > 0) {
-          const allPassed = makeStubContext(parseJsonIds, true);
-          expect(ExpressionEvaluator.evaluateExpression(expr, allPassed)).toBe(false);
-        }
-
-        // 5c. With one result failing, the loop should continue (expression → true).
-        if (parseJsonIds.length > 0) {
-          const oneFailed = makeStubContext(parseJsonIds, true);
-          // Override the first id to passed: false.
-          const failingId = parseJsonIds[0];
-          oneFailed.results.set(failingId, {
-            raw: `stub output for ${failingId}`,
-            parsed: { passed: false },
-          });
-          expect(ExpressionEvaluator.evaluateExpression(expr, oneFailed)).toBe(true);
-        }
-
-        // 5d. Missing required results (builder without ?.) intentionally throws.
-        // The expression !results.builder?.parsed?.passed uses a required `.`
-        // on "builder" — if the builder hasn't run yet, that's a flow execution
-        // ordering bug. The loop gate requires builder to have produced a result.
-        const empty = { results: new Map() };
-        expect(() => ExpressionEvaluator.evaluateExpression(expr, empty)).toThrow(
-          "No result found for id",
-        );
-      }
-    });
-
-    // ── 6. RoutineTool name alignment with tools ──────────
-
-    it("routine-based tools match registered RoutineTool names", () => {
-      // tools now come from orchestrator.md frontmatter, not flow.json.
-      // Verify that routine-based tool names match the routine names in the flow.
-      const registry = new StepExecutorRegistry();
-      const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
-      const routineToolNames = new Set<string>();
-
-      for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-        const tool = new RoutineTool(flow.name, routineName, executor, routineDef, {
-          getAgent: vi.fn().mockReturnValue(undefined),
-          getAllAgents: vi.fn().mockReturnValue([]),
-        } as unknown as AgentSupervisor);
-        routineToolNames.add(tool.name);
+      // 5b. With all results passing, the loop should exit (expression → false).
+      if (parseJsonIds.length > 0) {
+        const allPassed = makeStubContext(parseJsonIds, true);
+        expect(ExpressionEvaluator.evaluateExpression(expr, allPassed)).toBe(false);
       }
 
-      // Each routine is registered as a tool — verify the names match
-      for (const routineName of Object.keys(flow.routines)) {
-        expect(routineToolNames.has(routineName)).toBe(true);
+      // 5c. With one result failing, the loop should continue (expression → true).
+      if (parseJsonIds.length > 0) {
+        const oneFailed = makeStubContext(parseJsonIds, true);
+        const failingId = parseJsonIds[0];
+        oneFailed.results.set(failingId, {
+          raw: `stub output for ${failingId}`,
+          parsed: { passed: false },
+        });
+        expect(ExpressionEvaluator.evaluateExpression(expr, oneFailed)).toBe(true);
       }
+
+      // 5d. Missing required results should throw.
+      const empty = { results: new Map() };
+      expect(() => ExpressionEvaluator.evaluateExpression(expr, empty)).toThrow(
+        "No result found for id",
+      );
+    }
+  });
+
+  // ── 6. RoutineTool name alignment with tools ──────────
+
+  it("routine-based tools match registered RoutineTool names", () => {
+    const { flow } = ctx();
+    const registry = new StepExecutorRegistry();
+    const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
+    const routineToolNames = new Set<string>();
+
+    for (const [routineName, routineDef] of Object.entries(flow.routines)) {
+      const tool = new RoutineTool(flow.name, routineName, executor, routineDef, {
+        getAgent: vi.fn().mockReturnValue(undefined),
+        getAllAgents: vi.fn().mockReturnValue([]),
+      } as unknown as AgentSupervisor);
+      routineToolNames.add(tool.name);
+    }
+
+    for (const routineName of Object.keys(flow.routines)) {
+      expect(routineToolNames.has(routineName)).toBe(true);
+    }
+  });
+}
+
+// ── Tests ────────────────────────────────────────────────────
+
+describe("flow round-trip", () => {
+  const specsDir = path.join(__dirname, "..", "agents", "declarative-specs");
+
+  describe("implement", () => {
+    const flowsDir = path.join(__dirname, "implement");
+    let ctx!: FlowTestContext;
+
+    beforeAll(async () => {
+      ctx = await loadFlow(flowsDir, "flow", specsDir);
     });
+
+    runCommonTests("implement", () => ctx);
+  });
+
+  describe("review", () => {
+    const flowsDir = path.join(__dirname, "review");
+    let ctx!: FlowTestContext;
+
+    beforeAll(async () => {
+      ctx = await loadFlow(flowsDir, "flow", specsDir);
+      ctx.additionalParams = { build_output: "test build output for review" };
+    });
+
+    runCommonTests("review", () => ctx);
+  });
+
+  describe("verify", () => {
+    const flowsDir = path.join(__dirname, "verify");
+    let ctx!: FlowTestContext;
+
+    beforeAll(async () => {
+      ctx = await loadFlow(flowsDir, "flow", specsDir);
+      ctx.additionalParams = { build_output: "test build output for verify" };
+    });
+
+    runCommonTests("verify", () => ctx);
   });
 });

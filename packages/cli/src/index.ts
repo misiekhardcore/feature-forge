@@ -26,6 +26,7 @@ import { SpecLoader } from "./loaders";
 import { FileLogger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
+import type { FlowDefinition } from "./orchestrator/FlowInstruction";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import {
@@ -131,12 +132,19 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     .register("git-worktree", worktreeProvider)
     .register("current-dir", new CurrentDirProvider());
 
+  // ── Shared flow definition map ──────────────────────────────────
+  // Populated by FlowRegistrar during registerAll() and consumed by
+  // RoutineRefStepExecutor (via createStepExecutorRegistry) to resolve
+  // type: "routine" instructions. Must be created before both registries.
+  const flowMap = new Map<string, FlowDefinition>();
+
   // ── Step executor registry ───────────────────────────────────────
   const stepExecutorRegistry = createStepExecutorRegistry(
     workspaceProviderRegistry,
     supervisor,
     specManager,
     worktreeRegistry,
+    flowMap,
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
@@ -152,6 +160,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
     eventBus: new TypedEventBus(pi.events),
+    flowMap,
   });
   await flowRegistrar.registerAll();
 
