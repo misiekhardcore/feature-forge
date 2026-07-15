@@ -74,6 +74,8 @@ export interface AgentViewerOverlayParams {
 
   /** Markdown theme for rendering markdown content. */
   markdownTheme: MarkdownTheme;
+  /** Current working directory — used by {@link ConversationRenderer} for tool execution display. */
+  cwd: string;
 }
 
 /**
@@ -127,6 +129,9 @@ export class AgentViewerOverlay implements Component {
    */
   private readonly markdownTheme: MarkdownTheme;
 
+  /** Current working directory — passed through to {@link ConversationRenderer}. */
+  private readonly cwd: string;
+
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
 
@@ -168,14 +173,20 @@ export class AgentViewerOverlay implements Component {
   private readonly conversationRenderer: ConversationRenderer;
 
   /**
-   * @param params — Configuration object with tui, theme, onDone, and markdownTheme.
+   * @param params — Configuration object with tui, theme, onDone, markdownTheme, and cwd.
    */
   constructor(params: AgentViewerOverlayParams) {
     this.tui = params.tui;
     this.theme = params.theme;
     this.onDone = params.onDone;
     this.markdownTheme = params.markdownTheme;
-    this.conversationRenderer = new ConversationRenderer(params.theme, params.markdownTheme);
+    this.cwd = params.cwd;
+    this.conversationRenderer = new ConversationRenderer({
+      theme: params.theme,
+      markdownTheme: params.markdownTheme,
+      tui: params.tui,
+      cwd: params.cwd,
+    });
   }
 
   /**
@@ -358,15 +369,30 @@ export class AgentViewerOverlay implements Component {
   /**
    * Return the extracted {@link AgentMessage} objects for an agent, in order.
    *
-   * Messages are extracted from {@link pushStreamEvent} calls and from
-   * the JSONL file during {@link prepopulateStreamFiles}. The list contains
-   * one entry per logical message (message updates replace the prior entry).
+   * For live agents, messages are extracted incrementally from
+   * {@link pushStreamEvent} calls. For historical agents loaded from disk,
+   * messages are extracted from the event buffer on-the-fly to avoid
+   * duplicating data in memory.
    *
    * @param agentId — The agent to get messages for.
    * @returns An array of messages, most recent last. Empty array for unknown agents.
    */
   getConversationMessages(agentId: string): AgentMessage[] {
-    return this.agentMessages.get(agentId) ?? [];
+    // Fast path: pre-extracted messages from live streaming.
+    const cached = this.agentMessages.get(agentId);
+    if (cached && cached.length > 0) return cached;
+
+    // Fallback: extract from stored events (historical agents loaded from disk).
+    const events = this.agentEvents.get(agentId);
+    if (!events || events.length === 0) return [];
+
+    const messages: AgentMessage[] = [];
+    for (const evt of events) {
+      const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
+      if (!msg) continue;
+      AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
+    }
+    return messages;
   }
 
   /**
@@ -507,17 +533,6 @@ export class AgentViewerOverlay implements Component {
                 merged.splice(0, merged.length - MAX_AGENT_EVENTS);
               }
               this.agentEvents.set(agentId, merged);
-
-              // Extract AgentMessages from the merged events.
-              const messages: AgentMessage[] = [];
-              for (const evt of merged) {
-                const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
-                if (!msg) continue;
-                AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
-              }
-              if (messages.length > 0) {
-                this.agentMessages.set(agentId, messages);
-              }
             }
           } catch (error) {
             logger.debug("Failed to prepopulate events from JSONL file, skipping", {
@@ -605,8 +620,8 @@ export class AgentViewerOverlay implements Component {
    * Merge an extracted AgentMessage into a message list, handling deduplication
    * for message_update and message_end events by replacing the last entry.
    *
-   * Shared between {@link appendMessageFromEvent} and
-   * {@link prepopulateStreamFiles} to keep dedup logic in one place.
+   * Used by {@link appendMessageFromEvent} and {@link getConversationMessages}
+   * to keep dedup logic in one place.
    */
   private static mergeMessageIntoList(
     messages: AgentMessage[],
