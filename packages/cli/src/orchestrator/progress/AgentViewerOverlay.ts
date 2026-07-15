@@ -721,8 +721,14 @@ export class AgentViewerOverlay implements Component {
     // chars on each side, and 2 for the single-space margins inside each border.
     const contentWidth = Math.max(0, outerWidth - 4);
 
-    const top = theme.fg("warning", "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐");
-    const bot = theme.fg("warning", "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘");
+    const top = theme.fg(
+      "warning",
+      "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐",
+    );
+    const bot = theme.fg(
+      "warning",
+      "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘",
+    );
     const leftBorder = theme.fg("warning", "│");
     const rightBorder = theme.fg("warning", "│");
 
@@ -770,7 +776,10 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
+      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+        entry.status,
+        entry.passed,
+      );
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -831,8 +840,14 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
-    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(entry.status, entry.passed);
+    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+      entry.status,
+      entry.passed,
+    );
+    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
+      entry.status,
+      entry.passed,
+    );
 
     // Header
     lines.push(
