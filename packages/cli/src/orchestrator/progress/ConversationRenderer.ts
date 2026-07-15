@@ -52,6 +52,8 @@ export class ConversationRenderer {
   render(events: AgentEvent[], width: number): string[] {
     const lines: string[] = [];
     let toolCallIndex = 0;
+    // Inner content width after subtracting overlay border/margin padding (2 per side).
+    const innerWidth = Math.max(10, width - 4);
 
     // In-progress state — local to this render call.
     let pendingMessage: AgentMessage | undefined;
@@ -64,7 +66,7 @@ export class ConversationRenderer {
       if (pendingMessage.role === "user") {
         const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
         if (text.length > 0) {
-          const rendered = new UserMessageComponent(text, this.markdownTheme).render(width);
+          const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
           for (const line of rendered) lines.push(line);
         }
       } else if (pendingMessage.role === "assistant") {
@@ -72,7 +74,7 @@ export class ConversationRenderer {
           pendingMessage,
           false,
           this.markdownTheme,
-        ).render(width);
+        ).render(innerWidth);
         for (const line of rendered) lines.push(line);
       } else {
         // Custom, system, toolResult, and other roles — extract text.
@@ -106,7 +108,7 @@ export class ConversationRenderer {
         );
         component.setExpanded(true);
       }
-      const rendered = component.render(width);
+      const rendered = component.render(innerWidth);
       for (const line of rendered) lines.push(line);
       pendingToolStart = undefined;
       pendingToolResult = undefined;

@@ -607,12 +607,13 @@ export class AgentViewerOverlay implements Component {
    */
   private computeViewportHeight(): number {
     const termHeight = this.tui?.terminal?.rows;
-    if (!termHeight || termHeight < 1) return 20;
+    if (!termHeight || termHeight < 1) return 15;
     const rawMaxHeight = Math.ceil(
       this.percentToNumber(AgentViewerOverlay.overlayOptions.maxHeight) * termHeight,
     );
     const maxHeight = Math.max(1, rawMaxHeight);
-    return Math.max(1, maxHeight);
+    // Subtract 5 for addBorder wrapper: top border, top margin, bottom margin, bottom border.
+    return Math.max(1, maxHeight - 5);
   }
 
   private percentToNumber(percent: `${number}%`) {
@@ -761,13 +762,15 @@ export class AgentViewerOverlay implements Component {
 
     // Summary
     if (entry.summary) {
-      lines.push(theme.fg("accent", "Summary:\n"));
+      lines.push(theme.fg("accent", "Summary:"));
+      lines.push("");
       lines.push(entry.summary);
       lines.push("");
     }
 
     // Conversation header
-    lines.push(theme.fg("accent", "Conversation:\n"));
+    lines.push(theme.fg("accent", "Conversation:"));
+    lines.push("");
 
     const events = this.getConversation(entry.id);
     const conversationLines = this.renderConversationTurns(events, width);
@@ -872,7 +875,7 @@ export class AgentViewerOverlay implements Component {
     // Base header: agent line + separator = 2
     const baseHeaderLines = 2;
     // Summary section: "Summary:" + content + empty line = 3
-    const summaryLines = entry.summary ? 3 : 0;
+    const summaryLines = entry.summary ? 4 : 0;
     // Conversation block: "Conversation:" header + turn lines + trailing empty line.
     // Use cached line count unless pushStreamEvent dirtied it.
     if (this.conversationLinesDirty) {
@@ -882,7 +885,7 @@ export class AgentViewerOverlay implements Component {
       ).length;
       this.conversationLinesDirty = false;
     }
-    const totalConversationBlock = 1 + this.cachedConversationLineCount + 1;
+    const totalConversationBlock = 2 + this.cachedConversationLineCount + 1;
     // Help text: 1
     const footerLines = 1;
 
