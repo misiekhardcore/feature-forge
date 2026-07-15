@@ -52,8 +52,8 @@ export class ConversationRenderer {
   render(events: AgentEvent[], width: number): string[] {
     const lines: string[] = [];
     let toolCallIndex = 0;
-    // Inner content width after subtracting overlay border/margin padding (2 per side).
-    const innerWidth = Math.max(10, width - 4);
+    // Width is already the inner content width (minus overlay border/margin).
+    const innerWidth = Math.max(10, width);
 
     // In-progress state — local to this render call.
     let pendingMessage: AgentMessage | undefined;
@@ -66,6 +66,9 @@ export class ConversationRenderer {
       if (pendingMessage.role === "user") {
         const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
         if (text.length > 0) {
+          // Blank line between turns, matching pi's interactive mode behavior
+          // (adds Spacer(1) to the outer chatContainer between messages).
+          if (lines.length > 0) lines.push("");
           const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
           for (const line of rendered) lines.push(line);
         }

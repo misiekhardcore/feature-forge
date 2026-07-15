@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
@@ -241,10 +241,6 @@ export class AgentViewerOverlay implements Component {
 
   invalidate(): void {
     /* Stateless render — no cached state to clear. */
-  }
-
-  static getInnerWidth(width: number) {
-    return width - AgentViewerOverlay.overlayOptions.margin * 2 - 1 * 2; //margin and border
   }
 
   // ── Public data methods ───────────────────────────────────
@@ -620,34 +616,42 @@ export class AgentViewerOverlay implements Component {
     return Number(percent.slice(0, -1)) / 100;
   }
 
-  private addBorder(lines: string[], contentWidth: number): string[] {
+  private addBorder(lines: string[], outerWidth: number): string[] {
     const { theme } = this;
-    const inner = Math.max(0, contentWidth - 2);
+    // Content width inside the border after subtracting 2 for the `|` border
+    // chars on each side, and 2 for the single-space margins inside each border.
+    const contentWidth = Math.max(0, outerWidth - 4);
 
-    const top = theme.fg("warning", "┌" + AgentDisplayHelpers.getHorizontalLine(inner) + "┐");
-    const bot = theme.fg("warning", "└" + AgentDisplayHelpers.getHorizontalLine(inner) + "┘");
+    const top = theme.fg(
+      "warning",
+      "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐",
+    );
+    const bot = theme.fg(
+      "warning",
+      "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘",
+    );
     const leftBorder = theme.fg("warning", "│");
     const rightBorder = theme.fg("warning", "│");
-
-    // Content area between left and right margin spaces.
-    const contentArea = Math.max(inner - 2, 0);
 
     const result: string[] = [];
 
     // Top border
     result.push(top);
 
-    // 1-line top margin (blank line with borders + margin spaces)
-    result.push(leftBorder + " ".repeat(contentArea + 2) + rightBorder);
+    // Top blank margin (1 line inside border)
+    result.push(leftBorder + " ".repeat(contentWidth + 2) + rightBorder);
 
     for (const raw of lines) {
-      const visible = this.stripAnsi(raw);
-      const pad = visible.length < contentArea ? " ".repeat(contentArea - visible.length) : "";
-      result.push(leftBorder + " " + raw + pad + " " + rightBorder);
+      // Normalize every line to exactly contentWidth visible chars using
+      // pi-tui's truncateToWidth which handles ANSI/OSC sequences correctly.
+      // Empty-string ellipsis avoids appending "..." on truncation;
+      // pad=true ensures short lines are space-padded to contentWidth.
+      const normalized = truncateToWidth(raw, contentWidth, "", true);
+      result.push(leftBorder + " " + normalized + " " + rightBorder);
     }
 
-    // 1-line bottom margin (blank line with borders + margin spaces)
-    result.push(leftBorder + " ".repeat(contentArea + 2) + rightBorder);
+    // Bottom blank margin (1 line inside border)
+    result.push(leftBorder + " ".repeat(contentWidth + 2) + rightBorder);
 
     // Bottom border
     result.push(bot);
@@ -665,9 +669,7 @@ export class AgentViewerOverlay implements Component {
 
     if (this.agents.size === 0) {
       lines.push(theme.fg("muted", "no agents running"));
-      const wrapped = lines.flatMap((line) =>
-        wrapTextWithAnsi(line, AgentViewerOverlay.getInnerWidth(width)),
-      );
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
       return this.addBorder(wrapped, width);
     }
 
@@ -712,9 +714,7 @@ export class AgentViewerOverlay implements Component {
       ),
     );
 
-    const wrapped = lines.flatMap((line) =>
-      wrapTextWithAnsi(line, AgentViewerOverlay.getInnerWidth(width)),
-    );
+    const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
   }
 
@@ -725,18 +725,11 @@ export class AgentViewerOverlay implements Component {
     const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
     if (!entry) {
       lines.push(theme.fg("accent", "Agent Detail"));
-      lines.push(
-        theme.fg(
-          "muted",
-          AgentDisplayHelpers.getHorizontalLine(AgentViewerOverlay.getInnerWidth(width)),
-        ),
-      );
+      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
       lines.push(theme.fg("muted", "agent not found"));
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
-      const wrapped = lines.flatMap((line) =>
-        wrapTextWithAnsi(line, AgentViewerOverlay.getInnerWidth(width)),
-      );
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
       return this.addBorder(wrapped, width);
     }
 
@@ -753,12 +746,7 @@ export class AgentViewerOverlay implements Component {
     lines.push(
       `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
     );
-    lines.push(
-      theme.fg(
-        "muted",
-        AgentDisplayHelpers.getHorizontalLine(AgentViewerOverlay.getInnerWidth(width)),
-      ),
-    );
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
 
     // Summary
     if (entry.summary) {
@@ -796,9 +784,7 @@ export class AgentViewerOverlay implements Component {
     const viewportEnd = Math.min(this.scrollOffset + viewportHeight, lines.length);
     const visibleLines = lines.slice(this.scrollOffset, viewportEnd);
 
-    const wrapped = visibleLines.flatMap((line) =>
-      wrapTextWithAnsi(line, AgentViewerOverlay.getInnerWidth(width)),
-    );
+    const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
   }
 
@@ -810,15 +796,7 @@ export class AgentViewerOverlay implements Component {
    * state-machine grouping and pi component dispatch.
    */
   private renderConversationTurns(events: AgentEvent[], width: number): string[] {
-    return this.conversationRenderer.render(events, AgentViewerOverlay.getInnerWidth(width));
-  }
-
-  /**
-   * Strip ANSI escape sequences to measure visible length.
-   */
-  private stripAnsi(text: string): string {
-    // eslint-disable-next-line no-control-regex
-    return text.replace(/\x1b\[[0-9;]*m/g, "");
+    return this.conversationRenderer.render(events, width - 4);
   }
 
   private handleListInput(data: string): void {

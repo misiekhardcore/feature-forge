@@ -3396,35 +3396,6 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("stripAnsi", () => {
-    it("strips foreground colour escape codes (e.g. \x1b[93m)", () => {
-      const overlay = makeOverlay();
-      const input = "\x1b[93mHello\x1b[0m";
-      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
-      expect(result).toBe("Hello");
-    });
-
-    it("strips multiple ANSI codes from the same string", () => {
-      const overlay = makeOverlay();
-      const input = "\x1b[93m┌──┐\x1b[0m\n\x1b[93m│Hi│\x1b[0m";
-      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
-      expect(result).toBe("┌──┐\n│Hi│");
-    });
-
-    it("leaves plain text without ANSI codes unchanged", () => {
-      const overlay = makeOverlay();
-      const input = "Just plain text \u2502 more text";
-      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi(input);
-      expect(result).toBe(input);
-    });
-
-    it("handles empty string", () => {
-      const overlay = makeOverlay();
-      const result = (overlay as unknown as { stripAnsi: (t: string) => string }).stripAnsi("");
-      expect(result).toBe("");
-    });
-  });
-
   describe("in-memory sliding window cap", () => {
     it("caps per-agent event buffer at MAX_AGENT_EVENTS with FIFO eviction", () => {
       const overlay = makeOverlay();
