@@ -58,29 +58,27 @@ export class ConversationRenderer {
     let pendingToolStart: Extract<AgentEvent, { type: "tool_execution_start" }> | undefined;
     let pendingToolResult: { text: string; isError: boolean } | undefined;
 
-    const innerWidth = Math.max(10, width - 4);
-
     const flushMessage = (): void => {
       if (!pendingMessage) return;
 
       if (pendingMessage.role === "user") {
         const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
         if (text.length > 0) {
-          const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
-          for (const line of rendered) lines.push(`  ${line}`);
+          const rendered = new UserMessageComponent(text, this.markdownTheme).render(width);
+          for (const line of rendered) lines.push(line);
         }
       } else if (pendingMessage.role === "assistant") {
         const rendered = new AssistantMessageComponent(
           pendingMessage,
           false,
           this.markdownTheme,
-        ).render(innerWidth);
-        for (const line of rendered) lines.push(`  ${line}`);
+        ).render(width);
+        for (const line of rendered) lines.push(line);
       } else {
         // Custom, system, toolResult, and other roles — extract text.
         const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
         if (text.length > 0) {
-          lines.push(`  ${this.theme.fg("muted", text.slice(0, 240))}`);
+          lines.push(this.theme.fg("muted", text));
         }
       }
       pendingMessage = undefined;
@@ -108,8 +106,8 @@ export class ConversationRenderer {
         );
         component.setExpanded(true);
       }
-      const rendered = component.render(innerWidth);
-      for (const line of rendered) lines.push(`  ${line}`);
+      const rendered = component.render(width);
+      for (const line of rendered) lines.push(line);
       pendingToolStart = undefined;
       pendingToolResult = undefined;
     };
@@ -156,13 +154,7 @@ export class ConversationRenderer {
           break;
 
         case "turn_start":
-          lines.push(`  ${this.theme.fg("muted", "─".repeat(Math.min(width - 4, 40)))}`);
-          break;
-
         case "turn_end":
-          lines.push("");
-          break;
-
         case "agent_start":
         case "agent_end":
           // Lifecycle events are reflected in the agent list view.

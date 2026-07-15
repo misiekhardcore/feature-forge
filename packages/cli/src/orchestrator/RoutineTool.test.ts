@@ -692,7 +692,7 @@ describe("RoutineTool", () => {
       expect(statusCalls.length).toBeGreaterThanOrEqual(2); // started + done
 
       const startedCall = statusCalls.find(
-        (c: unknown[]) => typeof c[1] === "string" && c[1].includes("⏳"),
+        (c: unknown[]) => typeof c[1] === "string" && c[1].includes("⟳"),
       );
       expect(startedCall).toBeDefined();
       expect(startedCall![1]).toContain("builder");
@@ -921,7 +921,7 @@ describe("RoutineTool", () => {
           overlayOptions: expect.objectContaining({
             anchor: "center",
             width: "100%",
-            maxHeight: "95%",
+            maxHeight: "85%",
             margin: 1,
           }),
         }),

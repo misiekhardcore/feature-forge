@@ -43,7 +43,7 @@ describe("ProgressRenderer", () => {
 
     it("returns a warning-coloured hourglass for started", () => {
       const result = ProgressRenderer.statusIcon("started", theme);
-      expect(result).toBe("⏳");
+      expect(result).toBe("⟳");
     });
 
     it("returns an error-coloured cross for error", () => {
@@ -311,8 +311,8 @@ describe("ProgressRenderer", () => {
     });
 
     it("appends annotation after an em-dash", () => {
-      const result = ProgressRenderer.formatAgentRow("⏳", "tester", "in progress");
-      expect(result).toBe("  ⏳ tester — in progress");
+      const result = ProgressRenderer.formatAgentRow("→", "tester", "in progress");
+      expect(result).toBe("  → tester — in progress");
     });
   });
 
@@ -400,10 +400,10 @@ describe("ProgressRenderer", () => {
       const text = ProgressRenderer.buildStatusLine({
         theme,
         title: "build",
-        tags: ["✓ builder", "⏳ tester"],
+        tags: ["✓ builder", "→ tester"],
       });
       expect(text).toContain("✓ builder");
-      expect(text).toContain("⏳ tester");
+      expect(text).toContain("→ tester");
       expect(text).toContain("·");
     });
   });
@@ -426,7 +426,7 @@ describe("ProgressRenderer", () => {
       const options: ToolRenderResultOptions = { expanded: false, isPartial: true };
       const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
       const lines = rendered.render(80);
-      expect(lines[0]).toContain("⏳");
+      expect(lines[0]).toContain("⟳");
       expect(lines[0]).toContain("test-routine");
       expect(lines[0]).toContain("running");
     });

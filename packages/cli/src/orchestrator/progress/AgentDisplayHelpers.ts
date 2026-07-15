@@ -39,13 +39,35 @@ export class AgentDisplayHelpers {
     return "";
   }
 
+  static getHorizontalLine(width: number) {
+    return "─".repeat(width);
+  }
+
+  static getStatusLabel(
+    status: string | undefined,
+    passed?: boolean,
+  ): { label: string; color: ThemeColor } {
+    switch (status) {
+      case "started":
+        return { label: "running", color: "accent" };
+      case "done":
+        return passed === false
+          ? { label: "failed", color: "error" }
+          : { label: "completed", color: "success" };
+      case "error":
+        return { label: "error", color: "error" };
+      default:
+        return { label: status ?? "unknown", color: "muted" };
+    }
+  }
+
   /**
    * Resolve a status string to an icon character and theme colour tuple.
    *
    * - `"done"` + `passed !== false` → `{ char: "✓", color: "success" }`
    * - `"done"` + `passed === false` → `{ char: "✗", color: "error" }`
    * - `"running"` → `{ char: "⟳", color: "accent" }`
-   * - `"started"` → `{ char: "⏳", color: "warning" }`
+   * - `"started"` → `{ char: "→", color: "warning" }`
    * - `"error"` → `{ char: "✗", color: "error" }`
    * - anything else → `{ char: "○", color: "muted" }`
    */
@@ -56,10 +78,9 @@ export class AgentDisplayHelpers {
     switch (status) {
       case "done":
         return passed === false ? { char: "✗", color: "error" } : { char: "✓", color: "success" };
+      case "started":
       case "running":
         return { char: "⟳", color: "accent" };
-      case "started":
-        return { char: "⏳", color: "warning" };
       case "error":
         return { char: "✗", color: "error" };
       default:

@@ -24,7 +24,7 @@ describe("getStatusIcon", () => {
   });
 
   it('returns warning icon for "started" status', () => {
-    expect(AgentDisplayHelpers.getStatusIcon("started")).toEqual({ char: "⏳", color: "warning" });
+    expect(AgentDisplayHelpers.getStatusIcon("started")).toEqual({ char: "⟳", color: "accent" });
   });
 
   it('returns error icon for "error" status', () => {

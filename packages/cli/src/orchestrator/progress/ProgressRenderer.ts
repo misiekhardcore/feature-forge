@@ -69,7 +69,7 @@ export class ProgressRenderer {
    * - `"done"` + passed → success green ✓
    * - `"done"` + !passed → error red ✗
    * - `"running"` → accent ⟳
-   * - `"started"` → warning yellow ⏳
+   * - `"started"` → warning yellow →
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
@@ -110,7 +110,7 @@ export class ProgressRenderer {
 
     // Separator
     const separatorWidth = Math.min(60, Math.max(title.length + (subtitle?.length ?? 0) + 8, 20));
-    lines.push(theme.fg("muted", "─".repeat(separatorWidth)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(separatorWidth)));
 
     // Rows
     if (rows.length > 0) {

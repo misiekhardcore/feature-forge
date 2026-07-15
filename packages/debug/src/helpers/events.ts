@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   AssistantMessage,
   AssistantMessageEvent,
@@ -12,17 +12,6 @@ export function agentEndEvent(): AgentEvent {
   return { type: "agent_end", messages: [] };
 }
 
-export function userMessageStartEvent(text: string): AgentEvent {
-  return {
-    type: "message_start",
-    message: {
-      role: "user",
-      content: [{ type: "text", text }],
-      timestamp: Date.now(),
-    },
-  };
-}
-
 export function turnStartEvent(): AgentEvent {
   return { type: "turn_start" };
 }
@@ -32,16 +21,16 @@ export function turnEndEvent(
 ): AgentEvent {
   return { type: "turn_end", message, toolResults };
 }
-export function messageStartEvent(message: AssistantMessage): AgentEvent {
+export function messageStartEvent(message: AgentMessage): AgentEvent {
   return { type: "message_start", message };
 }
 export function messageUpdateEvent(
-  message: AssistantMessage,
+  message: AgentMessage,
   assistantMessageEvent: AssistantMessageEvent,
 ): AgentEvent {
   return { type: "message_update", message, assistantMessageEvent };
 }
-export function messageEndEvent(message: AssistantMessage): AgentEvent {
+export function messageEndEvent(message: AgentMessage): AgentEvent {
   return { type: "message_end", message };
 }
 export function toolExecutionStartEvent(

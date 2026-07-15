@@ -208,18 +208,6 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("output line 2");
     });
 
-    it("truncates raw output beyond default max", () => {
-      const overlay = makeOverlay();
-      const longOutput = "x".repeat(600);
-      overlay.update(makeEntry("builder", "done", { raw: longOutput }));
-
-      const lines = overlay.render(80);
-      const joined = lines.join("\n");
-
-      expect(joined).toContain("...");
-      expect(joined).not.toContain(longOutput);
-    });
-
     it("respects width parameter for separator", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done"));
@@ -246,7 +234,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("tool_execution_start: read");
-      expect(joined).toContain("⏳");
+      expect(joined).toContain("⟳");
     });
 
     it("shows stream line for done agents", () => {
@@ -262,26 +250,6 @@ describe("AgentViewerOverlay", () => {
 
       expect(joined).toContain("tool_execution_start: read");
       expect(joined).toContain("Build passed");
-    });
-
-    it("truncates long last stream line to fit width", () => {
-      const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "started"));
-      const longLine = "x".repeat(100);
-      overlay.pushStreamEvent("builder", {
-        type: "tool_execution_start",
-        toolName: longLine,
-      } as unknown as AgentEvent);
-
-      const lines = overlay.render(40);
-      const joined = lines.join("\n");
-
-      // Should be truncated to fit within width 40 minus 4-space indent.
-      expect(joined).toContain("tool_execution_start");
-      expect(joined).toContain("xxx");
-      expect(joined).toContain("...");
-      // The full long line should not appear.
-      expect(joined).not.toContain(longLine);
     });
 
     it("does not truncate short last stream lines", () => {
@@ -1137,7 +1105,7 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.viewMode).toBe("detail");
       expect(overlay.selectedAgentId).toBe("agent-b");
       // Auto-scroll enabled and scrollOffset set to max on entering detail view.
-      expect(overlay.autoScroll).toBe(false);
+      expect(overlay.autoScroll).toBe(true);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
@@ -1194,11 +1162,19 @@ describe("AgentViewerOverlay", () => {
       for (let i = 0; i < 25; i++) {
         overlay.pushStreamEvent("builder", {
           type: "message_start",
-          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+          message: {
+            role: "user",
+            content: [{ type: "text", text: `line ${i}` }],
+            timestamp: Date.now(),
+          },
         });
         overlay.pushStreamEvent("builder", {
           type: "message_end",
-          message: { role: "user", content: [{ type: "text", text: `line ${i}` }] },
+          message: {
+            role: "user",
+            content: [{ type: "text", text: `line ${i}` }],
+            timestamp: Date.now(),
+          },
         });
       }
       overlay.viewMode = "detail";
@@ -1486,31 +1462,6 @@ describe("AgentViewerOverlay", () => {
 
       expect(joined).toContain("unknown-agent");
       expect(joined).toContain("paused");
-    });
-
-    it("truncates long message content in conversation rendering", () => {
-      const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "started"));
-      const longText = "x".repeat(200);
-      overlay.pushStreamEvent("builder", {
-        type: "message_start",
-        message: { role: "assistant" },
-      } as unknown as AgentEvent);
-      overlay.pushStreamEvent("builder", {
-        type: "message_end",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: longText }],
-        },
-      } as unknown as AgentEvent);
-      overlay.viewMode = "detail";
-      overlay.selectedAgentId = "builder";
-
-      const lines = overlay.render(40);
-      const joined = lines.join("\n");
-
-      // pi components render full content — verify it renders.
-      expect(joined).toContain("Conversation:");
     });
 
     it("renders tool call result with done status in detail", () => {
@@ -1811,10 +1762,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       connect(overlay, "");
 
-      // The running agent should show ⏳ (no passed concept for started).
+      // The running agent should show ⟳ (no passed concept for started).
       const lines = overlay.render(80);
       const joined = lines.join("\n");
-      expect(joined).toContain("⏳");
+      expect(joined).toContain("⟳");
 
       unsubs.forEach((u) => u());
       overlay.dispose();
@@ -1999,7 +1950,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
       expect(joined).toContain("orphan");
-      expect(joined).toContain("⏳");
+      expect(joined).toContain("⟳");
       expect(joined).toContain("Agent disconnected");
 
       unsubs.forEach((u) => u());
@@ -2027,7 +1978,7 @@ describe("AgentViewerOverlay", () => {
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
-      expect(joined).toContain("⏳");
+      expect(joined).toContain("⟳");
       expect(joined).toContain("builder");
 
       unsubs.forEach((u) => u());
@@ -2201,7 +2152,7 @@ describe("AgentViewerOverlay", () => {
         // The tracked agent should still be "started" (not overwritten).
         const lines = overlay.render(80);
         const joined = lines.join("\n");
-        expect(joined).toContain("⏳");
+        expect(joined).toContain("⟳");
         expect(joined).toContain("builder");
 
         // The orphaned stream file should create a "done" entry.
@@ -2727,7 +2678,7 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("failing");
     });
 
-    it("renders running tool call with ⏳ icon", () => {
+    it("renders running tool call with ⟳ icon", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
@@ -2740,7 +2691,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("⏳");
+      expect(joined).toContain("⟳");
       expect(joined).toContain("long-running");
     });
 

@@ -11,9 +11,8 @@ import {
   toolExecutionStartEvent,
   turnEndEvent,
   turnStartEvent,
-  userMessageStartEvent,
 } from "../helpers/events.js";
-import { assistantMsg, toolResultMsg } from "../helpers/messages.js";
+import { assistantMsg, toolResultMsg, userMsg } from "../helpers/messages.js";
 
 export interface ScenarioData {
   agentId: string;
@@ -38,7 +37,7 @@ export function builderScenario(): ScenarioData {
     agentId: "builder",
     events: [
       agentStartEvent(),
-      userMessageStartEvent("Check the forge config and write an output file based on it."),
+      messageStartEvent(userMsg("Check the forge config and write an output file based on it.")),
       turnStartEvent(),
       toolExecutionStartEvent("call-b-1", "read", { path: "forge.config.ts" }),
       toolExecutionEndEvent(
@@ -66,7 +65,7 @@ export function reviewerScenario(): ScenarioData {
     agentId: "reviewer",
     events: [
       agentStartEvent(),
-      userMessageStartEvent("Run the linter and report any issues found."),
+      messageStartEvent(userMsg("Run the linter and report any issues found.")),
       turnStartEvent(),
       toolExecutionStartEvent("call-r-1", "bash", { command: "npx eslint src/" }),
       toolExecutionEndEvent("call-r-1", "bash", "3 errors, 5 warnings found in src/", false),
@@ -102,11 +101,15 @@ export function errorScenario(): ScenarioData {
 export function conversationScenario(): ScenarioData {
   const initial = assistantMsg("Let me check the codebase.");
   const updated = assistantMsg("Let me check the codebase for relevant patterns.");
+  const userMessage = userMsg(
+    "Find all registerHandler calls in the codebase and summarize the patterns.",
+  );
   return {
     agentId: "researcher",
     events: [
       agentStartEvent(),
-      userMessageStartEvent("Find all registerHandler calls in the codebase and summarize the patterns."),
+      messageStartEvent(userMessage),
+      messageEndEvent(userMessage),
       turnStartEvent(),
       messageStartEvent(initial),
       messageUpdateEvent(updated, textDeltaEvent(0, " for relevant patterns", updated)),
@@ -130,8 +133,8 @@ export function manyTurnsScenario(): ScenarioData {
     // Every 5th turn starts with a user message to test user message rendering.
     if (i % 5 === 0) {
       events.push(
-        userMessageStartEvent(
-          `User requests: please process turn ${i + 1} and report the results.`,
+        messageStartEvent(
+          userMsg(`User requests: please process turn ${i + 1} and report the results.`),
         ),
       );
     }
@@ -240,7 +243,11 @@ export function toolArgsScenario(): ScenarioData {
     agentId: "tool-args-demo",
     events: [
       agentStartEvent(),
-      userMessageStartEvent("Run these three tools: count TypeScript lines, read the overlay source, and write a build report."),
+      messageStartEvent(
+        userMsg(
+          "Run these three tools: count TypeScript lines, read the overlay source, and write a build report.",
+        ),
+      ),
       turnStartEvent(),
       toolExecutionStartEvent("call-ta-1", "bash", {
         command: "find . -type f -name '*.ts' | xargs wc -l | sort -rn | head -20",

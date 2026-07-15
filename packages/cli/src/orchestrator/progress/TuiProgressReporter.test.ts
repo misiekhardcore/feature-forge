@@ -40,9 +40,9 @@ describe("TuiRoutineWidget", () => {
       const ctx = makeMockCtx();
       const widget = new TuiRoutineWidget({ ctx });
 
-      widget.render(["line 1", "line 2"], "⟳ build · ⏳ builder");
+      widget.render(["line 1", "line 2"], "⟳ build · → builder");
 
-      expect(ctx.ui.setStatus).toHaveBeenCalledWith("feature-forge", "⟳ build · ⏳ builder");
+      expect(ctx.ui.setStatus).toHaveBeenCalledWith("feature-forge", "⟳ build · → builder");
     });
 
     it("calls ctx.ui.setWidget with a render factory", () => {
