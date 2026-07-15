@@ -5,9 +5,70 @@ import {
   ToolExecutionComponent,
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
-import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+/**
+ * Type guard to verify if a part is a text block.
+ */
+function isTextPart(part: unknown): part is { type: "text"; text: string } {
+  return (
+    typeof part === "object" &&
+    part !== null &&
+    "type" in part &&
+    (part as Record<string, unknown>).type === "text" &&
+    "text" in part &&
+    typeof (part as Record<string, unknown>).text === "string"
+  );
+}
+
+/**
+ * Extracts text content from various content formats used in messages and tool results.
+ */
+function extractText(content: unknown): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const text = content
+      .filter(isTextPart)
+      .map((part) => part.text)
+      .join("\n");
+    if (text) return text;
+  }
+  return "";
+}
+
+/**
+ * Extracts the text content from an AgentMessage.
+ */
+function extractUserText(message: AgentMessage): string {
+  if ("content" in message) {
+    return extractText((message as { content: unknown }).content);
+  }
+  return "";
+}
+
+/**
+ * Converts a tool execution result into a displayable string.
+ * Handles AgentToolResult shapes (objects with a content array) as well as primitives.
+ */
+function extractResultText(result: unknown): string {
+  if (result === null || result === undefined) return "";
+  if (typeof result === "string") return result;
+
+  if (typeof result === "object" && result !== null && "content" in result) {
+    const content = (result as Record<string, unknown>).content;
+    if (Array.isArray(content)) {
+      const text = extractText(content);
+      if (text) return text;
+    }
+  }
+
+  try {
+    return JSON.stringify(result, null, 2);
+  } catch {
+    return "Unserializable tool result";
+  }
+}
 
 /**
  * Renders a flat list of {@link AgentEvent} objects into styled conversation
@@ -36,6 +97,19 @@ export class ConversationRenderer {
   }
 
   /**
+   * Renders a user message and adds it to the container.
+   */
+  private renderUserMessage(message: AgentMessage, container: Container): void {
+    const text = extractUserText(message);
+    if (text.length === 0) return;
+
+    if (container.children.length > 0) {
+      container.addChild(new Spacer(1));
+    }
+    container.addChild(new UserMessageComponent(text, this.markdownTheme));
+  }
+
+  /**
    * Render a list of raw stream events as styled conversation lines.
    *
    * Dispatches on {@code AgentEvent.type} covering all 10 variants
@@ -50,113 +124,88 @@ export class ConversationRenderer {
    * @returns Styled lines ready for display (no border added).
    */
   render(events: AgentEvent[], width: number): string[] {
-    const lines: string[] = [];
-    let toolCallIndex = 0;
-    // Width is already the inner content width (minus overlay border/margin).
-    const innerWidth = Math.max(10, width);
-
-    // In-progress state — local to this render call.
-    let pendingMessage: AgentMessage | undefined;
-    let pendingToolStart: Extract<AgentEvent, { type: "tool_execution_start" }> | undefined;
-    let pendingToolResult: { text: string; isError: boolean } | undefined;
-
-    const flushMessage = (): void => {
-      if (!pendingMessage) return;
-
-      if (pendingMessage.role === "user") {
-        const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
-        if (text.length > 0) {
-          // Blank line between turns, matching pi's interactive mode behavior
-          // (adds Spacer(1) to the outer chatContainer between messages).
-          if (lines.length > 0) lines.push("");
-          const rendered = new UserMessageComponent(text, this.markdownTheme).render(innerWidth);
-          for (const line of rendered) lines.push(line);
-        }
-      } else if (pendingMessage.role === "assistant") {
-        const rendered = new AssistantMessageComponent(
-          pendingMessage,
-          false,
-          this.markdownTheme,
-        ).render(innerWidth);
-        for (const line of rendered) lines.push(line);
-      } else {
-        // Custom, system, toolResult, and other roles — extract text.
-        const text = AgentDisplayHelpers.extractMessageText(pendingMessage);
-        if (text.length > 0) {
-          lines.push(this.theme.fg("muted", text));
-        }
-      }
-      pendingMessage = undefined;
-    };
-
-    const flushTool = (): void => {
-      if (!pendingToolStart) return;
-      toolCallIndex++;
-      const component = new ToolExecutionComponent(
-        pendingToolStart.toolName,
-        `tool-${toolCallIndex}`,
-        pendingToolStart.args,
-        undefined,
-        undefined,
-        this.tui,
-        this.cwd,
-      );
-      if (pendingToolResult) {
-        component.updateResult(
-          {
-            content: [{ type: "text", text: pendingToolResult.text }],
-            isError: pendingToolResult.isError,
-          },
-          false,
-        );
-        component.setExpanded(true);
-      }
-      const rendered = component.render(innerWidth);
-      for (const line of rendered) lines.push(line);
-      pendingToolStart = undefined;
-      pendingToolResult = undefined;
-    };
+    const container = new Container();
+    const pendingTools = new Map<string, ToolExecutionComponent>();
+    let lastAssistant: AssistantMessageComponent | undefined;
 
     for (const event of events) {
       switch (event.type) {
-        case "message_start":
-          flushTool();
-          pendingMessage = event.message;
-          break;
-
-        case "message_update":
-          if (pendingMessage) pendingMessage = event.message;
-          break;
-
-        case "message_end":
-          if (pendingMessage) pendingMessage = event.message;
-          flushMessage();
-          break;
-
-        case "tool_execution_start":
-          flushMessage();
-          pendingToolStart = event;
-          pendingToolResult = undefined;
-          break;
-
-        case "tool_execution_update":
-          if (pendingToolStart) {
-            pendingToolResult = {
-              text:
-                (pendingToolResult?.text ?? "") +
-                AgentDisplayHelpers.serializeToolResultText(event.partialResult),
-              isError: false,
-            };
+        case "message_start": {
+          if (!event.message) break;
+          if (event.message.role === "assistant") {
+            const component = new AssistantMessageComponent(undefined, false, this.markdownTheme);
+            container.addChild(component);
+            lastAssistant = component;
+          } else {
+            // Reset lastAssistant so subsequent updates don't target the previous assistant message
+            lastAssistant = undefined;
           }
           break;
+        }
 
-        case "tool_execution_end":
-          pendingToolResult = {
-            text: AgentDisplayHelpers.serializeToolResultText(event.result),
-            isError: event.isError,
-          };
-          flushTool();
+        case "message_update": {
+          if (event.message && event.message.role === "assistant") {
+            lastAssistant?.updateContent(event.message);
+          }
           break;
+        }
+
+        case "message_end": {
+          if (!event.message) break;
+          if (event.message.role === "assistant") {
+            if (lastAssistant) {
+              lastAssistant.updateContent(event.message);
+            }
+          } else {
+            this.renderUserMessage(event.message, container);
+          }
+          break;
+        }
+
+        case "tool_execution_start": {
+          const component = new ToolExecutionComponent(
+            event.toolName,
+            event.toolCallId,
+            event.args,
+            undefined,
+            undefined,
+            this.tui,
+            this.cwd,
+          );
+          component.markExecutionStarted();
+          container.addChild(component);
+          pendingTools.set(event.toolCallId, component);
+          break;
+        }
+
+        case "tool_execution_update": {
+          const component = pendingTools.get(event.toolCallId);
+          if (component) {
+            component.updateResult(
+              {
+                content: [{ type: "text", text: extractResultText(event.partialResult) }],
+                isError: false,
+              },
+              true,
+            );
+          }
+          break;
+        }
+
+        case "tool_execution_end": {
+          const component = pendingTools.get(event.toolCallId);
+          if (component) {
+            component.updateResult(
+              {
+                content: [{ type: "text", text: extractResultText(event.result) }],
+                isError: event.isError,
+              },
+              false,
+            );
+            component.setExpanded(true);
+          }
+          break;
+        }
 
         case "turn_start":
         case "turn_end":
@@ -167,10 +216,6 @@ export class ConversationRenderer {
       }
     }
 
-    // Flush any remaining pending state (incomplete start without end).
-    flushMessage();
-    flushTool();
-
-    return lines;
+    return container.render(width);
   }
 }
