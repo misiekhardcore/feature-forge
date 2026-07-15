@@ -42,7 +42,7 @@ export class AgentListCommand extends Command {
                 done();
               },
               markdownTheme: getMarkdownTheme(),
-              cwd: process.cwd(),
+              cwd: ctx.cwd,
             });
 
             connect(viewer, streamDir);

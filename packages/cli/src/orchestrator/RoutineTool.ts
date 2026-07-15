@@ -220,7 +220,7 @@ export class RoutineTool
                 done();
               },
               markdownTheme: getMarkdownTheme(),
-              cwd: process.cwd(),
+              cwd: ctx.cwd,
             });
 
             connect(viewer, streamDir);

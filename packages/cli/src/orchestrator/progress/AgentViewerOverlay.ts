@@ -10,13 +10,7 @@ import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
-import {
-  extractMessageText,
-  getHorizontalLine,
-  getStatusIcon,
-  getStatusLabel,
-  serializeToolArgs,
-} from "./AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
 
 /**
@@ -727,8 +721,8 @@ export class AgentViewerOverlay implements Component {
     // chars on each side, and 2 for the single-space margins inside each border.
     const contentWidth = Math.max(0, outerWidth - 4);
 
-    const top = theme.fg("warning", "┌" + getHorizontalLine(contentWidth + 2) + "┐");
-    const bot = theme.fg("warning", "└" + getHorizontalLine(contentWidth + 2) + "┘");
+    const top = theme.fg("warning", "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐");
+    const bot = theme.fg("warning", "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘");
     const leftBorder = theme.fg("warning", "│");
     const rightBorder = theme.fg("warning", "│");
 
@@ -776,7 +770,7 @@ export class AgentViewerOverlay implements Component {
     for (let index = 0; index < entries.length; index++) {
       const [id, entry] = entries[index];
       const isSelected = index === this.selectedIndex;
-      const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
+      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
 
       const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
@@ -829,7 +823,7 @@ export class AgentViewerOverlay implements Component {
     const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
     if (!entry) {
       lines.push(theme.fg("accent", "Agent Detail"));
-      lines.push(theme.fg("muted", getHorizontalLine(width - 4)));
+      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
       lines.push(theme.fg("muted", "agent not found"));
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
@@ -837,14 +831,14 @@ export class AgentViewerOverlay implements Component {
       return this.addBorder(wrapped, width);
     }
 
-    const { char: icon, color: iconColor } = getStatusIcon(entry.status, entry.passed);
-    const { label, color: statusColor } = getStatusLabel(entry.status, entry.passed);
+    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
+    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(entry.status, entry.passed);
 
     // Header
     lines.push(
       `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
     );
-    lines.push(theme.fg("muted", getHorizontalLine(width - 4)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
 
     // Summary
     if (entry.summary) {
@@ -1125,7 +1119,7 @@ export class AgentViewerOverlay implements Component {
 
       case "message_update":
       case "message_end": {
-        return event.message ? extractMessageText(event.message) : "";
+        return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
       }
 
       case "tool_execution_start": {
@@ -1133,7 +1127,7 @@ export class AgentViewerOverlay implements Component {
         // Serialize args into the stream line so they survive the
         // .stream file round-trip (replayed via parseStreamLine).
         if ("args" in event && event.args !== undefined) {
-          const serialized = serializeToolArgs(event.args);
+          const serialized = AgentDisplayHelpers.serializeToolArgs(event.args);
           return toolName + " | " + serialized;
         }
         return toolName;

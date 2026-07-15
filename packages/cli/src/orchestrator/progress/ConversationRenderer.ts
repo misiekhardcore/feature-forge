@@ -8,7 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 
-import { extractMessageText } from "./AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
 /**
  * Parameters for constructing a {@link ConversationRenderer}.
@@ -59,7 +59,7 @@ export class ConversationRenderer {
    * Renders a user message and adds it to the container.
    */
   private renderUserMessage(message: AgentMessage, container: Container): void {
-    const text = extractMessageText(message);
+    const text = AgentDisplayHelpers.extractMessageText(message);
     if (text.length === 0) return;
 
     if (container.children.length > 0) {
@@ -175,7 +175,7 @@ export class ConversationRenderer {
       } else {
         // Fallback for messages with unrecognized roles: extract text as plain
         // content if available.
-        const text = extractMessageText(message);
+        const text = AgentDisplayHelpers.extractMessageText(message);
         if (text.length > 0) {
           if (container.children.length > 0) {
             container.addChild(new Spacer(1));
