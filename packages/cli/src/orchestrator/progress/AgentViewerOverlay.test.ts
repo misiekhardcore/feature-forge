@@ -4087,11 +4087,12 @@ describe("AgentViewerOverlay", () => {
         JSON.stringify({ type: "message_start", message: { role: "assistant" } }) + "\n",
       );
 
-      const onDone = vi.fn();
-      const overlay = makeOverlay({ onDone });
+      const overlay = makeOverlay();
       overlay.prepopulateStreamFiles(tmpDir);
 
       // Synchronous update() dedupes via has()===true — entryCount stays 1.
+      // Note: prepopulation does not invoke the onDone UI escape callback;
+      // makeOverlay() provides a default vi.fn() that simply stays unused.
       expect(overlay.entryCount).toBe(1);
 
       overlay.dispose();

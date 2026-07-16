@@ -519,9 +519,12 @@ export class AgentViewerOverlay implements Component {
    * be populated lazily by {@link pushStreamEvent} calls instead.
    */
   prepopulateStreamFiles(streamDir: string): void {
-    // Synchronous update() sets agents immediately, so the first file-kind
-    // block emits done; subsequent blocks for the same agent see
-    // has()===true and skip — no separate dedup set needed.
+    // Dedup relies on update() being synchronous: it calls agents.set()
+    // immediately, so the first file-kind block inserts the agent and
+    // subsequent blocks for the same agent see has()===true and skip —
+    // no separate dedup set is needed. Assumes update() remains
+    // synchronous; if it is ever made async, add a per-call guard (e.g. a
+    // local Set) to prevent cross-block duplicate done emits.
     const ensureStaleEntry = (agentId: string): void => {
       if (this.agents.has(agentId)) return;
       this.update({ id: agentId, status: "done", summary: "Agent completed" });
