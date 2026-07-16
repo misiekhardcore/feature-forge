@@ -2140,6 +2140,55 @@ describe("AgentViewerOverlay", () => {
       unsubs.forEach((u) => u());
       overlay.dispose();
     });
+
+    it("persists buffered events to disk when connect sets streamDir before replay", () => {
+      const streamDir = mkdtempSync(join(tmpdir(), "forge-buf-persist-"));
+      try {
+        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+        const supervisor = makeMockSupervisor([agent]);
+        const eventBus = makeMockTypedEventBus();
+        const overlay = makeOverlay();
+
+        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+          eventBus,
+          supervisor,
+        });
+
+        // Emit events BEFORE connect — they should be buffered.
+        eventBus.emit("feature-forge:agent-stream", {
+          phase: "agent-stream",
+          message: 'Agent "builder" stream event',
+          details: {
+            executionId: "exec-1",
+            label: "builder",
+            agentId: "builder",
+            event: {
+              type: "tool_execution_start",
+              toolCallId: "call-1",
+              toolName: "read",
+              args: {},
+            },
+          },
+        });
+
+        // Connect with streamDir — buffered events should be persisted.
+        connect(overlay, streamDir);
+
+        // Verify buffered event was written to disk.
+        expect(existsSync(join(streamDir, "builder.stream"))).toBe(true);
+        const streamContent = readFileSync(join(streamDir, "builder.stream"), "utf-8");
+        expect(streamContent).toContain("tool_execution_start: read");
+
+        expect(existsSync(join(streamDir, "builder.events.jsonl"))).toBe(true);
+        const eventsContent = readFileSync(join(streamDir, "builder.events.jsonl"), "utf-8");
+        expect(eventsContent).toContain("tool_execution_start");
+
+        unsubs.forEach((u) => u());
+        overlay.dispose();
+      } finally {
+        rmSync(streamDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("prepopulateStreamFiles", () => {
@@ -3789,6 +3838,37 @@ describe("AgentViewerOverlay", () => {
         events[events.length - 1] as unknown as { message: { content: Array<{ text: string }> } }
       ).message.content[0].text;
       expect(lastContent).toBe(`event-${MAX_AGENT_EVENTS + 9}`);
+
+      overlay.dispose();
+    });
+
+    it("handles large files efficiently with small count via streaming", async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-big-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      const jsonlPath = join(tmpDir, "builder.events.jsonl");
+      const EVENT_COUNT = 5000;
+      for (let index = 0; index < EVENT_COUNT; index++) {
+        writeFileSync(
+          jsonlPath,
+          JSON.stringify({
+            type: "message_end",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `event-${index}` }],
+            },
+          }) + "\n",
+          { flag: "a" },
+        );
+      }
+
+      // Register the file path by prepopulating, so loadConversationEvents can find it.
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const events = await overlay.loadConversationEvents("builder", 50);
+      // Streaming ring buffer should return exactly 50 most recent events.
+      expect(events).toHaveLength(50);
 
       overlay.dispose();
     });

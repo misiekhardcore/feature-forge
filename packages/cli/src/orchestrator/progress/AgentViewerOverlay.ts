@@ -1,5 +1,6 @@
-import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, createReadStream, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
@@ -404,10 +405,16 @@ export class AgentViewerOverlay implements Component {
   /**
    * Load conversation events from the on-disk JSONL file for the given agent.
    *
-   * The in-memory buffer holds the most recent {@link MAX_AGENT_EVENTS} events.
-   * When {@code count} exceeds the in-memory window, this method loads the
-   * oldest needed events from disk and appends the in-memory tail, avoiding
-   * loading the entire file into memory.
+   * Streams the file line-by-line via {@code createReadStream} +
+   * {@code createInterface}, keeping a ring buffer of the last {@code count}
+   * lines in memory. Memory usage is O(count), not O(fileSize) — the file
+   * is never fully loaded.
+   *
+   * Disk always contains a superset of the in-memory buffer because
+   * {@link pushStreamEvent} writes to disk synchronously via
+   * {@code appendFileSync} before appending to the in-memory array.
+   * Therefore the disk-only result is complete and no disk+memory merge
+   * is needed.
    *
    * Falls back to the in-memory buffer when the JSONL file is missing or
    * unreadable.
@@ -433,20 +440,26 @@ export class AgentViewerOverlay implements Component {
     }
 
     try {
-      const { readFile } = await import("node:fs/promises");
-      const content = await readFile(eventsPath, "utf-8");
-      const lines = content.trimEnd().split("\n");
+      // Stream the JSONL file line-by-line, keeping only the last `count`
+      // lines in the ring buffer. Disk is a superset of memory because
+      // pushStreamEvent calls appendFileSync (sync) before the in-memory
+      // append, so the disk result is already complete.
+      const lines: string[] = [];
+      const rl = createInterface({
+        input: createReadStream(eventsPath, "utf-8"),
+        crlfDelay: Infinity,
+      });
 
-      // The in-memory buffer is a suffix of the full JSONL log (the most recent
-      // MAX_AGENT_EVENTS events). Only load the events OLDER than the in-memory
-      // window from disk, then append the in-memory suffix.
-      const olderCount = count - memoryEvents.length;
-      const olderAvailable = lines.length - memoryEvents.length;
-      const fromIndex = Math.max(0, olderAvailable - olderCount);
-      const olderSlice = lines.slice(fromIndex, Math.max(0, olderAvailable));
+      for await (const line of rl) {
+        if (!line) continue;
+        lines.push(line);
+        if (lines.length > count) {
+          lines.shift();
+        }
+      }
 
       const diskEvents: AgentEvent[] = [];
-      for (const line of olderSlice) {
+      for (const line of lines) {
         try {
           const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
@@ -458,7 +471,7 @@ export class AgentViewerOverlay implements Component {
         }
       }
 
-      return [...diskEvents, ...memoryEvents];
+      return diskEvents;
     } catch (error) {
       logger.debug(
         "Failed to load conversation events from disk, falling back to in-memory buffer",
@@ -1155,6 +1168,7 @@ export class AgentViewerOverlay implements Component {
     const connect = (v: AgentViewerOverlay, streamDir: string) => {
       viewer = v;
       connected = true;
+      viewer.setStreamDir(streamDir);
 
       for (const item of eventBuffer) {
         if (item.status) {
@@ -1164,8 +1178,6 @@ export class AgentViewerOverlay implements Component {
         }
       }
       eventBuffer.length = 0;
-
-      viewer.setStreamDir(streamDir);
 
       viewer.prepopulateStreamFiles(streamDir);
 
