@@ -519,13 +519,11 @@ export class AgentViewerOverlay implements Component {
    * be populated lazily by {@link pushStreamEvent} calls instead.
    */
   prepopulateStreamFiles(streamDir: string): void {
-    // Track agent ids that already received a stale "done" entry so the
-    // update fires at most once per agent, even when an agent has multiple
-    // file kinds (e.g. .stream + .messages.jsonl + .events.jsonl).
-    const seen = new Set<string>();
+    // Synchronous update() sets agents immediately, so the first file-kind
+    // block emits done; subsequent blocks for the same agent see
+    // has()===true and skip — no separate dedup set needed.
     const ensureStaleEntry = (agentId: string): void => {
-      if (this.agents.has(agentId) || seen.has(agentId)) return;
-      seen.add(agentId);
+      if (this.agents.has(agentId)) return;
       this.update({ id: agentId, status: "done", summary: "Agent completed" });
     };
 

@@ -4073,6 +4073,29 @@ describe("AgentViewerOverlay", () => {
 
       overlay.dispose();
     });
+
+    it("emits a single done entry for an agent with multiple file kinds", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-dedup-"));
+      // Same agent has all three file kinds — done must fire once.
+      writeFileSync(join(tmpDir, "builder.stream"), "message_end: done\n", "utf-8");
+      writeFileSync(
+        join(tmpDir, "builder.messages.jsonl"),
+        JSON.stringify({ role: "assistant", content: [{ type: "text", text: "ok" }] }) + "\n",
+      );
+      writeFileSync(
+        join(tmpDir, "builder.events.jsonl"),
+        JSON.stringify({ type: "message_start", message: { role: "assistant" } }) + "\n",
+      );
+
+      const onDone = vi.fn();
+      const overlay = makeOverlay({ onDone });
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      // Synchronous update() dedupes via has()===true — entryCount stays 1.
+      expect(overlay.entryCount).toBe(1);
+
+      overlay.dispose();
+    });
   });
 
   describe("messagesFiles cleanup", () => {
