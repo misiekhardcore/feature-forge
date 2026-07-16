@@ -297,6 +297,7 @@ export class RoutineTool
         routineParams,
         prompt,
         signal,
+        0,
         this.routineDef,
       );
 
