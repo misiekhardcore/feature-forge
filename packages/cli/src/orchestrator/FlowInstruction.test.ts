@@ -794,13 +794,13 @@ describe("RoutineRefInstructionSchema", () => {
   });
 
   it("rejects missing routine", () => {
-    const invalid = { type: "routine", id: "r1", target: "flow-a" };
+    const invalid = { type: "routine", id: "r1", target: "flow-a", routine: "" };
     expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
   });
 
-  it("rejects empty routine", () => {
-    const invalid = { type: "routine", id: "r1", target: "flow-a", routine: "" };
-    expect(Value.Check(RoutineRefInstructionSchema, invalid)).toBe(false);
+  it("accepts missing routine (defaults to main)", () => {
+    const valid = { type: "routine", id: "r1", target: "flow-a" };
+    expect(Value.Check(RoutineRefInstructionSchema, valid)).toBe(true);
   });
 
   it("rejects negative timeout", () => {

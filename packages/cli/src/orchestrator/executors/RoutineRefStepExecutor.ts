@@ -68,12 +68,10 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
     ) {
       return undefined;
     }
-    const details = event.details as {
-      instructionId: string;
-      target: string;
-      routine: string;
-      passed?: boolean;
-    };
+
+    // Now we have a discriminated union.
+    // Extract the common properties of routine-ref phases.
+    const details = event.details;
     const status =
       event.phase === "routine-ref-start"
         ? "started"
@@ -114,7 +112,7 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
         details: {
           instructionId: instruction.id,
           target: instruction.target,
-          routine: instruction.routine,
+          routine: instruction.routine ?? "main",
         },
       });
       throw error;
@@ -133,13 +131,14 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
     }
 
     // 3. Lookup target routine.
-    const targetRoutine = targetFlow.routines[instruction.routine];
+    const routineName = instruction.routine ?? "main";
+    const targetRoutine = targetFlow.routines[routineName];
     if (!targetRoutine) {
       return this.handleFailure(
         instruction,
         context,
         eventBus,
-        `Routine "${instruction.routine}" not found in flow "${instruction.target}". ` +
+        `Routine "${routineName}" not found in flow "${instruction.target}". ` +
           `Available: ${Object.keys(targetFlow.routines).join(", ")}`,
         outputKey,
       );
@@ -148,11 +147,11 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
     // 4. Emit routine-ref-start.
     eventBus.emit("feature-forge:routine-ref-start", {
       phase: "routine-ref-start",
-      message: `Referencing routine "${instruction.routine}" in flow "${instruction.target}"`,
+      message: `Referencing routine "${routineName}" in flow "${instruction.target}"`,
       details: {
         instructionId: instruction.id,
         target: instruction.target,
-        routine: instruction.routine,
+        routine: routineName,
       },
     });
 
@@ -191,7 +190,7 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       );
 
       const routineResult = await childExecutor.run(
-        instruction.routine,
+        routineName,
         resolvedInput,
         context.prompt,
         combinedSignal,
@@ -201,11 +200,11 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       // 8. Emit routine-ref-done.
       eventBus.emit("feature-forge:routine-ref-done", {
         phase: "routine-ref-done",
-        message: `Routine "${instruction.routine}" in flow "${instruction.target}" completed`,
+        message: `Routine "${routineName}" in flow "${instruction.target}" completed`,
         details: {
           instructionId: instruction.id,
           target: instruction.target,
-          routine: instruction.routine,
+          routine: routineName,
           passed: routineResult.passed,
         },
       });
@@ -261,7 +260,7 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       details: {
         instructionId: instruction.id,
         target: instruction.target,
-        routine: instruction.routine,
+        routine: instruction.routine ?? "main",
       },
     });
 
@@ -296,7 +295,7 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
     logger.error("Routine ref execution failed", {
       instructionId: instruction.id,
       target: instruction.target,
-      routine: instruction.routine,
+      routine: instruction.routine ?? "main",
       error,
     });
 
@@ -306,7 +305,7 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
       details: {
         instructionId: instruction.id,
         target: instruction.target,
-        routine: instruction.routine,
+        routine: instruction.routine ?? "main",
       },
     });
 

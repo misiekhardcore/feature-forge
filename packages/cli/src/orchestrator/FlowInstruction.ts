@@ -82,7 +82,7 @@ export const ShellInstructionSchema = defineInstruction("shell", {
 
 export const RoutineRefInstructionSchema = defineInstruction("routine", {
   target: Type.String({ minLength: 1 }),
-  routine: Type.String({ minLength: 1 }),
+  routine: Type.Optional(Type.String({ minLength: 1 })),
   input: Type.Optional(Type.Record(Type.String(), Type.String())),
   output_as: Type.Optional(Type.String({ minLength: 1 })),
   timeout: Type.Optional(Type.Integer({ minimum: 1 })),

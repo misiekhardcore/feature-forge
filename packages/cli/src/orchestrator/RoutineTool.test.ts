@@ -1,4 +1,3 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { TextContent } from "@earendil-works/pi-ai";
 import type {
   AgentToolResult,
@@ -795,7 +794,7 @@ describe("RoutineTool", () => {
               if (!event.phase.startsWith("agent-")) return undefined;
               const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
               if (!agentId) return undefined;
-              const details = event.details as { executionId?: string; event?: AgentEvent };
+              const details = event.details;
               return {
                 type: "agent",
                 executionId: details.executionId,
