@@ -1,10 +1,13 @@
 # Plan — Flow Architecture (routine-based)
 
-> **What this document is:** the authoritative implementation plan for the
-> flow subsystem, aligned with the routine-based architecture decided in
-> `UPDATED_FLOW_ARCHITECTURE.md`. It tracks what we're building and in what
-> order; the _rationale and charts_ live in `UPDATED_FLOW_ARCHITECTURE.md`;
-> the _decisions_ are recorded in `docs/adr/`.
+> [!IMPORTANT]
+> **Maintenance Policy**: This is a living implementation roadmap.
+>
+> 1. **Update before build**: This file must be updated _before_ starting any non-trivial feature implementation to ensure the current plan is explicit.
+> 2. **Sync with ADRs**: When a decision here is superseded, record the a change in a new ADR and update this plan immediately.
+> 3. **Track Progress**: Update the implementation order checkboxes (Section 7) as tasks are merged.
+>
+> **What this document is**: the authoritative implementation plan for the flow subsystem...
 >
 > **What replaced the old `docs/flow-engine.md`:** that file described the
 > obsolete single-tool architecture (one `run_implement_loop` tool, a
