@@ -193,8 +193,8 @@ export class RoutineRefStepExecutor extends StepExecutor<RoutineRefInstruction> 
         routineName,
         resolvedInput,
         context.prompt,
-        combinedSignal,
         context.depth + 1,
+        combinedSignal,
       );
 
       // 8. Emit routine-ref-done.

@@ -305,7 +305,10 @@ describe("flow round-trip", () => {
 
     beforeAll(async () => {
       ctx = await loadFlow(flowsDir, "flow", specsDir);
-      ctx.additionalParams = { build_output: "test build output for review" };
+      ctx.additionalParams = {
+        output: "test build output for review",
+        workspace: "/tmp/test-workspace",
+      };
     });
 
     runCommonTests("review", () => ctx);
@@ -317,7 +320,10 @@ describe("flow round-trip", () => {
 
     beforeAll(async () => {
       ctx = await loadFlow(flowsDir, "flow", specsDir);
-      ctx.additionalParams = { build_output: "test build output for verify" };
+      ctx.additionalParams = {
+        output: "test build output for verify",
+        workspace: "/tmp/test-workspace",
+      };
     });
 
     runCommonTests("verify", () => ctx);

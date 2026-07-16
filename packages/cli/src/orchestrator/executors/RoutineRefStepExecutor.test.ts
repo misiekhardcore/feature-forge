@@ -259,7 +259,7 @@ describe("RoutineRefStepExecutor", () => {
 
       // Mock RoutineExecutor.run to never resolve - timeout will trigger abort.
       const runSpy = vi.spyOn(RoutineExecutor.prototype, "run").mockImplementation(
-        (_name, _params, _prompt, signal) =>
+        (_name, _params, _prompt, _depth, signal) =>
           new Promise((_resolve, reject) => {
             if (signal?.aborted) {
               reject(new DOMException("Aborted", "AbortError"));
@@ -287,7 +287,7 @@ describe("RoutineRefStepExecutor", () => {
 
       // Mock RoutineExecutor.run to never resolve - timeout will trigger abort.
       const runSpy = vi.spyOn(RoutineExecutor.prototype, "run").mockImplementation(
-        (_name, _params, _prompt, signal) =>
+        (_name, _params, _prompt, _depth, signal) =>
           new Promise((_resolve, reject) => {
             if (signal?.aborted) {
               reject(new DOMException("Aborted", "AbortError"));

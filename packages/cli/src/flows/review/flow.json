@@ -6,9 +6,13 @@
     "inspect": {
       "params": [
         {
-          "name": "build_output",
-          "description": "The raw output from the build step",
+          "name": "output",
+          "description": "The raw output from the previous step",
           "required": true
+        },
+        {
+          "name": "workspace",
+          "description": "Absolute path to the workspace where the code lives"
         }
       ],
       "steps": [
@@ -16,8 +20,11 @@
           "type": "agent",
           "id": "review",
           "systemPrompt": "review",
+          "workingDir": {
+            "path": "{{workspace}}"
+          },
           "parseJson": true,
-          "prompt": "Review the code for quality: correctness, architecture, standards compliance, error handling, type safety, SOLID principles, and test quality.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{build_output}}"
+          "prompt": "Review the code for quality: correctness, architecture, standards compliance, error handling, type safety, SOLID principles, and test quality.\n\nTask:\n{{prompt}}\n\nPrevious step output:\n{{output}}"
         }
       ]
     }

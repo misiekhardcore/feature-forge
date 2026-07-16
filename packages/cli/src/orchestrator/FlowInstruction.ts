@@ -179,6 +179,7 @@ export const RoutineParamSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   description: Type.Optional(Type.String()),
   default: Type.Optional(Type.String()),
+  required: Type.Optional(Type.Boolean()),
 });
 
 const RoutineDefinitionSchema = Type.Object({

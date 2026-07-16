@@ -103,7 +103,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", { plan: "use JWT" }, "add auth");
+      const result = await executor.run("main", { plan: "use JWT" }, "add auth", 0);
 
       expect(result.passed).toBe(true);
       expect(result.routine).toBe("main");
@@ -128,7 +128,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", { plan: "" }, "task");
+      const result = await executor.run("main", { plan: "" }, "task", 0);
 
       expect(result.rounds).toBe(0);
     });
@@ -173,7 +173,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("loop-main", {}, "task");
+      const result = await executor.run("loop-main", {}, "task", 0);
 
       expect(result.rounds).toBe(3);
     });
@@ -203,7 +203,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.results["step1"].raw).toBe("done:step1");
       expect(result.results["step2"].raw).toBe("done:step2");
@@ -244,7 +244,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
       expect(result.workspace).toBe("/tmp/forge-worktree");
     });
 
@@ -271,7 +271,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain("failed");
@@ -310,7 +310,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain("step result(s) not passed");
@@ -323,7 +323,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      await expect(executor.run("nonexistent", {}, "task")).rejects.toThrow(
+      await expect(executor.run("nonexistent", {}, "task", 0)).rejects.toThrow(
         'Routine "nonexistent" not found',
       );
     });
@@ -335,7 +335,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.passed).toBe(false);
       expect(result.summary).toContain('No step executor registered for type "record"');
@@ -387,7 +387,7 @@ describe("RoutineExecutor", () => {
       const eventBus = new TypedEventBus({ emit: emitSpy, on: vi.fn() });
 
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.passed).toBe(true);
       expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -418,7 +418,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.passed).toBe(true);
     });
@@ -465,7 +465,7 @@ describe("RoutineExecutor", () => {
       const eventBus = new TypedEventBus({ emit: emitSpy, on: vi.fn() });
 
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      await executor.run("main", {}, "task");
+      await executor.run("main", {}, "task", 0);
 
       expect(emitSpy).toHaveBeenCalledWith("feature-forge:agent-started", {
         phase: "agent-started",
@@ -515,7 +515,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
       const controller = new AbortController();
-      const result = await executor.run("main", {}, "task", controller.signal);
+      const result = await executor.run("main", {}, "task", 0, controller.signal);
 
       expect(result.passed).toBe(true);
       expect(result.results["step1"].raw).toBe("got-signal:step1");
@@ -532,7 +532,7 @@ describe("RoutineExecutor", () => {
       const controller = new AbortController();
       controller.abort();
 
-      await expect(executor.run("main", {}, "task", controller.signal)).rejects.toThrow();
+      await expect(executor.run("main", {}, "task", 0, controller.signal)).rejects.toThrow();
       expect(RecordExecutor.executed).toHaveLength(0);
     });
 
@@ -574,7 +574,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      await expect(executor.run("main", {}, "task")).rejects.toThrow();
+      await expect(executor.run("main", {}, "task", 0)).rejects.toThrow();
     });
 
     it("runs without a signal (backwards-compatible)", async () => {
@@ -586,7 +586,7 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
 
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
       expect(result.passed).toBe(true);
     });
 
@@ -605,7 +605,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      await expect(executor.run("gamma", {}, "task")).rejects.toThrow("alpha, beta");
+      await expect(executor.run("gamma", {}, "task", 0)).rejects.toThrow("alpha, beta");
     });
   });
 
@@ -643,7 +643,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task");
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.results["step1"].raw).toBe("depth:0");
     });
@@ -677,7 +677,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task", undefined, 0);
+      const result = await executor.run("main", {}, "task", 0);
 
       expect(result.results["step1"].raw).toBe("depth:0");
     });
@@ -705,7 +705,7 @@ describe("RoutineExecutor", () => {
       };
 
       const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
-      await expect(executor.run("main", {}, "task", undefined, -1)).rejects.toThrow(RangeError);
+      await expect(executor.run("main", {}, "task", -1)).rejects.toThrow(RangeError);
     });
 
     it("throws RangeError for NaN depth", async () => {
@@ -731,7 +731,7 @@ describe("RoutineExecutor", () => {
       };
 
       const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
-      await expect(executor.run("main", {}, "task", undefined, NaN)).rejects.toThrow(RangeError);
+      await expect(executor.run("main", {}, "task", NaN)).rejects.toThrow(RangeError);
     });
 
     it("throws MaxDepthExceededError when depth >= MAX_NESTING_DEPTH", async () => {
@@ -757,9 +757,7 @@ describe("RoutineExecutor", () => {
       };
 
       const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
-      await expect(executor.run("main", {}, "task", undefined, 10)).rejects.toThrow(
-        MaxDepthExceededError,
-      );
+      await expect(executor.run("main", {}, "task", 10)).rejects.toThrow(MaxDepthExceededError);
     });
 
     it("allows depth exactly MAX_NESTING_DEPTH - 1", async () => {
@@ -791,7 +789,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task", undefined, 9);
+      const result = await executor.run("main", {}, "task", 9);
 
       expect(result.results["step1"].raw).toBe("depth:9");
     });
@@ -825,7 +823,7 @@ describe("RoutineExecutor", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus);
-      const result = await executor.run("main", {}, "task", undefined, expectedDepth);
+      const result = await executor.run("main", {}, "task", expectedDepth);
 
       expect(result.results["step1"].raw).toBe(`depth:${expectedDepth}`);
     });

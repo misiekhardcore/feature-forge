@@ -45,7 +45,8 @@ export class RoutineExecutor {
    * @param params — Key-value pairs exposed as `{{PARAM}}` tokens.
    * @param task — Top-level task description, exposed as `{{prompt}}`.
    * @param signal — Optional abort signal for cancelling the routine mid-execution.
-   * @param depth — Optional nesting depth (incremented each time a routine calls another routine).
+   * @param depth — Nesting depth (incremented each time a routine calls another routine).
+   *   Top-level invocations from {@link RoutineTool} use 0.
    *   When aborted, an {@link AbortError} propagates uncaught to the caller.
    * @returns Structured result with per-instruction outputs.
    */
@@ -53,8 +54,8 @@ export class RoutineExecutor {
     routineName: string,
     params: FlowParams,
     task: string,
+    depth: number,
     signal?: AbortSignal,
-    depth?: number,
     routineDefOverride?: RoutineDefinition,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined =
@@ -67,7 +68,7 @@ export class RoutineExecutor {
     }
 
     // Guard against excessive nesting before creating the context.
-    if (depth !== undefined && depth >= MaxDepthExceededError.MAX_NESTING_DEPTH) {
+    if (depth >= MaxDepthExceededError.MAX_NESTING_DEPTH) {
       throw new MaxDepthExceededError(depth);
     }
 
@@ -91,7 +92,7 @@ export class RoutineExecutor {
       results: new Map(),
       prompt: task,
       store: this.store,
-      depth: depth ?? 0,
+      depth,
     });
 
     // Recursive step dispatcher — passes itself to executors so container

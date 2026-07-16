@@ -6,9 +6,13 @@
     "check": {
       "params": [
         {
-          "name": "build_output",
-          "description": "The raw output from the build step",
+          "name": "output",
+          "description": "The raw output from the previous step",
           "required": true
+        },
+        {
+          "name": "workspace",
+          "description": "Absolute path to the workspace where the code lives"
         }
       ],
       "steps": [
@@ -16,8 +20,11 @@
           "type": "agent",
           "id": "verify",
           "systemPrompt": "verify",
+          "workingDir": {
+            "path": "{{workspace}}"
+          },
           "parseJson": true,
-          "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{build_output}}"
+          "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nPrevious step output:\n{{output}}"
         }
       ]
     }

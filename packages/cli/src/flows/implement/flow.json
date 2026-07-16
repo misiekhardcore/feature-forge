@@ -70,7 +70,8 @@
                   "target": "/review",
                   "routine": "inspect",
                   "input": {
-                    "build_output": "{{results.builder.raw}}"
+                    "output": "{{results.builder.raw}}",
+                    "workspace": "{{workspace}}"
                   },
                   "timeout": 300,
                   "on_error": "continue"
@@ -81,7 +82,8 @@
                   "target": "/verify",
                   "routine": "check",
                   "input": {
-                    "build_output": "{{results.builder.raw}}"
+                    "output": "{{results.builder.raw}}",
+                    "workspace": "{{workspace}}"
                   },
                   "timeout": 300,
                   "on_error": "continue"
