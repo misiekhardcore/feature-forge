@@ -665,7 +665,7 @@ export class AgentViewerOverlay implements Component {
 
     // Header
     lines.push(theme.fg("accent", "Agent Viewer"));
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
 
     if (this.agents.size === 0) {
       lines.push(theme.fg("muted", "no agents running"));
@@ -682,20 +682,23 @@ export class AgentViewerOverlay implements Component {
         entry.passed,
       );
 
-      const cursor = isSelected ? "▶" : " ";
+      const cursor = isSelected ? theme.fg("accent", "→") : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
       const roleSuffix = entry.role ? theme.fg("muted", `(${entry.role})`) : "";
       const elapsedSuffix = entry.elapsed ? theme.fg("muted", entry.elapsed) : "";
-      lines.push(`${cursor} ${theme.fg(iconColor, icon)} ${idStyled}${roleSuffix}${elapsedSuffix}`);
+      lines.push(
+        `${cursor} ${theme.fg(iconColor, icon)} ${idStyled} ${roleSuffix} ${elapsedSuffix}`,
+      );
 
+      const maxWidth = 3 * width;
       // Show last stream line for started agents (truncated to fit width).
       const lastLine = this.lastLines.get(id);
       if (lastLine) {
-        lines.push(theme.fg("muted", lastLine));
+        lines.push(theme.fg("muted", this.trimListViewText(lastLine, maxWidth)));
       }
 
       if (entry.summary) {
-        lines.push(theme.fg("muted", entry.summary));
+        lines.push(theme.fg("muted", this.trimListViewText(entry.summary, maxWidth)));
       }
 
       if (entry.raw !== undefined) {
@@ -716,6 +719,11 @@ export class AgentViewerOverlay implements Component {
 
     const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
     return this.addBorder(wrapped, width);
+  }
+
+  private trimListViewText(text: string, maxWidth: number) {
+    if (text.length <= maxWidth) return text;
+    return text.substring(0, maxWidth - 3) + "...";
   }
 
   private renderDetail(width: number): string[] {
