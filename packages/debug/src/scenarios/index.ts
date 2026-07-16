@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ToolResultMessage } from "@earendil-works/pi-ai/base";
 
 import {
@@ -13,7 +13,13 @@ import {
   turnEndEvent,
   turnStartEvent,
 } from "../helpers/events.js";
-import { assistantMsg, toolCall, toolResultMsg, userMsg } from "../helpers/messages.js";
+import {
+  assistantMsg,
+  assistantStartMsg,
+  toolCall,
+  toolResultMsg,
+  userMsg,
+} from "../helpers/messages.js";
 
 export interface ScenarioData {
   agentId: string;
@@ -53,7 +59,7 @@ export function builderScenario(): ScenarioData {
       messageStartEvent(prompt),
       messageEndEvent(prompt),
       turnStartEvent(),
-      messageStartEvent({ ...assistant, content: [] } as AgentMessage),
+      messageStartEvent(assistantStartMsg()),
       messageEndEvent(assistant),
       toolExecutionStartEvent(readCall.id, readCall.name, readCall.arguments),
       toolExecutionEndEvent(
@@ -89,7 +95,7 @@ export function reviewerScenario(): ScenarioData {
       messageStartEvent(prompt),
       messageEndEvent(prompt),
       turnStartEvent(),
-      messageStartEvent({ ...assistant, content: [] } as AgentMessage),
+      messageStartEvent(assistantStartMsg()),
       messageEndEvent(assistant),
       toolExecutionStartEvent(bashCall.id, bashCall.name, bashCall.arguments),
       toolExecutionEndEvent(
@@ -116,7 +122,7 @@ export function errorScenario(): ScenarioData {
     events: [
       agentStartEvent(),
       turnStartEvent(),
-      messageStartEvent({ ...assistant, content: [] } as AgentMessage),
+      messageStartEvent(assistantStartMsg()),
       messageEndEvent(assistant),
       toolExecutionStartEvent(bashCall.id, bashCall.name, bashCall.arguments),
       toolExecutionEndEvent(bashCall.id, bashCall.name, "Command failed with exit code 137", true),
@@ -134,7 +140,6 @@ export function conversationScenario(): ScenarioData {
     "Find all registerHandler calls in the codebase and summarize the patterns.",
   );
   const grepCall = toolCall("call-c-1", "grep", { pattern: "registerHandler" });
-  const initial = assistantMsg("Let me check the codebase.", [grepCall]);
   const updated = assistantMsg("Let me check the codebase for relevant patterns.", [grepCall]);
   return {
     agentId: "researcher",
@@ -143,7 +148,7 @@ export function conversationScenario(): ScenarioData {
       messageStartEvent(prompt),
       messageEndEvent(prompt),
       turnStartEvent(),
-      messageStartEvent({ ...initial, content: [] } as AgentMessage),
+      messageStartEvent(assistantStartMsg()),
       messageUpdateEvent(updated, textDeltaEvent(0, " for relevant patterns", updated)),
       messageEndEvent(updated),
       toolExecutionStartEvent(grepCall.id, grepCall.name, grepCall.arguments),
@@ -182,7 +187,7 @@ export function toolArgsScenario(): ScenarioData {
       messageStartEvent(prompt),
       messageEndEvent(prompt),
       turnStartEvent(),
-      messageStartEvent({ ...assistant, content: [] } as AgentMessage),
+      messageStartEvent(assistantStartMsg()),
       messageEndEvent(assistant),
       toolExecutionStartEvent(bashCall.id, bashCall.name, bashCall.arguments),
       toolExecutionEndEvent(bashCall.id, bashCall.name, "Found 8472 lines in 156 files", false),
@@ -226,7 +231,7 @@ export function manyTurnsScenario(): ScenarioData {
         command: `find src -name '*.ts' | head -${i + 5}`,
       });
       const assistant = assistantMsg(`Bash turn ${i + 1} done.`, [bashCall]);
-      events.push(messageStartEvent({ ...assistant, content: [] } as AgentMessage));
+      events.push(messageStartEvent(assistantStartMsg()));
       events.push(messageEndEvent(assistant));
       events.push(toolExecutionStartEvent(bashCall.id, bashCall.name, bashCall.arguments));
       events.push(
@@ -242,7 +247,7 @@ export function manyTurnsScenario(): ScenarioData {
         limit: 50,
       });
       const assistant = assistantMsg(`Read turn ${i + 1} done.`, [readCall]);
-      events.push(messageStartEvent({ ...assistant, content: [] } as AgentMessage));
+      events.push(messageStartEvent(assistantStartMsg()));
       events.push(messageEndEvent(assistant));
       events.push(toolExecutionStartEvent(readCall.id, readCall.name, readCall.arguments));
       events.push(
@@ -291,7 +296,7 @@ export function manyTurnsScenario(): ScenarioData {
         path: `src/step-${i}.ts`,
       });
       const assistant = assistantMsg(`Dual tool turn ${i + 1} done.`, [bashCall, grepCall]);
-      events.push(messageStartEvent({ ...assistant, content: [] } as AgentMessage));
+      events.push(messageStartEvent(assistantStartMsg()));
       events.push(messageEndEvent(assistant));
       events.push(toolExecutionStartEvent(bashCall.id, bashCall.name, bashCall.arguments));
       events.push(toolExecutionEndEvent(bashCall.id, bashCall.name, `Step ${i + 1} output`, false));

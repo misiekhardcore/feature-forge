@@ -519,14 +519,22 @@ export class AgentViewerOverlay implements Component {
    * be populated lazily by {@link pushStreamEvent} calls instead.
    */
   prepopulateStreamFiles(streamDir: string): void {
+    // Track agent ids that already received a stale "done" entry so the
+    // update fires at most once per agent, even when an agent has multiple
+    // file kinds (e.g. .stream + .messages.jsonl + .events.jsonl).
+    const seen = new Set<string>();
+    const ensureStaleEntry = (agentId: string): void => {
+      if (this.agents.has(agentId) || seen.has(agentId)) return;
+      seen.add(agentId);
+      this.update({ id: agentId, status: "done", summary: "Agent completed" });
+    };
+
     try {
       for (const entry of readdirSync(streamDir)) {
         if (entry.endsWith(".stream")) {
           const agentId = entry.slice(0, -AgentViewerOverlay.STREAM_SUFFIX_LEN);
           this.streamFiles.set(agentId, join(streamDir, entry));
-          if (!this.agents.has(agentId)) {
-            this.update({ id: agentId, status: "done", summary: "Agent completed" });
-          }
+          ensureStaleEntry(agentId);
           continue;
         }
 
@@ -534,9 +542,7 @@ export class AgentViewerOverlay implements Component {
           const agentId = entry.slice(0, -AgentViewerOverlay.MESSAGES_SUFFIX_LEN);
           const filePath = join(streamDir, entry);
           this.messagesFiles.set(agentId, filePath);
-          if (!this.agents.has(agentId)) {
-            this.update({ id: agentId, status: "done", summary: "Agent completed" });
-          }
+          ensureStaleEntry(agentId);
           this.loadMessagesFromDiskIntoCache(agentId, filePath);
           continue;
         }
@@ -545,9 +551,7 @@ export class AgentViewerOverlay implements Component {
           const agentId = entry.slice(0, -AgentViewerOverlay.EVENTS_SUFFIX_LEN);
           const filePath = join(streamDir, entry);
           this.eventsFiles.set(agentId, filePath);
-          if (!this.agents.has(agentId)) {
-            this.update({ id: agentId, status: "done", summary: "Agent completed" });
-          }
+          ensureStaleEntry(agentId);
           // Raw events are NOT loaded at startup — they remain available
           // for lazy loadConversationEvents access only.
           continue;
