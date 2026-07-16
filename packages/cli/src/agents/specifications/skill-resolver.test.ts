@@ -1,3 +1,7 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
 import { SkillResolver } from "./skill-resolver";
@@ -78,5 +82,30 @@ describe("SkillResolver.resolveEffectiveNames", () => {
       const result = SkillResolver.resolveEffectiveNames(allSkills, [], ["does-not-exist"]);
       expect(result).toEqual(["build", "review", "verify", "research"]);
     });
+  });
+});
+
+describe("SkillResolver project skill discovery", () => {
+  it("discovers build skill from .forge/skills/build/SKILL.md", () => {
+    const buildSkillPath = path.resolve(process.cwd(), ".forge", "skills", "build", "SKILL.md");
+    expect(fs.existsSync(buildSkillPath)).toBe(true);
+
+    const content = fs.readFileSync(buildSkillPath, "utf-8");
+    const { frontmatter } = parseFrontmatter(content);
+    expect(frontmatter.name).toBe("build");
+    expect(frontmatter.description).toBeDefined();
+  });
+
+  it("discovers build skill via discoverAll when CWD is project root", () => {
+    const originalCwd = process.cwd();
+    const projectRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
+    try {
+      process.chdir(projectRoot);
+      const allSkills = SkillResolver.discoverAll();
+      expect(allSkills.has("build")).toBe(true);
+      expect(allSkills.get("build")).toContain("SKILL.md");
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 });

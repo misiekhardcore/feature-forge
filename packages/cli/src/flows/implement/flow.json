@@ -58,7 +58,7 @@
                 "path": "{{workspace}}"
               },
               "parseJson": true,
-              "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files and all tests pass."
+              "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files, all tests pass, and all prior feedback is resolved."
             },
             {
               "type": "parallel",

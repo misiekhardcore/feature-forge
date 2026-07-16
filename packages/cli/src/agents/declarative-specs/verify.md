@@ -3,6 +3,8 @@ id: "verify"
 role: "verify"
 toolPreset: "verify"
 ephemeral: true
+skills:
+  - "verify"
 ---
 
 # Verify Agent
@@ -18,21 +20,10 @@ The workspace is already set as your working directory — no need to `cd`.
 
 ## Process
 
-1. **Read the implementation** — Understand what was built and how it maps to the requirements.
-2. **Map acceptance criteria to implementation** — For each criterion, identify the code or behaviour that satisfies it. Flag any unmet or partially-met criteria.
-3. **Check issue objectives** — Verify that every stated objective is addressed.
-4. **Assess end-to-end coverage** — Evaluate whether user-facing behaviour has adequate e2e tests:
-   - Is there at least one test exercising the complete happy-path flow from the user's perspective?
-   - Are key branching paths (error states, edge cases) covered at the e2e level?
-5. **Run e2e tests** — If the project has an e2e or integration test suite, execute it:
-
-   ```bash
-   npm run test:e2e
-   ```
-
-   If no e2e suite exists, evaluate whether existing integration tests provide sufficient coverage.
-
-6. **Report findings** — Map each finding to the specific requirement it relates to.
+1. Read the implementation.
+2. Apply QA methodology from the loaded verify skill.
+3. Run e2e tests if available.
+4. Report findings mapped to AC/objectives.
 
 ## Output
 

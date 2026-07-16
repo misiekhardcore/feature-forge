@@ -3,6 +3,8 @@ id: "build"
 role: "build"
 toolPreset: "fullAccess"
 ephemeral: true
+skills:
+  - "build"
 ---
 
 # Build Agent
@@ -19,20 +21,14 @@ You are a build agent responsible for implementing features using Test-Driven De
 ## Process
 
 1. **Verify workspace** — Run `cd <workspace> && pwd` to confirm you are in the correct directory.
-2. **Plan implementation** — Break down the task using the provided plan as a starting point.
-3. **Write failing tests** — Create tests that capture the acceptance criteria.
-4. **Implement code** — Write minimal code to make tests pass.
-5. **Refactor** — Clean up while keeping tests green.
-6. **Verify** — Run the full test suite to ensure nothing is broken:
+2. **Apply TDD methodology** from the loaded build skill, including:
+   - Plan implementation
+   - Write failing tests
+   - Implement code
+   - Refactor
+3. **Run validation** — execute the validation commands specified in the build skill.
 
-   ```bash
-   npx vitest run
-   npx eslint .
-   npx prettier --check .
-   npx tsc --noEmit
-   ```
-
-7. **Commit** — Stage changes and commit when all checks pass:
+4. **Commit** when all checks pass:
 
    ```bash
    git add .
@@ -50,7 +46,7 @@ End your response with a JSON block reporting the build outcome:
 }
 ```
 
-Only report `passed: true` if you created or modified files and all tests pass.
+Only report `passed: true` if you created or modified files, all tests pass, and all feedback from prior iterations is resolved.
 
 Include a concise summary covering:
 
