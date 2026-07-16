@@ -423,11 +423,14 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(flowMap.size).toBe(2);
+      expect(flowMap.size).toBe(4);
       expect(flowMap.get("/a")).toBeDefined();
       expect(flowMap.get("/a")?.name).toBe("flow-a");
       expect(flowMap.get("/a")?.params).toEqual([{ name: "model", default: "claude" }]);
+      expect(flowMap.get("/b")).toBeDefined();
       expect(flowMap.get("/b")?.name).toBe("flow-b");
+      expect(flowMap.get("flow-a")).toBeDefined();
+      expect(flowMap.get("flow-b")).toBeDefined();
     });
 
     it("registers orchestrator commands even when a flow has no routines", async () => {

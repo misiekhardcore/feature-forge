@@ -161,6 +161,8 @@ export class FlowRegistrar {
 
       // 3. Populate flowMap for routine-reference resolution.
       this.params.flowMap.set(flow.command, flow);
+      // Also allow lookup by flow name (identifier) without the leading slash.
+      this.params.flowMap.set(flow.name, flow);
     } catch (error) {
       logger.warn(`[feature-forge] Failed to load flow "${flowName}"`, {
         error: error instanceof Error ? error : new Error(String(error)),
