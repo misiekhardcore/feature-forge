@@ -5,6 +5,7 @@ import type { InSessionAgent } from "../agents/agents/InSessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
+import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command } from "./Command";
 
@@ -40,10 +41,11 @@ export class OrchestratorCommand extends Command {
     supervisor: AgentSupervisor,
     pi: ExtensionAPI,
     specManager: SpecManager,
+    toolRegistry: ToolRegistry,
     workspaceManager: WorkspaceManager | undefined,
     flow: FlowDefinition,
   ) {
-    super(supervisor, pi, specManager, workspaceManager);
+    super(supervisor, pi, specManager, toolRegistry, workspaceManager);
     this.name = flow.command.replace(/^\//, "");
     this.flow = flow;
     this.description = `Run the ${flow.name} orchestrator workflow`;

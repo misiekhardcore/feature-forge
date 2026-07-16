@@ -9,7 +9,7 @@ import { jsonParse } from "@feature-forge/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { makeMockTypedEventBus } from "../test-utils";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
@@ -59,7 +59,12 @@ describe("RoutineTool", () => {
     it("sets name to routineName", () => {
       const flow = makeFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -74,7 +79,12 @@ describe("RoutineTool", () => {
     it("sets a human-readable label", () => {
       const flow = makeFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -89,7 +99,12 @@ describe("RoutineTool", () => {
     it("sets description without params when routine has none", () => {
       const flow = makeFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -104,7 +119,12 @@ describe("RoutineTool", () => {
     it("includes param names in description when routine has params", () => {
       const flow = makeFlow(["task", "plan"]);
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -119,7 +139,12 @@ describe("RoutineTool", () => {
     it("has typed parameters built from the routine's param declarations", () => {
       const flow = makeFlow(["task", "plan"]);
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -152,7 +177,12 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -219,7 +249,7 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -253,7 +283,12 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -290,7 +325,12 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -352,7 +392,7 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -387,7 +427,12 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -419,7 +464,12 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -486,7 +536,7 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -552,7 +602,7 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -673,7 +723,7 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -738,7 +788,12 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -763,7 +818,12 @@ describe("RoutineTool", () => {
     it("registers eventBus listeners for all feature-forge channels on execute", async () => {
       const flow = makeFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -858,7 +918,7 @@ describe("RoutineTool", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool(
         "myflow",
         "build",
@@ -890,7 +950,12 @@ describe("RoutineTool", () => {
     it("creates agent viewer overlay via ctx.ui.custom in TUI mode", async () => {
       const flow = makeFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, new StepExecutorRegistry(), eventBus);
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
       const tool = new RoutineTool(
         "myflow",
         "build",

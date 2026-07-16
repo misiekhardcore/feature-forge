@@ -107,7 +107,22 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   await worktreeRegistry.load();
   const workspaceManager = new WorkspaceManager(worktreeProvider, worktreeRegistry);
 
-  const cmdRegistry = new CommandRegistry(supervisor, pi, specManager, workspaceManager);
+  const toolRegistry = new ToolRegistry(client, pi);
+  toolRegistry.registerAll(
+    SpawnAgentTool,
+    SendTaskTool,
+    GetAgentResultTool,
+    ListAgentsTool,
+    DestroyAgentTool,
+  );
+
+  const cmdRegistry = new CommandRegistry(
+    supervisor,
+    pi,
+    specManager,
+    toolRegistry,
+    workspaceManager,
+  );
   cmdRegistry.registerAll(
     AgentListCommand,
     AgentDestroyCommand,
@@ -116,15 +131,6 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ResearchCommand,
     WorktreeListCommand,
     WorktreeDestroyCommand,
-  );
-
-  const toolRegistry = new ToolRegistry(client, pi);
-  toolRegistry.registerAll(
-    SpawnAgentTool,
-    SendTaskTool,
-    GetAgentResultTool,
-    ListAgentsTool,
-    DestroyAgentTool,
   );
 
   const workspaceProviderRegistry = new WorkspaceProviderRegistry()
@@ -155,7 +161,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   });
   await flowRegistrar.registerAll();
 
-  registerDevTestCommands(pi);
+  registerDevTestCommands(pi, toolRegistry);
 };
 
 export default featureForgeExtension;

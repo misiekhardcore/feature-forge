@@ -10,6 +10,10 @@ export function textBlock(text: string): TextContent {
   return { type: "text", text };
 }
 
+export function toolCall(id: string, name: string, args: Record<string, unknown> = {}): ToolCall {
+  return { type: "toolCall", id, name, arguments: args };
+}
+
 export function userMsg(text: string): UserMessage {
   const content: UserMessage["content"] = [textBlock(text)];
   return {

@@ -15,10 +15,11 @@ import {
 } from "@feature-forge/debug";
 
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
+import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
 
-export function registerDevTestCommands(pi: ExtensionAPI): void {
+export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegistry): void {
   if (!process.env.FORGE_DEV) return;
 
   const DEFAULT_EVENT_DELAY = 200;
@@ -57,6 +58,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
     onDone: () => void,
     timers: ReturnType<typeof setTimeout>[],
     scenarios: ScenarioData[],
+    toolRegistry: ToolRegistry,
     streamDir?: string,
     delay?: number,
   ): AgentViewerOverlay & Component {
@@ -71,6 +73,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       },
       markdownTheme: getMarkdownTheme(),
       cwd: process.cwd(),
+      toolRegistry,
     });
     if (streamDir) viewer.setStreamDir(streamDir);
     const offset = scenarios.length <= 1 ? 0 : 200;
@@ -90,15 +93,22 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
           const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(tui, theme, () => done(undefined), timers, [
-            emptyScenario(),
-            builderScenario(),
-            reviewerScenario(),
-            errorScenario(),
-            conversationScenario(),
-            toolArgsScenario(),
-            manyTurnsScenario(),
-          ]);
+          return createViewer(
+            tui,
+            theme,
+            () => done(undefined),
+            timers,
+            [
+              emptyScenario(),
+              builderScenario(),
+              reviewerScenario(),
+              errorScenario(),
+              conversationScenario(),
+              toolArgsScenario(),
+              manyTurnsScenario(),
+            ],
+            toolRegistry,
+          );
         },
         { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
       );
@@ -112,7 +122,14 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
           const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(tui, theme, () => done(undefined), timers, [manyTurnsScenario()]);
+          return createViewer(
+            tui,
+            theme,
+            () => done(undefined),
+            timers,
+            [manyTurnsScenario()],
+            toolRegistry,
+          );
         },
         { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
       );
@@ -127,7 +144,14 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
       await ctx.ui.custom<void>(
         (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
           const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(tui, theme, () => done(undefined), timers, [toolArgsScenario()]);
+          return createViewer(
+            tui,
+            theme,
+            () => done(undefined),
+            timers,
+            [toolArgsScenario()],
+            toolRegistry,
+          );
         },
         { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
       );
@@ -148,6 +172,7 @@ export function registerDevTestCommands(pi: ExtensionAPI): void {
             () => done(undefined),
             timers,
             [conversationScenario()],
+            toolRegistry,
             streamDir,
             0,
           );

@@ -3,11 +3,9 @@ import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { ToolRegistry } from "../../registry/ToolRegistry";
+import { makeMockToolRegistry } from "../../test-utils";
 import { ConversationRenderer } from "./ConversationRenderer";
-
-// Use real pi components (UserMessageComponent, AssistantMessageComponent,
-// ToolExecutionComponent, Container, Spacer) which depend on the pi runtime
-// theme singleton.
 beforeAll(() => {
   initTheme("dark");
 });
@@ -57,6 +55,7 @@ function makeRenderer(): ConversationRenderer {
     markdownTheme: makeMarkdownTheme(),
     tui: makeTui(),
     cwd: "/test/cwd",
+    toolRegistry: makeMockToolRegistry(),
   });
 }
 
@@ -289,6 +288,30 @@ describe("ConversationRenderer", () => {
       expect(joined).toContain("read");
       // The second tool call renders additional output (bash renders as shell component)
       expect(result.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("resolves tool definitions via toolRegistry.get for each tool call name", () => {
+      const getMock = vi.fn().mockReturnValue(undefined);
+      const renderer = new ConversationRenderer({
+        theme: makeTheme(),
+        markdownTheme: makeMarkdownTheme(),
+        tui: makeTui(),
+        cwd: "/test/cwd",
+        toolRegistry: { get: getMock } as unknown as ToolRegistry,
+      });
+
+      const messages = [
+        makeAssistantMessageWithToolCalls("Testing.", [
+          { id: "call_1", name: "read" },
+          { id: "call_2", name: "bash" },
+        ]),
+      ];
+
+      renderer.render(messages, 80);
+
+      expect(getMock).toHaveBeenCalledWith("read");
+      expect(getMock).toHaveBeenCalledWith("bash");
+      expect(getMock).toHaveBeenCalledTimes(2);
     });
 
     it("matches toolResult message to pending toolCall component by toolCallId", () => {

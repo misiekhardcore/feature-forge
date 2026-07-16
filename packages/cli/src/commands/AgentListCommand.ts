@@ -43,6 +43,7 @@ export class AgentListCommand extends Command {
               },
               markdownTheme: getMarkdownTheme(),
               cwd: ctx.cwd,
+              toolRegistry: this.toolRegistry,
             });
 
             connect(viewer, streamDir);

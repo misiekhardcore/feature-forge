@@ -7,7 +7,9 @@ import {
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
+import { jsonParse } from "@feature-forge/shared";
 
+import { ToolRegistry } from "../../registry/ToolRegistry";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
 /**
@@ -22,6 +24,8 @@ export interface ConversationRendererParams {
   tui: TUI;
   /** Current working directory — passed to tool execution components. */
   cwd: string;
+  /** Registry for resolving tool definitions to restore argument formatting. */
+  toolRegistry: ToolRegistry;
 }
 
 /**
@@ -39,7 +43,7 @@ export interface ConversationRendererParams {
  *   to display results inline
  *
  * Each {@link render} call is stateless — the class holds only its
- * injected dependencies (theme, markdownTheme, tui, cwd) and produces output
+ * injected dependencies (theme, markdownTheme, tui, cwd, toolRegistry) and produces output
  * purely from the given message list.
  */
 export class ConversationRenderer {
@@ -47,12 +51,14 @@ export class ConversationRenderer {
   private readonly markdownTheme: MarkdownTheme;
   private readonly tui: TUI;
   private readonly cwd: string;
+  private readonly toolRegistry: ToolRegistry;
 
   constructor(params: ConversationRendererParams) {
     this.theme = params.theme;
     this.markdownTheme = params.markdownTheme;
     this.tui = params.tui;
     this.cwd = params.cwd;
+    this.toolRegistry = params.toolRegistry;
   }
 
   /**
@@ -122,16 +128,29 @@ export class ConversationRenderer {
         );
 
         for (const toolCall of toolCalls) {
-          const resolvedArgs: Record<string, unknown> =
-            typeof toolCall.arguments === "string"
-              ? (JSON.parse(toolCall.arguments) as Record<string, unknown>)
-              : (toolCall.arguments ?? {});
+          let resolvedArgs: Record<string, unknown> = {};
+          if (typeof toolCall.arguments === "string") {
+            try {
+              const parsed = jsonParse<unknown>(toolCall.arguments);
+              resolvedArgs =
+                typeof parsed === "object" && parsed !== null
+                  ? (parsed as Record<string, unknown>)
+                  : {};
+            } catch {
+              resolvedArgs = {};
+            }
+          } else if (toolCall.arguments) {
+            resolvedArgs = toolCall.arguments as Record<string, unknown>;
+          }
+
+          const toolDefinition = this.toolRegistry.get(toolCall.name);
+
           const toolComponent = new ToolExecutionComponent(
             toolCall.name,
             toolCall.id,
             resolvedArgs,
             undefined,
-            undefined,
+            toolDefinition,
             this.tui,
             this.cwd,
           );
@@ -143,7 +162,7 @@ export class ConversationRenderer {
         // When the assistant message has an error or aborted stop reason,
         // mark all pending tool components from this message as errors.
         if ("stopReason" in message) {
-          const assistantMsg = message as { stopReason: unknown };
+          const assistantMsg = message as { stopReason: string | undefined };
           if (assistantMsg.stopReason === "error" || assistantMsg.stopReason === "aborted") {
             for (const toolCall of toolCalls) {
               const component_ = pendingTools.get(toolCall.id);

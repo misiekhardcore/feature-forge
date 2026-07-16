@@ -7,6 +7,7 @@ import type {
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import type { CommandRegistry } from "../registry/CommandRegistry";
+import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 
 /**
@@ -17,6 +18,7 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
     protected readonly supervisor: AgentSupervisor,
     protected readonly pi: ExtensionAPI,
     protected readonly specManager: SpecManager,
+    protected readonly toolRegistry: ToolRegistry,
     protected readonly workspaceManager?: WorkspaceManager,
     protected readonly commandRegistry?: CommandRegistry,
   ) {}

@@ -23,7 +23,12 @@ import type { DisplayContribution } from "../src/orchestrator/progress/DisplayCo
 import { ProgressRenderer } from "../src/orchestrator/progress/ProgressRenderer";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import type { RoutineProgressEvent } from "../src/orchestrator/RoutineProgress";
-import { makeMockFactory, makeMockSpecManager, makeMockTypedEventBus } from "../src/test-utils";
+import {
+  makeMockFactory,
+  makeMockSpecManager,
+  makeMockToolRegistry,
+  makeMockTypedEventBus,
+} from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
@@ -94,7 +99,12 @@ describe("routine progress display (e2e)", () => {
       makeMockSpecManager(),
       wtRegistry,
     );
-    const executor = new RoutineExecutor(flow, stepRegistry, makeMockTypedEventBus());
+    const executor = new RoutineExecutor(
+      flow,
+      stepRegistry,
+      makeMockTypedEventBus(),
+      makeMockToolRegistry(),
+    );
 
     const agentState = new Map<string, { status: string; summary?: string }>();
     let capturedIteration = 0;

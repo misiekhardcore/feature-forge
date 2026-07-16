@@ -16,7 +16,7 @@ export {
   turnEndEvent,
   turnStartEvent,
 } from "./helpers/events.js";
-export { assistantMsg, textBlock, toolResultMsg } from "./helpers/messages.js";
+export { assistantMsg, textBlock, toolCall, toolResultMsg } from "./helpers/messages.js";
 export type { ScenarioData } from "./scenarios/index.js";
 export {
   builderScenario,

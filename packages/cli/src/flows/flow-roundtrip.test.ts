@@ -41,7 +41,7 @@ import { FlowLoader } from "../orchestrator/FlowLoader";
 import { RoutineExecutor } from "../orchestrator/RoutineExecutor";
 import { RoutineTool } from "../orchestrator/RoutineTool";
 import { StepExecutorRegistry } from "../orchestrator/StepExecutorRegistry";
-import { makeMockTypedEventBus } from "../test-utils";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -270,7 +270,12 @@ describe("flow round-trip", () => {
       // tools now come from orchestrator.md frontmatter, not flow.json.
       // Verify that routine-based tool names match the routine names in the flow.
       const registry = new StepExecutorRegistry();
-      const executor = new RoutineExecutor(flow, registry, makeMockTypedEventBus());
+      const executor = new RoutineExecutor(
+        flow,
+        registry,
+        makeMockTypedEventBus(),
+        makeMockToolRegistry(),
+      );
       const routineToolNames = new Set<string>();
 
       for (const [routineName, routineDef] of Object.entries(flow.routines)) {

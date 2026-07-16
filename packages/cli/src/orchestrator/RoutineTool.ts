@@ -221,6 +221,7 @@ export class RoutineTool
               },
               markdownTheme: getMarkdownTheme(),
               cwd: ctx.cwd,
+              toolRegistry: this.executor.toolRegistry,
             });
 
             connect(viewer, streamDir);

@@ -9,6 +9,7 @@ import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
+import { ToolRegistry } from "../../registry/ToolRegistry";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
@@ -70,6 +71,8 @@ export interface AgentViewerOverlayParams {
   markdownTheme: MarkdownTheme;
   /** Current working directory — used by {@link ConversationRenderer} for tool execution display. */
   cwd: string;
+  /** Registry for resolving tool definitions to restore argument formatting. */
+  toolRegistry: ToolRegistry;
 }
 
 /**
@@ -104,8 +107,11 @@ export class AgentViewerOverlay implements Component {
   /** Maps agent id → stream file path on disk. */
   private streamFiles = new Map<string, string>();
 
-  /** Maps agent id → events JSONL file path on disk. */
+  /** Maps agent id → events JSONL file path on disk (raw events, diagnostics only). */
   private eventsFiles = new Map<string, string>();
+
+  /** Maps agent id → messages JSONL file path on disk (finalized messages). */
+  private messagesFiles = new Map<string, string>();
 
   /** TUI instance for requesting re-renders. */
   private readonly tui: TUI;
@@ -180,6 +186,7 @@ export class AgentViewerOverlay implements Component {
       markdownTheme: params.markdownTheme,
       tui: params.tui,
       cwd: params.cwd,
+      toolRegistry: params.toolRegistry,
     });
   }
 
@@ -311,12 +318,31 @@ export class AgentViewerOverlay implements Component {
         }
 
         // Persist raw event to .events.jsonl (sync, small writes).
+        // Raw events are kept for diagnostics only and are never loaded
+        // back at startup (see prepopulateStreamFiles).
         const eventsPath =
           this.eventsFiles.get(agentId) ?? join(this.streamDir, `${agentId}.events.jsonl`);
         if (!this.eventsFiles.has(agentId)) {
           this.eventsFiles.set(agentId, eventsPath);
         }
         appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf-8");
+
+        // Persist finalized message to .messages.jsonl (sync, small writes).
+        // Only message_end events for user/assistant/toolResult carry a
+        // finalized message — this mirrors pi's appendMessage which writes
+        // one entry per finalized message, never per streaming update.
+        if (event.type === "message_end" && event.message) {
+          const message = event.message;
+          const role = message.role;
+          if (role === "user" || role === "assistant" || role === "toolResult") {
+            const messagesPath =
+              this.messagesFiles.get(agentId) ?? join(this.streamDir, `${agentId}.messages.jsonl`);
+            if (!this.messagesFiles.has(agentId)) {
+              this.messagesFiles.set(agentId, messagesPath);
+            }
+            appendFileSync(messagesPath, `${JSON.stringify(message)}\n`, "utf-8");
+          }
+        }
       } catch (error) {
         logger.debug("Failed to persist stream event to disk", {
           agentId,
@@ -361,41 +387,18 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Return the extracted {@link AgentMessage} objects for an agent, in order.
+   * Return the cached {@link AgentMessage} objects for an agent, in order.
    *
-   * For live agents, messages are extracted incrementally from
-   * {@link pushStreamEvent} calls. For historical agents loaded from disk,
-   * messages are extracted from the event buffer on-the-fly to avoid
-   * duplicating data in memory.
+   * Messages are populated live from {@link pushStreamEvent} on each
+   * {@code message_end} event, and loaded from {@code messages.jsonl} at
+   * startup by {@link prepopulateStreamFiles}. No per-render extraction is
+   * performed — this returns the in-memory cache directly.
    *
    * @param agentId — The agent to get messages for.
    * @returns An array of messages, most recent last. Empty array for unknown agents.
    */
   getConversationMessages(agentId: string): AgentMessage[] {
-    // Fast path: pre-extracted messages from live streaming.
-    const cached = this.agentMessages.get(agentId);
-    if (cached && cached.length > 0) return cached;
-
-    // Fallback: extract from stored events (historical agents loaded from disk).
-    const events = this.agentEvents.get(agentId);
-    if (!events || events.length === 0) return [];
-
-    const messages: AgentMessage[] = [];
-    for (const evt of events) {
-      // turn_end: push toolResults directly. The assistant message is
-      // already extracted from the preceding message_end event.
-      if (evt.type === "turn_end") {
-        for (const result of evt.toolResults) {
-          messages.push(result);
-        }
-        continue;
-      }
-
-      const msg = AgentViewerOverlay.extractMessageFromEvent(evt);
-      if (!msg) continue;
-      AgentViewerOverlay.mergeMessageIntoList(messages, evt, msg);
-    }
-    return messages;
+    return this.agentMessages.get(agentId) ?? [];
   }
 
   /**
@@ -488,67 +491,114 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Scan the stream directory for existing {@code *.stream} files and
-   * pre-populate the internal {@link streamFiles} map.
+   * Suffix length helpers for slicing agent ids from per-agent file names.
+   */
+  private static readonly STREAM_SUFFIX_LEN = ".stream".length;
+  private static readonly EVENTS_SUFFIX_LEN = ".events.jsonl".length;
+  private static readonly MESSAGES_SUFFIX_LEN = ".messages.jsonl".length;
+
+  /**
+   * Scan the stream directory for existing per-agent files and pre-populate
+   * the overlay's state.
    *
-   * Also creates stale "done" entries for any agents that have stream
-   * files but are not tracked by {@link agents}. This ensures that
-   * {@code /agent:list} shows the same set of agents as the routine's
-   * auto-opened overlay, even after completed agents have been removed
-   * from the supervisor.
+   * Three file kinds are recognised:
+   * - {@code *.stream} — formatted display log (diagnostics). The path is
+   *   registered but the file is never replayed.
+   * - {@code *.messages.jsonl} — finalized messages (pi's appendMessage
+   *   semantics). Loaded into {@link agentMessages}, capped to
+   *   {@link MAX_AGENT_EVENTS}, keeping the most recent messages.
+   * - {@code *.events.jsonl} — raw events (diagnostics). The path is
+   *   registered for lazy {@link loadConversationEvents} access but the
+   *   file is NOT loaded into memory at startup.
    *
-   * Silently ignores missing or inaccessible directories — the map
-   * will be populated lazily by {@link pushStreamEvent} calls instead.
+   * Also creates stale "done" entries for any agents that have files but
+   * are not tracked by {@link agents}, so {@code /agent:list} shows the
+   * same set of agents as the routine's auto-opened overlay.
+   *
+   * Silently ignores missing or inaccessible directories — the maps will
+   * be populated lazily by {@link pushStreamEvent} calls instead.
    */
   prepopulateStreamFiles(streamDir: string): void {
     try {
       for (const entry of readdirSync(streamDir)) {
         if (entry.endsWith(".stream")) {
-          const agentId = entry.slice(0, -7);
-          const filePath = join(streamDir, entry);
-          this.streamFiles.set(agentId, filePath);
-          // Restore entries for agents that completed and were removed
-          // from the supervisor so /agent:list shows the same set as
-          // the routine's auto-opened overlay.
+          const agentId = entry.slice(0, -AgentViewerOverlay.STREAM_SUFFIX_LEN);
+          this.streamFiles.set(agentId, join(streamDir, entry));
           if (!this.agents.has(agentId)) {
             this.update({ id: agentId, status: "done", summary: "Agent completed" });
           }
-          // Stream files are not replayed — they hold formatted display lines
-          // for debugging only. The events.jsonl branch below handles
-          // re-ingestion of raw events into the in-memory buffer.
-        } else if (entry.endsWith(".events.jsonl")) {
-          const agentId = entry.slice(0, -13);
+          continue;
+        }
+
+        if (entry.endsWith(".messages.jsonl")) {
+          const agentId = entry.slice(0, -AgentViewerOverlay.MESSAGES_SUFFIX_LEN);
+          const filePath = join(streamDir, entry);
+          this.messagesFiles.set(agentId, filePath);
+          if (!this.agents.has(agentId)) {
+            this.update({ id: agentId, status: "done", summary: "Agent completed" });
+          }
+          this.loadMessagesFromDiskIntoCache(agentId, filePath);
+          continue;
+        }
+
+        if (entry.endsWith(".events.jsonl")) {
+          const agentId = entry.slice(0, -AgentViewerOverlay.EVENTS_SUFFIX_LEN);
           const filePath = join(streamDir, entry);
           this.eventsFiles.set(agentId, filePath);
-          try {
-            const content = readFileSync(filePath, "utf-8");
-            const lines = content.trimEnd().split("\n");
-            const events: AgentEvent[] = [];
-            for (const line of lines) {
-              if (!line) continue;
-              const parsed = jsonParse<AgentEvent>(line);
-              events.push(parsed);
-            }
-            if (events.length > 0) {
-              const existing = this.agentEvents.get(agentId) ?? [];
-              const merged = [...existing, ...events];
-              if (merged.length > MAX_AGENT_EVENTS) {
-                merged.splice(0, merged.length - MAX_AGENT_EVENTS);
-              }
-              this.agentEvents.set(agentId, merged);
-            }
-          } catch (error) {
-            logger.debug("Failed to prepopulate events from JSONL file, skipping", {
-              agentId,
-              filePath,
-              error: error instanceof Error ? error.message : String(error),
-            });
+          if (!this.agents.has(agentId)) {
+            this.update({ id: agentId, status: "done", summary: "Agent completed" });
           }
+          // Raw events are NOT loaded at startup — they remain available
+          // for lazy loadConversationEvents access only.
+          continue;
         }
       }
     } catch (error) {
       logger.debug("Failed to scan stream directory for prepopulation", {
         streamDir,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Parse a {@code .messages.jsonl} file into cached {@link agentMessages}.
+   *
+   * Each line is a serialized {@link AgentMessage}. Messages are merged with
+   * any already-cached entries (disk messages first/older, in-memory entries
+   * last/newer) and capped to {@link MAX_AGENT_EVENTS} keeping the most
+   * recent. Malformed lines are skipped.
+   */
+  private loadMessagesFromDiskIntoCache(agentId: string, filePath: string): void {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const lines = content.trimEnd().split("\n");
+      const disk: AgentMessage[] = [];
+      for (const line of lines) {
+        if (!line) continue;
+        try {
+          const parsed = jsonParse<AgentMessage>(line);
+          disk.push(parsed);
+        } catch (error) {
+          logger.debug("Skipping malformed message JSONL line", {
+            agentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (disk.length === 0) return;
+      const existing = this.agentMessages.get(agentId) ?? [];
+      // Disk messages are older (written first); in-memory entries are newer
+      // (from live pushStreamEvent calls during this session).
+      const merged = [...disk, ...existing];
+      if (merged.length > MAX_AGENT_EVENTS) {
+        merged.splice(0, merged.length - MAX_AGENT_EVENTS);
+      }
+      this.agentMessages.set(agentId, merged);
+    } catch (error) {
+      logger.debug("Failed to prepopulate messages from JSONL file, skipping", {
+        agentId,
+        filePath,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -565,6 +615,7 @@ export class AgentViewerOverlay implements Component {
     // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
     this.eventsFiles.clear();
+    this.messagesFiles.clear();
     this.lastLines.clear();
     this.agentEvents.clear();
     this.agentMessages.clear();
@@ -604,8 +655,10 @@ export class AgentViewerOverlay implements Component {
    * Extract an AgentMessage from an event if it carries one.
    *
    * Returns the message for message\_start, message\_update, and
-   * message\_end events. For turn\_end, the message is a duplicate
-   * of the preceding message\_end — only toolResults carry new data.
+   * message\_end events. turn\_end carries a duplicate of the preceding
+   * message\_end message plus toolResults that also arrive as their own
+   * message\_start/message\_end pairs, so it is intentionally ignored
+   * here to avoid duplicate entries.
    *
    * Returns undefined for all other event types.
    */
@@ -622,11 +675,10 @@ export class AgentViewerOverlay implements Component {
 
   /**
    * Merge an extracted AgentMessage into a message list, handling deduplication
-   * for message_update and message_end events by replacing the last entry.
+   * for message_update and message_end events by replacing the last entry
+   * (the entry pushed by the matching message_start).
    *
-   * Used by {@link appendMessageFromEvent} and {@link getConversationMessages}
-   * to keep dedup logic in one place. turn\_end events are handled separately
-   * in each caller — only toolResults are pushed, not the duplicate message.
+   * Used by {@link appendMessageFromEvent} to keep dedup logic in one place.
    */
   private static mergeMessageIntoList(
     messages: AgentMessage[],
@@ -645,28 +697,18 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Extract and append AgentMessages from a raw event to the in-memory list,
+   * Extract and append an AgentMessage from a raw event to the in-memory cache,
    * handling message updates by replacing the most recent entry.
+   *
+   * Only message_start, message_update, and message_end carry messages;
+   * per-tool toolResult messages arrive as their own message_start/message_end
+   * pairs (matching pi's {@code emitToolResultMessage}), so turn_end needs no
+   * special handling here — its message and toolResults are duplicates.
    *
    * Applies the same FIFO sliding window cap as agentEvents
    * (MAX_AGENT_EVENTS) to prevent unbounded memory growth.
    */
   private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
-    // turn_end events: push toolResults directly. The assistant message
-    // is already extracted from the preceding message_end event.
-    if (event.type === "turn_end") {
-      const messages = this.agentMessages.get(agentId) ?? [];
-      for (const result of event.toolResults) {
-        messages.push(result);
-      }
-      // Apply FIFO sliding window cap.
-      if (messages.length > MAX_AGENT_EVENTS) {
-        messages.splice(0, messages.length - MAX_AGENT_EVENTS);
-      }
-      this.agentMessages.set(agentId, messages);
-      return;
-    }
-
     const message = AgentViewerOverlay.extractMessageFromEvent(event);
     if (!message) return;
 
