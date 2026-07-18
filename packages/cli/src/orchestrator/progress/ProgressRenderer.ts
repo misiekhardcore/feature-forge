@@ -52,17 +52,13 @@ export interface BuildStatusLineParams {
 
 // ── Helpers ──────────────────────────────────────────────────
 
-/** Max safe width for single-line suffix strings before truncation. */
-const MAX_SUFFIX_LENGTH = 200;
-
 /**
- * Sanitize a string intended for use as a single-line suffix.
- * Replaces embedded newlines with spaces and truncates to a safe length
- * using visibleWidth-aware truncation that preserves ANSI escape sequences.
+ * Collapse embedded newlines into spaces so the string can be used as a
+ * single-line suffix. Width enforcement is handled by wrapTextWithAnsi in
+ * the render closures that consume the result.
  */
 function sanitizeSuffix(text: string): string {
-  const singleLine = text.replace(/\n/g, " ").replace(/\r/g, "").trim();
-  return truncateToWidth(singleLine, MAX_SUFFIX_LENGTH);
+  return text.replace(/\n/g, " ").replace(/\r/g, "").trim();
 }
 
 // ── Class ────────────────────────────────────────────────────
