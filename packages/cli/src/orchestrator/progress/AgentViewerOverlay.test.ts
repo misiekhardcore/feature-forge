@@ -3867,10 +3867,23 @@ describe("AgentViewerOverlay", () => {
       overlay.prepopulateStreamFiles(tmpDir);
 
       const events = await overlay.loadConversationEvents("builder", 50);
-      // Streaming ring buffer should return exactly 50 most recent events.
       expect(events).toHaveLength(50);
 
+      // Verify the returned events are the most recent 50 (indices 4950–4999).
+      const indices = events.map((e) =>
+        Number(
+          (e as { message: { content: Array<{ text: string }> } }).message.content[0].text.replace(
+            "event-",
+            "",
+          ),
+        ),
+      );
+      expect(Math.min(...indices)).toBe(EVENT_COUNT - 50);
+      // Verify ordering: oldest first within the returned window.
+      expect(indices).toEqual([...indices].sort((a, b) => a - b));
+
       overlay.dispose();
+      rmSync(tmpDir, { recursive: true, force: true });
     });
   });
 
@@ -4176,6 +4189,68 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(1);
 
       overlay.dispose();
+    });
+
+    it("prepopulates both files: messages loaded, raw events skipped, streaming works", async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-both-"));
+
+      // Create .messages.jsonl with finalized messages
+      writeFileSync(
+        join(tmpDir, "builder.messages.jsonl"),
+        [
+          JSON.stringify({
+            role: "user",
+            content: [{ type: "text", text: "question" }],
+            timestamp: 0,
+          }),
+          JSON.stringify({
+            role: "assistant",
+            content: [{ type: "text", text: "answer" }],
+            timestamp: 1,
+          }),
+        ].join("\n") + "\n",
+      );
+
+      // Create large .events.jsonl with raw events (should NOT be eager-loaded)
+      const LARGE_COUNT = 5_000;
+      const eventLines: string[] = [];
+      for (let i = 0; i < LARGE_COUNT; i++) {
+        eventLines.push(
+          JSON.stringify({
+            type: "message_start",
+            message: { role: "assistant", content: [{ type: "text", text: `event-${i}` }] },
+          }),
+        );
+      }
+      writeFileSync(join(tmpDir, "builder.events.jsonl"), eventLines.join("\n") + "\n");
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      // Messages from .messages.jsonl are loaded into the cache
+      const cached = overlay.getConversationMessages("builder");
+      expect(cached).toHaveLength(2);
+      expect(cached[0]).toMatchObject({ role: "user" });
+      expect(cached[1]).toMatchObject({ role: "assistant" });
+
+      // Raw events from .events.jsonl are NOT eager-loaded
+      expect(overlay.getConversation("builder")).toEqual([]);
+
+      // Streaming loadConversationEvents returns subset from large file
+      const streamed = await overlay.loadConversationEvents("builder", 50);
+      expect(streamed).toHaveLength(50);
+      const indices = streamed.map((e) =>
+        Number(
+          (e as { message: { content: Array<{ text: string }> } }).message.content[0].text.replace(
+            "event-",
+            "",
+          ),
+        ),
+      );
+      indices.forEach((i) => expect(i).toBeGreaterThanOrEqual(LARGE_COUNT - 50));
+
+      overlay.dispose();
+      rmSync(tmpDir, { recursive: true, force: true });
     });
   });
 
