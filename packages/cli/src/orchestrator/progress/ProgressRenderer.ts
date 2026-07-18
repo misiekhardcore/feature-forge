@@ -57,14 +57,12 @@ const MAX_SUFFIX_LENGTH = 200;
 
 /**
  * Sanitize a string intended for use as a single-line suffix.
- * Replaces embedded newlines with spaces and truncates to a safe length.
+ * Replaces embedded newlines with spaces and truncates to a safe length
+ * using visibleWidth-aware truncation that preserves ANSI escape sequences.
  */
 function sanitizeSuffix(text: string): string {
   const singleLine = text.replace(/\n/g, " ").replace(/\r/g, "").trim();
-  if (singleLine.length <= MAX_SUFFIX_LENGTH) {
-    return singleLine;
-  }
-  return singleLine.slice(0, MAX_SUFFIX_LENGTH - 3) + "...";
+  return truncateToWidth(singleLine, MAX_SUFFIX_LENGTH);
 }
 
 // ── Class ────────────────────────────────────────────────────
