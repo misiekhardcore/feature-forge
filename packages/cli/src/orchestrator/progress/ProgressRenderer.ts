@@ -4,6 +4,7 @@ import type {
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
+import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
 import { createAccumulatedState } from "./AccumulatedState";
@@ -47,6 +48,23 @@ export interface BuildStatusLineParams {
   subtitle?: string;
   /** Pre-formatted tags to append (e.g. agent status chips). */
   tags: string[];
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+
+/** Max safe width for single-line suffix strings before truncation. */
+const MAX_SUFFIX_LENGTH = 200;
+
+/**
+ * Sanitize a string intended for use as a single-line suffix.
+ * Replaces embedded newlines with spaces and truncates to a safe length.
+ */
+function sanitizeSuffix(text: string): string {
+  const singleLine = text.replace(/\n/g, " ").replace(/\r/g, "").trim();
+  if (singleLine.length <= MAX_SUFFIX_LENGTH) {
+    return singleLine;
+  }
+  return singleLine.slice(0, MAX_SUFFIX_LENGTH - 3) + "...";
 }
 
 // ── Class ────────────────────────────────────────────────────
@@ -185,7 +203,15 @@ export class ProgressRenderer {
     }
 
     if (details.results.pr?.raw) {
-      return details.results.pr.raw;
+      const raw = details.results.pr.raw;
+      // Extract just the GitHub PR URL — raw may contain multi-line stderr
+      const prUrlMatch = raw.match(/https?:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
+      if (prUrlMatch) {
+        return prUrlMatch[0];
+      }
+      // Fall back to first non-empty line only — never emit multi-line raw output
+      const firstLine = raw.split("\n").find((l: string) => l.trim()) ?? raw;
+      return sanitizeSuffix(firstLine);
     }
 
     if (details.workspace) {
@@ -194,11 +220,11 @@ export class ProgressRenderer {
     }
 
     if (details.results.cleanup?.parsed?.summary) {
-      return details.results.cleanup.parsed.summary;
+      return sanitizeSuffix(details.results.cleanup.parsed.summary);
     }
 
     if (details.summary) {
-      return details.summary;
+      return sanitizeSuffix(details.summary);
     }
 
     return details.passed ? "passed" : "failed";
@@ -229,7 +255,7 @@ export class ProgressRenderer {
   buildCallComponent(theme: Theme): Component {
     const state = this.state;
     return {
-      render: () => {
+      render: (width: number) => {
         const acc = createAccumulatedState();
         this.registry.apply(acc, state.contributions);
         const runningIcon = ProgressRenderer.statusIcon("running", theme);
@@ -243,7 +269,8 @@ export class ProgressRenderer {
         } else {
           parts.push(theme.fg("muted", " · pending"));
         }
-        return [parts.join("")];
+        const line = parts.join("");
+        return [truncateToWidth(line, width, "", true)];
       },
       invalidate: () => {
         /* stateless — re-render is handled by onStateChange */
@@ -279,7 +306,10 @@ export class ProgressRenderer {
     const suffix = acc.resultSnippet ?? ProgressRenderer.buildResultSuffix(result.details);
 
     return {
-      render: () => [`${icon} ${routine} · ${suffix}`],
+      render: (width: number) => {
+        const line = `${icon} ${routine} · ${suffix}`;
+        return wrapTextWithAnsi(sanitizeSuffix(line), width);
+      },
       invalidate: () => {
         /* stateless — nothing to clear */
       },
