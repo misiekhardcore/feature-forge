@@ -1,4 +1,5 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ToolCall } from "@earendil-works/pi-ai";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
   AssistantMessageComponent,
@@ -6,33 +7,58 @@ import {
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
+import { jsonParse } from "@feature-forge/shared";
 
+import { ToolRegistry } from "../../registry/ToolRegistry";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
 /**
- * Renders a flat list of {@link AgentEvent} objects into styled conversation
+ * Parameters for constructing a {@link ConversationRenderer}.
+ */
+export interface ConversationRendererParams {
+  /** Theme for colouring UI elements. */
+  theme: Theme;
+  /** Markdown theme for rendering markdown content. */
+  markdownTheme: MarkdownTheme;
+  /** TUI instance for requesting re-renders. */
+  tui: TUI;
+  /** Current working directory — passed to tool execution components. */
+  cwd: string;
+  /** Registry for resolving tool definitions to restore argument formatting. */
+  toolRegistry: ToolRegistry;
+}
+
+/**
+ * Renders an array of {@link AgentMessage} objects into styled conversation
  * lines using pi's built-in components.
  *
- * Groups related start/end events (message_start → message_end,
- * tool_execution_start → tool_execution_end) into visual blocks. Pending
- * state (in-progress messages / tool calls without a matching end event)
- * is flushed at the end of the stream.
+ * Messages are dispatched by their `role` field matching pi's rendering
+ * logic:
+ * - "user" messages → {@link UserMessageComponent}
+ * - "assistant" messages → {@link AssistantMessageComponent} with
+ *   additional per-toolCall {@link ToolExecutionComponent} instances
+ *   appended to the container
+ * - "toolResult" messages match against pending tool execution
+ *   components by {@code toolCallId} and call {@code updateResult}
+ *   to display results inline
  *
  * Each {@link render} call is stateless — the class holds only its
- * injected dependencies (theme, markdownTheme, tui, cwd) and produces
- * output purely from the given event list.
+ * injected dependencies (theme, markdownTheme, tui, cwd, toolRegistry) and produces output
+ * purely from the given message list.
  */
 export class ConversationRenderer {
   private readonly theme: Theme;
   private readonly markdownTheme: MarkdownTheme;
   private readonly tui: TUI;
   private readonly cwd: string;
+  private readonly toolRegistry: ToolRegistry;
 
-  constructor(theme: Theme, markdownTheme: MarkdownTheme, tui: TUI, cwd: string) {
-    this.theme = theme;
-    this.markdownTheme = markdownTheme;
-    this.tui = tui;
-    this.cwd = cwd;
+  constructor(params: ConversationRendererParams) {
+    this.theme = params.theme;
+    this.markdownTheme = params.markdownTheme;
+    this.tui = params.tui;
+    this.cwd = params.cwd;
+    this.toolRegistry = params.toolRegistry;
   }
 
   /**
@@ -49,117 +75,132 @@ export class ConversationRenderer {
   }
 
   /**
-   * Render a list of raw stream events as styled conversation lines.
+   * Render a list of {@link AgentMessage} objects as styled conversation lines.
    *
-   * Dispatches on {@code AgentEvent.type} covering all 10 variants
-   * in a discriminated switch. Messages are rendered via
-   * {@link UserMessageComponent} (role "user"),
-   * {@link AssistantMessageComponent} (role "assistant"), or plain text
-   * extraction (all other roles). Tool calls are rendered via
-   * {@link ToolExecutionComponent}.
+   * Dispatches on `message.role` matching pi's rendering logic:
+   * - "user" → {@link UserMessageComponent}
+   * - "assistant" → {@link AssistantMessageComponent} plus individual
+   *   {@link ToolExecutionComponent} instances for each toolCall content block
+   * - "toolResult" → matched against pending tool execution components by
+   *   {@code toolCallId}; updates the component with the result payload
    *
-   * @param events — Stream events in insertion order.
+   * @param messages — Agent messages in chronological order.
    * @param width — Available render width in characters.
    * @returns Styled lines ready for display (no border added).
    */
-  render(events: AgentEvent[], width: number): string[] {
+  render(messages: AgentMessage[], width: number): string[] {
     const container = new Container();
     const pendingTools = new Map<string, ToolExecutionComponent>();
-    let lastAssistant: AssistantMessageComponent | undefined;
 
-    for (const event of events) {
-      switch (event.type) {
-        case "message_start": {
-          if (event.message.role === "assistant") {
-            const component = new AssistantMessageComponent(undefined, false, this.markdownTheme);
-            container.addChild(component);
-            lastAssistant = component;
-          } else {
-            // Reset lastAssistant so subsequent updates don't target the previous assistant message
-            lastAssistant = undefined;
-          }
-          if (event.message.role === "user") {
-            this.renderUserMessage(event.message, container);
-          }
-          break;
+    for (const message of messages) {
+      if (message.role === "user") {
+        this.renderUserMessage(message, container);
+      } else if (message.role === "assistant") {
+        // Skip assistant messages without content — the underlying component
+        // requires at least an empty content array.
+        if (!message.content || (Array.isArray(message.content) && message.content.length === 0)) {
+          continue;
         }
+        const component = new AssistantMessageComponent(message, false, this.markdownTheme);
 
-        case "message_update": {
-          if (event.message && event.message.role === "assistant") {
-            lastAssistant?.updateContent(event.message);
+        if (container.children.length > 0) {
+          // Add a spacer only when the previous child is not already an assistant
+          // message (assistant blocks already have internal spacing).
+          const lastChild = container.children[container.children.length - 1];
+          if (!(lastChild instanceof AssistantMessageComponent)) {
+            container.addChild(new Spacer(1));
           }
-          break;
         }
+        container.addChild(component);
 
-        case "message_end": {
-          if (event.message.role === "assistant") {
-            if (lastAssistant) {
-              lastAssistant?.updateContent(event.message);
+        // Extract toolCall blocks from the assistant message content and
+        // create a ToolExecutionComponent for each one.
+        const content = message.content;
+        if (!Array.isArray(content)) {
+          continue;
+        }
+        const toolCalls = content.filter(
+          (block): block is ToolCall =>
+            typeof block === "object" &&
+            block !== null &&
+            "type" in block &&
+            block.type === "toolCall",
+        );
+
+        for (const toolCall of toolCalls) {
+          let resolvedArgs: Record<string, unknown> = {};
+          if (typeof toolCall.arguments === "string") {
+            try {
+              const parsed = jsonParse<unknown>(toolCall.arguments);
+              resolvedArgs =
+                typeof parsed === "object" && parsed !== null
+                  ? (parsed as Record<string, unknown>)
+                  : {};
+            } catch {
+              resolvedArgs = {};
             }
-          } else {
-            this.renderUserMessage(event.message, container);
+          } else if (toolCall.arguments) {
+            resolvedArgs = toolCall.arguments as Record<string, unknown>;
           }
-          break;
-        }
 
-        case "tool_execution_start": {
-          const component = new ToolExecutionComponent(
-            event.toolName,
-            event.toolCallId,
-            event.args,
+          const toolDefinition = this.toolRegistry.get(toolCall.name);
+
+          const toolComponent = new ToolExecutionComponent(
+            toolCall.name,
+            toolCall.id,
+            resolvedArgs,
             undefined,
-            undefined,
+            toolDefinition,
             this.tui,
             this.cwd,
           );
-          component.markExecutionStarted();
-          container.addChild(component);
-          pendingTools.set(event.toolCallId, component);
-          break;
+          toolComponent.setExpanded(true);
+          container.addChild(toolComponent);
+          pendingTools.set(toolCall.id, toolComponent);
         }
 
-        case "tool_execution_update": {
-          const component = pendingTools.get(event.toolCallId);
-          if (component) {
-            component.updateResult(
-              {
-                content: [
-                  {
-                    type: "text",
-                    text: AgentDisplayHelpers.serializeToolResultText(event.partialResult),
-                  },
-                ],
-                isError: false,
-              },
-              true,
-            );
+        // When the assistant message has an error or aborted stop reason,
+        // mark all pending tool components from this message as errors.
+        if ("stopReason" in message) {
+          const assistantMsg = message as { stopReason: string | undefined };
+          if (assistantMsg.stopReason === "error" || assistantMsg.stopReason === "aborted") {
+            for (const toolCall of toolCalls) {
+              const component_ = pendingTools.get(toolCall.id);
+              if (component_) {
+                component_.updateResult({ isError: true, content: [] });
+                pendingTools.delete(toolCall.id);
+              }
+            }
           }
-          break;
         }
-
-        case "tool_execution_end": {
-          const component = pendingTools.get(event.toolCallId);
-          if (component) {
-            component.updateResult(
-              {
-                content: [
-                  { type: "text", text: AgentDisplayHelpers.serializeToolResultText(event.result) },
-                ],
-                isError: event.isError,
-              },
-              false,
-            );
-            component.setExpanded(true);
+      } else if (message.role === "toolResult") {
+        // Match toolResult messages against pending tool execution components.
+        if (!("toolCallId" in message)) {
+          continue;
+        }
+        const toolResult = message as {
+          toolCallId: string;
+          content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+          isError: boolean;
+        };
+        const pendingComponent = pendingTools.get(toolResult.toolCallId);
+        if (pendingComponent) {
+          pendingComponent.updateResult({
+            content: toolResult.content,
+            isError: toolResult.isError,
+          });
+          pendingTools.delete(toolResult.toolCallId);
+        }
+      } else {
+        // Fallback for messages with unrecognized roles: extract text as plain
+        // content if available.
+        const text = AgentDisplayHelpers.extractMessageText(message);
+        if (text.length > 0) {
+          if (container.children.length > 0) {
+            container.addChild(new Spacer(1));
           }
-          break;
+          container.addChild(new UserMessageComponent(text, this.markdownTheme));
         }
-
-        case "turn_start":
-        case "turn_end":
-        case "agent_start":
-        case "agent_end":
-          // Lifecycle events are reflected in the agent list view.
-          break;
       }
     }
 

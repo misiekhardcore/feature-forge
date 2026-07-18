@@ -6,7 +6,7 @@ import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
-import { makeMockCtx, makeMockPi } from "../test-utils";
+import { makeMockCtx, makeMockPi, makeMockToolRegistry } from "../test-utils";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -56,7 +56,14 @@ beforeEach(() => {
 });
 
 function makeCmd(supervisor: AgentSupervisor, flow: FlowDefinition): OrchestratorCommand {
-  return new OrchestratorCommand(supervisor, pi, specManager, undefined, flow);
+  return new OrchestratorCommand(
+    supervisor,
+    pi,
+    specManager,
+    makeMockToolRegistry(),
+    undefined,
+    flow,
+  );
 }
 
 describe("OrchestratorCommand", () => {

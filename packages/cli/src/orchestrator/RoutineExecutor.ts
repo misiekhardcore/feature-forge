@@ -1,4 +1,5 @@
 import { logger } from "../logging";
+import { ToolRegistry } from "../registry/ToolRegistry";
 import type { TypedEventBus } from "./eventBus";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
@@ -32,6 +33,7 @@ export class RoutineExecutor {
      */
     public readonly stepRegistry: StepExecutorRegistry,
     public readonly eventBus: TypedEventBus,
+    public readonly toolRegistry: ToolRegistry,
     store?: FlowStateStore,
   ) {
     this.store = store ?? new FlowStateStore();

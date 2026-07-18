@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { Message, TextContent } from "@earendil-works/pi-ai";
+import type { Message, TextContent } from "@earendil-works/pi-ai";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 
 /**
@@ -18,7 +18,7 @@ export class AgentDisplayHelpers {
    */
   static extractMessageText(message: AgentMessage): string {
     if ("content" in message) {
-      return AgentDisplayHelpers.extractContetText(message.content);
+      return AgentDisplayHelpers.extractContentText(message.content);
     }
     return "";
   }
@@ -26,7 +26,7 @@ export class AgentDisplayHelpers {
   /**
    * Extracts text content from various content formats used in messages and tool results.
    */
-  static extractContetText(content: Message["content"]): string {
+  static extractContentText(content: Message["content"]): string {
     if (!content) return "";
     if (typeof content === "string") return content;
     if (Array.isArray(content)) {
@@ -81,7 +81,7 @@ export class AgentDisplayHelpers {
    * - `"done"` + `passed !== false` → `{ char: "✓", color: "success" }`
    * - `"done"` + `passed === false` → `{ char: "✗", color: "error" }`
    * - `"running"` → `{ char: "⟳", color: "accent" }`
-   * - `"started"` → `{ char: "→", color: "warning" }`
+   * - `"started"` → `{ char: "⟳", color: "accent" }`
    * - `"error"` → `{ char: "✗", color: "error" }`
    * - anything else → `{ char: "○", color: "muted" }`
    */

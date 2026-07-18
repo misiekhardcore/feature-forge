@@ -1,7 +1,7 @@
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 
-import { makeMockTypedEventBus } from "../test-utils";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { TypedEventBus } from "./eventBus";
 import { FlowContext } from "./FlowContext";
@@ -100,7 +100,7 @@ describe("RoutineExecutor", () => {
 
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("main", { plan: "use JWT" }, "add auth");
 
@@ -125,7 +125,7 @@ describe("RoutineExecutor", () => {
 
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("main", { plan: "" }, "task");
 
@@ -170,7 +170,7 @@ describe("RoutineExecutor", () => {
       } as unknown as FlowDefinition;
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("loop-main", {}, "task");
 
@@ -200,7 +200,7 @@ describe("RoutineExecutor", () => {
 
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("main", {}, "task");
 
@@ -242,7 +242,7 @@ describe("RoutineExecutor", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const result = await executor.run("main", {}, "task");
       expect(result.workspace).toBe("/tmp/forge-worktree");
     });
@@ -269,7 +269,7 @@ describe("RoutineExecutor", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const result = await executor.run("main", {}, "task");
 
       expect(result.passed).toBe(false);
@@ -308,7 +308,7 @@ describe("RoutineExecutor", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const result = await executor.run("main", {}, "task");
 
       expect(result.passed).toBe(false);
@@ -320,7 +320,7 @@ describe("RoutineExecutor", () => {
       const registry = new StepExecutorRegistry();
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       await expect(executor.run("nonexistent", {}, "task")).rejects.toThrow(
         'Routine "nonexistent" not found',
@@ -332,7 +332,7 @@ describe("RoutineExecutor", () => {
       // No "record" executor registered.
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("main", {}, "task");
 
@@ -385,7 +385,7 @@ describe("RoutineExecutor", () => {
       const emitSpy = vi.fn();
       const eventBus = new TypedEventBus({ emit: emitSpy, on: vi.fn() });
 
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const result = await executor.run("main", {}, "task");
 
       expect(result.passed).toBe(true);
@@ -415,7 +415,7 @@ describe("RoutineExecutor", () => {
 
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("main", {}, "task");
 
@@ -463,7 +463,7 @@ describe("RoutineExecutor", () => {
       const emitSpy = vi.fn();
       const eventBus = new TypedEventBus({ emit: emitSpy, on: vi.fn() });
 
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       await executor.run("main", {}, "task");
 
       expect(emitSpy).toHaveBeenCalledWith("feature-forge:agent-started", {
@@ -512,7 +512,7 @@ describe("RoutineExecutor", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const controller = new AbortController();
       const result = await executor.run("main", {}, "task", controller.signal);
 
@@ -527,7 +527,7 @@ describe("RoutineExecutor", () => {
 
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const controller = new AbortController();
       controller.abort();
 
@@ -571,7 +571,7 @@ describe("RoutineExecutor", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       await expect(executor.run("main", {}, "task")).rejects.toThrow();
     });
@@ -583,7 +583,7 @@ describe("RoutineExecutor", () => {
 
       const flow = makeTestFlow();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
 
       const result = await executor.run("main", {}, "task");
       expect(result.passed).toBe(true);
@@ -603,7 +603,7 @@ describe("RoutineExecutor", () => {
       };
 
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(flow, registry, eventBus);
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       await expect(executor.run("gamma", {}, "task")).rejects.toThrow("alpha, beta");
     });
   });

@@ -6,22 +6,23 @@
  * created via vi.hoisted() in each test file to avoid TDZ issues with
  * vi.mock hoisting.
  */
-import type {
-  EventBus,
-  ExtensionAPI,
-  ExtensionCommandContext,
+import {
+  type EventBus,
+  type ExtensionAPI,
+  type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 import { vi } from "vitest";
 
-import { SpecManager, SpecResolutionParams } from "./agents";
+import { SpecManager, type SpecResolutionParams } from "./agents";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./agents/agents/SubprocessAgent";
 import { AgentFactory } from "./agents/factories/AgentFactory";
 import {
   AgentSpecification,
-  AgentSpecificationParams,
+  type AgentSpecificationParams,
 } from "./agents/specifications/AgentSpecification";
 import { TypedEventBus } from "./orchestrator/eventBus";
+import { ToolRegistry } from "./registry/ToolRegistry";
 import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
 import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
@@ -356,8 +357,8 @@ export function makeMockSpecManager() {
         disableContextFiles: false,
         ephemeral: false,
         excludedTools: [],
-        skills: [],
         excludedSkills: [],
+        skills: [],
         toolRestrictions: params.toolRestrictions ?? {},
         thinkingLevel: undefined,
       } satisfies AgentSpecification;
@@ -409,4 +410,18 @@ export function makeMockEventBus() {
 
 export function makeMockTypedEventBus(): TypedEventBus {
   return new TypedEventBus(makeMockEventBus());
+}
+
+// ---------------------------------------------------------------------------
+// Mock ToolRegistry (in-memory fake)
+// ---------------------------------------------------------------------------
+
+export function makeMockToolRegistry(): ToolRegistry {
+  return {
+    get: vi.fn().mockReturnValue(undefined),
+    register: vi.fn(),
+    registerAll: vi.fn(),
+    client: {},
+    pi: {},
+  } as unknown as ToolRegistry;
 }

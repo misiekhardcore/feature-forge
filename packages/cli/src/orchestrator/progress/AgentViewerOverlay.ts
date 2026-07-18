@@ -1,7 +1,8 @@
-import { appendFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, createReadStream, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -9,6 +10,7 @@ import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { logger } from "../../logging";
+import { ToolRegistry } from "../../registry/ToolRegistry";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
@@ -65,10 +67,13 @@ export interface AgentViewerOverlayParams {
   theme: Theme;
   /** Callback invoked when the user presses Escape in list view. */
   onDone: () => void;
-  /** Current working directory from the extension context. */
-  cwd: string;
+
   /** Markdown theme for rendering markdown content. */
   markdownTheme: MarkdownTheme;
+  /** Current working directory — used by {@link ConversationRenderer} for tool execution display. */
+  cwd: string;
+  /** Registry for resolving tool definitions to restore argument formatting. */
+  toolRegistry: ToolRegistry;
 }
 
 /**
@@ -103,8 +108,11 @@ export class AgentViewerOverlay implements Component {
   /** Maps agent id → stream file path on disk. */
   private streamFiles = new Map<string, string>();
 
-  /** Maps agent id → events JSONL file path on disk. */
+  /** Maps agent id → events JSONL file path on disk (raw events, diagnostics only). */
   private eventsFiles = new Map<string, string>();
+
+  /** Maps agent id → messages JSONL file path on disk (finalized messages). */
+  private messagesFiles = new Map<string, string>();
 
   /** TUI instance for requesting re-renders. */
   private readonly tui: TUI;
@@ -116,18 +124,14 @@ export class AgentViewerOverlay implements Component {
   private readonly onDone: () => void;
 
   /**
-   * Base directory for resolving relative paths when rendering
-   * tool execution components (passed through to
-   * {@link ConversationRenderer}).
-   */
-  private readonly cwd: string;
-
-  /**
    * Theme used when rendering markdown blocks within the conversation
    * view — headings, code blocks, lists (passed through to
    * {@link ConversationRenderer}).
    */
   private readonly markdownTheme: MarkdownTheme;
+
+  /** Current working directory — passed through to {@link ConversationRenderer}. */
+  private readonly cwd: string;
 
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
@@ -157,6 +161,9 @@ export class AgentViewerOverlay implements Component {
   /** Maps agent id → raw stream events in insertion order. */
   private agentEvents = new Map<string, AgentEvent[]>();
 
+  /** Maps agent id → extracted AgentMessage objects in order. */
+  private agentMessages = new Map<string, AgentMessage[]>();
+
   /** Cached line count of the last renderConversationTurns call. Invalidated by pushStreamEvent. */
   private cachedConversationLineCount = 0;
 
@@ -167,20 +174,21 @@ export class AgentViewerOverlay implements Component {
   private readonly conversationRenderer: ConversationRenderer;
 
   /**
-   * @param params — Configuration object with tui, theme, onDone, cwd, and markdownTheme.
+   * @param params — Configuration object with tui, theme, onDone, markdownTheme, and cwd.
    */
   constructor(params: AgentViewerOverlayParams) {
     this.tui = params.tui;
     this.theme = params.theme;
     this.onDone = params.onDone;
-    this.cwd = params.cwd;
     this.markdownTheme = params.markdownTheme;
-    this.conversationRenderer = new ConversationRenderer(
-      params.theme,
-      params.markdownTheme,
-      params.tui,
-      params.cwd,
-    );
+    this.cwd = params.cwd;
+    this.conversationRenderer = new ConversationRenderer({
+      theme: params.theme,
+      markdownTheme: params.markdownTheme,
+      tui: params.tui,
+      cwd: params.cwd,
+      toolRegistry: params.toolRegistry,
+    });
   }
 
   /**
@@ -311,12 +319,31 @@ export class AgentViewerOverlay implements Component {
         }
 
         // Persist raw event to .events.jsonl (sync, small writes).
+        // Raw events are kept for diagnostics only and are never loaded
+        // back at startup (see prepopulateStreamFiles).
         const eventsPath =
           this.eventsFiles.get(agentId) ?? join(this.streamDir, `${agentId}.events.jsonl`);
         if (!this.eventsFiles.has(agentId)) {
           this.eventsFiles.set(agentId, eventsPath);
         }
         appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf-8");
+
+        // Persist finalized message to .messages.jsonl (sync, small writes).
+        // Only message_end events for user/assistant/toolResult carry a
+        // finalized message — this mirrors pi's appendMessage which writes
+        // one entry per finalized message, never per streaming update.
+        if (event.type === "message_end" && event.message) {
+          const message = event.message;
+          const role = message.role;
+          if (role === "user" || role === "assistant" || role === "toolResult") {
+            const messagesPath =
+              this.messagesFiles.get(agentId) ?? join(this.streamDir, `${agentId}.messages.jsonl`);
+            if (!this.messagesFiles.has(agentId)) {
+              this.messagesFiles.set(agentId, messagesPath);
+            }
+            appendFileSync(messagesPath, `${JSON.stringify(message)}\n`, "utf-8");
+          }
+        }
       } catch (error) {
         logger.debug("Failed to persist stream event to disk", {
           agentId,
@@ -333,6 +360,9 @@ export class AgentViewerOverlay implements Component {
       events.splice(0, removeCount);
     }
     this.agentEvents.set(agentId, events);
+
+    // Extract AgentMessage from the event and update the messages list.
+    this.appendMessageFromEvent(agentId, event);
 
     // Invalidate cached line count so computeScrollMax re-renders.
     this.conversationLinesDirty = true;
@@ -358,12 +388,33 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
+   * Return the cached {@link AgentMessage} objects for an agent, in order.
+   *
+   * Messages are populated live from {@link pushStreamEvent} on each
+   * {@code message_end} event, and loaded from {@code messages.jsonl} at
+   * startup by {@link prepopulateStreamFiles}. No per-render extraction is
+   * performed — this returns the in-memory cache directly.
+   *
+   * @param agentId — The agent to get messages for.
+   * @returns An array of messages, most recent last. Empty array for unknown agents.
+   */
+  getConversationMessages(agentId: string): AgentMessage[] {
+    return this.agentMessages.get(agentId) ?? [];
+  }
+
+  /**
    * Load conversation events from the on-disk JSONL file for the given agent.
    *
-   * The in-memory buffer holds the most recent {@link MAX_AGENT_EVENTS} events.
-   * When {@code count} exceeds the in-memory window, this method loads the
-   * oldest needed events from disk and appends the in-memory tail, avoiding
-   * loading the entire file into memory.
+   * Streams the file line-by-line via {@code createReadStream} +
+   * {@code createInterface}, keeping a ring buffer of the last {@code count}
+   * lines in memory. Memory usage is O(count), not O(fileSize) — the file
+   * is never fully loaded.
+   *
+   * Disk always contains a superset of the in-memory buffer because
+   * {@link pushStreamEvent} writes to disk synchronously via
+   * {@code appendFileSync} before appending to the in-memory array.
+   * Therefore the disk-only result is complete and no disk+memory merge
+   * is needed.
    *
    * Falls back to the in-memory buffer when the JSONL file is missing or
    * unreadable.
@@ -389,20 +440,26 @@ export class AgentViewerOverlay implements Component {
     }
 
     try {
-      const { readFile } = await import("node:fs/promises");
-      const content = await readFile(eventsPath, "utf-8");
-      const lines = content.trimEnd().split("\n");
+      // Stream the JSONL file line-by-line, keeping only the last `count`
+      // lines in the ring buffer. Disk is a superset of memory because
+      // pushStreamEvent calls appendFileSync (sync) before the in-memory
+      // append, so the disk result is already complete.
+      const lines: string[] = [];
+      const rl = createInterface({
+        input: createReadStream(eventsPath, "utf-8"),
+        crlfDelay: Infinity,
+      });
 
-      // The in-memory buffer is a suffix of the full JSONL log (the most recent
-      // MAX_AGENT_EVENTS events). Only load the events OLDER than the in-memory
-      // window from disk, then append the in-memory suffix.
-      const olderCount = count - memoryEvents.length;
-      const olderAvailable = lines.length - memoryEvents.length;
-      const fromIndex = Math.max(0, olderAvailable - olderCount);
-      const olderSlice = lines.slice(fromIndex, Math.max(0, olderAvailable));
+      for await (const line of rl) {
+        if (!line) continue;
+        lines.push(line);
+        if (lines.length > count) {
+          lines.shift();
+        }
+      }
 
       const diskEvents: AgentEvent[] = [];
-      for (const line of olderSlice) {
+      for (const line of lines) {
         try {
           const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
@@ -414,7 +471,7 @@ export class AgentViewerOverlay implements Component {
         }
       }
 
-      return [...diskEvents, ...memoryEvents];
+      return diskEvents;
     } catch (error) {
       logger.debug(
         "Failed to load conversation events from disk, falling back to in-memory buffer",
@@ -447,67 +504,119 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Scan the stream directory for existing {@code *.stream} files and
-   * pre-populate the internal {@link streamFiles} map.
+   * Suffix length helpers for slicing agent ids from per-agent file names.
+   */
+  private static readonly STREAM_SUFFIX_LEN = ".stream".length;
+  private static readonly EVENTS_SUFFIX_LEN = ".events.jsonl".length;
+  private static readonly MESSAGES_SUFFIX_LEN = ".messages.jsonl".length;
+
+  /**
+   * Scan the stream directory for existing per-agent files and pre-populate
+   * the overlay's state.
    *
-   * Also creates stale "done" entries for any agents that have stream
-   * files but are not tracked by {@link agents}. This ensures that
-   * {@code /agent:list} shows the same set of agents as the routine's
-   * auto-opened overlay, even after completed agents have been removed
-   * from the supervisor.
+   * Three file kinds are recognised:
+   * - {@code *.stream} — formatted display log (diagnostics). The path is
+   *   registered but the file is never replayed.
+   * - {@code *.messages.jsonl} — finalized messages (pi's appendMessage
+   *   semantics). Loaded into {@link agentMessages}, capped to
+   *   {@link MAX_AGENT_EVENTS}, keeping the most recent messages.
+   * - {@code *.events.jsonl} — raw events (diagnostics). The path is
+   *   registered for lazy {@link loadConversationEvents} access but the
+   *   file is NOT loaded into memory at startup.
    *
-   * Silently ignores missing or inaccessible directories — the map
-   * will be populated lazily by {@link pushStreamEvent} calls instead.
+   * Also creates stale "done" entries for any agents that have files but
+   * are not tracked by {@link agents}, so {@code /agent:list} shows the
+   * same set of agents as the routine's auto-opened overlay.
+   *
+   * Silently ignores missing or inaccessible directories — the maps will
+   * be populated lazily by {@link pushStreamEvent} calls instead.
    */
   prepopulateStreamFiles(streamDir: string): void {
+    // Dedup relies on update() being synchronous: it calls agents.set()
+    // immediately, so the first file-kind block inserts the agent and
+    // subsequent blocks for the same agent see has()===true and skip —
+    // no separate dedup set is needed. Assumes update() remains
+    // synchronous; if it is ever made async, add a per-call guard (e.g. a
+    // local Set) to prevent cross-block duplicate done emits.
+    const ensureStaleEntry = (agentId: string): void => {
+      if (this.agents.has(agentId)) return;
+      this.update({ id: agentId, status: "done", summary: "Agent completed" });
+    };
+
     try {
       for (const entry of readdirSync(streamDir)) {
         if (entry.endsWith(".stream")) {
-          const agentId = entry.slice(0, -7);
+          const agentId = entry.slice(0, -AgentViewerOverlay.STREAM_SUFFIX_LEN);
+          this.streamFiles.set(agentId, join(streamDir, entry));
+          ensureStaleEntry(agentId);
+          continue;
+        }
+
+        if (entry.endsWith(".messages.jsonl")) {
+          const agentId = entry.slice(0, -AgentViewerOverlay.MESSAGES_SUFFIX_LEN);
           const filePath = join(streamDir, entry);
-          this.streamFiles.set(agentId, filePath);
-          // Restore entries for agents that completed and were removed
-          // from the supervisor so /agent:list shows the same set as
-          // the routine's auto-opened overlay.
-          if (!this.agents.has(agentId)) {
-            this.update({ id: agentId, status: "done", summary: "Agent completed" });
-          }
-          // Stream files are not replayed — they hold formatted display lines
-          // for debugging only. The events.jsonl branch below handles
-          // re-ingestion of raw events into the in-memory buffer.
-        } else if (entry.endsWith(".events.jsonl")) {
-          const agentId = entry.slice(0, -13);
+          this.messagesFiles.set(agentId, filePath);
+          ensureStaleEntry(agentId);
+          this.loadMessagesFromDiskIntoCache(agentId, filePath);
+          continue;
+        }
+
+        if (entry.endsWith(".events.jsonl")) {
+          const agentId = entry.slice(0, -AgentViewerOverlay.EVENTS_SUFFIX_LEN);
           const filePath = join(streamDir, entry);
           this.eventsFiles.set(agentId, filePath);
-          try {
-            const content = readFileSync(filePath, "utf-8");
-            const lines = content.trimEnd().split("\n");
-            const events: AgentEvent[] = [];
-            for (const line of lines) {
-              if (!line) continue;
-              const parsed = jsonParse<AgentEvent>(line);
-              events.push(parsed);
-            }
-            if (events.length > 0) {
-              const existing = this.agentEvents.get(agentId) ?? [];
-              const merged = [...existing, ...events];
-              if (merged.length > MAX_AGENT_EVENTS) {
-                merged.splice(0, merged.length - MAX_AGENT_EVENTS);
-              }
-              this.agentEvents.set(agentId, merged);
-            }
-          } catch (error) {
-            logger.debug("Failed to prepopulate events from JSONL file, skipping", {
-              agentId,
-              filePath,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          ensureStaleEntry(agentId);
+          // Raw events are NOT loaded at startup — they remain available
+          // for lazy loadConversationEvents access only.
+          continue;
         }
       }
     } catch (error) {
       logger.debug("Failed to scan stream directory for prepopulation", {
         streamDir,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Parse a {@code .messages.jsonl} file into cached {@link agentMessages}.
+   *
+   * Each line is a serialized {@link AgentMessage}. Messages are merged with
+   * any already-cached entries (disk messages first/older, in-memory entries
+   * last/newer) and capped to {@link MAX_AGENT_EVENTS} keeping the most
+   * recent. Malformed lines are skipped.
+   */
+  private loadMessagesFromDiskIntoCache(agentId: string, filePath: string): void {
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const lines = content.trimEnd().split("\n");
+      const disk: AgentMessage[] = [];
+      for (const line of lines) {
+        if (!line) continue;
+        try {
+          const parsed = jsonParse<AgentMessage>(line);
+          disk.push(parsed);
+        } catch (error) {
+          logger.debug("Skipping malformed message JSONL line", {
+            agentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (disk.length === 0) return;
+      const existing = this.agentMessages.get(agentId) ?? [];
+      // Disk messages are older (written first); in-memory entries are newer
+      // (from live pushStreamEvent calls during this session).
+      const merged = [...disk, ...existing];
+      if (merged.length > MAX_AGENT_EVENTS) {
+        merged.splice(0, merged.length - MAX_AGENT_EVENTS);
+      }
+      this.agentMessages.set(agentId, merged);
+    } catch (error) {
+      logger.debug("Failed to prepopulate messages from JSONL file, skipping", {
+        agentId,
+        filePath,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -524,8 +633,10 @@ export class AgentViewerOverlay implements Component {
     // them here.  The shared temp dir is cleaned up on session exit.
     this.streamFiles.clear();
     this.eventsFiles.clear();
+    this.messagesFiles.clear();
     this.lastLines.clear();
     this.agentEvents.clear();
+    this.agentMessages.clear();
     this.clearMemory();
   }
 
@@ -556,6 +667,80 @@ export class AgentViewerOverlay implements Component {
     if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
     const hours = Math.floor(minutes / 60);
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  }
+
+  /**
+   * Extract an AgentMessage from an event if it carries one.
+   *
+   * Returns the message for message\_start, message\_update, and
+   * message\_end events. turn\_end carries a duplicate of the preceding
+   * message\_end message plus toolResults that also arrive as their own
+   * message\_start/message\_end pairs, so it is intentionally ignored
+   * here to avoid duplicate entries.
+   *
+   * Returns undefined for all other event types.
+   */
+  static extractMessageFromEvent(event: AgentEvent): AgentMessage | undefined {
+    switch (event.type) {
+      case "message_start":
+      case "message_update":
+      case "message_end":
+        return event.message;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Merge an extracted AgentMessage into a message list, handling deduplication
+   * for message_update and message_end events by replacing the last entry
+   * (the entry pushed by the matching message_start).
+   *
+   * Used by {@link appendMessageFromEvent} to keep dedup logic in one place.
+   */
+  private static mergeMessageIntoList(
+    messages: AgentMessage[],
+    event: AgentEvent,
+    message: AgentMessage,
+  ): void {
+    if (event.type === "message_update" || event.type === "message_end") {
+      if (messages.length > 0) {
+        messages[messages.length - 1] = message;
+      } else {
+        messages.push(message);
+      }
+    } else {
+      messages.push(message);
+    }
+  }
+
+  /**
+   * Extract and append an AgentMessage from a raw event to the in-memory cache,
+   * handling message updates by replacing the most recent entry.
+   *
+   * Only message_start, message_update, and message_end carry messages;
+   * per-tool toolResult messages arrive as their own message_start/message_end
+   * pairs (matching pi's {@code emitToolResultMessage}), so turn_end needs no
+   * special handling here — its message and toolResults are duplicates.
+   *
+   * Applies the same FIFO sliding window cap as agentEvents
+   * (MAX_AGENT_EVENTS) to prevent unbounded memory growth.
+   */
+  private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
+    const message = AgentViewerOverlay.extractMessageFromEvent(event);
+    if (!message) return;
+
+    const messages = this.agentMessages.get(agentId) ?? [];
+
+    AgentViewerOverlay.mergeMessageIntoList(messages, event, message);
+
+    // Apply FIFO sliding window cap to keep agentMessages in sync
+    // with agentEvents bounds.
+    if (messages.length > MAX_AGENT_EVENTS) {
+      messages.splice(0, messages.length - MAX_AGENT_EVENTS);
+    }
+
+    this.agentMessages.set(agentId, messages);
   }
 
   // ── Static helpers ────────────────────────────────────────
@@ -665,7 +850,7 @@ export class AgentViewerOverlay implements Component {
 
     // Header
     lines.push(theme.fg("accent", "Agent Viewer"));
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width)));
 
     if (this.agents.size === 0) {
       lines.push(theme.fg("muted", "no agents running"));
@@ -682,7 +867,7 @@ export class AgentViewerOverlay implements Component {
         entry.passed,
       );
 
-      const cursor = isSelected ? theme.fg("accent", "→") : " ";
+      const cursor = isSelected ? "▶" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
       const roleSuffix = entry.role ? theme.fg("muted", `(${entry.role})`) : "";
       const elapsedSuffix = entry.elapsed ? theme.fg("muted", entry.elapsed) : "";
@@ -768,8 +953,8 @@ export class AgentViewerOverlay implements Component {
     lines.push(theme.fg("accent", "Conversation:"));
     lines.push("");
 
-    const events = this.getConversation(entry.id);
-    const conversationLines = this.renderConversationTurns(events, width);
+    const messages = this.getConversationMessages(entry.id);
+    const conversationLines = this.renderConversationTurns(messages, width);
     if (conversationLines.length === 0) {
       lines.push(theme.fg("muted", "No conversation recorded."));
       lines.push("");
@@ -798,13 +983,12 @@ export class AgentViewerOverlay implements Component {
 
   // ── Private conversation rendering ───────────────────────
   /**
-   * Render a list of raw stream events as styled conversation lines.
+   * Render a list of messages as styled conversation lines.
    *
-   * Delegates to {@link ConversationRenderer} which handles the
-   * state-machine grouping and pi component dispatch.
+   * Delegates to {@link ConversationRenderer} which dispatches by role.
    */
-  private renderConversationTurns(events: AgentEvent[], width: number): string[] {
-    return this.conversationRenderer.render(events, width - 4);
+  private renderConversationTurns(messages: AgentMessage[], width: number): string[] {
+    return this.conversationRenderer.render(messages, width - 4);
   }
 
   private handleListInput(data: string): void {
@@ -866,7 +1050,7 @@ export class AgentViewerOverlay implements Component {
     // Use cached line count unless pushStreamEvent dirtied it.
     if (this.conversationLinesDirty) {
       this.cachedConversationLineCount = this.renderConversationTurns(
-        this.getConversation(this.selectedAgentId),
+        this.getConversationMessages(this.selectedAgentId),
         this.lastRenderWidth,
       ).length;
       this.conversationLinesDirty = false;
@@ -984,6 +1168,7 @@ export class AgentViewerOverlay implements Component {
     const connect = (v: AgentViewerOverlay, streamDir: string) => {
       viewer = v;
       connected = true;
+      viewer.setStreamDir(streamDir);
 
       for (const item of eventBuffer) {
         if (item.status) {
@@ -993,8 +1178,6 @@ export class AgentViewerOverlay implements Component {
         }
       }
       eventBuffer.length = 0;
-
-      viewer.setStreamDir(streamDir);
 
       viewer.prepopulateStreamFiles(streamDir);
 

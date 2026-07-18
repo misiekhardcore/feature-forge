@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   AssistantMessage,
   TextContent,
@@ -8,6 +9,10 @@ import type {
 
 export function textBlock(text: string): TextContent {
   return { type: "text", text };
+}
+
+export function toolCall(id: string, name: string, args: Record<string, unknown> = {}): ToolCall {
+  return { type: "toolCall", id, name, arguments: args };
 }
 
 export function userMsg(text: string): UserMessage {
@@ -39,6 +44,18 @@ export function assistantMsg(text: string, toolCalls?: ToolCall[]): AssistantMes
     stopReason: "stop",
     timestamp: Date.now(),
   };
+}
+
+/**
+ * Minimal partial assistant message for a {@code message_start} event.
+ *
+ * Mirrors pi's start message which carries only the role and an empty
+ * content array — usage, stopReason, and model arrive later on
+ * {@code message_end}. Using this instead of spreading the finalized
+ * assistant message avoids leaking premature metadata onto the start event.
+ */
+export function assistantStartMsg(): AgentMessage {
+  return { role: "assistant", content: [] } as unknown as AgentMessage;
 }
 
 export function toolResultMsg(

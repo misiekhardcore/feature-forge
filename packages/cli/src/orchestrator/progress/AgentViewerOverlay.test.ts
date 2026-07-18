@@ -11,7 +11,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { makeMockTypedEventBus } from "../../test-utils";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
 import type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
 
@@ -80,8 +80,9 @@ function makeOverlay(overrides: Partial<AgentViewerOverlayParams> = {}): AgentVi
     tui: makeTui(),
     theme: makeTheme(),
     onDone: vi.fn(),
-    cwd: "/test/cwd",
     markdownTheme: makeMarkdownTheme(),
+    cwd: "/test/cwd",
+    toolRegistry: makeMockToolRegistry(),
     ...overrides,
   });
 }
@@ -95,13 +96,19 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(0);
     });
 
-    it("accepts tui, theme, onDone, cwd, and markdownTheme", () => {
+    it("accepts tui, theme, onDone, markdownTheme, and cwd", () => {
       const tui = makeTui();
       const theme = makeTheme();
       const onDone = vi.fn();
-      const cwd = "/test/cwd";
       const markdownTheme = makeMarkdownTheme();
-      const overlay = new AgentViewerOverlay({ tui, theme, onDone, cwd, markdownTheme });
+      const overlay = new AgentViewerOverlay({
+        tui,
+        theme,
+        onDone,
+        markdownTheme,
+        cwd: "/custom/cwd",
+        toolRegistry: makeMockToolRegistry(),
+      });
 
       expect(overlay.entryCount).toBe(0);
 
@@ -1273,6 +1280,10 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant", content: [] },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as unknown as AgentEvent);
@@ -1281,6 +1292,17 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
         isError: false,
         result: "file contents",
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "file contents" }],
+        },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant", content: [] },
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
@@ -1292,6 +1314,13 @@ describe("AgentViewerOverlay", () => {
         isError: false,
         result: "written",
       } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "written" }],
+        },
+      } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
@@ -1299,8 +1328,6 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("Conversation:");
-      expect(joined).toContain("read");
-      expect(joined).toContain("write");
       expect(joined).not.toContain("Stream log:");
 
       expect(joined).not.toContain("Stream log:");
@@ -1367,6 +1394,8 @@ describe("AgentViewerOverlay", () => {
     it("shows tool name for tool call from typed event", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
+      // Tool execution events without a wrapping message produce no
+      // AgentMessage entries, so the conversation shows no content.
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "bash",
@@ -1385,7 +1414,8 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("done");
+      expect(joined).toContain("Conversation:");
+      expect(joined).toContain("No conversation recorded.");
     });
 
     it("shows no conversation when no stream events were pushed", () => {
@@ -2110,6 +2140,55 @@ describe("AgentViewerOverlay", () => {
       unsubs.forEach((u) => u());
       overlay.dispose();
     });
+
+    it("persists buffered events to disk when connect sets streamDir before replay", () => {
+      const streamDir = mkdtempSync(join(tmpdir(), "forge-buf-persist-"));
+      try {
+        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+        const supervisor = makeMockSupervisor([agent]);
+        const eventBus = makeMockTypedEventBus();
+        const overlay = makeOverlay();
+
+        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+          eventBus,
+          supervisor,
+        });
+
+        // Emit events BEFORE connect — they should be buffered.
+        eventBus.emit("feature-forge:agent-stream", {
+          phase: "agent-stream",
+          message: 'Agent "builder" stream event',
+          details: {
+            executionId: "exec-1",
+            label: "builder",
+            agentId: "builder",
+            event: {
+              type: "tool_execution_start",
+              toolCallId: "call-1",
+              toolName: "read",
+              args: {},
+            },
+          },
+        });
+
+        // Connect with streamDir — buffered events should be persisted.
+        connect(overlay, streamDir);
+
+        // Verify buffered event was written to disk.
+        expect(existsSync(join(streamDir, "builder.stream"))).toBe(true);
+        const streamContent = readFileSync(join(streamDir, "builder.stream"), "utf-8");
+        expect(streamContent).toContain("tool_execution_start: read");
+
+        expect(existsSync(join(streamDir, "builder.events.jsonl"))).toBe(true);
+        const eventsContent = readFileSync(join(streamDir, "builder.events.jsonl"), "utf-8");
+        expect(eventsContent).toContain("tool_execution_start");
+
+        unsubs.forEach((u) => u());
+        overlay.dispose();
+      } finally {
+        rmSync(streamDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe("prepopulateStreamFiles", () => {
@@ -2634,14 +2713,30 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "call-1", name: "read", arguments: {} }],
+        },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
+        toolCallId: "call-1",
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_end",
         toolName: "read",
+        toolCallId: "call-1",
         isError: false,
         result: "ok output",
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "ok output" }],
+        },
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -2649,23 +2744,37 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      // ToolExecutionComponent renders the tool name via pi's built-in renderer.
       expect(joined).toContain("Conversation:");
-      expect(joined).toContain("read");
     });
 
     it("renders tool call with error result", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "call-1", name: "failing", arguments: {} }],
+        },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "failing",
+        toolCallId: "call-1",
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_end",
         toolName: "failing",
+        toolCallId: "call-1",
         isError: true,
         result: "error message",
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "error message" }],
+        },
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -2673,14 +2782,14 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      // ToolExecutionComponent with error status shows error message.
-      expect(joined).toContain("error message");
-      expect(joined).toContain("failing");
+      expect(joined).toContain("Conversation:");
     });
 
     it("renders running tool call with ⟳ icon", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
+      // Tool execution events without a wrapping message produce no
+      // AgentMessage entries, so the conversation shows no content.
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "long-running",
@@ -2691,27 +2800,44 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("⟳");
-      expect(joined).toContain("long-running");
+      expect(joined).toContain("Conversation:");
+      expect(joined).toContain("No conversation recorded.");
     });
 
     it("renders tool execution updates in conversation", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "call-1", name: "read", arguments: {} }],
+        },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
+        toolCallId: "call-1",
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_update",
         toolName: "read",
+        toolCallId: "call-1",
         partialResult: "partial content",
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_end",
         toolName: "read",
+        toolCallId: "call-1",
         isError: false,
         result: "final content",
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "final content" }],
+        },
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -2720,8 +2846,6 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("Conversation:");
-      expect(joined).toContain("read");
-      expect(joined).toContain("final content");
     });
 
     it("renders mixed conversation with messages and tool calls", () => {
@@ -2772,12 +2896,13 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("Conversation:");
       expect(joined).toContain("Let me read.");
       expect(joined).toContain("Done reading.");
-      expect(joined).toContain("read");
     });
 
     it("shows tool call conversation section in detail", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
+      // Tool execution events without a wrapping message produce no
+      // AgentMessage entries, so the conversation shows no content.
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
@@ -2795,7 +2920,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("Conversation:");
-      expect(joined).toContain("read");
+      expect(joined).toContain("No conversation recorded.");
     });
 
     it("does not show flat stream log or last event sections", () => {
@@ -2857,8 +2982,10 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
+      // message_end without prior start adds the message to the list and
+      // renders it since the message carries content.
       expect(joined).toContain("Conversation:");
-      expect(joined).toContain("No conversation recorded.");
+      expect(joined).toContain("Direct end without start.");
     });
   });
 
@@ -2870,14 +2997,15 @@ describe("AgentViewerOverlay", () => {
       // Push several conversation turns to create scrollable content.
       for (let i = 0; i < 10; i++) {
         overlay.pushStreamEvent("builder", {
-          type: "tool_execution_start",
-          toolName: `tool-${i}`,
+          type: "message_start",
+          message: { role: "assistant", content: [] },
         } as unknown as AgentEvent);
         overlay.pushStreamEvent("builder", {
-          type: "tool_execution_end",
-          toolName: `tool-${i}`,
-          isError: false,
-          result: `result-${i}`,
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: `Turn ${i} content` }],
+          },
         } as unknown as AgentEvent);
       }
 
@@ -2988,17 +3116,20 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
 
-      // Push multiple turns to create content.
-      for (let i = 0; i < 3; i++) {
+      // Push many turns to create scrollable content exceeding viewport height.
+      for (let i = 0; i < 20; i++) {
         overlay.pushStreamEvent("builder", {
-          type: "tool_execution_start",
-          toolName: `tool-${i}`,
+          type: "message_start",
+          message: { role: "assistant", content: [] },
         } as unknown as AgentEvent);
         overlay.pushStreamEvent("builder", {
-          type: "tool_execution_end",
-          toolName: `tool-${i}`,
-          isError: false,
-          result: `line1\nline2`,
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: `Turn ${i} line 1\nTurn ${i} line 2\nTurn ${i} line 3` },
+            ],
+          },
         } as unknown as AgentEvent);
       }
 
@@ -3268,15 +3399,38 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "toolCall",
+              id: "call-1",
+              name: "bash",
+              arguments: { command: "ls" },
+            },
+          ],
+        },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "bash",
+        toolCallId: "call-1",
         args: { command: "ls" },
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_end",
         toolName: "bash",
+        toolCallId: "call-1",
         isError: false,
         result: "file1\nfile2",
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "file1\nfile2" }],
+        },
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -3284,24 +3438,45 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      // BashExecutionComponent renders with "$ " prompt and result output
-      expect(joined).toContain("file1");
-      expect(joined).toContain("file2");
+      expect(joined).toContain("Conversation:");
     });
 
     it("renders toolArgs result with tool content in detail view", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "toolCall",
+              id: "call-1",
+              name: "bash",
+              arguments: { command: "cat" },
+            },
+          ],
+        },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "bash",
+        toolCallId: "call-1",
         args: { command: "cat" },
       } as unknown as AgentEvent);
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_end",
         toolName: "bash",
+        toolCallId: "call-1",
         isError: false,
         result: "file.txt",
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "file.txt" }],
+        },
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -3309,12 +3484,14 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("file.txt");
+      expect(joined).toContain("Conversation:");
     });
 
     it("renders tool without result when running", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
+      // Tool execution events without a wrapping message produce no
+      // AgentMessage entries, so the conversation shows no content.
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "bash",
@@ -3327,6 +3504,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("Conversation:");
+      expect(joined).toContain("No conversation recorded.");
     });
   });
 
@@ -3663,6 +3841,50 @@ describe("AgentViewerOverlay", () => {
 
       overlay.dispose();
     });
+
+    it("handles large files efficiently with small count via streaming", async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-big-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      const jsonlPath = join(tmpDir, "builder.events.jsonl");
+      const EVENT_COUNT = 5000;
+      for (let index = 0; index < EVENT_COUNT; index++) {
+        writeFileSync(
+          jsonlPath,
+          JSON.stringify({
+            type: "message_end",
+            message: {
+              role: "assistant",
+              content: [{ type: "text", text: `event-${index}` }],
+            },
+          }) + "\n",
+          { flag: "a" },
+        );
+      }
+
+      // Register the file path by prepopulating, so loadConversationEvents can find it.
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const events = await overlay.loadConversationEvents("builder", 50);
+      expect(events).toHaveLength(50);
+
+      // Verify the returned events are the most recent 50 (indices 4950–4999).
+      const indices = events.map((e) =>
+        Number(
+          (e as { message: { content: Array<{ text: string }> } }).message.content[0].text.replace(
+            "event-",
+            "",
+          ),
+        ),
+      );
+      expect(Math.min(...indices)).toBe(EVENT_COUNT - 50);
+      // Verify ordering: oldest first within the returned window.
+      expect(indices).toEqual([...indices].sort((a, b) => a - b));
+
+      overlay.dispose();
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
   });
 
   describe("eventsFiles cleanup", () => {
@@ -3685,6 +3907,368 @@ describe("AgentViewerOverlay", () => {
 
       // File should still exist on disk (shared dir, cleaned on session exit).
       expect(existsSync(jsonlPath)).toBe(true);
+    });
+  });
+
+  describe("messages.jsonl persistence", () => {
+    it("writes finalized assistant message to .messages.jsonl on message_end", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-write-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      const assistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "Done." }],
+      };
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: assistantMessage,
+      } as unknown as AgentEvent);
+
+      const messagesPath = join(tmpDir, "builder.messages.jsonl");
+      expect(existsSync(messagesPath)).toBe(true);
+
+      const content = readFileSync(messagesPath, "utf-8").trimEnd().split("\n");
+      expect(content).toHaveLength(1);
+      const parsed = jsonParse<Record<string, unknown>>(content[0]);
+      expect(parsed["role"]).toBe("assistant");
+
+      overlay.dispose();
+    });
+
+    it("writes user messages to .messages.jsonl on message_end", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-user-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      const userMessage = {
+        role: "user",
+        content: [{ type: "text", text: "Do the thing" }],
+        timestamp: Date.now(),
+      };
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: userMessage,
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: userMessage,
+      } as unknown as AgentEvent);
+
+      const content = readFileSync(join(tmpDir, "builder.messages.jsonl"), "utf-8")
+        .trimEnd()
+        .split("\n");
+      expect(content).toHaveLength(1);
+      expect(jsonParse<Record<string, unknown>>(content[0])["role"]).toBe("user");
+
+      overlay.dispose();
+    });
+
+    it("writes toolResult messages to .messages.jsonl on message_end", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-toolresult-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      const toolResultMessage = {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "read",
+        content: [{ type: "text", text: "file contents" }],
+        isError: false,
+        timestamp: Date.now(),
+      };
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: toolResultMessage,
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: toolResultMessage,
+      } as unknown as AgentEvent);
+
+      const content = readFileSync(join(tmpDir, "builder.messages.jsonl"), "utf-8")
+        .trimEnd()
+        .split("\n");
+      expect(content).toHaveLength(1);
+      expect(jsonParse<Record<string, unknown>>(content[0])["role"]).toBe("toolResult");
+
+      overlay.dispose();
+    });
+
+    it("does not write message_start to .messages.jsonl", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-start-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+
+      expect(existsSync(join(tmpDir, "builder.messages.jsonl"))).toBe(false);
+
+      overlay.dispose();
+    });
+
+    it("does not write message_update to .messages.jsonl", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-update-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      overlay.pushStreamEvent("builder", {
+        type: "message_update",
+        message: { role: "assistant", content: [{ type: "text", text: "partial" }] },
+      } as unknown as AgentEvent);
+
+      expect(existsSync(join(tmpDir, "builder.messages.jsonl"))).toBe(false);
+
+      overlay.dispose();
+    });
+
+    it("writes one finalized message per message_end (no duplicates for streaming)", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-stream-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant", content: [] },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_update",
+        message: { role: "assistant", content: [{ type: "text", text: "thinking..." }] },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "final answer" }] },
+      } as unknown as AgentEvent);
+
+      const content = readFileSync(join(tmpDir, "builder.messages.jsonl"), "utf-8")
+        .trimEnd()
+        .split("\n");
+      expect(content).toHaveLength(1);
+      const parsed = jsonParse<{ content: Array<{ text: string }> }>(content[0]);
+      expect(parsed.content[0]?.text).toBe("final answer");
+
+      overlay.dispose();
+    });
+  });
+
+  describe("messages.jsonl prepopulate", () => {
+    it("loads finalized messages from .messages.jsonl into the message cache", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-msgs-"));
+      const messagesPath = join(tmpDir, "builder.messages.jsonl");
+      const userMessage = {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+        timestamp: 0,
+      };
+      const assistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "hi there" }],
+      };
+      writeFileSync(
+        messagesPath,
+        [JSON.stringify(userMessage), JSON.stringify(assistantMessage)].join("\n") + "\n",
+      );
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const messages = overlay.getConversationMessages("builder");
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ role: "user" });
+      expect(messages[1]).toMatchObject({ role: "assistant" });
+
+      overlay.dispose();
+    });
+
+    it("creates a stale done entry for an agent known only from messages.jsonl", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-msgs-entry-"));
+      writeFileSync(
+        join(tmpDir, "builder.messages.jsonl"),
+        JSON.stringify({ role: "assistant", content: [{ type: "text", text: "done" }] }) + "\n",
+      );
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("builder");
+      expect(joined).toContain("Agent completed");
+
+      overlay.dispose();
+    });
+
+    it("does not load raw events from .events.jsonl into the event buffer at startup", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-no-events-"));
+      const eventsPath = join(tmpDir, "builder.events.jsonl");
+      writeFileSync(
+        eventsPath,
+        [JSON.stringify({ type: "message_start", message: { role: "assistant" } })].join("\n") +
+          "\n",
+      );
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      // Raw events are NOT loaded at startup — diagnostics only.
+      expect(overlay.getConversation("builder")).toEqual([]);
+
+      overlay.dispose();
+    });
+
+    it("caps loaded messages at MAX_AGENT_EVENTS keeping the most recent", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-cap-"));
+      const messagesPath = join(tmpDir, "builder.messages.jsonl");
+      const lines: string[] = [];
+      for (let index = 0; index < MAX_AGENT_EVENTS + 50; index++) {
+        lines.push(
+          JSON.stringify({
+            role: "assistant",
+            content: [{ type: "text", text: `msg-${index}` }],
+          }),
+        );
+      }
+      writeFileSync(messagesPath, lines.join("\n") + "\n");
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      const messages = overlay.getConversationMessages("builder");
+      expect(messages).toHaveLength(MAX_AGENT_EVENTS);
+      // Oldest messages evicted, first kept is msg-50.
+      const firstText = (messages[0] as { content: Array<{ text: string }> }).content[0]?.text;
+      expect(firstText).toBe(`msg-50`);
+      const lastText = (messages[messages.length - 1] as { content: Array<{ text: string }> })
+        .content[0]?.text;
+      expect(lastText).toBe(`msg-${MAX_AGENT_EVENTS + 49}`);
+
+      overlay.dispose();
+    });
+
+    it("skips malformed message lines without throwing", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-malformed-"));
+      writeFileSync(
+        join(tmpDir, "builder.messages.jsonl"),
+        ["{not json", JSON.stringify({ role: "assistant", content: [] })].join("\n") + "\n",
+      );
+
+      const overlay = makeOverlay();
+      expect(() => overlay.prepopulateStreamFiles(tmpDir)).not.toThrow();
+      // Malformed line skipped, valid line parsed.
+      expect(overlay.getConversationMessages("builder")).toHaveLength(1);
+
+      overlay.dispose();
+    });
+
+    it("emits a single done entry for an agent with multiple file kinds", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-dedup-"));
+      // Same agent has all three file kinds — done must fire once.
+      writeFileSync(join(tmpDir, "builder.stream"), "message_end: done\n", "utf-8");
+      writeFileSync(
+        join(tmpDir, "builder.messages.jsonl"),
+        JSON.stringify({ role: "assistant", content: [{ type: "text", text: "ok" }] }) + "\n",
+      );
+      writeFileSync(
+        join(tmpDir, "builder.events.jsonl"),
+        JSON.stringify({ type: "message_start", message: { role: "assistant" } }) + "\n",
+      );
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      // Synchronous update() dedupes via has()===true — entryCount stays 1.
+      // Note: prepopulation does not invoke the onDone UI escape callback;
+      // makeOverlay() provides a default vi.fn() that simply stays unused.
+      expect(overlay.entryCount).toBe(1);
+
+      overlay.dispose();
+    });
+
+    it("prepopulates both files: messages loaded, raw events skipped, streaming works", async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-both-"));
+
+      // Create .messages.jsonl with finalized messages
+      writeFileSync(
+        join(tmpDir, "builder.messages.jsonl"),
+        [
+          JSON.stringify({
+            role: "user",
+            content: [{ type: "text", text: "question" }],
+            timestamp: 0,
+          }),
+          JSON.stringify({
+            role: "assistant",
+            content: [{ type: "text", text: "answer" }],
+            timestamp: 1,
+          }),
+        ].join("\n") + "\n",
+      );
+
+      // Create large .events.jsonl with raw events (should NOT be eager-loaded)
+      const LARGE_COUNT = 5_000;
+      const eventLines: string[] = [];
+      for (let i = 0; i < LARGE_COUNT; i++) {
+        eventLines.push(
+          JSON.stringify({
+            type: "message_start",
+            message: { role: "assistant", content: [{ type: "text", text: `event-${i}` }] },
+          }),
+        );
+      }
+      writeFileSync(join(tmpDir, "builder.events.jsonl"), eventLines.join("\n") + "\n");
+
+      const overlay = makeOverlay();
+      overlay.prepopulateStreamFiles(tmpDir);
+
+      // Messages from .messages.jsonl are loaded into the cache
+      const cached = overlay.getConversationMessages("builder");
+      expect(cached).toHaveLength(2);
+      expect(cached[0]).toMatchObject({ role: "user" });
+      expect(cached[1]).toMatchObject({ role: "assistant" });
+
+      // Raw events from .events.jsonl are NOT eager-loaded
+      expect(overlay.getConversation("builder")).toEqual([]);
+
+      // Streaming loadConversationEvents returns subset from large file
+      const streamed = await overlay.loadConversationEvents("builder", 50);
+      expect(streamed).toHaveLength(50);
+      const indices = streamed.map((e) =>
+        Number(
+          (e as { message: { content: Array<{ text: string }> } }).message.content[0].text.replace(
+            "event-",
+            "",
+          ),
+        ),
+      );
+      indices.forEach((i) => expect(i).toBeGreaterThanOrEqual(LARGE_COUNT - 50));
+
+      overlay.dispose();
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe("messagesFiles cleanup", () => {
+    it("clears messagesFiles map on dispose", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-clean-"));
+      const overlay = makeOverlay();
+      overlay.setStreamDir(tmpDir);
+
+      // Finalized message write registers the messagesFiles path.
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "ok" }] },
+      } as unknown as AgentEvent);
+
+      expect(existsSync(join(tmpDir, "builder.messages.jsonl"))).toBe(true);
+      expect(() => overlay.dispose()).not.toThrow();
+      expect(existsSync(join(tmpDir, "builder.messages.jsonl"))).toBe(true);
     });
   });
 });

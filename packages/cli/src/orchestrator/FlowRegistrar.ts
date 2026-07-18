@@ -158,6 +158,7 @@ export class FlowRegistrar {
       supervisor,
       pi,
       specManager,
+      toolRegistry,
       workspaceManager,
       flow,
     );
@@ -173,7 +174,13 @@ export class FlowRegistrar {
     }
 
     // Register routine tools for this flow.
-    const routineExecutor = new RoutineExecutor(flow, stepExecutorRegistry, eventBus, store);
+    const routineExecutor = new RoutineExecutor(
+      flow,
+      stepExecutorRegistry,
+      eventBus,
+      toolRegistry,
+      store,
+    );
     for (const [routineName, routineDef] of Object.entries(flow.routines)) {
       const routineTool = new RoutineTool(
         flowName,

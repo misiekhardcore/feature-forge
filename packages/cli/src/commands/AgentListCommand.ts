@@ -41,8 +41,9 @@ export class AgentListCommand extends Command {
                 viewer.dispose();
                 done();
               },
-              cwd: ctx.cwd,
               markdownTheme: getMarkdownTheme(),
+              cwd: ctx.cwd,
+              toolRegistry: this.toolRegistry,
             });
 
             connect(viewer, streamDir);

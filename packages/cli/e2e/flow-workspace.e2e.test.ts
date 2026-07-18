@@ -19,7 +19,7 @@ import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecut
 import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
-import { makeMockTypedEventBus } from "../src/test-utils";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
@@ -97,7 +97,12 @@ describe("Flow workspace lifecycle (e2e)", () => {
       worktreeRegistry,
     );
 
-    executor = new RoutineExecutor(flow, stepRegistry, makeMockTypedEventBus());
+    executor = new RoutineExecutor(
+      flow,
+      stepRegistry,
+      makeMockTypedEventBus(),
+      makeMockToolRegistry(),
+    );
   });
 
   afterEach(() => {

@@ -4,6 +4,7 @@ import { Registry } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { Command } from "../commands";
+import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 
 /**
@@ -15,6 +16,7 @@ type CommandConstructor = new (
   supervisor: AgentSupervisor,
   pi: ExtensionAPI,
   specManager: SpecManager,
+  toolRegistry: ToolRegistry,
   workspaceManager?: WorkspaceManager,
   commandRegistry?: CommandRegistry,
 ) => Command;
@@ -24,6 +26,7 @@ export class CommandRegistry extends Registry<Command> {
     private readonly supervisor: AgentSupervisor,
     private readonly pi: ExtensionAPI,
     private readonly specManager: SpecManager,
+    private readonly toolRegistry: ToolRegistry,
     private readonly workspaceManager?: WorkspaceManager,
   ) {
     super();
@@ -34,6 +37,7 @@ export class CommandRegistry extends Registry<Command> {
       this.supervisor,
       this.pi,
       this.specManager,
+      this.toolRegistry,
       this.workspaceManager,
       this,
     );

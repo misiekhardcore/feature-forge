@@ -11,6 +11,7 @@ import {
   makeMockFactory,
   makeMockPi,
   makeMockSpecManager,
+  makeMockToolRegistry,
   makeSpec,
   toolListToRestrictions,
 } from "../test-utils";
@@ -41,7 +42,7 @@ describe("ResearchCommand", () => {
         }),
     );
     const specManager = new SpecManager(registry, new SpecLoader());
-    cmd = new ResearchCommand(supervisor, pi, specManager);
+    cmd = new ResearchCommand(supervisor, pi, specManager, makeMockToolRegistry());
     ctx = makeMockCtx();
   });
 
@@ -81,7 +82,7 @@ describe("AgentListCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentListCommand(supervisor, pi, makeMockSpecManager());
+    cmd = new AgentListCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
     ctx = makeMockCtx();
   });
 
@@ -120,7 +121,7 @@ describe("AgentDestroyCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyCommand(supervisor, pi, makeMockSpecManager());
+    cmd = new AgentDestroyCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
     ctx = makeMockCtx();
   });
 
@@ -148,7 +149,7 @@ describe("AgentDestroyAllCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyAllCommand(supervisor, pi, makeMockSpecManager());
+    cmd = new AgentDestroyAllCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
     ctx = makeMockCtx();
   });
 
