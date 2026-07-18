@@ -907,8 +907,7 @@ export class AgentViewerOverlay implements Component {
   }
 
   private trimListViewText(text: string, maxWidth: number) {
-    if (text.length <= maxWidth) return text;
-    return text.substring(0, maxWidth - 3) + "...";
+    return truncateToWidth(text, maxWidth);
   }
 
   private renderDetail(width: number): string[] {
