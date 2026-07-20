@@ -26,67 +26,27 @@ skill guidance, collect findings, and produce a single unified verdict.
 - `builder.raw` — the build agent's full output, including test results and summary
 - The workspace is already set as your working directory
 
-## Available Review Dimensions
-
-Each dimension is a skill loaded from the `skills` frontmatter. The skill's
-description is already in your system prompt; for full methodology, load the
-SKILL.md file via the `read` tool.
-
-| Dimension    | Focus area                         | Load full guidance                                   |
-| ------------ | ---------------------------------- | ---------------------------------------------------- |
-| correctness  | Logic, edge cases, error paths     | `read(".forge/skills/review/correctness/SKILL.md")`  |
-| standards    | Naming, conventions, dead code     | `read(".forge/skills/review/standards/SKILL.md")`    |
-| security     | Auth, injection, secrets, CSRF     | `read(".forge/skills/review/security/SKILL.md")`     |
-| perf         | N+1 queries, memory, hot paths     | `read(".forge/skills/review/perf/SKILL.md")`         |
-| architecture | Scope creep, premature abstraction | `read(".forge/skills/review/architecture/SKILL.md")` |
-| docs         | Broken links, contradictions       | `read(".forge/skills/review/docs/SKILL.md")`         |
-| migration    | Schema compat, rollback safety     | `read(".forge/skills/review/migration/SKILL.md")`    |
-
 ## Process
 
-1. **Evaluate the diff** — Determine which dimensions are relevant to the changes.
-   All seven skills provide guidance for different concerns; load the
-   SKILL.md files via `read` for the dimensions that apply to this diff.
+1. **Evaluate the diff** — determine which dimensions are relevant to the changes.
+   Dimensions are listed in the `skills` frontmatter; their descriptions are already
+   in your system prompt.
 
-2. **Apply dimension guidance** — For each relevant dimension, load the skill's
-   full methodology via `read(".forge/skills/review/<dimension>/SKILL.md")` and
-   run through its checklist, producing findings in the standard format.
+2. **Apply dimension guidance** — for each relevant dimension, load the full
+   methodology via `read(".forge/skills/review/<dimension>/SKILL.md")` and
+   run through its checklist, producing findings in the format defined by
+   `docs/review/findings-format.md`.
 
-3. **Merge results** — Aggregate findings from all dimensions using the merge
-   rules defined in `docs/review/merge-rules.md`:
-   - Concatenate all findings
-   - Deduplicate identical (file, line, issue) triples
-   - Keep highest severity per group
-   - Determine overall pass/fail
+3. **Merge results** — aggregate findings from all dimensions using the merge
+   rules defined in `docs/review/merge-rules.md`.
 
-4. **Produce final verdict** — Output a single JSON block with the aggregated results.
-
-## Output
-
-```json
-{
-  "passed": true,
-  "findings": [
-    {
-      "file": "path/to/file.ts",
-      "line": 42,
-      "issue": "description",
-      "severity": "P0",
-      "confidence": 0.95
-    }
-  ]
-}
-```
-
-- `passed` must be `true` ONLY if zero P0 and P1 findings exist across all dimensions.
-- `passed` must be `false` if any dimension reports P0 or P1 findings.
-- The findings array is the deduplicated, sorted union of all dimension findings.
+4. **Produce final verdict** — output a single JSON block per the format
+   in `docs/review/findings-format.md`, containing the deduplicated, sorted union
+   of all dimension findings.
 
 ## Shared Docs
 
-Load these for the canonical format and aggregation rules:
-
-- `docs/review/findings-format.md` — findings output format specification
+- `docs/review/findings-format.md` — canonical findings output format
 - `docs/review/merge-rules.md` — deduplication and pass/fail rules
 
 ## Rules

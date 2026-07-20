@@ -318,7 +318,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(60);
       // Strip ANSI codes so the raw content between border chars is visible.
       const cleanLines = lines.map(stripAnsiForTest);
-      const contentLine = cleanLines.find((l) => l.includes("▶") || l.includes("no agents"));
+      const contentLine = cleanLines.find((l) => l.includes("→") || l.includes("no agents"));
       expect(contentLine).toBeDefined();
       if (contentLine) {
         const afterLeftBorder = contentLine.indexOf("│") + 1;
@@ -332,7 +332,7 @@ describe("AgentViewerOverlay", () => {
 
       const lines = overlay.render(60);
       const cleanLines = lines.map(stripAnsiForTest);
-      const contentLine = cleanLines.find((l) => l.includes("▶") || l.includes("no agents"));
+      const contentLine = cleanLines.find((l) => l.includes("→") || l.includes("no agents"));
       expect(contentLine).toBeDefined();
       if (contentLine) {
         const lastPipe = contentLine.lastIndexOf("│");
@@ -1205,9 +1205,9 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("▶");
-      // Only one ▶ should appear (one selected item).
-      const cursorCount = (joined.match(/▶/g) || []).length;
+      expect(joined).toContain("→");
+      // Only one → should appear (one selected item).
+      const cursorCount = (joined.match(/→/g) || []).length;
       expect(cursorCount).toBe(1);
     });
 

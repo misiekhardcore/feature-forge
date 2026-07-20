@@ -889,7 +889,7 @@ export class AgentViewerOverlay implements Component {
         entry.passed,
       );
 
-      const cursor = isSelected ? "▶" : " ";
+      const cursor = isSelected ? "→" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
       const roleSuffix = entry.role ? theme.fg("muted", `(${entry.role})`) : "";
       const elapsedSuffix = entry.elapsed ? theme.fg("muted", entry.elapsed) : "";
