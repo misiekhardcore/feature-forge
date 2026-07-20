@@ -1,5 +1,5 @@
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { Container, truncateToWidth } from "@earendil-works/pi-tui";
+import { Container, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 /**
  * Container that renders a static set of pre-built lines.
@@ -74,8 +74,10 @@ export class BorderedContainer extends Container {
     const maxTitleLen = innerBorderWidth - 1;
     const rawTitle = this.title ? ` ${this.title} ` : "";
     const titleSuffix =
-      rawTitle.length > maxTitleLen ? truncateToWidth(rawTitle, maxTitleLen, "…", false) : rawTitle;
-    const topDash = "─".repeat(Math.max(1, innerBorderWidth - titleSuffix.length));
+      visibleWidth(rawTitle) > maxTitleLen
+        ? truncateToWidth(rawTitle, maxTitleLen, "…", false)
+        : rawTitle;
+    const topDash = "─".repeat(Math.max(1, innerBorderWidth - visibleWidth(titleSuffix)));
     result.push(borderFn(`┌${titleSuffix}${topDash}┐`));
 
     // Top inner margin.

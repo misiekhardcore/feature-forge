@@ -4,7 +4,7 @@ import type {
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 import type { RoutineResult } from "../RoutineResult";
 import { createAccumulatedState } from "./AccumulatedState";
@@ -110,7 +110,10 @@ export class ProgressRenderer {
     lines.push(header);
 
     // Separator
-    const separatorWidth = Math.min(60, Math.max(title.length + (subtitle?.length ?? 0) + 8, 20));
+    const separatorWidth = Math.min(
+      60,
+      Math.max(visibleWidth(title) + (subtitle ? visibleWidth(subtitle) : 0) + 8, 20),
+    );
     lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(separatorWidth)));
 
     // Rows

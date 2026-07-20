@@ -218,6 +218,10 @@ describe("BorderedContainer", () => {
       expect(visibleLen).toBeLessThanOrEqual(20);
       // Should contain at least the emoji (visible char).
       expect(topLine).toContain("🚀");
+      // The top border should end with ┐ at the exact right edge.
+      expect(topLine).toMatch(/┐$/);
+      // The border should begin with ┌.
+      expect(topLine).toMatch(/^┌/);
     });
 
     it("accepts custom borderColor parameter", () => {
