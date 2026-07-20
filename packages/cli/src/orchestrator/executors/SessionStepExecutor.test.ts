@@ -4,6 +4,10 @@ import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { SessionInstruction } from "../FlowInstruction";
 import { FlowStateStore } from "../FlowStateStore";
+import { createAccumulatedState } from "../progress/AccumulatedState";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { SessionStepExecutor } from "./SessionStepExecutor";
 
 describe("SessionStepExecutor", () => {
@@ -133,5 +137,145 @@ describe("SessionStepExecutor", () => {
 
     expect(result2.store.get("ws")).toBe("/tmp/ws1");
     expect(result2.store.get("ref")).toBe("main");
+  });
+
+  describe("getDisplayContribution", () => {
+    it("returns SessionContribution for session-set events", () => {
+      const executor = new SessionStepExecutor();
+
+      const event = {
+        phase: "session-set",
+        message: "Session param set: ws: /tmp/forge-ws",
+        details: { key: "ws", value: "/tmp/forge-ws" },
+      } as unknown as RoutineProgressEvent;
+
+      const contribution = executor.getDisplayContribution(event);
+
+      expect(contribution).toBeDefined();
+      expect(contribution!.type).toBe("session");
+      expect(contribution!.phase).toBe("session-set");
+      expect(contribution!.message).toBe("Session param set: ws: /tmp/forge-ws");
+      const sessionContrib = contribution! as DisplayContribution & {
+        params: Record<string, string>;
+      };
+      expect(sessionContrib.params).toEqual({ ws: "/tmp/forge-ws" });
+    });
+
+    it("returns undefined for non-session-set events", () => {
+      const executor = new SessionStepExecutor();
+
+      const event = {
+        phase: "agent-started",
+        message: "Agent started",
+        details: { executionId: "e1", agentId: "a1" },
+      } as unknown as RoutineProgressEvent;
+
+      expect(executor.getDisplayContribution(event)).toBeUndefined();
+    });
+  });
+
+  describe("registerDisplayHandler", () => {
+    it("accumulates resultSnippet across multiple session contributions", () => {
+      const executor = new SessionStepExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+
+      // Simulate production: getDisplayContribution produces one single-key
+      // contribution per event, so multiple session params arrive as separate
+      // contributions.
+      registry.apply(state, [
+        {
+          type: "session",
+          params: { ws: "/tmp/forge-ws" },
+          phase: "session-set",
+          message: "Session param set",
+        },
+        {
+          type: "session",
+          params: { branch: "forge/ws-abc" },
+          phase: "session-set",
+          message: "Session param set",
+        },
+      ]);
+
+      expect(state.resultSnippet).toBe("ws: /tmp/forge-ws, branch: forge/ws-abc");
+    });
+
+    it("populates resultSnippet with single param", () => {
+      const executor = new SessionStepExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      const state = createAccumulatedState();
+      const contribution: DisplayContribution = {
+        type: "session",
+        params: { base_branch: "main" },
+        phase: "session-set",
+        message: "Session param set",
+      };
+
+      registry.apply(state, [contribution]);
+
+      expect(state.resultSnippet).toBe("base_branch: main");
+    });
+
+    it("round-trip: getDisplayContribution → handler → resultSnippet", () => {
+      const executor = new SessionStepExecutor();
+      const registry = new DisplayContributionRegistry();
+      executor.registerDisplayHandler(registry);
+
+      // Simulate two events as produced by execute()
+      const event1 = {
+        phase: "session-set",
+        message: "Session param set: ws: /tmp/forge-ws",
+        details: { key: "ws", value: "/tmp/forge-ws" },
+      } as unknown as RoutineProgressEvent;
+
+      const event2 = {
+        phase: "session-set",
+        message: "Session param set: branch: forge/ws-abc",
+        details: { key: "branch", value: "forge/ws-abc" },
+      } as unknown as RoutineProgressEvent;
+
+      const contrib1 = executor.getDisplayContribution(event1);
+      const contrib2 = executor.getDisplayContribution(event2);
+
+      expect(contrib1).toBeDefined();
+      expect(contrib2).toBeDefined();
+
+      const state = createAccumulatedState();
+      registry.apply(state, [contrib1!, contrib2!]);
+
+      expect(state.resultSnippet).toBe("ws: /tmp/forge-ws, branch: forge/ws-abc");
+    });
+  });
+
+  describe("execute events", () => {
+    it("emits feature-forge:session-set event after writing to store", async () => {
+      const executor = new SessionStepExecutor();
+      const store = new FlowStateStore();
+
+      const instruction: SessionInstruction = {
+        type: "session",
+        id: "s1",
+        key: "ws",
+        value: "/tmp/forge-ws",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task", store });
+
+      const eventBus = makeMockTypedEventBus();
+      await executor.execute(instruction, context, vi.fn(), eventBus);
+
+      expect(eventBus.raw.emit).toHaveBeenCalledWith(
+        "feature-forge:session-set",
+        expect.objectContaining({
+          phase: "session-set",
+          message: "Session param set: ws: /tmp/forge-ws",
+          details: { key: "ws", value: "/tmp/forge-ws" },
+        }),
+      );
+    });
   });
 });

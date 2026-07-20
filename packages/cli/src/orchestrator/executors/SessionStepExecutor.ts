@@ -1,6 +1,10 @@
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext } from "../FlowContext";
 import type { FlowInstruction, SessionInstruction } from "../FlowInstruction";
+import type { AccumulatedState } from "../progress/AccumulatedState";
+import type { DisplayContribution } from "../progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
+import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**
@@ -22,12 +26,38 @@ export class SessionStepExecutor extends StepExecutor<SessionInstruction> {
       context: FlowContext,
       signal?: AbortSignal,
     ) => Promise<FlowContext>,
-    _eventBus: TypedEventBus,
+    eventBus: TypedEventBus,
     _signal?: AbortSignal,
   ): Promise<FlowContext> {
     const resolvedKey = context.resolve(instruction.key);
     const resolvedValue = context.resolve(instruction.value);
     context.store.set(resolvedKey, resolvedValue);
+    eventBus.emit("feature-forge:session-set", {
+      phase: "session-set",
+      message: `Session param set: ${resolvedKey}: ${resolvedValue}`,
+      details: { key: resolvedKey, value: resolvedValue },
+    });
     return context;
+  }
+
+  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
+    if (event.phase === "session-set") {
+      return {
+        type: "session",
+        params: { [event.details.key]: event.details.value },
+        phase: event.phase,
+        message: event.message,
+      };
+    }
+    return undefined;
+  }
+
+  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
+    registry.register("session", (state: AccumulatedState, contribution) => {
+      if (contribution.type !== "session") return;
+      const entries = Object.entries(contribution.params);
+      const snippet = entries.map(([k, v]) => `${k}: ${v}`).join(", ");
+      state.resultSnippet = state.resultSnippet ? `${state.resultSnippet}, ${snippet}` : snippet;
+    });
   }
 }

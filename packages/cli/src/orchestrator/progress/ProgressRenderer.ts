@@ -274,7 +274,9 @@ export class ProgressRenderer {
 
     const passed = result.details?.passed ?? false;
     const icon = ProgressRenderer.statusIcon("done", theme, passed);
-    const suffix = ProgressRenderer.buildResultSuffix(result.details);
+    const acc = createAccumulatedState();
+    this.registry.apply(acc, this.state.contributions);
+    const suffix = acc.resultSnippet ?? ProgressRenderer.buildResultSuffix(result.details);
 
     return {
       render: () => [`${icon} ${routine} · ${suffix}`],

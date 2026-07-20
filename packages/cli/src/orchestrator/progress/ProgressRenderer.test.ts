@@ -465,6 +465,76 @@ describe("ProgressRenderer", () => {
       expect(lines[0]).toContain("test-routine");
       expect(lines[0]).toContain("failed");
     });
+
+    it("uses resultSnippet from accumulated state instead of buildResultSuffix", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("session", (state, contribution) => {
+        if (contribution.type === "session") {
+          const entries = Object.entries(contribution.params);
+          state.resultSnippet = entries.map(([k, v]) => `${k}: ${v}`).join(", ");
+        }
+      });
+
+      const state: RoutineProgressState = {
+        routineName: "test-routine",
+        contributions: [
+          {
+            type: "session",
+            params: { ws: "/tmp/forge-ws", branch: "forge/ws-abc" },
+            phase: "session-set",
+            message: "Session param set",
+          },
+        ],
+      };
+      const renderer = new ProgressRenderer(state, registry);
+
+      const result: AgentToolResult<RoutineResult> = {
+        content: [],
+        details: {
+          routine: "test-routine",
+          passed: true,
+          rounds: 3,
+          results: {},
+          summary: "should not appear",
+          session: {},
+          workspace: "/tmp/should-not-appear",
+        },
+      };
+      const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
+      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const lines = rendered.render(80);
+      expect(lines[0]).toContain("✓");
+      expect(lines[0]).toContain("test-routine");
+      expect(lines[0]).toContain("ws: /tmp/forge-ws, branch: forge/ws-abc");
+      expect(lines[0]).not.toContain("3 rounds");
+    });
+
+    it("falls back to buildResultSuffix when accumulated state has no resultSnippet", () => {
+      const registry = new DisplayContributionRegistry();
+      const state: RoutineProgressState = {
+        routineName: "test-routine",
+        contributions: [],
+      };
+      const renderer = new ProgressRenderer(state, registry);
+
+      const result: AgentToolResult<RoutineResult> = {
+        content: [],
+        details: {
+          routine: "test-routine",
+          passed: true,
+          rounds: 3,
+          results: {},
+          summary: "done",
+          session: {},
+        },
+      };
+      const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
+      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const lines = rendered.render(80);
+      expect(lines[0]).toContain("✓");
+      expect(lines[0]).toContain("test-routine");
+      expect(lines[0]).toContain("3 rounds");
+    });
   });
 
   describe("buildCallComponent", () => {
