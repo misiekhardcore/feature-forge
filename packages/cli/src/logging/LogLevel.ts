@@ -1,9 +1,9 @@
 /**
  * Log severity levels, ordered from most to least severe.
  *
- * Numeric values allow direct comparison: lower = more severe, so
- * `candidate <= threshold` means the candidate meets or exceeds
- * the threshold severity.
+ * Severity comparison is delegated to the {@link Logger.LOG_LEVEL_ORDER}
+ * numeric precedence map so that string-based enum values are compared
+ * correctly (SILENT=0 through DEBUG=4, lower = more severe).
  */
 
 import { LogLevel } from "../config";

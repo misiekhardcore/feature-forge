@@ -1790,6 +1790,54 @@ describe("AgentViewerOverlay", () => {
       renderSpy.mockRestore();
     });
 
+    it("computeScrollMax returns 1 for zero messages with dirty cache", () => {
+      const overlay = makeOverlay();
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "empty-agent";
+      overlay.update(makeEntry("empty-agent", "started"));
+
+      // Manually set a known avgLinesPerMessage to simulate prior render.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (overlay as any).avgLinesPerMessage.set("empty-agent", 5);
+
+      // Dirty the cache so computeScrollMax uses heuristic path.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (overlay as any).conversationLinesDirty = true;
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const scrollMax = (overlay as any).computeScrollMax();
+      expect(renderSpy.mock.calls.length).toBe(0);
+
+      renderSpy.mockRestore();
+
+      // For zero messages, the heuristic should return 1 (minimum).
+      // Base header (2) + summary (0) + conversation block (2 + 1 + 1) + footer (1) = 7
+      // viewport default = 15, so scrollMax = max(0, 7 - 15) = 0
+      expect(scrollMax).toBe(0);
+    });
+
+    it("computeScrollMax uses avgLinesPerMessage reset on handleListInput entry", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+
+      // Enter detail view via handleListInput — this deletes avgLinesPerMessage for the agent so ?? 1 fallback applies.
+      overlay.handleInput("\r"); // Enter
+
+      // avgLinesPerMessage should be reset to 0 for this agent.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((overlay as any).avgLinesPerMessage.get("builder")).toBeUndefined();
+    });
+
     it("resets cachedConversationWidth on pushStreamEvent for viewed agent", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));

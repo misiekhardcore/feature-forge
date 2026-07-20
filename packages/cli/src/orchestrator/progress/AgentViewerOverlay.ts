@@ -1097,6 +1097,7 @@ export class AgentViewerOverlay implements Component {
         this.scrollOffset = 0;
         this.conversationLinesDirty = true;
         this.cachedConversationWidth = -1;
+        this.avgLinesPerMessage.delete(agentId);
         this.tui.requestRender();
       }
     }
@@ -1135,11 +1136,11 @@ export class AgentViewerOverlay implements Component {
     const summaryLines = entry.summary ? 4 : 0;
     // Conversation block: "Conversation:" header + turn lines + trailing empty line.
     // When dirty, estimate via heuristic to avoid a full pi component render.
+    const messageCount = this.getConversationMessages(entry.id).length;
     const convLineCount = this.conversationLinesDirty
-      ? Math.ceil(
-          this.getConversationMessages(entry.id).length *
-            (this.avgLinesPerMessage.get(entry.id) ?? 1),
-        ) || 1
+      ? messageCount === 0
+        ? 1
+        : Math.ceil(messageCount * (this.avgLinesPerMessage.get(entry.id) ?? 1))
       : this.cachedConversationLines.length;
     const totalConversationBlock = 2 + convLineCount + 1;
     // Help text: 1
