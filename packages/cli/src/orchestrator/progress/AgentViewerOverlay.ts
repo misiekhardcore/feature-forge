@@ -114,6 +114,14 @@ export class AgentViewerOverlay implements Component {
   /** Total vertical overhead: top border, top margin, bottom margin, bottom border. */
   static readonly BORDER_HEIGHT_OVERHEAD = 4;
 
+  /**
+   * Compute the content width available inside the border, clamped to 0
+   * so that zero-width terminals never produce negative dimensions.
+   */
+  static contentWidth(outerWidth: number): number {
+    return Math.max(0, outerWidth - AgentViewerOverlay.BORDER_WIDTH_OVERHEAD);
+  }
+
   /** Maps agent id → agent entry. */
   private agents = new Map<string, AgentViewerEntry>();
 
@@ -817,7 +825,7 @@ export class AgentViewerOverlay implements Component {
 
   private addBorder(lines: string[], outerWidth: number): string[] {
     const { theme } = this;
-    const contentWidth = Math.max(0, outerWidth - AgentViewerOverlay.BORDER_WIDTH_OVERHEAD);
+    const contentWidth = AgentViewerOverlay.contentWidth(outerWidth);
 
     const borderInnerWidth = contentWidth + AgentViewerOverlay.BORDER_MARGIN;
     const top = theme.fg(
@@ -859,7 +867,7 @@ export class AgentViewerOverlay implements Component {
 
   private renderList(width: number): string[] {
     const { theme } = this;
-    const contentW = width - AgentViewerOverlay.BORDER_WIDTH_OVERHEAD;
+    const contentW = AgentViewerOverlay.contentWidth(width);
     const lines: string[] = [];
 
     // Header
@@ -926,7 +934,7 @@ export class AgentViewerOverlay implements Component {
 
   private renderDetail(width: number): string[] {
     const { theme } = this;
-    const contentW = width - AgentViewerOverlay.BORDER_WIDTH_OVERHEAD;
+    const contentW = AgentViewerOverlay.contentWidth(width);
     const lines: string[] = [];
 
     const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
@@ -1002,10 +1010,7 @@ export class AgentViewerOverlay implements Component {
    * Delegates to {@link ConversationRenderer} which dispatches by role.
    */
   private renderConversationTurns(messages: AgentMessage[], width: number): string[] {
-    return this.conversationRenderer.render(
-      messages,
-      width - AgentViewerOverlay.BORDER_WIDTH_OVERHEAD,
-    );
+    return this.conversationRenderer.render(messages, AgentViewerOverlay.contentWidth(width));
   }
 
   private handleListInput(data: string): void {
