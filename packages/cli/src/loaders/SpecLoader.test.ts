@@ -300,6 +300,55 @@ skills:
       const spec = registry.create("single-skill");
       expect(spec.skills).toEqual(["research"]);
     });
+
+    it("build.md spec resolves with correct skills, toolPreset, and ephemeral", async () => {
+      const filepath = join(tempDir, "build.md");
+      const specContent = `---
+id: "build"
+role: "build"
+toolPreset: "fullAccess"
+ephemeral: true
+skills:
+  - "forge-build"
+---
+# Build Agent
+`;
+      await fs.writeFile(filepath, specContent);
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      expect(parsed.name).toBe("build");
+
+      const spec = registry.create("build");
+      expect(spec.skills).toEqual(["forge-build"]);
+      expect(spec.ephemeral).toBe(true);
+    });
+
+    it("verify.md spec resolves with correct skills, toolPreset, and ephemeral", async () => {
+      const filepath = join(tempDir, "verify.md");
+      const specContent = `---
+id: "verify"
+role: "verify"
+toolPreset: "verify"
+ephemeral: true
+skills:
+  - "forge-verify"
+---
+# Verify Agent
+`;
+      await fs.writeFile(filepath, specContent);
+
+      const parsed = await loader.load(filepath);
+      registry.register(parsed.name, parsed.factory);
+
+      expect(parsed.name).toBe("verify");
+
+      const spec = registry.create("verify");
+      expect(spec.skills).toEqual(["forge-verify"]);
+      expect(spec.ephemeral).toBe(true);
+    });
+
     it("reports the offending filename in errors", async () => {
       const filepath = join(tempDir, "broken.md");
       await fs.writeFile(
