@@ -210,7 +210,9 @@ export class AgentDetailView {
   private computeViewportHeight(): number {
     const termHeight = this.tui?.terminal?.rows;
     if (!termHeight || termHeight < 1) return 15;
-    const rawMaxHeight = Math.ceil(
+    // TUI's parseSizeValue uses Math.floor for percentage → match it so
+    // viewport + border exactly equals maxHeight (avoids clipping border).
+    const rawMaxHeight = Math.floor(
       (Number(OVERLAY_OPTIONS.maxHeight.slice(0, -1)) / 100) * termHeight,
     );
     const maxHeight = Math.max(1, rawMaxHeight);

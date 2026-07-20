@@ -420,7 +420,8 @@ export class AgentViewerOverlay implements Component {
     this._viewMode = "detail";
     this.detailView.selectedAgentId = agentId;
     this.detailView.autoScroll = true;
-    this.detailView.scrollOffset = 0;
+    // Start at the bottom so the most recent messages are visible.
+    this.detailView.scrollOffset = Number.MAX_SAFE_INTEGER;
     this.tui.requestRender();
   }
 
