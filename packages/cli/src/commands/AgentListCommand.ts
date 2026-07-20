@@ -23,7 +23,7 @@ export class AgentListCommand extends Command {
       const streamDir = SharedStreamDir.get();
       await ctx.ui
         .custom<void>(
-          (tui, theme, _kb, done) => {
+          async (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
             const typedBus = new TypedEventBus(this.pi.events);
@@ -46,7 +46,7 @@ export class AgentListCommand extends Command {
               toolRegistry: this.toolRegistry,
             });
 
-            connect(viewer, streamDir);
+            await connect(viewer, streamDir);
 
             overlayCleanup = () => {
               unsubs.forEach((u) => u());

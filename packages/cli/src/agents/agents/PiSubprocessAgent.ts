@@ -77,7 +77,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     };
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
-    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+    const timeout = options?.timeout ?? ForgeConfig.getInstance()?.getTaskTimeoutMs() ?? 3_600_000;
     const unsubs: (() => void)[] = [];
 
     // Promise that resolves when agent_end is received, rejecting on timeout.

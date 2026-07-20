@@ -83,7 +83,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   // Load additional agent specs from directories configured in forge.config
   const forgeConfig = ForgeConfig.getInstance();
-  for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
+  for (const agentSpecDir of forgeConfig?.getAgentSpecDirectories() ?? []) {
     try {
       await specManager.loadFromDirectory(agentSpecDir);
     } catch (error) {
@@ -167,7 +167,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
-  const flowDirs = [path.join(__dirname, "flows"), ...forgeConfig.getFlowDirectories()];
+  const flowDirs = [path.join(__dirname, "flows"), ...(forgeConfig?.getFlowDirectories() ?? [])];
   const flowRegistrar = new FlowRegistrar({
     pi,
     cmdRegistry,

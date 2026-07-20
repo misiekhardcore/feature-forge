@@ -1000,12 +1000,12 @@ describe("RoutineTool", () => {
         theme: Record<string, unknown>,
         _kb: Record<string, unknown>,
         done: () => void,
-      ) => Record<string, unknown>;
+      ) => Promise<Record<string, unknown>>;
 
       const mockTui = { requestRender: vi.fn() };
       const mockTheme = { fg: vi.fn((_c: string, t: string) => t) };
       const mockDoneCallback = vi.fn();
-      const component = factory(mockTui, mockTheme, {}, mockDoneCallback) as {
+      const component = (await factory(mockTui, mockTheme, {}, mockDoneCallback)) as {
         render: (width: number) => string[];
         invalidate: () => void;
         handleInput?: (data: string) => void;

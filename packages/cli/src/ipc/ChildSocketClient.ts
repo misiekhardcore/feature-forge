@@ -85,7 +85,7 @@ export class ChildSocketClient {
   async request<ST extends SocketMessage["type"]>(
     type: ST,
     params: Extract<SocketMessage, { type: ST }>["params"],
-    timeout = ForgeConfig.getInstance().getTaskTimeoutMs(),
+    timeout = ForgeConfig.getInstance()?.getTaskTimeoutMs() ?? 3_600_000,
     signal?: AbortSignal,
   ): Promise<ParamsToResponseMap[ST]> {
     const correlationId = randomUUID();

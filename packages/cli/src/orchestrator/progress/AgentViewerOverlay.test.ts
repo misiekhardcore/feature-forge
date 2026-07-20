@@ -6,14 +6,16 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { ForgeConfig } from "../../config";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
 import type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
+import { ConversationRenderer } from "./ConversationRenderer";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;
@@ -1558,6 +1560,317 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
+  describe("conversation line caching", () => {
+    let cacheTestDir: string;
+
+    beforeAll(async () => {
+      cacheTestDir = mkdtempSync(join(tmpdir(), "forge-cache-test-"));
+      await ForgeConfig.create({ cwd: cacheTestDir });
+    });
+
+    afterAll(() => {
+      ForgeConfig.destroy();
+      try {
+        rmSync(cacheTestDir, { recursive: true, force: true });
+      } catch {
+        // cleanup best-effort
+      }
+    });
+
+    it("reuses cached conversation lines on second render with same width and no new events", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // First render — should call ConversationRenderer.render
+      overlay.render(80);
+      const firstCallCount = renderSpy.mock.calls.length;
+      expect(firstCallCount).toBeGreaterThan(0);
+      renderSpy.mockClear();
+
+      // Second render with same width and no dirty flag — should NOT call render
+      overlay.render(80);
+      expect(renderSpy.mock.calls.length).toBe(0);
+
+      renderSpy.mockRestore();
+    });
+
+    it("invalidates cache and re-renders when width changes", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // Warm the cache at width 80
+      overlay.render(80);
+      renderSpy.mockClear();
+
+      // Render at a different width — should re-render
+      overlay.render(120);
+      expect(renderSpy.mock.calls.length).toBeGreaterThan(0);
+
+      renderSpy.mockRestore();
+    });
+
+    it("invalidates cache for viewed agent on pushStreamEvent", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Warm the cache
+      overlay.render(80);
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // New event for the selected agent should dirty the cache
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "New" }] },
+      } as unknown as AgentEvent);
+
+      renderSpy.mockClear();
+      overlay.render(80);
+      expect(renderSpy.mock.calls.length).toBeGreaterThan(0);
+
+      renderSpy.mockRestore();
+    });
+
+    it("does not invalidate cache for non-viewed agent on pushStreamEvent", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.update(makeEntry("reviewer", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Warm the cache for builder
+      overlay.render(80);
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // New event for a different agent should NOT dirty the cache
+      overlay.pushStreamEvent("reviewer", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("reviewer", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "New for reviewer" }] },
+      } as unknown as AgentEvent);
+
+      renderSpy.mockClear();
+      overlay.render(80);
+      // Cache should still be clean — no re-render needed
+      expect(renderSpy.mock.calls.length).toBe(0);
+
+      renderSpy.mockRestore();
+    });
+
+    it("invalidates cache when entering detail view via handleListInput", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+
+      // The dirty flag should be set when entering detail view,
+      // so the first renderDetail should call ConversationRenderer.render
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+      overlay.handleInput("\r"); // Enter — selects builder
+      overlay.render(80);
+      expect(renderSpy.mock.calls.length).toBeGreaterThan(0);
+
+      renderSpy.mockRestore();
+    });
+
+    it("computeScrollMax uses cached conversation lines", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Warm the cache
+      overlay.render(80);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cachedLength = (overlay as any).cachedConversationLines.length;
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // computeScrollMax should not call ConversationRenderer.render
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (overlay as any).computeScrollMax();
+      expect(renderSpy.mock.calls.length).toBe(0);
+
+      renderSpy.mockRestore();
+
+      // computeScrollMax result should be consistent with cached lines
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const scrollMax = (overlay as any).computeScrollMax();
+      // Base header (2) + summary (0) + conversation block (2 + cachedLength + 1) + footer (1) - viewportHeight
+      const expectedTotal = 2 + 0 + 2 + cachedLength + 1 + 1;
+      // viewport height = 15 (default when terminal is undefined)
+      const expectedScrollMax = Math.max(0, expectedTotal - 15);
+      expect(scrollMax).toBe(expectedScrollMax);
+    });
+
+    it("computeScrollMax uses heuristic when cache is dirty instead of full render", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Warm the cache — this also seeds avgLinesPerMessage.
+      overlay.render(80);
+
+      // Manually dirty the cache (simulating what pushStreamEvent does)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (overlay as any).conversationLinesDirty = true;
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // computeScrollMax should use the heuristic, NOT re-render.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (overlay as any).computeScrollMax();
+      expect(renderSpy.mock.calls.length).toBe(0);
+
+      renderSpy.mockRestore();
+    });
+
+    it("resets cachedConversationWidth on pushStreamEvent for viewed agent", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Warm the cache
+      overlay.render(80);
+
+      // Verify width is cached
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((overlay as any).cachedConversationWidth).toBe(80);
+
+      // Push event for viewed agent — should reset cached width
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((overlay as any).cachedConversationWidth).toBe(-1);
+    });
+
+    it("resets cachedConversationWidth when entering detail view via handleListInput", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+
+      // Enter detail view, render once, then go back
+      overlay.handleInput("\r");
+      overlay.render(80);
+      overlay.handleInput("\x1b"); // Esc — back to list
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cachedWidthBefore = (overlay as any).cachedConversationWidth;
+
+      // Re-enter detail view — should reset cached width
+      overlay.handleInput("\r");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((overlay as any).cachedConversationWidth).toBe(-1);
+      // Verify the old cached width was valid before the reset
+      expect(cachedWidthBefore).toBe(80);
+    });
+
+    it("handles NaN width by falling back to 0 and forcing re-render", () => {
+      const overlay = makeOverlay();
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant" },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const renderSpy = vi.spyOn(ConversationRenderer.prototype, "render");
+
+      // First render with NaN should not throw and should call renderer
+      overlay.render(NaN);
+      expect(renderSpy.mock.calls.length).toBeGreaterThan(0);
+
+      renderSpy.mockClear();
+
+      // Second render with NaN — cached width is 0, so NaN → 0 matches and no re-render
+      overlay.render(NaN);
+      expect(renderSpy.mock.calls.length).toBe(0);
+
+      renderSpy.mockRestore();
+    });
+  });
+
   describe("clearMemory with view state", () => {
     it("resets viewMode, selectedIndex, and selectedAgentId", () => {
       const overlay = makeOverlay();
@@ -1661,7 +1974,7 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentSupervisor;
     }
 
-    it("propagates passed: true from agent-done event to the entry", () => {
+    it("propagates passed: true from agent-done event to the entry", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1672,7 +1985,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
@@ -1695,7 +2008,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("propagates passed: false from agent-done event to the entry", () => {
+    it("propagates passed: false from agent-done event to the entry", async () => {
       const agent = makeMockAgent("reviewer", "reviewer", AgentStatus.Completed);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1706,7 +2019,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
@@ -1729,7 +2042,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("replays buffered events with passed data after connect", () => {
+    it("replays buffered events with passed data after connect", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1767,7 +2080,7 @@ describe("AgentViewerOverlay", () => {
       });
 
       const overlay = makeOverlay();
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // After connect, the buffered done event should show ✗.
       const lines = overlay.render(80);
@@ -1779,7 +2092,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("sets passed on entries when initializing from supervisor after connect", () => {
+    it("sets passed on entries when initializing from supervisor after connect", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1790,7 +2103,7 @@ describe("AgentViewerOverlay", () => {
       });
 
       const overlay = makeOverlay();
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // The running agent should show ⟳ (no passed concept for started).
       const lines = overlay.render(80);
@@ -1801,7 +2114,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("ignores events without agentId in details", () => {
+    it("ignores events without agentId in details", async () => {
       const supervisor = makeMockSupervisor();
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
@@ -1811,7 +2124,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // Emit an event without agentId via raw bus — should be silently ignored.
       expect(() => {
@@ -1828,7 +2141,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("calls pushStreamEvent for stream events after connect", () => {
+    it("calls pushStreamEvent for stream events after connect", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1839,7 +2152,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       eventBus.emit("feature-forge:agent-stream", {
         phase: "agent-stream",
@@ -1858,7 +2171,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("persists stream events to disk when connect sets streamDir", () => {
+    it("persists stream events to disk when connect sets streamDir", async () => {
       const streamDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       try {
         const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
@@ -1871,7 +2184,7 @@ describe("AgentViewerOverlay", () => {
           supervisor,
         });
 
-        connect(overlay, streamDir);
+        await connect(overlay, streamDir);
 
         eventBus.emit("feature-forge:agent-stream", {
           phase: "agent-stream",
@@ -1914,7 +2227,7 @@ describe("AgentViewerOverlay", () => {
       }
     });
 
-    it("unsubs stop event processing for the unsubscribed channel", () => {
+    it("unsubs stop event processing for the unsubscribed channel", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1925,7 +2238,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // Call the first unsub (agent-stream channel) to unsubscribe.
       unsubs[0]();
@@ -1953,7 +2266,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("uses fallback summary when getAgent returns undefined after connect", () => {
+    it("uses fallback summary when getAgent returns undefined after connect", async () => {
       const supervisor = makeMockSupervisor([]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
@@ -1975,7 +2288,7 @@ describe("AgentViewerOverlay", () => {
         },
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -1987,7 +2300,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("handles agent-started event after connect", () => {
+    it("handles agent-started event after connect", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -1998,7 +2311,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       eventBus.emit("feature-forge:agent-started", {
         phase: "agent-started",
@@ -2015,7 +2328,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("falls back to 'Agent disconnected' summary when no agent found and no event summary", () => {
+    it("falls back to 'Agent disconnected' summary when no agent found and no event summary", async () => {
       const supervisor = makeMockSupervisor([]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
@@ -2025,7 +2338,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // Emit agent-done without a summary — supervisor has no agent,
       // so deliverStatusEvent should fall back to "Agent disconnected".
@@ -2044,7 +2357,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("falls back to agent-based summary when no event summary and agent exists", () => {
+    it("falls back to agent-based summary when no event summary and agent exists", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -2055,7 +2368,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // Emit agent-done without a summary in details — should derive
       // summary from the agent's specification.
@@ -2075,7 +2388,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("handles agent-stream event without event in details (falls through)", () => {
+    it("handles agent-stream event without event in details (falls through)", async () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
       const supervisor = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
@@ -2086,7 +2399,7 @@ describe("AgentViewerOverlay", () => {
         supervisor,
       });
 
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // Emit agent-stream without an event payload — should be silently
       // ignored (no-op).
@@ -2110,7 +2423,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("buffers agent-stream event without event in details (no-op)", () => {
+    it("buffers agent-stream event without event in details (no-op)", async () => {
       const supervisor = makeMockSupervisor([]);
       const eventBus = makeMockTypedEventBus();
 
@@ -2132,7 +2445,7 @@ describe("AgentViewerOverlay", () => {
       });
 
       const overlay = makeOverlay();
-      connect(overlay, "");
+      await connect(overlay, "");
 
       // No stream line should be recorded.
       expect(overlay.getLastStreamLine("builder")).toBeUndefined();
@@ -2141,7 +2454,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("persists buffered events to disk when connect sets streamDir before replay", () => {
+    it("persists buffered events to disk when connect sets streamDir before replay", async () => {
       const streamDir = mkdtempSync(join(tmpdir(), "forge-buf-persist-"));
       try {
         const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
@@ -2172,7 +2485,7 @@ describe("AgentViewerOverlay", () => {
         });
 
         // Connect with streamDir — buffered events should be persisted.
-        connect(overlay, streamDir);
+        await connect(overlay, streamDir);
 
         // Verify buffered event was written to disk.
         expect(existsSync(join(streamDir, "builder.stream"))).toBe(true);
@@ -2192,7 +2505,7 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("prepopulateStreamFiles", () => {
-    it("handles non-stream files in stream directory during prepopulate", () => {
+    it("handles non-stream files in stream directory during prepopulate", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-"));
       try {
         // Write a non-.stream file alongside a .stream file.
@@ -2200,7 +2513,7 @@ describe("AgentViewerOverlay", () => {
         writeFileSync(join(tmpDir, "builder.stream"), "tool_execution_start: read\n");
 
         const overlay = makeOverlay();
-        overlay.prepopulateStreamFiles(tmpDir);
+        await overlay.prepopulateStreamFiles(tmpDir);
 
         // Builder should be created as a stale entry.
         const lines = overlay.render(80);
@@ -2211,7 +2524,7 @@ describe("AgentViewerOverlay", () => {
       }
     });
 
-    it("creates stale done entries for agents with stream files not in the agents map", () => {
+    it("creates stale done entries for agents with stream files not in the agents map", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-"));
       try {
         // Write a stream file for a completed agent that's no longer tracked.
@@ -2226,7 +2539,7 @@ describe("AgentViewerOverlay", () => {
         // Pre-populate normally first (builder is tracked).
         overlay.update(makeEntry("builder", "started"));
         overlay.setStreamDir(tmpDir);
-        overlay.prepopulateStreamFiles(tmpDir);
+        await overlay.prepopulateStreamFiles(tmpDir);
 
         // The tracked agent should still be "started" (not overwritten).
         const lines = overlay.render(80);
@@ -2246,7 +2559,7 @@ describe("AgentViewerOverlay", () => {
       }
     });
 
-    it("does not overwrite existing agent entries when prepopulating", () => {
+    it("does not overwrite existing agent entries when prepopulating", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-"));
       try {
         const streamPath = join(tmpDir, "builder.stream");
@@ -2255,7 +2568,7 @@ describe("AgentViewerOverlay", () => {
         const overlay = makeOverlay();
         overlay.update(makeEntry("builder", "done", { summary: "Custom summary" }));
         overlay.setStreamDir(tmpDir);
-        overlay.prepopulateStreamFiles(tmpDir);
+        await overlay.prepopulateStreamFiles(tmpDir);
 
         // The existing entry should retain its custom summary.
         const lines = overlay.render(80);
@@ -2267,27 +2580,25 @@ describe("AgentViewerOverlay", () => {
       }
     });
 
-    it("handles empty or nonexistent stream directories silently", () => {
+    it("handles empty or nonexistent stream directories silently", async () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
 
       // Should not throw for missing directory.
-      expect(() => {
-        overlay.prepopulateStreamFiles("/nonexistent/path/streams");
-      }).not.toThrow();
+      await overlay.prepopulateStreamFiles("/nonexistent/path/streams");
 
       // Existing entries should still be intact.
       expect(overlay.entryCount).toBe(1);
     });
 
-    it("creates entries for agents with stream files in the directory", () => {
+    it("creates entries for agents with stream files in the directory", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-"));
       try {
         const streamPath = join(tmpDir, "unknown-agent.stream");
         writeFileSync(streamPath, "tool_execution_start: grep\ntool_execution_end: grep (ok)\n");
 
         const overlay = makeOverlay();
-        overlay.prepopulateStreamFiles(tmpDir);
+        await overlay.prepopulateStreamFiles(tmpDir);
 
         const content = readFileSync(join(tmpDir, "unknown-agent.stream"), "utf-8");
         expect(content).toContain("tool_execution_start: grep");
@@ -3523,7 +3834,7 @@ describe("AgentViewerOverlay", () => {
       }
     });
 
-    it("does not replay stream content into event buffer for stale entries", () => {
+    it("does not replay stream content into event buffer for stale entries", async () => {
       writeFileSync(
         join(tmpDir, "reviewer.stream"),
         ["message_start: assistant", "message_end: Review done."].join("\n"),
@@ -3531,14 +3842,14 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       // Events are NOT replayed from disk — the stream file is an
       // append-only log, not a re-ingestion source.
       expect(overlay.getConversation("reviewer")).toEqual([]);
     });
 
-    it("does not replay stream content into event buffer for tracked agents", () => {
+    it("does not replay stream content into event buffer for tracked agents", async () => {
       writeFileSync(
         join(tmpDir, "builder.stream"),
         ["tool_execution_start: read", "tool_execution_end: read (ok)"].join("\n"),
@@ -3547,7 +3858,7 @@ describe("AgentViewerOverlay", () => {
 
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       // Events are NOT replayed from disk.
       expect(overlay.getConversation("builder")).toEqual([]);
@@ -3864,7 +4175,7 @@ describe("AgentViewerOverlay", () => {
       }
 
       // Register the file path by prepopulating, so loadConversationEvents can find it.
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       const events = await overlay.loadConversationEvents("builder", 50);
       expect(events).toHaveLength(50);
@@ -4059,7 +4370,7 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("messages.jsonl prepopulate", () => {
-    it("loads finalized messages from .messages.jsonl into the message cache", () => {
+    it("loads finalized messages from .messages.jsonl into the message cache", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-msgs-"));
       const messagesPath = join(tmpDir, "builder.messages.jsonl");
       const userMessage = {
@@ -4077,7 +4388,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       const messages = overlay.getConversationMessages("builder");
       expect(messages).toHaveLength(2);
@@ -4087,7 +4398,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("creates a stale done entry for an agent known only from messages.jsonl", () => {
+    it("creates a stale done entry for an agent known only from messages.jsonl", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-msgs-entry-"));
       writeFileSync(
         join(tmpDir, "builder.messages.jsonl"),
@@ -4095,7 +4406,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -4105,7 +4416,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("does not load raw events from .events.jsonl into the event buffer at startup", () => {
+    it("does not load raw events from .events.jsonl into the event buffer at startup", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-no-events-"));
       const eventsPath = join(tmpDir, "builder.events.jsonl");
       writeFileSync(
@@ -4115,7 +4426,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       // Raw events are NOT loaded at startup — diagnostics only.
       expect(overlay.getConversation("builder")).toEqual([]);
@@ -4123,7 +4434,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("caps loaded messages at MAX_AGENT_EVENTS keeping the most recent", () => {
+    it("caps loaded messages at MAX_AGENT_EVENTS keeping the most recent", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-cap-"));
       const messagesPath = join(tmpDir, "builder.messages.jsonl");
       const lines: string[] = [];
@@ -4138,7 +4449,7 @@ describe("AgentViewerOverlay", () => {
       writeFileSync(messagesPath, lines.join("\n") + "\n");
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       const messages = overlay.getConversationMessages("builder");
       expect(messages).toHaveLength(MAX_AGENT_EVENTS);
@@ -4152,7 +4463,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("skips malformed message lines without throwing", () => {
+    it("skips malformed message lines without throwing", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-malformed-"));
       writeFileSync(
         join(tmpDir, "builder.messages.jsonl"),
@@ -4160,14 +4471,14 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      expect(() => overlay.prepopulateStreamFiles(tmpDir)).not.toThrow();
+      await overlay.prepopulateStreamFiles(tmpDir);
       // Malformed line skipped, valid line parsed.
       expect(overlay.getConversationMessages("builder")).toHaveLength(1);
 
       overlay.dispose();
     });
 
-    it("emits a single done entry for an agent with multiple file kinds", () => {
+    it("emits a single done entry for an agent with multiple file kinds", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-dedup-"));
       // Same agent has all three file kinds — done must fire once.
       writeFileSync(join(tmpDir, "builder.stream"), "message_end: done\n", "utf-8");
@@ -4181,7 +4492,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       // Synchronous update() dedupes via has()===true — entryCount stays 1.
       // Note: prepopulation does not invoke the onDone UI escape callback;
@@ -4225,7 +4536,7 @@ describe("AgentViewerOverlay", () => {
       writeFileSync(join(tmpDir, "builder.events.jsonl"), eventLines.join("\n") + "\n");
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       // Messages from .messages.jsonl are loaded into the cache
       const cached = overlay.getConversationMessages("builder");

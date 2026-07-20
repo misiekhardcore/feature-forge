@@ -1,4 +1,4 @@
-import { ForgeConfig, LogLevel } from "../config";
+import { LogLevel } from "../config";
 
 /**
  * Abstract base class for loggers.
@@ -15,7 +15,17 @@ import { ForgeConfig, LogLevel } from "../config";
  */
 export class Logger {
   protected static instance: Logger | null = null;
-  protected level!: LogLevel;
+
+  /** Numeric precedence for severity comparisons: lower = more severe. */
+  private static readonly LOG_LEVEL_ORDER: Record<LogLevel, number> = {
+    [LogLevel.SILENT]: 0,
+    [LogLevel.ERROR]: 1,
+    [LogLevel.WARN]: 2,
+    [LogLevel.INFO]: 3,
+    [LogLevel.DEBUG]: 4,
+  };
+
+  protected level: LogLevel = LogLevel.DEBUG;
 
   protected constructor() {
     if (!Logger.instance) {
@@ -59,7 +69,7 @@ export class Logger {
   }
 
   static getLogLevel(): LogLevel {
-    return ForgeConfig.getInstance().getLogLevel();
+    return Logger.getInstance().level;
   }
 
   /**
@@ -117,11 +127,11 @@ export class Logger {
    * the configured `threshold` (lower numeric value = more severe).
    *
    * @example
-   * shouldLog(LogLevel.WARN, LogLevel.INFO)  // false — warn is below info threshold
-   * shouldLog(LogLevel.ERROR, LogLevel.WARN) // true  — error meets warn threshold
+   * shouldLog(LogLevel.WARN, LogLevel.INFO)  // true  — warn is more severe than info
+   * shouldLog(LogLevel.DEBUG, LogLevel.WARN) // false — debug is below warn threshold
    */
   protected shouldLog(candidate: LogLevel, threshold: LogLevel): boolean {
-    return candidate <= threshold;
+    return Logger.LOG_LEVEL_ORDER[candidate] <= Logger.LOG_LEVEL_ORDER[threshold];
   }
 }
 

@@ -111,12 +111,8 @@ export class ForgeConfig {
    * Returns `undefined` when {@link create} has not been called yet
    * (e.g., during early startup or in tests that don't need config).
    */
-  static getInstance(): ForgeConfig {
-    if (!this._instance) {
-      throw new Error("Forge config not initialized");
-    } else {
-      return ForgeConfig._instance!;
-    }
+  static getInstance(): ForgeConfig | undefined {
+    return ForgeConfig._instance ?? undefined;
   }
 
   // ── Typed accessor methods ──────────────────────────────────────────

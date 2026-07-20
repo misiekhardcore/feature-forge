@@ -209,7 +209,7 @@ export class RoutineTool
 
       ctx.ui
         .custom<void>(
-          (tui, theme, _kb, done) => {
+          async (tui, theme, _kb, done) => {
             viewerDismiss = done;
 
             const viewer = new AgentViewerOverlay({
@@ -224,7 +224,7 @@ export class RoutineTool
               toolRegistry: this.executor.toolRegistry,
             });
 
-            connect(viewer, streamDir);
+            await connect(viewer, streamDir);
 
             overlayCleanup = () => {
               viewer.dispose();

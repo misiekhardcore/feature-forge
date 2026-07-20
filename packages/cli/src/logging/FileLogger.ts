@@ -42,11 +42,18 @@ export class FileLogger extends Logger {
   static initialize(filePath?: string): FileLogger {
     const logger = new FileLogger(filePath);
     Logger.instance = logger;
+    const configLevel = ForgeConfig.getInstance()?.getLogLevel();
+    if (configLevel !== undefined) {
+      logger.level = configLevel;
+    }
     return logger;
   }
 
   static getDefaultLogFilePath(): string {
-    return path.join(ForgeConfig.getInstance().getLogDir(), `${Date.now()}-${process.pid}.log`);
+    return path.join(
+      ForgeConfig.getInstance()?.getLogDir() ?? ".forge/logs",
+      `${Date.now()}-${process.pid}.log`,
+    );
   }
 
   /** Lazily-initialised write stream — no file created until first write. */
@@ -95,7 +102,7 @@ export class FileLogger extends Logger {
       return;
     }
 
-    if (!this.shouldLog(level, ForgeConfig.getInstance().getLogLevel())) {
+    if (!this.shouldLog(level, Logger.getLogLevel())) {
       return;
     }
 
