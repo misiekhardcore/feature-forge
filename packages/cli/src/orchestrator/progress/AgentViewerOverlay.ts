@@ -246,8 +246,12 @@ export class AgentViewerOverlay implements Component {
    *
    * Returns a fresh copy so callers can mutate without affecting shared state.
    */
-  static get overlayOptions() {
-    return { ...OVERLAY_OPTIONS };
+  static get overlayOptions(): typeof OVERLAY_OPTIONS {
+    const configHeight = ForgeConfig.getInstance().getDisplayMaxOverlayHeight();
+    if (configHeight === "85%") return { ...OVERLAY_OPTIONS };
+    // configHeight is a string like "30" or "75%" — the TUI's OverlayOptions
+    // accepts SizeValue (number | `${number}%`), so cast accordingly.
+    return { ...OVERLAY_OPTIONS, maxHeight: configHeight as "85%" };
   }
 
   // ── Component interface ───────────────────────────────────
@@ -827,15 +831,15 @@ export class AgentViewerOverlay implements Component {
   private computeViewportHeight(): number {
     const termHeight = this.tui?.terminal?.rows;
     if (!termHeight || termHeight < 1) return 15;
-    const rawMaxHeight = Math.ceil(
-      this.percentToNumber(AgentViewerOverlay.overlayOptions.maxHeight) * termHeight,
-    );
+    const maxHeightStr = AgentViewerOverlay.overlayOptions.maxHeight;
+    let rawMaxHeight: number;
+    if (maxHeightStr.endsWith("%")) {
+      rawMaxHeight = Math.ceil((Number(maxHeightStr.slice(0, -1)) / 100) * termHeight);
+    } else {
+      rawMaxHeight = Number(maxHeightStr);
+    }
     const maxHeight = Math.max(1, rawMaxHeight);
     return Math.max(1, maxHeight - AgentViewerOverlay.BORDER_HEIGHT_OVERHEAD);
-  }
-
-  private percentToNumber(percent: `${number}%`) {
-    return Number(percent.slice(0, -1)) / 100;
   }
 
   private addBorder(lines: string[], outerWidth: number): string[] {

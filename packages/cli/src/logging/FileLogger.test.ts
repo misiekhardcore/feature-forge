@@ -19,6 +19,7 @@ describe("FileLogger", () => {
       `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
     );
     logger = FileLogger.initialize(filePath);
+    Logger.setLogLevel(LogLevel.DEBUG);
   });
 
   afterEach(async () => {
@@ -135,8 +136,9 @@ describe("FileLogger", () => {
   });
 
   describe("level filtering", () => {
-    it("writes all levels when threshold is debug (default)", async () => {
+    it("writes all levels when threshold is debug", async () => {
       const l = FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.DEBUG);
       l.error("e");
       l.warn("w");
       l.info("i");

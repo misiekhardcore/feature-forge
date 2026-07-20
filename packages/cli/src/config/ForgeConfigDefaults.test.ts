@@ -165,4 +165,19 @@ describe("resolveConfig", () => {
     const config2 = resolveConfig({});
     expect(config1.defaultAgent).not.toBe(config2.defaultAgent);
   });
+
+  it("sets logLevel to DEBUG when dev mode is enabled with no explicit level", () => {
+    const config = resolveConfig({ dev: { enabled: true } });
+    expect(config.logLevel).toBe(LogLevel.DEBUG);
+  });
+
+  it("respects explicit logLevel even when dev mode is enabled", () => {
+    const config = resolveConfig({ logLevel: LogLevel.WARN, dev: { enabled: true } });
+    expect(config.logLevel).toBe(LogLevel.WARN);
+  });
+
+  it("keeps default INFO level when dev mode is disabled", () => {
+    const config = resolveConfig({ dev: { enabled: false } });
+    expect(config.logLevel).toBe(LogLevel.INFO);
+  });
 });

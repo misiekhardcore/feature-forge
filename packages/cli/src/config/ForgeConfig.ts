@@ -17,6 +17,7 @@ import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
 import type {
+  DevConfig,
   DisplayConfig,
   ForgeConfig as ForgeConfigType,
   SpecDirectories,
@@ -105,18 +106,16 @@ export class ForgeConfig {
   // ── Singleton access ────────────────────────────────────────────────
 
   /**
-   * Get the singleton {@link ForgeConfig} instance, or `undefined`
-   * if not yet initialized.
+   * Get the singleton {@link ForgeConfig} instance.
    *
-   * Returns `undefined` when {@link create} has not been called yet
-   * (e.g., during early startup or in tests that don't need config).
+   * @throws Error when {@link create} has not been called yet
+   *   (e.g., during early startup or in tests that need config).
    */
   static getInstance(): ForgeConfig {
     if (!this._instance) {
       throw new Error("Forge config not initialized");
-    } else {
-      return ForgeConfig._instance!;
     }
+    return ForgeConfig._instance!;
   }
 
   // ── Typed accessor methods ──────────────────────────────────────────
@@ -224,6 +223,47 @@ export class ForgeConfig {
       this.getDisplayConfig().maxPreconnectBuffer ??
       DEFAULT_FORGE_CONFIG.display.maxPreconnectBuffer!
     );
+  }
+
+  /**
+   * Return the maximum characters of a send_task prompt snippet shown
+   * in the TUI. Longer prompts are truncated with "...".
+   *
+   * Defaults to 100.
+   */
+  getDisplayMaxTaskSnippetLength(): number {
+    return (
+      this.getDisplayConfig().maxTaskSnippetLength ??
+      DEFAULT_FORGE_CONFIG.display.maxTaskSnippetLength!
+    );
+  }
+
+  /**
+   * Return the overlay height as a string — either a pixel count
+   * (e.g. `"30"`) or a percentage (e.g. `"85%"`).
+   *
+   * Defaults to `"85%"`.
+   */
+  getDisplayMaxOverlayHeight(): string {
+    const h = this.getDisplayConfig().maxOverlayHeight;
+    if (h === undefined) return String(DEFAULT_FORGE_CONFIG.display.maxOverlayHeight);
+    return typeof h === "number" ? String(h) : h;
+  }
+
+  /**
+   * Return the development configuration block.
+   */
+  getDevConfig(): DevConfig {
+    return this.getConfig().dev ?? DEFAULT_FORGE_CONFIG.dev;
+  }
+
+  /**
+   * Return whether development test commands are enabled.
+   *
+   * Defaults to `false`.
+   */
+  getDevEnabled(): boolean {
+    return this.getDevConfig().enabled ?? DEFAULT_FORGE_CONFIG.dev.enabled!;
   }
 
   /**

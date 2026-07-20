@@ -41,6 +41,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     try {
       await this.rpcClient.start();
       this._status = AgentStatus.Running;
+      logger.info("Agent started", { agentId: this.id, role: this.specification.role });
     } catch (error) {
       logger.error("Agent start failed", { agentId: this.id, error });
       this._status = AgentStatus.Failed;
@@ -140,6 +141,11 @@ export class PiSubprocessAgent extends SubprocessAgent {
       await this.rpcClient.prompt(prompt, options?.images);
       this.result = await resultPromise;
       this._status = AgentStatus.Completed;
+      logger.info("Agent task completed", {
+        agentId: this.id,
+        promptLength: prompt.length,
+        resultLength: this.result.length,
+      });
       return this.result;
     } catch (error) {
       cancelResultPromise?.();
@@ -167,6 +173,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
       // Swallow stop errors — agent is being destroyed either way
     }
     this._status = AgentStatus.Cancelled;
+    logger.info("Agent destroyed", { agentId: this.id });
   }
 
   /**

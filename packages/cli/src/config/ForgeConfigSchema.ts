@@ -101,6 +101,27 @@ export const DisplayConfigSchema = Type.Object({
 
   /** Maximum events buffered before connect() is called (burst protection). Defaults to 2000. */
   maxPreconnectBuffer: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 2000 }))),
+
+  /** Maximum characters of a send_task prompt snippet shown in the TUI. Defaults to 100. */
+  maxTaskSnippetLength: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 100 }))),
+
+  /** Maximum height of the agent viewer overlay.
+   *
+   * Accepts either a pixel count (e.g. `30`) or a percentage string
+   * (e.g. `"85%"`) relative to the terminal window height.
+   * Defaults to `"85%"`.
+   */
+  maxOverlayHeight: Type.Readonly(
+    Type.Optional(Type.Union([Type.Integer({ minimum: 1 }), Type.String()])),
+  ),
+});
+
+/**
+ * Development-mode configuration.
+ */
+export const DevConfigSchema = Type.Object({
+  /** Enable development test commands ("dev-test-*" slash-commands). Defaults to false. */
+  enabled: Type.Readonly(Type.Optional(Type.Boolean({ default: false }))),
 });
 
 /**
@@ -139,6 +160,9 @@ export const ForgeConfigSchema = Type.Object({
 
   /** Display configuration for the agent viewer overlay. */
   display: Type.Readonly(Type.Optional(DisplayConfigSchema)),
+
+  /** Development-mode configuration. */
+  dev: Type.Readonly(Type.Optional(DevConfigSchema)),
 });
 
 // ── Derived TypeScript types ───────────────────────────────────────
@@ -154,6 +178,9 @@ export type SpecDirectories = Type.Static<typeof SpecDirectoriesSchema>;
 
 /** TypeScript type derived from {@link DisplayConfigSchema}. */
 export type DisplayConfig = Type.Static<typeof DisplayConfigSchema>;
+
+/** TypeScript type derived from {@link DevConfigSchema}. */
+export type DevConfig = Type.Static<typeof DevConfigSchema>;
 
 /**
  * TypeScript type derived from {@link ForgeConfigSchema}.

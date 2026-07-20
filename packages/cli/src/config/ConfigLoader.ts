@@ -329,6 +329,8 @@ export class ConfigLoader {
    * - FORGE_TASK_TIMEOUT_MS → taskTimeoutMs (number, parsed)
    * - FORGE_LOG_LEVEL     → logLevel (string, validated against LogLevel enum)
    * - FORGE_LOG_DIR       → logDir (string, used as-is)
+   * - FORGE_WORKTREE_SYMLINKS → worktreeSymlinks (comma-separated paths)
+   * - FORGE_DEV           → dev.enabled (boolean, "1" or "true")
    *
    * Internal plumbing (FORGE_PARENT_SOCKET, FORGE_SPEC) is handled directly
    * in the files that use it — they are transport-level, not config values.
@@ -362,6 +364,11 @@ export class ConfigLoader {
       overlay.worktreeSymlinks = worktreeSymlinks.split(",").map((s) => s.trim());
     }
 
+    const devEnabled = process.env.FORGE_DEV;
+    if (devEnabled !== undefined) {
+      overlay.dev = { enabled: devEnabled === "1" || devEnabled.toLowerCase() === "true" };
+    }
+
     return overlay;
   }
 
@@ -386,6 +393,8 @@ export class ConfigLoader {
       worktreeSymlinks: decoded.worktreeSymlinks,
       taskTimeoutMs: decoded.taskTimeoutMs,
       specDirectories: decoded.specDirectories,
+      display: decoded.display,
+      dev: decoded.dev,
     });
   }
 }

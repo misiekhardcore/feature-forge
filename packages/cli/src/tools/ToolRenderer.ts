@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 
+import { ForgeConfig } from "../config";
 import type { SendTaskParams, SpawnAgentParams } from "../ipc/messages";
 
 /** Background colours assigned per tool — derived from pi's Theme.bg parameter type. */
@@ -50,7 +51,9 @@ function resultText(result: AgentToolResult<unknown>, theme: Theme): string {
 
 /** Shared renderCall and renderResult factories for tool TUI display. */
 export class ToolRenderer {
-  static MAX_TASK_SNIPPET_LENGTH = 100;
+  static get MAX_TASK_SNIPPET_LENGTH(): number {
+    return ForgeConfig.getInstance().getDisplayMaxTaskSnippetLength();
+  }
   // ── spawn_agent ──────────────────────────────────────────────
 
   static spawnAgentCall = (
@@ -83,13 +86,14 @@ export class ToolRenderer {
   static sendTaskCall = (
     args: SendTaskParams,
     theme: Theme,
-    context: { state: Record<string, unknown> },
+    context: { state: Record<string, unknown>; expanded: boolean },
   ) => {
     const box = shellBox(context, theme, "send_task");
+    const maxLen = ToolRenderer.MAX_TASK_SNIPPET_LENGTH;
     const snippet =
-      args.prompt.length > ToolRenderer.MAX_TASK_SNIPPET_LENGTH
-        ? args.prompt.substring(0, ToolRenderer.MAX_TASK_SNIPPET_LENGTH - 3) + "..."
-        : args.prompt;
+      context.expanded || args.prompt.length <= maxLen
+        ? args.prompt
+        : args.prompt.substring(0, maxLen - 3) + "...";
     let content = header(theme, "accent", `send_task ${args.agentId}`);
     content += " " + theme.fg("muted", `"${snippet}"`);
     box.addChild(new Text(content, 1, 0));

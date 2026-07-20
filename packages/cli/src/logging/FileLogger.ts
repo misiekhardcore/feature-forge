@@ -46,7 +46,29 @@ export class FileLogger extends Logger {
   }
 
   static getDefaultLogFilePath(): string {
-    return path.join(ForgeConfig.getInstance().getLogDir(), `${Date.now()}-${process.pid}.log`);
+    const prefix = FileLogger.resolveLogPrefix();
+    const now = new Date();
+    const iso = now.toISOString().replace(/-/g, "").replace(/:/g, "").slice(0, 13);
+    return path.join(ForgeConfig.getInstance().getLogDir(), `${prefix}-${iso}.log`);
+  }
+
+  /**
+   * Resolve a human-readable prefix for log filenames.
+   *
+   * For child agents, extracts the agent id from the `FORGE_SPEC`
+   * environment variable (e.g. "builder-a3f8c2").
+   * Falls back to `"forge"` for the parent orchestrator or when
+   * the spec is unreadable.
+   */
+  private static resolveLogPrefix(): string {
+    const specRaw = process.env.FORGE_SPEC;
+    if (!specRaw) return "forge";
+    try {
+      const spec = JSON.parse(specRaw) as { id?: string };
+      return spec.id ?? "forge";
+    } catch {
+      return "forge";
+    }
   }
 
   /** Lazily-initialised write stream — no file created until first write. */
@@ -95,7 +117,7 @@ export class FileLogger extends Logger {
       return;
     }
 
-    if (!this.shouldLog(level, ForgeConfig.getInstance().getLogLevel())) {
+    if (!this.shouldLog(level, Logger.getLogLevel())) {
       return;
     }
 

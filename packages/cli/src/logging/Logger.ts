@@ -1,4 +1,5 @@
 import { ForgeConfig, LogLevel } from "../config";
+import { shouldLog } from "./LogLevel";
 
 /**
  * Abstract base class for loggers.
@@ -15,7 +16,7 @@ import { ForgeConfig, LogLevel } from "../config";
  */
 export class Logger {
   protected static instance: Logger | null = null;
-  protected level!: LogLevel;
+  protected level?: LogLevel;
 
   protected constructor() {
     if (!Logger.instance) {
@@ -59,7 +60,7 @@ export class Logger {
   }
 
   static getLogLevel(): LogLevel {
-    return ForgeConfig.getInstance().getLogLevel();
+    return Logger.getInstance().level ?? ForgeConfig.getInstance().getLogLevel();
   }
 
   /**
@@ -114,14 +115,13 @@ export class Logger {
 
   /**
    * Returns `true` when an entry at `candidate` severity meets or exceeds
-   * the configured `threshold` (lower numeric value = more severe).
+   * the configured `threshold` (lower numeric severity = more severe).
    *
-   * @example
-   * shouldLog(LogLevel.WARN, LogLevel.INFO)  // false — warn is below info threshold
-   * shouldLog(LogLevel.ERROR, LogLevel.WARN) // true  — error meets warn threshold
+   * Delegates to the standalone {@link shouldLog} helper so both
+   * {@link Logger} and {@link FileLogger} use the same comparison.
    */
   protected shouldLog(candidate: LogLevel, threshold: LogLevel): boolean {
-    return candidate <= threshold;
+    return shouldLog(candidate, threshold);
   }
 }
 

@@ -13,6 +13,9 @@ describe("ForgeConfig", () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    // Destroy any pre-initialized instance (e.g. from test-setup.ts)
+    // so that each test starts with a clean slate.
+    ForgeConfig.destroy();
     tempDir = await fs.mkdtemp(join(tmpdir(), "forge-config-test-"));
   });
 
@@ -373,45 +376,8 @@ describe("ForgeConfig", () => {
       expect(ForgeConfig.getInstance()).toBe(instance);
     });
 
-    it("returns undefined when not initialized", () => {
-      expect(ForgeConfig.getInstance()).toBeUndefined();
-    });
-  });
-
-  describe("getInstance (nullable)", () => {
-    it("returns the singleton instance when initialized", async () => {
-      await fs.writeFile(
-        join(tempDir, "forge.config.json"),
-        JSON.stringify({
-          logLevel: "info",
-          workspaceProvider: "git-worktree",
-          agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
-        }),
-      );
-
-      await ForgeConfig.create({ cwd: tempDir });
-      expect(ForgeConfig.getInstance()).toBeDefined();
-    });
-
-    it("returns undefined when not initialized", () => {
-      expect(ForgeConfig.getInstance()).toBeUndefined();
-    });
-
-    it("returns undefined after destroy", async () => {
-      await fs.writeFile(
-        join(tempDir, "forge.config.json"),
-        JSON.stringify({
-          logLevel: "info",
-          workspaceProvider: "git-worktree",
-          agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
-        }),
-      );
-
-      await ForgeConfig.create({ cwd: tempDir });
-      ForgeConfig.destroy();
-      expect(ForgeConfig.getInstance()).toBeUndefined();
+    it("throws when not initialized", () => {
+      expect(() => ForgeConfig.getInstance()).toThrow("Forge config not initialized");
     });
   });
 

@@ -39,6 +39,11 @@ export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
     maxRawLength: 500,
     maxAgentEvents: 200,
     maxPreconnectBuffer: 2000,
+    maxTaskSnippetLength: 100,
+    maxOverlayHeight: "85%",
+  },
+  dev: {
+    enabled: false,
   },
 });
 
@@ -69,8 +74,14 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     }
   }
 
+  // When dev mode is enabled and no explicit log level is configured,
+  // force DEBUG to surface all diagnostic output.
+  const devEnabled = overrides.dev?.enabled ?? false;
+  const logLevel =
+    overrides.logLevel ?? (devEnabled ? LogLevel.DEBUG : DEFAULT_FORGE_CONFIG.logLevel);
+
   return {
-    logLevel: overrides.logLevel ?? DEFAULT_FORGE_CONFIG.logLevel,
+    logLevel,
     workspaceProvider: overrides.workspaceProvider ?? DEFAULT_FORGE_CONFIG.workspaceProvider,
     agents: resolvedAgents,
     defaultAgent: {
@@ -86,5 +97,6 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
     specDirectories: overrides.specDirectories ?? DEFAULT_FORGE_CONFIG.specDirectories,
     display: overrides.display ?? DEFAULT_FORGE_CONFIG.display,
+    dev: overrides.dev ?? DEFAULT_FORGE_CONFIG.dev,
   };
 }
