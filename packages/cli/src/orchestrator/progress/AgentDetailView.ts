@@ -1,11 +1,9 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import type { Theme } from "@earendil-works/pi-coding-agent";
-import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
+import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 
 import type { ToolRegistry } from "../../registry/ToolRegistry";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
-import { AgentViewerBase } from "./AgentViewerBase";
 import { AgentViewerState } from "./AgentViewerState";
 import { BorderedContainer, StaticContent } from "./BorderedContainer";
 import { ConversationRenderer } from "./ConversationRenderer";
@@ -15,30 +13,27 @@ import { ScrollableBox } from "./ScrollableBox";
  * Renders detailed view of a single agent's conversation and logs.
  */
 export class AgentDetailView {
-  /** Scroll offset for detail view content. */
+  /** Scroll offset for detail view content — delegates to ScrollableBox. */
   get scrollOffset(): number {
-    return this._scrollOffset;
+    return this.scrollableBox.scrollOffset;
   }
   set scrollOffset(v: number) {
-    this._scrollOffset = v;
+    this.scrollableBox.scrollOffset = v;
   }
 
   /**
    * Whether the detail view automatically scrolls to the bottom when new
-   * stream events arrive.
+   * stream events arrive — delegates to ScrollableBox.
    */
   get autoScroll(): boolean {
-    return this._autoScroll;
+    return this.scrollableBox.autoScroll;
   }
   set autoScroll(v: boolean) {
-    this._autoScroll = v;
+    this.scrollableBox.autoScroll = v;
   }
 
   /** Agent id currently being displayed. */
   selectedAgentId?: string;
-
-  private _scrollOffset = 0;
-  private _autoScroll = false;
 
   private readonly state: AgentViewerState;
   private readonly theme: Theme;
@@ -46,10 +41,8 @@ export class AgentDetailView {
   private readonly markdownTheme: MarkdownTheme;
   private readonly cwd: string;
   private readonly conversationRenderer: ConversationRenderer;
-
-  /** ScrollableBox configuration derived from OVERLAY_OPTIONS. */
-  private readonly scrollMaxHeightPercent = 0.85;
-  private readonly scrollBorderOverhead = AgentViewerBase.BORDER_HEIGHT_OVERHEAD;
+  private readonly scrollableBox: ScrollableBox;
+  private readonly borderedContainer: BorderedContainer;
 
   constructor(
     state: AgentViewerState,
@@ -64,6 +57,11 @@ export class AgentDetailView {
     this.markdownTheme = markdownTheme;
     this.tui = tui;
     this.cwd = cwd;
+
+    this.scrollableBox = new ScrollableBox(tui, 0.85, 4);
+    this.borderedContainer = new BorderedContainer(theme, undefined, 1, "warning");
+    this.borderedContainer.addChild(this.scrollableBox);
+
     this.conversationRenderer = new ConversationRenderer({
       theme,
       markdownTheme,
@@ -74,113 +72,85 @@ export class AgentDetailView {
   }
 
   /**
-   * Signal that new content has arrived.
-   *
-   * The dirty signal is consumed by {@link onStreamEvent} to trigger
-   * auto-scroll when enabled. The actual line-count cache is rebuilt
-   * during the next {@link render} call.
+   * Signal that new content has arrived. Rendering is stateless (full
+   * component tree is rebuilt on every render call), so this is a no-op.
    */
   markDirty(): void {
-    // No-op: dirty tracking is handled via render() re-computation.
+    // no-op: render() always rebuilds from state
   }
 
   render(width: number): string[] {
     const { theme } = this;
-    const contentW = AgentViewerBase.contentWidth(width);
-    const lines: string[] = [];
+    this.scrollableBox.clear();
 
     const entry = this.selectedAgentId ? this.state.getAgentEntry(this.selectedAgentId) : undefined;
     if (!entry) {
-      lines.push(theme.fg("accent", "Agent Detail"));
-      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
-      lines.push(theme.fg("muted", "agent not found"));
-      lines.push("");
-      lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
-    } else {
-      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
-        entry.status,
-        entry.passed,
+      this.scrollableBox.addChild(new Text(theme.fg("accent", "Agent Detail"), 0, 0));
+      this.scrollableBox.addChild(new DynamicBorder((s: string) => theme.fg("muted", s)));
+      this.scrollableBox.addChild(new Text(theme.fg("muted", "agent not found"), 0, 0));
+      this.scrollableBox.addChild(
+        new Text(theme.fg("muted", `${theme.fg("accent", "Esc")} back`), 0, 0),
       );
-      const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
-        entry.status,
-        entry.passed,
-      );
-
-      // Header
-      lines.push(
-        `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
-      );
-      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
-
-      // Summary
-      if (entry.summary) {
-        lines.push(theme.fg("accent", "Summary:"));
-        lines.push("");
-        lines.push(entry.summary);
-        lines.push("");
-      }
-
-      // Conversation header
-      lines.push(theme.fg("accent", "Conversation:"));
-      lines.push("");
-
-      const messages = this.state.getConversationMessages(entry.id);
-      const conversationLines = this.renderConversationTurns(messages, width);
-      if (conversationLines.length === 0) {
-        lines.push(theme.fg("muted", "No conversation recorded."));
-        lines.push("");
-      } else {
-        for (const convLine of conversationLines) {
-          lines.push(convLine);
-        }
-        lines.push("");
-      }
-
-      // Help text
-      lines.push(
-        theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
-      );
+      return this.borderedContainer.render(width);
     }
 
-    // Wrap lines, then delegate viewport clipping + border to ScrollableBox and BorderedContainer.
-    const allWrapped = lines.flatMap((line) => wrapTextWithAnsi(line, contentW));
-
-    const scrollBox = new ScrollableBox(
-      this.tui,
-      this.scrollMaxHeightPercent,
-      this.scrollBorderOverhead,
+    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+      entry.status,
+      entry.passed,
     );
-    scrollBox.scrollOffset = this._scrollOffset;
-    scrollBox.autoScroll = this._autoScroll;
-    scrollBox.setCurrentAgent(this.selectedAgentId);
-    scrollBox.addChild(new StaticContent(allWrapped));
+    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
+      entry.status,
+      entry.passed,
+    );
 
-    const borderedBox = new BorderedContainer(theme, undefined, 1, "warning");
-    borderedBox.addChild(scrollBox);
+    // Header
+    this.scrollableBox.addChild(
+      new Text(
+        `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
+        0,
+        0,
+      ),
+    );
+    this.scrollableBox.addChild(new DynamicBorder((s: string) => theme.fg("muted", s)));
 
-    const result = borderedBox.render(width);
+    // Summary
+    if (entry.summary) {
+      this.scrollableBox.addChild(new Text(theme.fg("accent", "Summary:"), 0, 0));
+      this.scrollableBox.addChild(new Spacer(1));
+      this.scrollableBox.addChild(new Text(entry.summary, 0, 0));
+      this.scrollableBox.addChild(new Spacer(1));
+    }
 
-    // Sync scroll state back from the ScrollableBox (it may have clamped or re-enabled autoScroll).
-    this._scrollOffset = scrollBox.scrollOffset;
-    this._autoScroll = scrollBox.autoScroll;
+    // Conversation
+    this.scrollableBox.addChild(new Text(theme.fg("accent", "Conversation:"), 0, 0));
+    this.scrollableBox.addChild(new Spacer(1));
+    const messages = this.state.getConversationMessages(entry.id);
+    const convLines = this.conversationRenderer.render(
+      messages,
+      BorderedContainer.contentWidth(width),
+    );
+    if (convLines.length === 0) {
+      this.scrollableBox.addChild(new Text(theme.fg("muted", "No conversation recorded."), 0, 0));
+    } else {
+      this.scrollableBox.addChild(new StaticContent(convLines));
+    }
+    this.scrollableBox.addChild(new Spacer(1));
 
-    return result;
+    // Help text
+    this.scrollableBox.addChild(
+      new Text(
+        theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
+        0,
+        0,
+      ),
+    );
+
+    return this.borderedContainer.render(width);
   }
 
   handleInput(data: string): void {
-    // Delegate to a ScrollableBox instance so all key-handling
-    // (including page up/down, home/end) is consistent.
-    const scrollBox = new ScrollableBox(
-      this.tui,
-      this.scrollMaxHeightPercent,
-      this.scrollBorderOverhead,
-    );
-    scrollBox.scrollOffset = this._scrollOffset;
-    scrollBox.autoScroll = this._autoScroll;
-    scrollBox.setCurrentAgent(this.selectedAgentId);
-    scrollBox.handleInput(data);
-    this._scrollOffset = scrollBox.scrollOffset;
-    this._autoScroll = scrollBox.autoScroll;
+    this.scrollableBox.setCurrentAgent(this.selectedAgentId);
+    this.scrollableBox.handleInput(data);
   }
 
   /**
@@ -190,23 +160,8 @@ export class AgentDetailView {
    * autoScroll flag, agent-scoping, and viewport clamping.
    */
   onStreamEvent(agentId: string): void {
-    const scrollBox = new ScrollableBox(
-      this.tui,
-      this.scrollMaxHeightPercent,
-      this.scrollBorderOverhead,
-    );
-    scrollBox.scrollOffset = this._scrollOffset;
-    scrollBox.autoScroll = this._autoScroll;
-    scrollBox.setCurrentAgent(this.selectedAgentId);
-    scrollBox.onStreamEvent(agentId);
-    this._scrollOffset = scrollBox.scrollOffset;
-    this._autoScroll = scrollBox.autoScroll;
-  }
-
-  // ── Private rendering ─────────────────────────────────────
-
-  private renderConversationTurns(messages: AgentMessage[], width: number): string[] {
-    return this.conversationRenderer.render(messages, AgentViewerBase.contentWidth(width));
+    this.scrollableBox.setCurrentAgent(this.selectedAgentId);
+    this.scrollableBox.onStreamEvent(agentId);
   }
 
   // ── Conversation loading (exposed for overlay) ────────────

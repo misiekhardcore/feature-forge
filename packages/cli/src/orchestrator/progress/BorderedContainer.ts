@@ -74,9 +74,7 @@ export class BorderedContainer extends Container {
     const maxTitleLen = innerBorderWidth - 1;
     const rawTitle = this.title ? ` ${this.title} ` : "";
     const titleSuffix =
-      rawTitle.length > maxTitleLen
-        ? rawTitle.slice(0, Math.max(0, maxTitleLen - 1)) + "…"
-        : rawTitle;
+      rawTitle.length > maxTitleLen ? truncateToWidth(rawTitle, maxTitleLen, "…", false) : rawTitle;
     const topDash = "─".repeat(Math.max(1, innerBorderWidth - titleSuffix.length));
     result.push(borderFn(`┌${titleSuffix}${topDash}┐`));
 

@@ -93,7 +93,15 @@ describe("AgentDetailView", () => {
       view.selectedAgentId = undefined;
       const lines = view.render(80);
       const joined = lines.join("\n");
+      expect(joined).toContain("Agent Detail");
       expect(joined).toContain("agent not found");
+    });
+
+    it("renders agent not found with Esc accent colouring", () => {
+      view.selectedAgentId = undefined;
+      view.render(80);
+      // Esc should be rendered via theme.fg("accent", ...) in help text.
+      expect(theme.fg).toHaveBeenCalledWith("accent", "Esc");
     });
 
     it("renders agent not found when selectedAgentId doesn't exist", () => {
@@ -101,6 +109,39 @@ describe("AgentDetailView", () => {
       const lines = view.render(80);
       const joined = lines.join("\n");
       expect(joined).toContain("agent not found");
+    });
+
+    it("renders bordered content", () => {
+      view.selectedAgentId = undefined;
+      const lines = view.render(80);
+      const joined = lines.join("\n");
+      // Top and bottom border chars should be present.
+      expect(joined).toContain("┌");
+      expect(joined).toContain("┐");
+      expect(joined).toContain("└");
+      expect(joined).toContain("┘");
+      expect(joined).toContain("│");
+    });
+
+    it("renders agent detail with section spacers", () => {
+      state.update({
+        id: "builder",
+        status: "done",
+        createdAt: new Date(),
+        role: "builder",
+        passed: true,
+        summary: "Built successfully",
+      });
+      state.pushStreamEvent("builder", makeMessageEndEvent("Hello world"), () => "line");
+      view.selectedAgentId = "builder";
+
+      const lines = view.render(100);
+      const joined = lines.join("\n");
+      // Spacer(1) creates blank lines between sections.
+      expect(joined).toContain("Summary:");
+      expect(joined).toContain("Conversation:");
+      expect(joined).toContain("Esc");
+      expect(joined).toContain("scroll");
     });
 
     it("renders agent detail with header and conversation", () => {
@@ -160,6 +201,39 @@ describe("AgentDetailView", () => {
       const joined = lines.join("\n");
       expect(joined).toContain("No conversation recorded");
     });
+
+    it("renders without error when terminal has no rows", () => {
+      const tuiNoRows = makeTui({ terminal: { rows: undefined, cols: 120 } });
+      const noTermView = new AgentDetailView(
+        state,
+        theme,
+        markdownTheme,
+        tuiNoRows,
+        "/test/cwd",
+        makeMockToolRegistry(),
+      );
+
+      state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
+      noTermView.selectedAgentId = "builder";
+      const lines = noTermView.render(80);
+      expect(lines.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("scroll delegation", () => {
+    it("get/set scrollOffset delegates to ScrollableBox", () => {
+      view.scrollOffset = 10;
+      expect(view.scrollOffset).toBe(10);
+      view.scrollOffset = 0;
+      expect(view.scrollOffset).toBe(0);
+    });
+
+    it("get/set autoScroll delegates to ScrollableBox", () => {
+      view.autoScroll = true;
+      expect(view.autoScroll).toBe(true);
+      view.autoScroll = false;
+      expect(view.autoScroll).toBe(false);
+    });
   });
 
   describe("handleInput", () => {
@@ -191,13 +265,11 @@ describe("AgentDetailView", () => {
 
       expect(view.scrollOffset).toBe(0);
       view.handleInput("\x1b[B");
-      // scrollOffset increased by exactly 1.
       expect(view.scrollOffset).toBe(1);
     });
 
     it("enables autoScroll when scrolling to bottom", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
-      // Push enough content to create scrollable area exceeding viewport.
       for (let i = 0; i < 50; i++) {
         state.pushStreamEvent(
           "builder",
@@ -216,15 +288,12 @@ describe("AgentDetailView", () => {
       view.selectedAgentId = "builder";
       view.render(100);
 
-      // Initially at top, autoScroll should be true for short content
-      // or false if content exceeds one viewport-height screen.
       // Scroll down many times to reach bottom.
       for (let i = 0; i < 200; i++) {
         view.handleInput("\x1b[B");
       }
       view.render(100);
       expect(view.autoScroll).toBe(true);
-      // Verify scrollOffset advanced past 0 (auto-scroll kicks in at max).
       const offsetAfterScroll = view.scrollOffset;
       expect(offsetAfterScroll).toBeGreaterThan(0);
       // Scrolling further down should not increase the clamped offset.
@@ -237,7 +306,6 @@ describe("AgentDetailView", () => {
   describe("onStreamEvent", () => {
     it("auto-scrolls when autoScroll is enabled and agent matches", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
-      // Push enough content to create scrollable area exceeding viewport.
       for (let i = 0; i < 50; i++) {
         state.pushStreamEvent(
           "builder",
@@ -293,33 +361,6 @@ describe("AgentDetailView", () => {
     });
   });
 
-  describe("computeViewportHeight", () => {
-    it("returns fallback height when terminal has no rows", () => {
-      const tuiNoRows = makeTui({ terminal: { rows: undefined, cols: 120 } });
-      const noTermView = new AgentDetailView(
-        state,
-        theme,
-        markdownTheme,
-        tuiNoRows,
-        "/test/cwd",
-        makeMockToolRegistry(),
-      );
-
-      state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
-      noTermView.selectedAgentId = "builder";
-      const lines = noTermView.render(80);
-      // Should render without error - fallback height is 15
-      expect(lines.length).toBeGreaterThan(0);
-    });
-
-    it("uses terminal rows when available", () => {
-      state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
-      view.selectedAgentId = "builder";
-      const lines = view.render(80);
-      expect(lines.length).toBeGreaterThan(0);
-    });
-  });
-
   describe("loadConversationEvents", () => {
     it("returns empty array when no agent selected", async () => {
       view.selectedAgentId = undefined;
@@ -336,7 +377,6 @@ describe("AgentDetailView", () => {
         view.selectedAgentId = "builder";
 
         const events = await view.loadConversationEvents();
-        // Should return events (at least the in-memory ones)
         expect(events.length).toBeGreaterThanOrEqual(1);
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });

@@ -12,7 +12,7 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
-import { AgentViewerBase } from "./AgentViewerBase";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
 import type { AgentViewerEntry } from "./types";
@@ -228,15 +228,20 @@ describe("AgentViewerOverlay", () => {
       expect(joined).not.toContain("✓");
     });
 
-    it("shows raw output when present", () => {
+    it("shows summary as description when no stream event present", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "done", { raw: "output line 1\noutput line 2" }));
+      overlay.update(
+        makeEntry("builder", "done", {
+          raw: "output line 1\noutput line 2",
+          summary: "Build complete",
+        }),
+      );
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("output line 1");
-      expect(joined).toContain("output line 2");
+      // SelectList uses summary as description when no last stream line exists.
+      expect(joined).toContain("Build complete");
     });
 
     it("respects width parameter for separator", () => {
@@ -268,7 +273,7 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("⟳");
     });
 
-    it("shows stream line for done agents", () => {
+    it("shows last stream line as description for done agents", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
       overlay.pushStreamEvent("builder", {
@@ -279,8 +284,8 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
+      // SelectList shows last stream line as description; summary is not separately rendered.
       expect(joined).toContain("tool_execution_start: read");
-      expect(joined).toContain("Build passed");
     });
 
     it("does not truncate short last stream lines", () => {
@@ -299,7 +304,7 @@ describe("AgentViewerOverlay", () => {
       expect(joined).not.toContain("...");
     });
 
-    it("shows both summary and raw output together", () => {
+    it("shows summary as description when both summary and raw are provided", () => {
       const overlay = makeOverlay();
       overlay.update(
         makeEntry("builder", "done", { summary: "Build passed", raw: "Full output here" }),
@@ -308,8 +313,8 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
+      // SelectList uses summary as description — rendered as part of the compact line.
       expect(joined).toContain("Build passed");
-      expect(joined).toContain("Full output here");
     });
 
     it("handles zero width gracefully", () => {
@@ -324,15 +329,15 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("border rendering (addBorder)", () => {
-    it("applies warning theme color to border characters", () => {
+    it("applies border theme color to border characters", () => {
       const theme = makeTheme();
       const overlay = makeOverlay({ theme });
       overlay.update(makeEntry("builder", "started"));
 
       overlay.render(60);
 
-      // addBorder should call theme.fg with "warning" for border styling.
-      expect(theme.fg).toHaveBeenCalledWith("warning", expect.stringMatching(/^[┌└]/));
+      // BorderedContainer uses "border" for border styling.
+      expect(theme.fg).toHaveBeenCalledWith("border", expect.stringMatching(/^[┌└]/));
     });
 
     it("applies 1-column left margin — space after opening │", () => {
@@ -513,21 +518,21 @@ describe("AgentViewerOverlay", () => {
     it("formats seconds when less than a minute", () => {
       const now = Date.now();
       const recent = new Date(now - 30 * 1000);
-      const result = AgentViewerBase.formatElapsed(recent);
+      const result = AgentDisplayHelpers.formatElapsed(recent);
       expect(result).toMatch(/^\d+s$/);
     });
 
     it("formats minutes and seconds when less than an hour", () => {
       const now = Date.now();
       const recent = new Date(now - 120 * 1000);
-      const result = AgentViewerBase.formatElapsed(recent);
+      const result = AgentDisplayHelpers.formatElapsed(recent);
       expect(result).toMatch(/^\d+m \d+s$/);
     });
 
     it("formats hours when elapsed exceeds one hour", () => {
       const now = Date.now();
       const old = new Date(now - 4000 * 1000);
-      const result = AgentViewerBase.formatElapsed(old);
+      const result = AgentDisplayHelpers.formatElapsed(old);
       expect(result).toMatch(/^\d+h \d+m \d+s$/);
     });
   });
@@ -1089,9 +1094,11 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
+      // Render first to ensure SelectList is initialized.
+      overlay.render(80);
       overlay.selectedIndex = 1;
 
-      // Simulate ArrowDown at last item
+      // Simulate ArrowDown at last item — SelectList wraps to top.
       overlay.handleInput("\x1b[B");
 
       expect(overlay.selectedIndex).toBe(0);
@@ -1102,13 +1109,14 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
+      // Render first to ensure SelectList is initialized.
+      overlay.render(80);
       overlay.selectedIndex = 1;
 
       // Simulate ArrowUp
       overlay.handleInput("\x1b[A");
 
       expect(overlay.selectedIndex).toBe(0);
-      expect(tui.requestRender).toHaveBeenCalled();
     });
 
     it("wraps around at the top with ArrowUp", () => {
@@ -1128,6 +1136,8 @@ describe("AgentViewerOverlay", () => {
       const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
+      // Render first to ensure SelectList is initialized with correct index.
+      overlay.render(80);
       overlay.selectedIndex = 1;
 
       // Simulate Enter
@@ -1235,29 +1245,33 @@ describe("AgentViewerOverlay", () => {
       expect(cursorCount).toBe(1);
     });
 
-    it("shows navigation help legend at bottom", () => {
+    it("shows scroll info footer when items exceed visible area", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("agent-a", "started"));
+      // Add enough entries to trigger scroll info — SelectList shows "(N/M)" only
+      // when items exceed maxVisible (15).
+      for (let i = 0; i < 20; i++) {
+        overlay.update(makeEntry(`agent-${i}`, "started"));
+      }
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("navigate");
-      expect(joined).toContain("view");
-      expect(joined).toContain("close");
+      // SelectList renders scroll info like "(N/M)".
+      expect(joined).toContain("(1/20)");
     });
 
-    it("highlights selected agent id with accent colour", () => {
-      const theme = makeTheme();
-      const overlay = makeOverlay({ theme });
+    it("renders selected item with selection prefix", () => {
+      const overlay = makeOverlay();
       overlay.update(makeEntry("agent-a", "started"));
       overlay.update(makeEntry("agent-b", "started"));
       overlay.selectedIndex = 0;
 
-      overlay.render(80);
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
 
-      // Selected agent id should have been styled with accent.
-      expect(theme.fg).toHaveBeenCalledWith("accent", "agent-a");
+      // SelectList renders selected item with "→ " prefix.
+      expect(joined).toContain("→");
+      expect(joined).toContain("agent-a");
     });
   });
 

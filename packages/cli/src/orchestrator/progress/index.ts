@@ -2,7 +2,6 @@ export type { AccumulatedState } from "./AccumulatedState";
 export { createAccumulatedState } from "./AccumulatedState";
 export { AgentDetailView } from "./AgentDetailView";
 export { AgentListView } from "./AgentListView";
-export { AgentViewerBase } from "./AgentViewerBase";
 export type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 export { AgentViewerOverlay } from "./AgentViewerOverlay";
 export { AgentViewerState } from "./AgentViewerState";

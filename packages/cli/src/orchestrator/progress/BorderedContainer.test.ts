@@ -204,6 +204,22 @@ describe("BorderedContainer", () => {
       expect(topLine).toContain("…");
     });
 
+    it("truncates title with multi-byte characters without breaking glyphs", () => {
+      const theme = makeTheme();
+      // Title with emoji and CJK — each emoji is 2 columns wide, CJK is 2 columns.
+      const multiByteTitle = "🚀 日本語テスト";
+      const box = new BorderedContainer(theme, multiByteTitle);
+      const lines = box.render(20);
+
+      const topLine = lines[0];
+      // Visible length must not exceed outer width (20).
+      // eslint-disable-next-line no-control-regex
+      const visibleLen = topLine.replace(/\x1b\[[0-9;]*m/g, "").length;
+      expect(visibleLen).toBeLessThanOrEqual(20);
+      // Should contain at least the emoji (visible char).
+      expect(topLine).toContain("🚀");
+    });
+
     it("accepts custom borderColor parameter", () => {
       const theme = makeTheme();
       const box = new BorderedContainer(theme, undefined, 1, "warning");

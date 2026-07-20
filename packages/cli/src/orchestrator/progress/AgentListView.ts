@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SelectItem, SelectListTheme, TUI } from "@earendil-works/pi-tui";
-import { SelectList, Text } from "@earendil-works/pi-tui";
+import { SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { AgentViewerState } from "./AgentViewerState";
@@ -15,7 +15,7 @@ export class AgentListView {
   private readonly theme: Theme;
   private readonly onSelectAgent: (agentId: string) => void;
   private readonly onDone: () => void;
-  private lastEntryCount = -1;
+  private lastEntryCount: number;
   private _selectedIndex = 0;
 
   private readonly borderedContainer: BorderedContainer;
@@ -34,6 +34,7 @@ export class AgentListView {
     this.onDone = onDone;
 
     this.borderedContainer = new BorderedContainer(theme, "Agent Viewer");
+    this.lastEntryCount = this.state.entryCount;
     this.rebuild();
   }
 
@@ -66,7 +67,8 @@ export class AgentListView {
       const role = entry.role ? `(${entry.role})` : "";
       const label = `${icon} ${id} ${role} ${elapsed}`;
       const lastLine = this.state.getLastLine(id);
-      const description = lastLine ? lastLine.slice(0, 60) : entry.summary?.slice(0, 60);
+      const rawDescription = lastLine ?? entry.summary;
+      const description = rawDescription ? truncateToWidth(rawDescription, 60, "…") : undefined;
       return { value: id, label, description };
     });
 
@@ -79,6 +81,7 @@ export class AgentListView {
     };
 
     const list = new SelectList(items, 15, selectTheme);
+    list.setSelectedIndex(Math.min(this._selectedIndex, Math.max(0, items.length - 1)));
     list.onSelect = (item: SelectItem) => this.onSelectAgent(item.value);
     list.onCancel = () => this.onDone();
     list.onSelectionChange = (item: SelectItem) => {
@@ -95,27 +98,24 @@ export class AgentListView {
    *
    * Rebuilds the {@link SelectList} when the entry count changes.
    */
-  render(width: number): string[] {
+  private ensureUpToDate(): void {
     const currentCount = this.state.entryCount;
     if (currentCount !== this.lastEntryCount) {
       this.lastEntryCount = currentCount;
       this.rebuild();
     }
+  }
+
+  render(width: number): string[] {
+    this.ensureUpToDate();
     return this.borderedContainer.render(width);
   }
 
   /**
    * Handle keyboard input delegated to the {@link SelectList}.
-   *
-   * Rebuilds the {@link SelectList} first if the entry count has
-   * changed since the last render.
    */
   handleInput(data: string): void {
-    const currentCount = this.state.entryCount;
-    if (currentCount !== this.lastEntryCount) {
-      this.lastEntryCount = currentCount;
-      this.rebuild();
-    }
+    this.ensureUpToDate();
     this.selectList?.handleInput(data);
   }
 }
