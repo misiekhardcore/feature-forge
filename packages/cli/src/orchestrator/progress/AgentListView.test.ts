@@ -51,7 +51,7 @@ describe("AgentListView", () => {
       expect(joined).toContain("no agents running");
     });
 
-    it("renders agent entries with status", () => {
+    it("renders agent entries inside bordered container", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
       state.update({
         id: "reviewer",
@@ -67,84 +67,90 @@ describe("AgentListView", () => {
 
       expect(joined).toContain("builder");
       expect(joined).toContain("reviewer");
-      expect(joined).toContain("All good");
+      expect(joined).toContain("Agent Viewer");
     });
 
-    it("highlights selected agent with cursor", () => {
-      state.update({ id: "builder", status: "started", createdAt: new Date() });
-      state.update({ id: "reviewer", status: "started", createdAt: new Date() });
+    it("creates items with correct label format", () => {
+      state.update({
+        id: "builder",
+        status: "started",
+        createdAt: new Date(),
+        role: "builder",
+      });
 
-      view.selectedIndex = 0;
-      const lines0 = view.render(100);
-      const joined0 = lines0.join("\n");
-      expect(joined0).toContain("→");
+      const lines = view.render(100);
+      const joined = lines.join("\n");
 
-      view.selectedIndex = 1;
-      const lines1 = view.render(100);
-      const joined1 = lines1.join("\n");
-      expect(joined1).toContain("→");
+      // Label format: icon id (role) elapsed
+      expect(joined).toContain("builder");
+      expect(joined).toContain("(builder)");
+    });
+
+    it("rebuilds select list when entry count changes", () => {
+      state.update({ id: "a", status: "started", createdAt: new Date() });
+      view.render(80);
+
+      state.update({ id: "b", status: "started", createdAt: new Date() });
+      const lines = view.render(80);
+      const joined = lines.join("\n");
+
+      expect(joined).toContain("a");
+      expect(joined).toContain("b");
     });
   });
 
   describe("handleInput", () => {
-    it("calls onDone on Escape", () => {
+    it("calls onDone on Escape via SelectList cancel", () => {
+      state.update({ id: "a", status: "started", createdAt: new Date() });
+      view.render(80); // trigger rebuild with entry
+
       view.handleInput("\x1b");
       expect(onDone).toHaveBeenCalled();
     });
 
-    it("wraps selectedIndex up", () => {
-      state.update({ id: "a", status: "started", createdAt: new Date() });
-      state.update({ id: "b", status: "started", createdAt: new Date() });
-
-      view.selectedIndex = 0;
-      view.handleInput("\x1b[A");
-      expect(view.selectedIndex).toBe(1); // wraps to last
-
-      view.handleInput("\x1b[A");
-      expect(view.selectedIndex).toBe(0);
-    });
-
-    it("wraps selectedIndex down", () => {
-      state.update({ id: "a", status: "started", createdAt: new Date() });
-      state.update({ id: "b", status: "started", createdAt: new Date() });
-
-      view.selectedIndex = 1;
-      view.handleInput("\x1b[B");
-      expect(view.selectedIndex).toBe(0); // wraps to first
-
-      view.handleInput("\x1b[B");
-      expect(view.selectedIndex).toBe(1);
-    });
-
     it("calls onSelectAgent on Enter", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date() });
-      view.selectedIndex = 0;
+      view.render(80);
 
       view.handleInput("\r");
       expect(onSelectAgent).toHaveBeenCalledWith("builder");
     });
 
-    it("does nothing for Enter when no agents", () => {
+    it("does nothing when no select list (empty state)", () => {
+      // No entries → selectList is undefined
       view.handleInput("\r");
       expect(onSelectAgent).not.toHaveBeenCalled();
-    });
-
-    it("does nothing for up/down when no agents", () => {
-      view.selectedIndex = 0;
-      view.handleInput("\x1b[A");
-      expect(view.selectedIndex).toBe(0);
-      view.handleInput("\x1b[B");
-      expect(view.selectedIndex).toBe(0);
+      view.handleInput("\x1b");
+      expect(onDone).not.toHaveBeenCalled();
     });
   });
 
-  describe("render with lastStreamLine", () => {
-    it("shows last stream line for started agents", () => {
-      state.pushStreamEvent("builder", { type: "agent_start" }, () => "Processing...");
+  describe("selectedIndex", () => {
+    it("delegates to selectList", () => {
+      state.update({ id: "a", status: "started", createdAt: new Date() });
+      state.update({ id: "b", status: "started", createdAt: new Date() });
+      view.render(80);
 
-      const lines = view.render(100);
-      const joined = lines.join("\n");
-      expect(joined).toContain("Processing...");
+      expect(view.selectedIndex).toBe(0);
+
+      view.handleInput("\x1b[B"); // down arrow
+      expect(view.selectedIndex).toBe(1);
+
+      view.handleInput("\x1b[A"); // up arrow
+      expect(view.selectedIndex).toBe(0);
+    });
+
+    it("returns 0 when selectList is undefined", () => {
+      expect(view.selectedIndex).toBe(0);
+    });
+
+    it("setter updates selectList", () => {
+      state.update({ id: "a", status: "started", createdAt: new Date() });
+      state.update({ id: "b", status: "started", createdAt: new Date() });
+      view.render(80);
+
+      view.selectedIndex = 1;
+      expect(view.selectedIndex).toBe(1);
     });
   });
 });
