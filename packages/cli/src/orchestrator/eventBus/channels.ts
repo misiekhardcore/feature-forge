@@ -100,4 +100,10 @@ export interface ForgeChannels {
     message: string;
     details: { executionId?: string };
   };
+
+  "feature-forge:session-set": {
+    phase: "session-set";
+    message: string;
+    details: { key: string; value: string; executionId?: string };
+  };
 }
