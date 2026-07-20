@@ -15,6 +15,7 @@ import {
 } from "@feature-forge/debug";
 
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
+import type { AgentViewerEntry } from "../orchestrator/progress/types";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
@@ -31,7 +32,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     baseDelay = 0,
     eventDelay = DEFAULT_EVENT_DELAY,
   ): void {
-    viewer.update({ id: scenario.agentId, status: "started" });
+    viewer.update({ id: scenario.agentId, status: "started", createdAt: new Date() });
     for (let i = 0; i < scenario.events.length; i++) {
       const delay = baseDelay + (i + 1) * eventDelay;
       const event = scenario.events[i];
@@ -43,10 +44,11 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
         () =>
           viewer.update({
             id: scenario.agentId,
-            status: scenario.status,
+            status: scenario.status as AgentViewerEntry["status"],
             summary: scenario.summary,
             passed: scenario.passed,
-          }),
+            createdAt: new Date(),
+          } as AgentViewerEntry),
         finalDelay,
       ),
     );

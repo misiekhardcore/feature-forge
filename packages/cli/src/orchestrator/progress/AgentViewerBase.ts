@@ -1,0 +1,67 @@
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth } from "@earendil-works/pi-tui";
+
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+
+/**
+ * Layout constants and utilities shared by agent viewer components.
+ */
+export abstract class AgentViewerBase {
+  /** Combined width of left + right border characters ("│" + "│" = 2). */
+  static readonly BORDER_CHARS = 2;
+
+  /** Combined width of inner margin spaces (1 space on each side of content). */
+  static readonly BORDER_MARGIN = 2;
+
+  /** Total horizontal overhead: border chars + inner margins. */
+  static readonly BORDER_WIDTH_OVERHEAD =
+    AgentViewerBase.BORDER_CHARS + AgentViewerBase.BORDER_MARGIN;
+
+  /** Total vertical overhead: top border, top margin, bottom margin, bottom border. */
+  static readonly BORDER_HEIGHT_OVERHEAD = 4;
+
+  /**
+   * Compute the content width available inside the border, clamped to 0
+   * so that zero-width terminals never produce negative dimensions.
+   */
+  static contentWidth(outerWidth: number): number {
+    return Math.max(0, outerWidth - AgentViewerBase.BORDER_WIDTH_OVERHEAD);
+  }
+
+  /**
+   * Render a bordered box around the given content lines.
+   *
+   * Applies the warning theme colour to border characters, adds 1-line
+   * top/bottom margins inside the border, and truncates lines that
+   * exceed the content width.
+   */
+  static addBorder(lines: string[], outerWidth: number, theme: Theme): string[] {
+    const contentWidth = AgentViewerBase.contentWidth(outerWidth);
+    const borderInnerWidth = contentWidth + AgentViewerBase.BORDER_MARGIN;
+
+    const top = theme.fg(
+      "warning",
+      "┌" + AgentDisplayHelpers.getHorizontalLine(borderInnerWidth) + "┐",
+    );
+    const bot = theme.fg(
+      "warning",
+      "└" + AgentDisplayHelpers.getHorizontalLine(borderInnerWidth) + "┘",
+    );
+    const leftBorder = theme.fg("warning", "│");
+    const rightBorder = theme.fg("warning", "│");
+
+    const result: string[] = [];
+    result.push(top);
+    result.push(leftBorder + " ".repeat(borderInnerWidth) + rightBorder);
+
+    for (const raw of lines) {
+      const normalized = truncateToWidth(raw, contentWidth, "", true);
+      result.push(leftBorder + " " + normalized.padEnd(contentWidth) + " " + rightBorder);
+    }
+
+    result.push(leftBorder + " ".repeat(borderInnerWidth) + rightBorder);
+    result.push(bot);
+
+    return result;
+  }
+}

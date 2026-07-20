@@ -12,8 +12,9 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
-import type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
+import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
+import type { AgentViewerEntry } from "./types";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;
@@ -70,9 +71,31 @@ function makeTui(): TUI {
 function makeEntry(
   id: string,
   status: string,
-  overrides: Partial<Omit<AgentViewerEntry, "id" | "status">> = {},
+  overrides: Record<string, unknown> = {},
 ): AgentViewerEntry {
-  return { id, status, ...overrides };
+  if (status === "started") {
+    return { id, status: "started", createdAt: new Date(), ...overrides };
+  }
+  if (status === "done") {
+    return {
+      id,
+      status: "done",
+      createdAt: new Date(),
+      passed: false,
+      summary: "",
+      ...overrides,
+    };
+  }
+  if (status === "error") {
+    return {
+      id,
+      status: "error",
+      createdAt: new Date(),
+      errorMessage: "",
+      ...overrides,
+    };
+  }
+  return { id, status: "started", createdAt: new Date(), ...overrides };
 }
 
 function makeOverlay(overrides: Partial<AgentViewerOverlayParams> = {}): AgentViewerOverlay {
@@ -113,7 +136,7 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.entryCount).toBe(0);
 
       // Verify the overlay functions correctly with custom params.
-      overlay.update({ id: "builder", status: "started" });
+      overlay.update({ id: "builder", status: "started", createdAt: new Date() });
       expect(overlay.entryCount).toBe(1);
 
       // Verify event processing and rendering work with non-default theme values.
@@ -182,7 +205,7 @@ describe("AgentViewerOverlay", () => {
 
     it("shows agent entries with status icons", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "done", { summary: "Built successfully" }));
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Built successfully" }));
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -246,7 +269,7 @@ describe("AgentViewerOverlay", () => {
 
     it("shows stream line for done agents", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
@@ -400,7 +423,7 @@ describe("AgentViewerOverlay", () => {
     it("merges with existing entry for the same id", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
 
       expect(overlay.entryCount).toBe(1);
 
@@ -1237,7 +1260,7 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("renderDetail", () => {
+  describe("detail rendering", () => {
     it("shows agent not found when selectedAgentId is invalid", () => {
       const overlay = makeOverlay();
       overlay.viewMode = "detail";
@@ -1251,7 +1274,7 @@ describe("AgentViewerOverlay", () => {
 
     it("shows agent header with status icon in detail view", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
@@ -1265,7 +1288,7 @@ describe("AgentViewerOverlay", () => {
 
     it("shows summary section when present", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
@@ -1483,7 +1506,12 @@ describe("AgentViewerOverlay", () => {
 
     it("renders detail view for unknown status agent", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("unknown-agent", "paused"));
+      overlay.update(
+        makeEntry("unknown-agent", "error", {
+          errorMessage: "agent disconnected",
+          summary: "Agent disconnected",
+        }),
+      );
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "unknown-agent";
 
@@ -1491,7 +1519,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("unknown-agent");
-      expect(joined).toContain("paused");
+      expect(joined).toContain("error");
     });
 
     it("renders tool call result with done status in detail", () => {
@@ -1543,9 +1571,9 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("failed");
     });
 
-    it("dispatches render to renderDetail when viewMode is detail", () => {
+    it("renders detail content when viewMode is detail", () => {
       const overlay = makeOverlay();
-      overlay.update(makeEntry("builder", "done", { summary: "Build passed" }));
+      overlay.update(makeEntry("builder", "done", { passed: true, summary: "Build passed" }));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
@@ -2200,7 +2228,7 @@ describe("AgentViewerOverlay", () => {
         writeFileSync(join(tmpDir, "builder.stream"), "tool_execution_start: read\n");
 
         const overlay = makeOverlay();
-        overlay.prepopulateStreamFiles(tmpDir);
+        void overlay.prepopulateStreamFiles(tmpDir);
 
         // Builder should be created as a stale entry.
         const lines = overlay.render(80);
@@ -2226,7 +2254,7 @@ describe("AgentViewerOverlay", () => {
         // Pre-populate normally first (builder is tracked).
         overlay.update(makeEntry("builder", "started"));
         overlay.setStreamDir(tmpDir);
-        overlay.prepopulateStreamFiles(tmpDir);
+        void overlay.prepopulateStreamFiles(tmpDir);
 
         // The tracked agent should still be "started" (not overwritten).
         const lines = overlay.render(80);
@@ -2236,7 +2264,7 @@ describe("AgentViewerOverlay", () => {
 
         // The orphaned stream file should create a "done" entry.
         expect(joined).toContain("reviewer");
-        expect(joined).toContain("✓");
+        expect(joined).toContain("✗");
         expect(joined).toContain("Agent completed");
 
         const content = readFileSync(join(tmpDir, "reviewer.stream"), "utf-8");
@@ -2255,7 +2283,7 @@ describe("AgentViewerOverlay", () => {
         const overlay = makeOverlay();
         overlay.update(makeEntry("builder", "done", { summary: "Custom summary" }));
         overlay.setStreamDir(tmpDir);
-        overlay.prepopulateStreamFiles(tmpDir);
+        void overlay.prepopulateStreamFiles(tmpDir);
 
         // The existing entry should retain its custom summary.
         const lines = overlay.render(80);
@@ -2273,7 +2301,7 @@ describe("AgentViewerOverlay", () => {
 
       // Should not throw for missing directory.
       expect(() => {
-        overlay.prepopulateStreamFiles("/nonexistent/path/streams");
+        void overlay.prepopulateStreamFiles("/nonexistent/path/streams");
       }).not.toThrow();
 
       // Existing entries should still be intact.
@@ -2287,7 +2315,7 @@ describe("AgentViewerOverlay", () => {
         writeFileSync(streamPath, "tool_execution_start: grep\ntool_execution_end: grep (ok)\n");
 
         const overlay = makeOverlay();
-        overlay.prepopulateStreamFiles(tmpDir);
+        void overlay.prepopulateStreamFiles(tmpDir);
 
         const content = readFileSync(join(tmpDir, "unknown-agent.stream"), "utf-8");
         expect(content).toContain("tool_execution_start: grep");
@@ -3136,7 +3164,7 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
-      // Render at least once so computeScrollMax has content.
+      // Render at least once to compute scroll bounds.
       overlay.render(80);
 
       // ArrowDown from 0 should increment by 1.
@@ -3287,6 +3315,8 @@ describe("AgentViewerOverlay", () => {
       overlay.scrollOffset = 999999;
 
       overlay.handleInput("\x1b[B");
+      // Render clamps scrollOffset and sets autoScroll when at bottom.
+      overlay.render(80);
 
       expect(overlay.autoScroll).toBe(true);
     });
@@ -3531,7 +3561,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      void overlay.prepopulateStreamFiles(tmpDir);
 
       // Events are NOT replayed from disk — the stream file is an
       // append-only log, not a re-ingestion source.
@@ -3547,7 +3577,7 @@ describe("AgentViewerOverlay", () => {
 
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      overlay.prepopulateStreamFiles(tmpDir);
+      void overlay.prepopulateStreamFiles(tmpDir);
 
       // Events are NOT replayed from disk.
       expect(overlay.getConversation("builder")).toEqual([]);
@@ -3864,7 +3894,7 @@ describe("AgentViewerOverlay", () => {
       }
 
       // Register the file path by prepopulating, so loadConversationEvents can find it.
-      overlay.prepopulateStreamFiles(tmpDir);
+      void overlay.prepopulateStreamFiles(tmpDir);
 
       const events = await overlay.loadConversationEvents("builder", 50);
       expect(events).toHaveLength(50);
@@ -4059,7 +4089,7 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("messages.jsonl prepopulate", () => {
-    it("loads finalized messages from .messages.jsonl into the message cache", () => {
+    it("loads finalized messages from .messages.jsonl into the message cache", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-msgs-"));
       const messagesPath = join(tmpDir, "builder.messages.jsonl");
       const userMessage = {
@@ -4077,7 +4107,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       const messages = overlay.getConversationMessages("builder");
       expect(messages).toHaveLength(2);
@@ -4095,7 +4125,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      void overlay.prepopulateStreamFiles(tmpDir);
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
@@ -4115,7 +4145,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      void overlay.prepopulateStreamFiles(tmpDir);
 
       // Raw events are NOT loaded at startup — diagnostics only.
       expect(overlay.getConversation("builder")).toEqual([]);
@@ -4123,7 +4153,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("caps loaded messages at MAX_AGENT_EVENTS keeping the most recent", () => {
+    it("caps loaded messages at MAX_AGENT_EVENTS keeping the most recent", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-cap-"));
       const messagesPath = join(tmpDir, "builder.messages.jsonl");
       const lines: string[] = [];
@@ -4138,7 +4168,7 @@ describe("AgentViewerOverlay", () => {
       writeFileSync(messagesPath, lines.join("\n") + "\n");
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       const messages = overlay.getConversationMessages("builder");
       expect(messages).toHaveLength(MAX_AGENT_EVENTS);
@@ -4152,7 +4182,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("skips malformed message lines without throwing", () => {
+    it("skips malformed message lines without throwing", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-prepop-malformed-"));
       writeFileSync(
         join(tmpDir, "builder.messages.jsonl"),
@@ -4160,7 +4190,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      expect(() => overlay.prepopulateStreamFiles(tmpDir)).not.toThrow();
+      await overlay.prepopulateStreamFiles(tmpDir);
       // Malformed line skipped, valid line parsed.
       expect(overlay.getConversationMessages("builder")).toHaveLength(1);
 
@@ -4181,7 +4211,7 @@ describe("AgentViewerOverlay", () => {
       );
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      void overlay.prepopulateStreamFiles(tmpDir);
 
       // Synchronous update() dedupes via has()===true — entryCount stays 1.
       // Note: prepopulation does not invoke the onDone UI escape callback;
@@ -4225,7 +4255,7 @@ describe("AgentViewerOverlay", () => {
       writeFileSync(join(tmpDir, "builder.events.jsonl"), eventLines.join("\n") + "\n");
 
       const overlay = makeOverlay();
-      overlay.prepopulateStreamFiles(tmpDir);
+      await overlay.prepopulateStreamFiles(tmpDir);
 
       // Messages from .messages.jsonl are loaded into the cache
       const cached = overlay.getConversationMessages("builder");
