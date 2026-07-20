@@ -1,20 +1,42 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
+import { LogLevel } from "../config";
+import { DEFAULT_LOG_LEVEL, levelSeverity, LOG_LEVEL_ORDER, shouldLog } from "./LogLevel";
 
 describe("LogLevel", () => {
-  describe("enum", () => {
-    it("orders levels from most to least severe", () => {
-      expect(LogLevel.ERROR).toBe(0);
-      expect(LogLevel.WARN).toBe(1);
-      expect(LogLevel.INFO).toBe(2);
-      expect(LogLevel.DEBUG).toBe(3);
+  describe("ordering", () => {
+    it("ranks levels from most to least severe", () => {
+      expect(LOG_LEVEL_ORDER).toEqual([
+        LogLevel.SILENT,
+        LogLevel.ERROR,
+        LogLevel.WARN,
+        LogLevel.INFO,
+        LogLevel.DEBUG,
+      ]);
     });
 
-    it("allows direct comparison for severity thresholds", () => {
-      expect(LogLevel.ERROR <= LogLevel.WARN).toBe(true);
-      expect(LogLevel.WARN <= LogLevel.DEBUG).toBe(true);
-      expect(LogLevel.DEBUG <= LogLevel.WARN).toBe(false);
+    it("assigns lower severity numbers to more severe levels", () => {
+      expect(levelSeverity(LogLevel.ERROR)).toBe(1);
+      expect(levelSeverity(LogLevel.WARN)).toBe(2);
+      expect(levelSeverity(LogLevel.INFO)).toBe(3);
+      expect(levelSeverity(LogLevel.DEBUG)).toBe(4);
+    });
+  });
+
+  describe("shouldLog", () => {
+    it("allows more severe levels through a less severe threshold", () => {
+      expect(shouldLog(LogLevel.ERROR, LogLevel.INFO)).toBe(true);
+      expect(shouldLog(LogLevel.WARN, LogLevel.DEBUG)).toBe(true);
+    });
+
+    it("blocks less severe levels below the threshold", () => {
+      expect(shouldLog(LogLevel.DEBUG, LogLevel.WARN)).toBe(false);
+      expect(shouldLog(LogLevel.INFO, LogLevel.ERROR)).toBe(false);
+    });
+
+    it("allows a level at its own threshold", () => {
+      expect(shouldLog(LogLevel.ERROR, LogLevel.ERROR)).toBe(true);
+      expect(shouldLog(LogLevel.DEBUG, LogLevel.DEBUG)).toBe(true);
     });
   });
 

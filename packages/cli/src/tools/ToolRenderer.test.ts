@@ -12,7 +12,7 @@ function makeTheme() {
 }
 
 function makeCtx() {
-  return { state: {} as Record<string, unknown> };
+  return { state: {} as Record<string, unknown>, expanded: false };
 }
 
 describe("ToolRenderer", () => {

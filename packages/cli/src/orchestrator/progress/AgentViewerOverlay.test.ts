@@ -11,6 +11,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
+import { ForgeConfig } from "../../config";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
 import type { AgentViewerEntry, AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
@@ -26,10 +27,14 @@ function stripAnsiForTest(text: string): string {
   return text.replace(/\x1b\[\d+m/g, "");
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   // pi components (UserMessageComponent, AssistantMessageComponent,
   // ToolExecutionComponent) depend on the pi runtime theme singleton.
   initTheme("dark");
+
+  // Initialize ForgeConfig with defaults so that AgentViewerOverlay
+  // accessor functions (getDisplayMaxRawLength, etc.) resolve.
+  await ForgeConfig.create();
 });
 
 function makeTheme(): Theme {
@@ -204,7 +209,7 @@ describe("AgentViewerOverlay", () => {
       expect(joined).not.toContain("✓");
     });
 
-    it("shows raw output when present", () => {
+    it("shows first line of raw output when present", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done", { raw: "output line 1\noutput line 2" }));
 
@@ -212,7 +217,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("output line 1");
-      expect(joined).toContain("output line 2");
+      expect(joined).not.toContain("output line 2");
     });
 
     it("respects width parameter for separator", () => {

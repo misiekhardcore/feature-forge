@@ -3,15 +3,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 
+import { ForgeConfig } from "../../config";
 import { logger } from "../../logging";
 import { AgentSpecification } from "../specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
-
-/**
- * Default timeout for agent task execution (ms).
- * Override via the `FORGE_TASK_TIMEOUT_MS` environment variable.
- */
-export const DEFAULT_TASK_TIMEOUT_MS = Number(process.env.FORGE_TASK_TIMEOUT_MS) || 60 * 60 * 1000; // 1 hour
 
 /**
  * Concrete {@link SubprocessAgent} that wraps a pi subprocess spawned in RPC mode.
@@ -46,6 +41,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     try {
       await this.rpcClient.start();
       this._status = AgentStatus.Running;
+      logger.info("Agent started", { agentId: this.id, role: this.specification.role });
     } catch (error) {
       logger.error("Agent start failed", { agentId: this.id, error });
       this._status = AgentStatus.Failed;
@@ -82,7 +78,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     };
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
-    const timeout = options?.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
+    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
     const unsubs: (() => void)[] = [];
 
     // Promise that resolves when agent_end is received, rejecting on timeout.
@@ -145,6 +141,11 @@ export class PiSubprocessAgent extends SubprocessAgent {
       await this.rpcClient.prompt(prompt, options?.images);
       this.result = await resultPromise;
       this._status = AgentStatus.Completed;
+      logger.info("Agent task completed", {
+        agentId: this.id,
+        promptLength: prompt.length,
+        resultLength: this.result.length,
+      });
       return this.result;
     } catch (error) {
       cancelResultPromise?.();
@@ -172,6 +173,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
       // Swallow stop errors — agent is being destroyed either way
     }
     this._status = AgentStatus.Cancelled;
+    logger.info("Agent destroyed", { agentId: this.id });
   }
 
   /**

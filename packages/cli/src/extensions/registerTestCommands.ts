@@ -14,13 +14,14 @@ import {
   toolArgsScenario,
 } from "@feature-forge/debug";
 
+import { ForgeConfig } from "../config";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
 
 export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegistry): void {
-  if (!process.env.FORGE_DEV) return;
+  if (!ForgeConfig.getInstance().getDevEnabled()) return;
 
   const DEFAULT_EVENT_DELAY = 200;
 

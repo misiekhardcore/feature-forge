@@ -78,7 +78,7 @@ interface FlowRegistrarParams {
   supervisor: InMemoryAgentSupervisor;
   specManager: SpecManager;
   workspaceManager: WorkspaceManager;
-  flowsDir: string;
+  flowDirs: readonly string[];
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
   eventBus: TypedEventBus;
@@ -104,7 +104,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
         specNames: specManagerSpecNamesMock,
       } as unknown as SpecManager),
     workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
-    flowsDir: overrides.flowsDir ?? "/flows",
+    flowDirs: overrides.flowDirs ?? ["/flows"],
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
@@ -148,7 +148,7 @@ describe("FlowRegistrar", () => {
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
-      const params = makeParams({ flowsDir: "/custom/flows" });
+      const params = makeParams({ flowDirs: ["/custom/flows"] });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
@@ -399,6 +399,64 @@ describe("FlowRegistrar", () => {
 
       // Command registered, but no tools (no routines to iterate over)
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+    });
+
+    it("registers flows from multiple directories", async () => {
+      // First dir has no flows, second dir has "extra-flow"
+      readdirMock
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ name: "extra-flow", isDirectory: () => true }]);
+      accessMock.mockResolvedValue(undefined);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const params = makeParams({ cmdRegistry, flowDirs: ["/builtin/flows", "/extra/flows"] });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // Should read from both dirs
+      expect(readdirMock).toHaveBeenCalledWith("/builtin/flows", { withFileTypes: true });
+      expect(readdirMock).toHaveBeenCalledWith("/extra/flows", { withFileTypes: true });
+      // Only one flow registered (extra flow from second dir)
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles empty flowDirs gracefully", async () => {
+      readdirMock.mockResolvedValue([]);
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const params = makeParams({ cmdRegistry, flowDirs: [] });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // No flows registered
+      expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
+    });
+
+    it("processes multiple flowDirs", async () => {
+      readdirMock
+        .mockResolvedValueOnce([{ name: "builtin", isDirectory: () => true }])
+        .mockResolvedValueOnce([{ name: "addon-a", isDirectory: () => true }])
+        .mockResolvedValueOnce([{ name: "addon-b", isDirectory: () => true }]);
+      accessMock.mockResolvedValue(undefined);
+      flowLoaderLoadMock.mockResolvedValue(makeFlow());
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const params = makeParams({
+        cmdRegistry,
+        flowDirs: ["/builtin", "/addons/one", "/addons/two"],
+      });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // 3 flows = 3 commands
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(3);
     });
   });
 });

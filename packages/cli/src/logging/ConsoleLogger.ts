@@ -1,10 +1,12 @@
 import { Logger } from "./Logger";
 
 /**
- * Logger that discards all messages — zero overhead, no side effects.
+ * Logger that writes messages to stdout/stderr via console methods.
  *
- * Designed for tests where logging would be noise. Every severity method
- * is a no-op; nothing is written, stored, or forwarded.
+ * Every severity method maps to the corresponding console method
+ * (console.error, console.warn, console.info, console.debug).
+ * Designed for use in interactive sessions or environments where
+ * file logging is not available.
  */
 export class ConsoleLogger extends Logger {
   static initialize(): ConsoleLogger {

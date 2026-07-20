@@ -1,4 +1,5 @@
-import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
+import { ForgeConfig, LogLevel } from "../config";
+import { shouldLog } from "./LogLevel";
 
 /**
  * Abstract base class for loggers.
@@ -14,14 +15,23 @@ import { DEFAULT_LOG_LEVEL, LogLevel } from "./LogLevel";
  * WorkspaceProvider, and Tool.
  */
 export class Logger {
-  protected static instance: Logger;
-  protected level: LogLevel;
+  protected static instance: Logger | null = null;
+  protected level?: LogLevel;
 
   protected constructor() {
     if (!Logger.instance) {
       Logger.instance = this;
     }
-    this.level = this.parseLogLevel(process.env.FEATURE_FORGE_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL;
+  }
+
+  /**
+   * Return the active logger instance, or `null` if not initialized.
+   */
+  static getInstance(): Logger {
+    if (!Logger.instance) {
+      throw new Error("Logger not initialized. Call Logger.initialize() or a subclass first.");
+    }
+    return Logger.instance;
   }
 
   /**
@@ -42,55 +52,76 @@ export class Logger {
    * fresh instance. Only intended for test teardown.
    */
   static resetForTest(): void {
-    Logger.instance = undefined as unknown as Logger;
+    Logger.instance = null;
   }
 
   static setLogLevel(level: LogLevel): void {
-    Logger.instance.level = level;
+    Logger.getInstance().level = level;
   }
 
   static getLogLevel(): LogLevel {
-    return Logger.instance.level;
+    return Logger.getInstance().level ?? ForgeConfig.getInstance().getLogLevel();
   }
 
-  /** Log a critical error that prevents normal operation. */
-  error(_message: string, _data?: Record<string, unknown>): void {}
-
-  /** Log a warning about a recoverable problem or unexpected state. */
-  warn(_message: string, _data?: Record<string, unknown>): void {}
-
-  /** Log informational messages about normal operation. */
-  info(_message: string, _data?: Record<string, unknown>): void {}
-
-  /** Log detailed diagnostic information useful for debugging. */
-  debug(_message: string, _data?: Record<string, unknown>): void {}
+  /**
+   * Log a critical error that prevents normal operation.
+   *
+   * When the singleton has been replaced by a concrete subclass
+   * (e.g. FileLogger), forwards to the active instance so the
+   * module-level `logger` const stays functional throughout the
+   * extension lifecycle.
+   */
+  error(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.error(message, data);
+    }
+  }
 
   /**
-   * Parse a log level from a raw string value.
+   * Log a warning about a recoverable problem or unexpected state.
    *
-   * Case-insensitive. Returns `undefined` for unrecognised input so
-   * callers can fall back to {@link DEFAULT_LOG_LEVEL}.
+   * Forwards to the active Logger.instance when it differs from
+   * this instance (see {@link error}).
    */
-  protected parseLogLevel(raw: string | undefined): LogLevel | undefined {
-    if (!raw) return undefined;
-    const normalised = raw.toLowerCase().trim();
-    const key = normalised.toUpperCase();
-    if (key in LogLevel) {
-      return LogLevel[key as keyof typeof LogLevel];
+  warn(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.warn(message, data);
     }
-    return undefined;
+  }
+
+  /**
+   * Log informational messages about normal operation.
+   *
+   * Forwards to the active Logger.instance when it differs from
+   * this instance (see {@link error}).
+   */
+  info(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.info(message, data);
+    }
+  }
+
+  /**
+   * Log detailed diagnostic information useful for debugging.
+   *
+   * Forwards to the active Logger.instance when it differs from
+   * this instance (see {@link error}).
+   */
+  debug(message: string, data?: Record<string, unknown>): void {
+    if (Logger.instance && Logger.instance !== this) {
+      Logger.instance.debug(message, data);
+    }
   }
 
   /**
    * Returns `true` when an entry at `candidate` severity meets or exceeds
-   * the configured `threshold` (lower numeric value = more severe).
+   * the configured `threshold` (lower numeric severity = more severe).
    *
-   * @example
-   * shouldLog(LogLevel.WARN, LogLevel.INFO)  // false — warn is below info threshold
-   * shouldLog(LogLevel.ERROR, LogLevel.WARN) // true  — error meets warn threshold
+   * Delegates to the standalone {@link shouldLog} helper so both
+   * {@link Logger} and {@link FileLogger} use the same comparison.
    */
   protected shouldLog(candidate: LogLevel, threshold: LogLevel): boolean {
-    return candidate <= threshold;
+    return shouldLog(candidate, threshold);
   }
 }
 
