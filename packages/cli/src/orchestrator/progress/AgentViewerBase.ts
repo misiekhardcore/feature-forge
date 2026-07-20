@@ -1,7 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth } from "@earendil-works/pi-tui";
 
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { BorderedContainer } from "./BorderedContainer";
 
 /**
  * Layout constants and utilities shared by agent viewer components.
@@ -47,37 +46,11 @@ export abstract class AgentViewerBase {
   /**
    * Render a bordered box around the given content lines.
    *
-   * Applies the warning theme colour to border characters, adds 1-line
-   * top/bottom margins inside the border, and truncates lines that
-   * exceed the content width.
+   * Delegates to {@link BorderedContainer.fromLines} with the
+   * {@code "warning"} border colour to match the existing visual
+   * convention.
    */
   static addBorder(lines: string[], outerWidth: number, theme: Theme): string[] {
-    const contentWidth = AgentViewerBase.contentWidth(outerWidth);
-    const borderInnerWidth = contentWidth + AgentViewerBase.BORDER_MARGIN;
-
-    const top = theme.fg(
-      "warning",
-      "┌" + AgentDisplayHelpers.getHorizontalLine(borderInnerWidth) + "┐",
-    );
-    const bot = theme.fg(
-      "warning",
-      "└" + AgentDisplayHelpers.getHorizontalLine(borderInnerWidth) + "┘",
-    );
-    const leftBorder = theme.fg("warning", "│");
-    const rightBorder = theme.fg("warning", "│");
-
-    const result: string[] = [];
-    result.push(top);
-    result.push(leftBorder + " ".repeat(borderInnerWidth) + rightBorder);
-
-    for (const raw of lines) {
-      const normalized = truncateToWidth(raw, contentWidth, "", true);
-      result.push(leftBorder + " " + normalized.padEnd(contentWidth) + " " + rightBorder);
-    }
-
-    result.push(leftBorder + " ".repeat(borderInnerWidth) + rightBorder);
-    result.push(bot);
-
-    return result;
+    return BorderedContainer.fromLines(lines, outerWidth, theme, "warning");
   }
 }

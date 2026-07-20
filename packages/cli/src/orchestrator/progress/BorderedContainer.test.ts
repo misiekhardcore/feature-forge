@@ -187,5 +187,46 @@ describe("BorderedContainer", () => {
       expect(childLine).toContain("\x1b[31m");
       expect(childLine).toContain("\x1b[0m");
     });
+
+    it("truncates long title so top border does not overflow", () => {
+      const theme = makeTheme();
+      const longTitle = "A".repeat(100);
+      const box = new BorderedContainer(theme, longTitle);
+      const lines = box.render(80);
+
+      // Top border line must not exceed outer width.
+      const topLine = lines[0];
+      // Allow for ANSI codes that may wrap the line.
+      // eslint-disable-next-line no-control-regex
+      const visibleLen = topLine.replace(/\x1b\[[0-9;]*m/g, "").length;
+      expect(visibleLen).toBeLessThanOrEqual(80);
+      // The title should have been truncated with ellipsis.
+      expect(topLine).toContain("…");
+    });
+
+    it("accepts custom borderColor parameter", () => {
+      const theme = makeTheme();
+      const box = new BorderedContainer(theme, undefined, 1, "warning");
+      box.addChild(new FakeText("Content"));
+      box.render(80);
+
+      // Should use "warning" instead of default "border".
+      expect(theme.fg).toHaveBeenCalledWith("warning", expect.any(String));
+    });
+  });
+
+  describe("fromLines", () => {
+    it("wraps pre-built lines in a bordered box", () => {
+      const theme = makeTheme();
+      const result = BorderedContainer.fromLines(["Line 1", "Line 2"], 80, theme, "warning");
+
+      // Should have border structure: top + topInner + 2 lines + bottomInner + bottom = 6
+      expect(result).toHaveLength(6);
+      expect(result[0]).toMatch(/^┌─+┐$/);
+      expect(result[2]).toContain("Line 1");
+      expect(result[3]).toContain("Line 2");
+      expect(result[5]).toMatch(/^└─+┘$/);
+      expect(theme.fg).toHaveBeenCalledWith("warning", expect.any(String));
+    });
   });
 });

@@ -40,7 +40,10 @@ export class PiSubprocessAgentFactory extends AgentFactory {
   }
 
   private buildRpcClient(specification: AgentSpecification): RpcClient {
-    const args = [...(this.options.args ?? []), ...buildPiCliArguments(specification)];
+    const args = [
+      ...(this.options.args ?? []),
+      ...buildPiCliArguments(specification, { disableAllExtensions: true }),
+    ];
 
     return new RpcClient({
       cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),

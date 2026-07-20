@@ -235,6 +235,21 @@ describe("ScrollableBox", () => {
       expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
       expect(box.autoScroll).toBe(true);
     });
+
+    it("clamps MAX_SAFE_INTEGER sentinel to actual maxOffset in render", () => {
+      box.addChild(new FakeLines(30));
+      box.scrollToBottom();
+      // scrollOffset is MAX_SAFE_INTEGER, autoScroll is true.
+      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      expect(box.autoScroll).toBe(true);
+
+      // render clamps MAX_SAFE_INTEGER to the real maxOffset.
+      box.render(80);
+      // maxOffset = 30 - 16 = 14 (viewport = 0.5 * 40 - 4 = 16)
+      expect(box.scrollOffset).toBe(14);
+      // autoScroll stays true (already at bottom).
+      expect(box.autoScroll).toBe(true);
+    });
   });
 
   describe("onStreamEvent", () => {

@@ -6,7 +6,7 @@ export { AgentViewerBase } from "./AgentViewerBase";
 export type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 export { AgentViewerOverlay } from "./AgentViewerOverlay";
 export { AgentViewerState } from "./AgentViewerState";
-export { BorderedContainer } from "./BorderedContainer";
+export { BorderedContainer, StaticContent } from "./BorderedContainer";
 export type { DisplayContribution } from "./DisplayContribution";
 export type { ContributionHandler } from "./DisplayContributionRegistry";
 export { DisplayContributionRegistry } from "./DisplayContributionRegistry";

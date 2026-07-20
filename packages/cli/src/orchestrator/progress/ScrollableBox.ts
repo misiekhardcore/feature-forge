@@ -10,6 +10,7 @@ export class ScrollableBox extends Container {
   scrollOffset = 0;
   autoScroll = false;
 
+  private currentAgentId?: string;
   private readonly tui: TUI;
   private readonly maxHeightPercent: number;
   private readonly borderOverhead: number;
@@ -91,14 +92,13 @@ export class ScrollableBox extends Container {
       return;
     }
     this.scrollToBottom();
+    this.tui.requestRender();
   }
 
   /** Set the currently-displayed agent id for event scoping. */
   setCurrentAgent(agentId: string | undefined): void {
     this.currentAgentId = agentId;
   }
-
-  private currentAgentId?: string;
 
   private computeViewportHeight(): number {
     const termRows = this.tui?.terminal?.rows;

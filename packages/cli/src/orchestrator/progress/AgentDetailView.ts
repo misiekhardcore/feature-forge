@@ -1,40 +1,44 @@
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { Key, matchesKey, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 import type { ToolRegistry } from "../../registry/ToolRegistry";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { AgentViewerBase } from "./AgentViewerBase";
 import { AgentViewerState } from "./AgentViewerState";
+import { BorderedContainer, StaticContent } from "./BorderedContainer";
 import { ConversationRenderer } from "./ConversationRenderer";
-
-/**
- * Standard overlay configuration — mirrors
- * {@link AgentViewerOverlay.overlayOptions}.
- */
-const OVERLAY_OPTIONS = {
-  anchor: "center" as const,
-  width: "100%" as const,
-  maxHeight: "85%" as const,
-  margin: 1,
-};
+import { ScrollableBox } from "./ScrollableBox";
 
 /**
  * Renders detailed view of a single agent's conversation and logs.
  */
 export class AgentDetailView {
   /** Scroll offset for detail view content. */
-  scrollOffset = 0;
+  get scrollOffset(): number {
+    return this._scrollOffset;
+  }
+  set scrollOffset(v: number) {
+    this._scrollOffset = v;
+  }
 
   /**
    * Whether the detail view automatically scrolls to the bottom when new
    * stream events arrive.
    */
-  autoScroll = false;
+  get autoScroll(): boolean {
+    return this._autoScroll;
+  }
+  set autoScroll(v: boolean) {
+    this._autoScroll = v;
+  }
 
   /** Agent id currently being displayed. */
   selectedAgentId?: string;
+
+  private _scrollOffset = 0;
+  private _autoScroll = false;
 
   private readonly state: AgentViewerState;
   private readonly theme: Theme;
@@ -43,14 +47,9 @@ export class AgentDetailView {
   private readonly cwd: string;
   private readonly conversationRenderer: ConversationRenderer;
 
-  /** Last render width used to compute scroll bounds. */
-  private lastRenderWidth = 80;
-
-  /**
-   * Cached total wrapped line count from the most recent render.
-   * Used to clamp scroll offset and detect bottom-of-content.
-   */
-  private cachedWrappedLineCount = 0;
+  /** ScrollableBox configuration derived from OVERLAY_OPTIONS. */
+  private readonly scrollMaxHeightPercent = 0.85;
+  private readonly scrollBorderOverhead = AgentViewerBase.BORDER_HEIGHT_OVERHEAD;
 
   constructor(
     state: AgentViewerState,
@@ -86,7 +85,6 @@ export class AgentDetailView {
   }
 
   render(width: number): string[] {
-    this.lastRenderWidth = width;
     const { theme } = this;
     const contentW = AgentViewerBase.contentWidth(width);
     const lines: string[] = [];
@@ -98,125 +96,117 @@ export class AgentDetailView {
       lines.push(theme.fg("muted", "agent not found"));
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
-      const allWrapped = lines.flatMap((line) => wrapTextWithAnsi(line, contentW));
-      this.cachedWrappedLineCount = allWrapped.length;
+    } else {
+      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+        entry.status,
+        entry.passed,
+      );
+      const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
+        entry.status,
+        entry.passed,
+      );
 
-      const viewportHeight = this.computeViewportHeight();
-      const maxOffset = Math.max(0, this.cachedWrappedLineCount - viewportHeight);
-      if (this.scrollOffset >= maxOffset) {
-        this.autoScroll = true;
+      // Header
+      lines.push(
+        `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
+      );
+      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
+
+      // Summary
+      if (entry.summary) {
+        lines.push(theme.fg("accent", "Summary:"));
+        lines.push("");
+        lines.push(entry.summary);
+        lines.push("");
       }
-      this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
-      const viewportEnd = Math.min(this.scrollOffset + viewportHeight, allWrapped.length);
-      return AgentViewerBase.addBorder(
-        allWrapped.slice(this.scrollOffset, viewportEnd),
-        width,
-        theme,
+
+      // Conversation header
+      lines.push(theme.fg("accent", "Conversation:"));
+      lines.push("");
+
+      const messages = this.state.getConversationMessages(entry.id);
+      const conversationLines = this.renderConversationTurns(messages, width);
+      if (conversationLines.length === 0) {
+        lines.push(theme.fg("muted", "No conversation recorded."));
+        lines.push("");
+      } else {
+        for (const convLine of conversationLines) {
+          lines.push(convLine);
+        }
+        lines.push("");
+      }
+
+      // Help text
+      lines.push(
+        theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
       );
     }
 
-    const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
-      entry.status,
-      entry.passed,
-    );
-    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
-      entry.status,
-      entry.passed,
-    );
-
-    // Header
-    lines.push(
-      `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
-    );
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
-
-    // Summary
-    if (entry.summary) {
-      lines.push(theme.fg("accent", "Summary:"));
-      lines.push("");
-      lines.push(entry.summary);
-      lines.push("");
-    }
-
-    // Conversation header
-    lines.push(theme.fg("accent", "Conversation:"));
-    lines.push("");
-
-    const messages = this.state.getConversationMessages(entry.id);
-    const conversationLines = this.renderConversationTurns(messages, width);
-    if (conversationLines.length === 0) {
-      lines.push(theme.fg("muted", "No conversation recorded."));
-      lines.push("");
-    } else {
-      for (const convLine of conversationLines) {
-        lines.push(convLine);
-      }
-      lines.push("");
-    }
-
-    // Help text
-    lines.push(
-      theme.fg("muted", `${theme.fg("accent", "Esc")} back  ${theme.fg("accent", "↑↓")} scroll`),
-    );
-
-    // Wrap all content lines first, then compute viewport from the actual wrapped count.
+    // Wrap lines, then delegate viewport clipping + border to ScrollableBox and BorderedContainer.
     const allWrapped = lines.flatMap((line) => wrapTextWithAnsi(line, contentW));
-    this.cachedWrappedLineCount = allWrapped.length;
 
-    const viewportHeight = this.computeViewportHeight();
-    const maxOffset = Math.max(0, this.cachedWrappedLineCount - viewportHeight);
-    if (this.scrollOffset >= maxOffset) {
-      this.autoScroll = true;
-    }
-    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
-    const viewportEnd = Math.min(this.scrollOffset + viewportHeight, allWrapped.length);
-
-    return AgentViewerBase.addBorder(
-      allWrapped.slice(this.scrollOffset, viewportEnd),
-      width,
-      theme,
+    const scrollBox = new ScrollableBox(
+      this.tui,
+      this.scrollMaxHeightPercent,
+      this.scrollBorderOverhead,
     );
+    scrollBox.scrollOffset = this._scrollOffset;
+    scrollBox.autoScroll = this._autoScroll;
+    scrollBox.setCurrentAgent(this.selectedAgentId);
+    scrollBox.addChild(new StaticContent(allWrapped));
+
+    const borderedBox = new BorderedContainer(theme, undefined, 1, "warning");
+    borderedBox.addChild(scrollBox);
+
+    const result = borderedBox.render(width);
+
+    // Sync scroll state back from the ScrollableBox (it may have clamped or re-enabled autoScroll).
+    this._scrollOffset = scrollBox.scrollOffset;
+    this._autoScroll = scrollBox.autoScroll;
+
+    return result;
   }
 
   handleInput(data: string): void {
-    if (matchesKey(data, Key.up)) {
-      this.autoScroll = false;
-      this.scrollOffset = Math.max(0, this.scrollOffset - 1);
-      this.tui.requestRender();
-    } else if (matchesKey(data, Key.down)) {
-      this.scrollOffset = this.scrollOffset + 1;
-      this.tui.requestRender();
-    }
+    // Delegate to a ScrollableBox instance so all key-handling
+    // (including page up/down, home/end) is consistent.
+    const scrollBox = new ScrollableBox(
+      this.tui,
+      this.scrollMaxHeightPercent,
+      this.scrollBorderOverhead,
+    );
+    scrollBox.scrollOffset = this._scrollOffset;
+    scrollBox.autoScroll = this._autoScroll;
+    scrollBox.setCurrentAgent(this.selectedAgentId);
+    scrollBox.handleInput(data);
+    this._scrollOffset = scrollBox.scrollOffset;
+    this._autoScroll = scrollBox.autoScroll;
   }
 
   /**
    * Auto-scroll to bottom when new events arrive for the displayed agent.
    *
-   * Sets scrollOffset to a large value when autoScroll is enabled;
-   * the next {@link render} call clamps it to the actual maximum.
+   * Delegates to {@link ScrollableBox.onStreamEvent} which handles
+   * autoScroll flag, agent-scoping, and viewport clamping.
    */
   onStreamEvent(agentId: string): void {
-    if (this.autoScroll && this.selectedAgentId === agentId) {
-      this.scrollOffset = Number.MAX_SAFE_INTEGER;
-    }
+    const scrollBox = new ScrollableBox(
+      this.tui,
+      this.scrollMaxHeightPercent,
+      this.scrollBorderOverhead,
+    );
+    scrollBox.scrollOffset = this._scrollOffset;
+    scrollBox.autoScroll = this._autoScroll;
+    scrollBox.setCurrentAgent(this.selectedAgentId);
+    scrollBox.onStreamEvent(agentId);
+    this._scrollOffset = scrollBox.scrollOffset;
+    this._autoScroll = scrollBox.autoScroll;
   }
 
   // ── Private rendering ─────────────────────────────────────
 
   private renderConversationTurns(messages: AgentMessage[], width: number): string[] {
     return this.conversationRenderer.render(messages, AgentViewerBase.contentWidth(width));
-  }
-
-  private computeViewportHeight(): number {
-    const termHeight = this.tui?.terminal?.rows;
-    if (!termHeight || termHeight < 1) return 15;
-    // TUI's parseSizeValue uses Math.floor for percentage → match it so
-    // viewport + border exactly equals maxHeight (avoids clipping border).
-    const rawMaxHeight = Math.floor(
-      (Number(OVERLAY_OPTIONS.maxHeight.slice(0, -1)) / 100) * termHeight,
-    );
-    const maxHeight = Math.max(1, rawMaxHeight);
-    return Math.max(1, maxHeight - AgentViewerBase.BORDER_HEIGHT_OVERHEAD);
   }
 
   // ── Conversation loading (exposed for overlay) ────────────
