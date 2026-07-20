@@ -10,12 +10,15 @@ import {
   emptyScenario,
   errorScenario,
   manyTurnsScenario,
+  registerTestLoopRoutine,
   reviewerScenario,
   toolArgsScenario,
 } from "@feature-forge/debug";
 
 import { ForgeConfig } from "../config";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
+import { ProgressRenderer } from "../orchestrator/progress/ProgressRenderer";
+import { TuiRoutineWidget } from "../orchestrator/progress/TuiProgressReporter";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
@@ -182,4 +185,34 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
       );
     },
   });
+
+  // ── Debug-package commands ────────────────────────────────
+
+  registerTestLoopRoutine(
+    pi,
+    {
+      createWidget: (ctx) => new TuiRoutineWidget({ ctx }),
+      createOverlay: ({ tui, theme, onDone }) =>
+        new AgentViewerOverlay({
+          tui,
+          theme,
+          onDone,
+          markdownTheme: getMarkdownTheme(),
+          cwd: process.cwd(),
+          toolRegistry,
+        }),
+      overlayOptions: AgentViewerOverlay.overlayOptions,
+      renderHelpers: {
+        statusIcon: ProgressRenderer.statusIcon.bind(ProgressRenderer),
+        formatAgentRow: ProgressRenderer.formatAgentRow.bind(ProgressRenderer),
+        buildWidgetLines: ProgressRenderer.buildWidgetLines.bind(ProgressRenderer),
+        buildStatusLine: ProgressRenderer.buildStatusLine.bind(ProgressRenderer),
+      },
+    },
+    {
+      builderScenario,
+      reviewerScenario,
+      errorScenario,
+    },
+  );
 }
