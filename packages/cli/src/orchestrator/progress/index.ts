@@ -6,6 +6,7 @@ export { AgentViewerBase } from "./AgentViewerBase";
 export type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 export { AgentViewerOverlay } from "./AgentViewerOverlay";
 export { AgentViewerState } from "./AgentViewerState";
+export { BorderedContainer } from "./BorderedContainer";
 export type { DisplayContribution } from "./DisplayContribution";
 export type { ContributionHandler } from "./DisplayContributionRegistry";
 export { DisplayContributionRegistry } from "./DisplayContributionRegistry";
@@ -16,6 +17,7 @@ export { ProgressRenderer } from "./ProgressRenderer";
 export type { ProgressSnapshot, ProgressWidget } from "./ProgressReporter";
 export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./ProgressReporter";
 export type { RoutineProgressState } from "./RoutineProgressState";
+export { ScrollableBox } from "./ScrollableBox";
 export { TuiRoutineWidget } from "./TuiProgressReporter";
 export type {
   AgentEntryBase,
