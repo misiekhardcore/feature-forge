@@ -52,15 +52,6 @@ export interface BuildStatusLineParams {
 
 // ── Helpers ──────────────────────────────────────────────────
 
-/**
- * Collapse embedded newlines into spaces so the string can be used as a
- * single-line suffix. Width enforcement is handled by wrapTextWithAnsi in
- * the render closures that consume the result.
- */
-function sanitizeSuffix(text: string): string {
-  return text.replace(/\n/g, " ").replace(/\r/g, "").trim();
-}
-
 // ── Class ────────────────────────────────────────────────────
 
 /**
@@ -205,7 +196,7 @@ export class ProgressRenderer {
       }
       // Fall back to first non-empty line only — never emit multi-line raw output
       const firstLine = raw.split("\n").find((l: string) => l.trim()) ?? raw;
-      return sanitizeSuffix(firstLine);
+      return firstLine;
     }
 
     if (details.workspace) {
@@ -214,11 +205,11 @@ export class ProgressRenderer {
     }
 
     if (details.results.cleanup?.parsed?.summary) {
-      return sanitizeSuffix(details.results.cleanup.parsed.summary);
+      return details.results.cleanup.parsed.summary;
     }
 
     if (details.summary) {
-      return sanitizeSuffix(details.summary);
+      return details.summary;
     }
 
     return details.passed ? "passed" : "failed";
@@ -302,7 +293,7 @@ export class ProgressRenderer {
     return {
       render: (width: number) => {
         const line = `${icon} ${routine} · ${suffix}`;
-        return wrapTextWithAnsi(sanitizeSuffix(line), width);
+        return wrapTextWithAnsi(line, width);
       },
       invalidate: () => {
         /* stateless — nothing to clear */
