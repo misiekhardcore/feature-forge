@@ -4,6 +4,15 @@
 // No dependency on AgentViewerOverlay, @feature-forge/cli, or @feature-forge/shared.
 // The cli extension imports these and wires them into actual overlays.
 
+export type {
+  RenderHelpers,
+  TestLoopDeps,
+  TestLoopScenarios,
+  ThemeLike,
+  ViewerHandle,
+  WidgetHandle,
+} from "./commands/test-loop-routine.js";
+export { registerTestLoopRoutine } from "./commands/test-loop-routine.js";
 export {
   agentEndEvent,
   agentStartEvent,
