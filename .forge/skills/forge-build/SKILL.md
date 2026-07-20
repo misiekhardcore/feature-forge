@@ -1,5 +1,5 @@
 ---
-name: build
+name: forge-build
 description: >
   Build methodology — TDD cycle, validation commands, commit rules,
   and workspace hygiene for the build agent.

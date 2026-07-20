@@ -1,5 +1,5 @@
 ---
-name: verify
+name: forge-verify
 description: >
   QA verification methodology — AC mapping, e2e coverage assessment,
   evidence-based reporting.

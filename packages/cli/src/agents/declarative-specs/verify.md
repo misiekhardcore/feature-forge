@@ -4,7 +4,7 @@ role: "verify"
 toolPreset: "verify"
 ephemeral: true
 skills:
-  - "verify"
+  - "forge-verify"
 ---
 
 # Verify Agent

@@ -86,24 +86,30 @@ describe("SkillResolver.resolveEffectiveNames", () => {
 });
 
 describe("SkillResolver project skill discovery", () => {
-  it("discovers build skill from .forge/skills/build/SKILL.md", () => {
-    const buildSkillPath = path.resolve(process.cwd(), ".forge", "skills", "build", "SKILL.md");
+  it("discovers forge-build skill from .forge/skills/forge-build/SKILL.md", () => {
+    const buildSkillPath = path.resolve(
+      process.cwd(),
+      ".forge",
+      "skills",
+      "forge-build",
+      "SKILL.md",
+    );
     expect(fs.existsSync(buildSkillPath)).toBe(true);
 
     const content = fs.readFileSync(buildSkillPath, "utf-8");
     const { frontmatter } = parseFrontmatter(content);
-    expect(frontmatter.name).toBe("build");
+    expect(frontmatter.name).toBe("forge-build");
     expect(frontmatter.description).toBeDefined();
   });
 
-  it("discovers build skill via discoverAll when CWD is project root", () => {
+  it("discovers forge-build skill via discoverAll when CWD is project root", () => {
     const originalCwd = process.cwd();
     const projectRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
     try {
       process.chdir(projectRoot);
       const allSkills = SkillResolver.discoverAll();
-      expect(allSkills.has("build")).toBe(true);
-      expect(allSkills.get("build")).toContain("SKILL.md");
+      expect(allSkills.has("forge-build")).toBe(true);
+      expect(allSkills.get("forge-build")).toContain("SKILL.md");
     } finally {
       process.chdir(originalCwd);
     }

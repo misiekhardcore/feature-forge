@@ -309,7 +309,7 @@ role: "build"
 toolPreset: "fullAccess"
 ephemeral: true
 skills:
-  - "build"
+  - "forge-build"
 ---
 # Build Agent
 `;
@@ -321,7 +321,7 @@ skills:
       expect(parsed.name).toBe("build");
 
       const spec = registry.create("build");
-      expect(spec.skills).toEqual(["build"]);
+      expect(spec.skills).toEqual(["forge-build"]);
       expect(spec.ephemeral).toBe(true);
     });
 
@@ -333,7 +333,7 @@ role: "verify"
 toolPreset: "verify"
 ephemeral: true
 skills:
-  - "verify"
+  - "forge-verify"
 ---
 # Verify Agent
 `;
@@ -345,7 +345,7 @@ skills:
       expect(parsed.name).toBe("verify");
 
       const spec = registry.create("verify");
-      expect(spec.skills).toEqual(["verify"]);
+      expect(spec.skills).toEqual(["forge-verify"]);
       expect(spec.ephemeral).toBe(true);
     });
 

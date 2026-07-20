@@ -4,7 +4,7 @@ role: "build"
 toolPreset: "fullAccess"
 ephemeral: true
 skills:
-  - "build"
+  - "forge-build"
 ---
 
 # Build Agent
