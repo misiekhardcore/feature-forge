@@ -99,6 +99,29 @@ const OVERLAY_OPTIONS = {
  * forward streaming content, and {@link dispose} when the routine finishes.
  */
 export class AgentViewerOverlay implements Component {
+  // ── Layout constants ─────────────────────────────────────
+
+  /** Combined width of left + right border characters ("│" + "│" = 2). */
+  static readonly BORDER_CHARS = 2;
+
+  /** Combined width of inner margin spaces (1 space on each side of content). */
+  static readonly BORDER_MARGIN = 2;
+
+  /** Total horizontal overhead: border chars + inner margins. */
+  static readonly BORDER_WIDTH_OVERHEAD =
+    AgentViewerOverlay.BORDER_CHARS + AgentViewerOverlay.BORDER_MARGIN;
+
+  /** Total vertical overhead: top border, top margin, bottom margin, bottom border. */
+  static readonly BORDER_HEIGHT_OVERHEAD = 4;
+
+  /**
+   * Compute the content width available inside the border, clamped to 0
+   * so that zero-width terminals never produce negative dimensions.
+   */
+  static contentWidth(outerWidth: number): number {
+    return Math.max(0, outerWidth - AgentViewerOverlay.BORDER_WIDTH_OVERHEAD);
+  }
+
   /** Maps agent id → agent entry. */
   private agents = new Map<string, AgentViewerEntry>();
 
@@ -780,9 +803,9 @@ export class AgentViewerOverlay implements Component {
 
   /** Compute available overlay content height in rows.
    *
-   * Mirrors the TUI's resolveOverlayLayout logic for maxHeight=95%, margin=1.
-   * Subtracts 4 for border decorations (top + bottom + 2 margin lines inside border)
-   * to return the height available for actual content lines.
+   * Mirrors the TUI's resolveOverlayLayout logic for maxHeight, margin.
+   * Subtracts {@link BORDER_HEIGHT_OVERHEAD} for the addBorder wrapper to
+   * return the height available for actual content lines.
    * Falls back to a reasonable default (20 rows) when terminal dimensions are
    * unavailable (e.g., in tests).
    */
@@ -793,8 +816,7 @@ export class AgentViewerOverlay implements Component {
       this.percentToNumber(AgentViewerOverlay.overlayOptions.maxHeight) * termHeight,
     );
     const maxHeight = Math.max(1, rawMaxHeight);
-    // Subtract 5 for addBorder wrapper: top border, top margin, bottom margin, bottom border.
-    return Math.max(1, maxHeight - 5);
+    return Math.max(1, maxHeight - AgentViewerOverlay.BORDER_HEIGHT_OVERHEAD);
   }
 
   private percentToNumber(percent: `${number}%`) {
@@ -803,17 +825,16 @@ export class AgentViewerOverlay implements Component {
 
   private addBorder(lines: string[], outerWidth: number): string[] {
     const { theme } = this;
-    // Content width inside the border after subtracting 2 for the `|` border
-    // chars on each side, and 2 for the single-space margins inside each border.
-    const contentWidth = Math.max(0, outerWidth - 4);
+    const contentWidth = AgentViewerOverlay.contentWidth(outerWidth);
 
+    const borderInnerWidth = contentWidth + AgentViewerOverlay.BORDER_MARGIN;
     const top = theme.fg(
       "warning",
-      "┌" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┐",
+      "┌" + AgentDisplayHelpers.getHorizontalLine(borderInnerWidth) + "┐",
     );
     const bot = theme.fg(
       "warning",
-      "└" + AgentDisplayHelpers.getHorizontalLine(contentWidth + 2) + "┘",
+      "└" + AgentDisplayHelpers.getHorizontalLine(borderInnerWidth) + "┘",
     );
     const leftBorder = theme.fg("warning", "│");
     const rightBorder = theme.fg("warning", "│");
@@ -824,7 +845,7 @@ export class AgentViewerOverlay implements Component {
     result.push(top);
 
     // Top blank margin (1 line inside border)
-    result.push(leftBorder + " ".repeat(contentWidth + 2) + rightBorder);
+    result.push(leftBorder + " ".repeat(borderInnerWidth) + rightBorder);
 
     for (const raw of lines) {
       // Normalize every line to exactly contentWidth visible chars using
@@ -836,7 +857,7 @@ export class AgentViewerOverlay implements Component {
     }
 
     // Bottom blank margin (1 line inside border)
-    result.push(leftBorder + " ".repeat(contentWidth + 2) + rightBorder);
+    result.push(leftBorder + " ".repeat(borderInnerWidth) + rightBorder);
 
     // Bottom border
     result.push(bot);
@@ -846,15 +867,16 @@ export class AgentViewerOverlay implements Component {
 
   private renderList(width: number): string[] {
     const { theme } = this;
+    const contentW = AgentViewerOverlay.contentWidth(width);
     const lines: string[] = [];
 
     // Header
     lines.push(theme.fg("accent", "Agent Viewer"));
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
 
     if (this.agents.size === 0) {
       lines.push(theme.fg("muted", "no agents running"));
-      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, contentW));
       return this.addBorder(wrapped, width);
     }
 
@@ -902,27 +924,27 @@ export class AgentViewerOverlay implements Component {
       ),
     );
 
-    const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
+    const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, contentW));
     return this.addBorder(wrapped, width);
   }
 
   private trimListViewText(text: string, maxWidth: number) {
-    if (text.length <= maxWidth) return text;
-    return text.substring(0, maxWidth - 3) + "...";
+    return truncateToWidth(text, maxWidth);
   }
 
   private renderDetail(width: number): string[] {
     const { theme } = this;
+    const contentW = AgentViewerOverlay.contentWidth(width);
     const lines: string[] = [];
 
     const entry = this.selectedAgentId ? this.agents.get(this.selectedAgentId) : undefined;
     if (!entry) {
       lines.push(theme.fg("accent", "Agent Detail"));
-      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+      lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
       lines.push(theme.fg("muted", "agent not found"));
       lines.push("");
       lines.push(theme.fg("muted", `${theme.fg("accent", "Esc")} back`));
-      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
+      const wrapped = lines.flatMap((line) => wrapTextWithAnsi(line, contentW));
       return this.addBorder(wrapped, width);
     }
 
@@ -939,7 +961,7 @@ export class AgentViewerOverlay implements Component {
     lines.push(
       `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
     );
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(width - 4)));
+    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(contentW)));
 
     // Summary
     if (entry.summary) {
@@ -977,7 +999,7 @@ export class AgentViewerOverlay implements Component {
     const viewportEnd = Math.min(this.scrollOffset + viewportHeight, lines.length);
     const visibleLines = lines.slice(this.scrollOffset, viewportEnd);
 
-    const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, width - 4));
+    const wrapped = visibleLines.flatMap((line) => wrapTextWithAnsi(line, contentW));
     return this.addBorder(wrapped, width);
   }
 
@@ -988,7 +1010,7 @@ export class AgentViewerOverlay implements Component {
    * Delegates to {@link ConversationRenderer} which dispatches by role.
    */
   private renderConversationTurns(messages: AgentMessage[], width: number): string[] {
-    return this.conversationRenderer.render(messages, width - 4);
+    return this.conversationRenderer.render(messages, AgentViewerOverlay.contentWidth(width));
   }
 
   private handleListInput(data: string): void {

@@ -54,7 +54,7 @@ export class AgentDisplayHelpers {
   }
 
   static getHorizontalLine(width: number) {
-    return "─".repeat(width);
+    return "─".repeat(Math.max(0, width));
   }
 
   static getStatusLabel(
