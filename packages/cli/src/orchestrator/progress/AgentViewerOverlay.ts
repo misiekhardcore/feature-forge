@@ -1,4 +1,4 @@
-import { appendFileSync, createReadStream, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, createReadStream, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -86,6 +86,9 @@ export interface AgentViewerOverlayParams {
  * {@link import("../RoutineTool").RoutineTool} and
  * {@link import("../../commands/AgentListCommand").AgentListCommand}.
  */
+/** Maximum characters of raw agent output to display per entry. */
+const MAX_RAW_LENGTH = 500;
+
 const OVERLAY_OPTIONS = {
   anchor: "center" as const,
   width: "100%" as const,
@@ -192,8 +195,14 @@ export class AgentViewerOverlay implements Component {
   /** Maps agent id → extracted AgentMessage objects in order. */
   private agentMessages = new Map<string, AgentMessage[]>();
 
-  /** Cached line count of the last renderConversationTurns call. Invalidated by pushStreamEvent. */
-  private cachedConversationLineCount = 0;
+  /** Heuristic: average lines rendered per message, tracked per-agent. */
+  private avgLinesPerMessage = new Map<string, number>();
+
+  /** Cached rendered conversation lines from the last renderConversationTurns call. */
+  private cachedConversationLines: string[] = [];
+
+  /** Width at which the cached conversation lines were rendered. -1 means not cached. */
+  private cachedConversationWidth = -1;
 
   /** Whether the conversation line count cache needs to be recomputed. */
   private conversationLinesDirty = true;
@@ -314,6 +323,10 @@ export class AgentViewerOverlay implements Component {
     this.selectedAgentId = undefined;
     this.scrollOffset = 0;
     this.autoScroll = false;
+    this.cachedConversationLines = [];
+    this.cachedConversationWidth = -1;
+    this.conversationLinesDirty = true;
+    this.avgLinesPerMessage.clear();
   }
 
   /** Number of agent entries currently tracked. */
@@ -397,8 +410,11 @@ export class AgentViewerOverlay implements Component {
     // Extract AgentMessage from the event and update the messages list.
     this.appendMessageFromEvent(agentId, event);
 
-    // Invalidate cached line count so computeScrollMax re-renders.
-    this.conversationLinesDirty = true;
+    // Invalidate cached line count for the currently viewed agent only.
+    if (agentId === this.selectedAgentId) {
+      this.conversationLinesDirty = true;
+      this.cachedConversationWidth = -1;
+    }
 
     // Auto-scroll to the bottom when in detail view with autoScroll enabled.
     if (this.autoScroll && this.viewMode === "detail" && this.selectedAgentId === agentId) {
@@ -564,7 +580,7 @@ export class AgentViewerOverlay implements Component {
    * Silently ignores missing or inaccessible directories — the maps will
    * be populated lazily by {@link pushStreamEvent} calls instead.
    */
-  prepopulateStreamFiles(streamDir: string): void {
+  async prepopulateStreamFiles(streamDir: string): Promise<void> {
     // Dedup relies on update() being synchronous: it calls agents.set()
     // immediately, so the first file-kind block inserts the agent and
     // subsequent blocks for the same agent see has()===true and skip —
@@ -590,7 +606,7 @@ export class AgentViewerOverlay implements Component {
           const filePath = join(streamDir, entry);
           this.messagesFiles.set(agentId, filePath);
           ensureStaleEntry(agentId);
-          this.loadMessagesFromDiskIntoCache(agentId, filePath);
+          await this.loadMessagesFromDiskIntoCache(agentId, filePath);
           continue;
         }
 
@@ -615,18 +631,36 @@ export class AgentViewerOverlay implements Component {
   /**
    * Parse a {@code .messages.jsonl} file into cached {@link agentMessages}.
    *
-   * Each line is a serialized {@link AgentMessage}. Messages are merged with
-   * any already-cached entries (disk messages first/older, in-memory entries
-   * last/newer) and capped to {@link getDisplayMaxAgentEvents} keeping the most
-   * recent. Malformed lines are skipped.
+   * Streams the file line-by-line via {@code createReadStream} +
+   * {@code createInterface} with a ring buffer capped at
+   * {@link getDisplayMaxAgentEvents} to keep memory usage bounded.
+   *
+   * Messages are merged with any already-cached entries (disk messages
+   * first/older, in-memory entries last/newer) and capped to
+   * {@link getDisplayMaxAgentEvents} keeping the most recent.
+   * Empty files are a no-op. Malformed lines are skipped and logged.
    */
-  private loadMessagesFromDiskIntoCache(agentId: string, filePath: string): void {
+  private async loadMessagesFromDiskIntoCache(agentId: string, filePath: string): Promise<void> {
     try {
-      const content = readFileSync(filePath, "utf-8");
-      const lines = content.trimEnd().split("\n");
+      const maxAgentEvents = getDisplayMaxAgentEvents();
+      const lines: string[] = [];
+      const rl = createInterface({
+        input: createReadStream(filePath, "utf-8"),
+        crlfDelay: Infinity,
+      });
+
+      for await (const line of rl) {
+        if (!line) continue;
+        lines.push(line);
+        if (lines.length > maxAgentEvents) {
+          lines.shift();
+        }
+      }
+
+      if (lines.length === 0) return;
+
       const disk: AgentMessage[] = [];
       for (const line of lines) {
-        if (!line) continue;
         try {
           const parsed = jsonParse<AgentMessage>(line);
           disk.push(parsed);
@@ -642,7 +676,6 @@ export class AgentViewerOverlay implements Component {
       // Disk messages are older (written first); in-memory entries are newer
       // (from live pushStreamEvent calls during this session).
       const merged = [...disk, ...existing];
-      const maxAgentEvents = getDisplayMaxAgentEvents();
       if (merged.length > maxAgentEvents) {
         merged.splice(0, merged.length - maxAgentEvents);
       }
@@ -824,15 +857,15 @@ export class AgentViewerOverlay implements Component {
   private computeViewportHeight(): number {
     const termHeight = this.tui?.terminal?.rows;
     if (!termHeight || termHeight < 1) return 15;
-    const maxHeightStr = AgentViewerOverlay.overlayOptions.maxHeight;
-    let rawMaxHeight: number;
-    if (maxHeightStr.endsWith("%")) {
-      rawMaxHeight = Math.ceil((Number(maxHeightStr.slice(0, -1)) / 100) * termHeight);
-    } else {
-      rawMaxHeight = Number(maxHeightStr);
-    }
+    const rawMaxHeight = Math.ceil(
+      this.percentToNumber(AgentViewerOverlay.overlayOptions.maxHeight) * termHeight,
+    );
     const maxHeight = Math.max(1, rawMaxHeight);
     return Math.max(1, maxHeight - AgentViewerOverlay.BORDER_HEIGHT_OVERHEAD);
+  }
+
+  private percentToNumber(percent: `${number}%`) {
+    return Number(percent.slice(0, -1)) / 100;
   }
 
   private addBorder(lines: string[], outerWidth: number): string[] {
@@ -921,8 +954,13 @@ export class AgentViewerOverlay implements Component {
       }
 
       if (entry.raw !== undefined) {
-        const firstLine = entry.raw.split("\n")[0] ?? entry.raw;
-        lines.push(theme.fg("muted", truncateToWidth(firstLine, contentW, "…", false)));
+        const truncated =
+          entry.raw.length > MAX_RAW_LENGTH
+            ? entry.raw.slice(0, MAX_RAW_LENGTH) + "..."
+            : entry.raw;
+        for (const rawLine of truncated.split("\n")) {
+          lines.push(theme.fg("muted", rawLine));
+        }
       }
     }
 
@@ -986,8 +1024,22 @@ export class AgentViewerOverlay implements Component {
     lines.push(theme.fg("accent", "Conversation:"));
     lines.push("");
 
-    const messages = this.getConversationMessages(entry.id);
-    const conversationLines = this.renderConversationTurns(messages, width);
+    const safeWidth = !isNaN(width) ? width : 0;
+    let conversationLines: string[];
+    if (this.conversationLinesDirty || safeWidth !== this.cachedConversationWidth) {
+      const messages = this.getConversationMessages(entry.id);
+      conversationLines = this.renderConversationTurns(messages, safeWidth);
+      this.cachedConversationLines = conversationLines;
+      this.cachedConversationWidth = safeWidth;
+      this.conversationLinesDirty = false;
+      this.avgLinesPerMessage.set(
+        entry.id,
+        messages.length > 0 ? conversationLines.length / messages.length : 1,
+      );
+    } else {
+      conversationLines = this.cachedConversationLines;
+    }
+
     if (conversationLines.length === 0) {
       lines.push(theme.fg("muted", "No conversation recorded."));
       lines.push("");
@@ -1043,6 +1095,9 @@ export class AgentViewerOverlay implements Component {
         this.selectedAgentId = agentId;
         this.autoScroll = true;
         this.scrollOffset = 0;
+        this.conversationLinesDirty = true;
+        this.cachedConversationWidth = -1;
+        this.avgLinesPerMessage.delete(agentId);
         this.tui.requestRender();
       }
     }
@@ -1080,15 +1135,14 @@ export class AgentViewerOverlay implements Component {
     // Summary section: "Summary:" + content + empty line = 3
     const summaryLines = entry.summary ? 4 : 0;
     // Conversation block: "Conversation:" header + turn lines + trailing empty line.
-    // Use cached line count unless pushStreamEvent dirtied it.
-    if (this.conversationLinesDirty) {
-      this.cachedConversationLineCount = this.renderConversationTurns(
-        this.getConversationMessages(this.selectedAgentId),
-        this.lastRenderWidth,
-      ).length;
-      this.conversationLinesDirty = false;
-    }
-    const totalConversationBlock = 2 + this.cachedConversationLineCount + 1;
+    // When dirty, estimate via heuristic to avoid a full pi component render.
+    const messageCount = this.getConversationMessages(entry.id).length;
+    const convLineCount = this.conversationLinesDirty
+      ? messageCount === 0
+        ? 1
+        : Math.ceil(messageCount * (this.avgLinesPerMessage.get(entry.id) ?? 1))
+      : this.cachedConversationLines.length;
+    const totalConversationBlock = 2 + convLineCount + 1;
     // Help text: 1
     const footerLines = 1;
 
@@ -1106,7 +1160,7 @@ export class AgentViewerOverlay implements Component {
    * agent entries from the supervisor.
    */
   static wireOverlayEvents(params: { eventBus: TypedEventBus; supervisor: AgentSupervisor }): {
-    connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
+    connect: (viewer: AgentViewerOverlay, streamDir: string) => Promise<void>;
     unsubs: Array<() => void>;
   } {
     const { eventBus, supervisor } = params;
@@ -1199,7 +1253,7 @@ export class AgentViewerOverlay implements Component {
 
     let viewer!: AgentViewerOverlay;
 
-    const connect = (v: AgentViewerOverlay, streamDir: string) => {
+    const connect = async (v: AgentViewerOverlay, streamDir: string) => {
       viewer = v;
       connected = true;
       viewer.setStreamDir(streamDir);
@@ -1213,7 +1267,7 @@ export class AgentViewerOverlay implements Component {
       }
       eventBuffer.length = 0;
 
-      viewer.prepopulateStreamFiles(streamDir);
+      await viewer.prepopulateStreamFiles(streamDir);
 
       for (const agent of supervisor.getAllAgents()) {
         const status = AgentViewerOverlay.mapStatus(agent.status);
