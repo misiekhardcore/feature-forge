@@ -93,17 +93,11 @@ export const AgentConfigSchema = Type.Object({
  * {@link DEFAULT_FORGE_CONFIG}.
  */
 export const DisplayConfigSchema = Type.Object({
-  /** Maximum characters of raw agent output to display per entry. Defaults to 500. */
-  maxRawLength: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 500 }))),
-
   /** Maximum events kept in memory per agent (sliding window FIFO). Defaults to 200. */
   maxAgentEvents: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 200 }))),
 
   /** Maximum events buffered before connect() is called (burst protection). Defaults to 2000. */
   maxPreconnectBuffer: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 2000 }))),
-
-  /** Maximum characters of a send_task prompt snippet shown in the TUI. Defaults to 100. */
-  maxTaskSnippetLength: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1, default: 100 }))),
 
   /** Maximum height of the agent viewer overlay.
    *
@@ -136,6 +130,9 @@ export const DevConfigSchema = Type.Object({
 export const ForgeConfigSchema = Type.Object({
   /** Logging verbosity. Defaults to {@link LogLevel.INFO}. */
   logLevel: Type.Readonly(Type.Enum(LogLevel)),
+
+  /** Prefix for log filenames to distinguish agent logs. Defaults to `"forge"`. */
+  logPrefix: Type.Readonly(Type.Optional(Type.String())),
 
   /** Workspace provider to use when creating agent workspaces. */
   workspaceProvider: Type.Readonly(Type.Enum(WorkspaceProviderKind)),

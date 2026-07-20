@@ -331,12 +331,28 @@ export class ConfigLoader {
    * - FORGE_LOG_DIR       → logDir (string, used as-is)
    * - FORGE_WORKTREE_SYMLINKS → worktreeSymlinks (comma-separated paths)
    * - FORGE_DEV           → dev.enabled (boolean, "1" or "true")
+   * - FORGE_SPEC          → logPrefix (string, extracted from agent spec id)
    *
-   * Internal plumbing (FORGE_PARENT_SOCKET, FORGE_SPEC) is handled directly
-   * in the files that use it — they are transport-level, not config values.
+   * Internal plumbing (FORGE_PARENT_SOCKET) is handled directly
+   * by the files that use it — it is transport-level, not a config value.
    */
   resolveForgeEnvOverlay(): Record<string, unknown> {
     const overlay: Record<string, unknown> = {};
+
+    // Extract agent identity from FORGE_SPEC for log prefix.
+    // In child processes, FORGE_SPEC contains the full agent spec as JSON
+    // with a unique `id` field (e.g. "builder-a3f8c2").
+    const forgeSpecRaw = process.env.FORGE_SPEC;
+    if (forgeSpecRaw) {
+      try {
+        const spec = JSON.parse(forgeSpecRaw) as { id?: string };
+        if (spec.id) {
+          overlay.logPrefix = spec.id;
+        }
+      } catch {
+        // Malformed FORGE_SPEC — ignore, logPrefix stays "forge".
+      }
+    }
 
     const timeoutMs = process.env.FORGE_TASK_TIMEOUT_MS;
     if (timeoutMs !== undefined) {
@@ -386,6 +402,7 @@ export class ConfigLoader {
 
     return resolveConfig({
       logLevel: decoded.logLevel,
+      logPrefix: decoded.logPrefix,
       workspaceProvider: decoded.workspaceProvider,
       agents,
       defaultAgent: decoded.defaultAgent,

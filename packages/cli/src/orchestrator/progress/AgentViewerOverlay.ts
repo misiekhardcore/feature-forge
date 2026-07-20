@@ -47,13 +47,6 @@ export interface AgentViewerEntry {
 export type ViewMode = "list" | "detail";
 
 /**
- * Maximum characters of raw agent output to display per entry.
- */
-function getDisplayMaxRawLength(): number {
-  return ForgeConfig.getInstance().getDisplayMaxRawLength();
-}
-
-/**
  * Maximum events kept in memory per agent (sliding window FIFO).
  * Older events are evicted but persist on disk via JSONL for lazy loading.
  */
@@ -928,13 +921,8 @@ export class AgentViewerOverlay implements Component {
       }
 
       if (entry.raw !== undefined) {
-        const truncated =
-          entry.raw.length > getDisplayMaxRawLength()
-            ? entry.raw.slice(0, getDisplayMaxRawLength()) + "..."
-            : entry.raw;
-        for (const rawLine of truncated.split("\n")) {
-          lines.push(theme.fg("muted", rawLine));
-        }
+        const firstLine = entry.raw.split("\n")[0] ?? entry.raw;
+        lines.push(theme.fg("muted", truncateToWidth(firstLine, contentW, "…", false)));
       }
     }
 

@@ -53,22 +53,14 @@ export class FileLogger extends Logger {
   }
 
   /**
-   * Resolve a human-readable prefix for log filenames.
+   * Resolve a human-readable prefix for log filenames from configuration.
    *
-   * For child agents, extracts the agent id from the `FORGE_SPEC`
-   * environment variable (e.g. "builder-a3f8c2").
-   * Falls back to `"forge"` for the parent orchestrator or when
-   * the spec is unreadable.
+   * Delegates to {@link ForgeConfig.getLogPrefix}, which defaults to
+   * `"forge"` for the orchestrator. Child agents receive their agent id
+   * via the config initialisation path.
    */
   private static resolveLogPrefix(): string {
-    const specRaw = process.env.FORGE_SPEC;
-    if (!specRaw) return "forge";
-    try {
-      const spec = JSON.parse(specRaw) as { id?: string };
-      return spec.id ?? "forge";
-    } catch {
-      return "forge";
-    }
+    return ForgeConfig.getInstance().getLogPrefix();
   }
 
   /** Lazily-initialised write stream — no file created until first write. */

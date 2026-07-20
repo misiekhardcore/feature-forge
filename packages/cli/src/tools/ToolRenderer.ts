@@ -4,9 +4,8 @@ import type {
   ThemeColor,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
+import { Box, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
-import { ForgeConfig } from "../config";
 import type { SendTaskParams, SpawnAgentParams } from "../ipc/messages";
 
 /** Background colours assigned per tool — derived from pi's Theme.bg parameter type. */
@@ -51,15 +50,12 @@ function resultText(result: AgentToolResult<unknown>, theme: Theme): string {
 
 /** Shared renderCall and renderResult factories for tool TUI display. */
 export class ToolRenderer {
-  static get MAX_TASK_SNIPPET_LENGTH(): number {
-    return ForgeConfig.getInstance().getDisplayMaxTaskSnippetLength();
-  }
   // ── spawn_agent ──────────────────────────────────────────────
 
   static spawnAgentCall = (
     args: SpawnAgentParams,
     theme: Theme,
-    context: { state: Record<string, unknown> },
+    context: { state: Record<string, unknown>; expanded?: boolean },
   ) => {
     const box = shellBox(context, theme, "spawn_agent");
     let content = header(theme, "success", `spawn_agent ${args.role}`);
@@ -67,6 +63,13 @@ export class ToolRenderer {
       content += " " + theme.fg("muted", `(${args.model})`);
     }
     box.addChild(new Text(content, 1, 0));
+    if (context.expanded && args.systemPrompt) {
+      const cols = process.stdout.columns ?? 80;
+      const available = Math.max(20, cols - 4);
+      for (const line of args.systemPrompt.split("\n")) {
+        box.addChild(new Text(theme.fg("muted", truncateToWidth(line, available, "", true)), 1, 0));
+      }
+    }
     return box;
   };
 
@@ -89,11 +92,13 @@ export class ToolRenderer {
     context: { state: Record<string, unknown>; expanded: boolean },
   ) => {
     const box = shellBox(context, theme, "send_task");
-    const maxLen = ToolRenderer.MAX_TASK_SNIPPET_LENGTH;
-    const snippet =
-      context.expanded || args.prompt.length <= maxLen
-        ? args.prompt
-        : args.prompt.substring(0, maxLen - 3) + "...";
+    const cols = process.stdout.columns ?? 80;
+    // Prefix: "send_task agentId "" ≈ 13 + agentId.length + 3 chars
+    const prefixLen = 13 + args.agentId.length + 3;
+    const available = Math.max(20, cols - prefixLen - 4);
+    const snippet = context.expanded
+      ? args.prompt
+      : truncateToWidth(args.prompt, available, "…", false);
     let content = header(theme, "accent", `send_task ${args.agentId}`);
     content += " " + theme.fg("muted", `"${snippet}"`);
     box.addChild(new Text(content, 1, 0));

@@ -209,7 +209,7 @@ describe("AgentViewerOverlay", () => {
       expect(joined).not.toContain("✓");
     });
 
-    it("shows raw output when present", () => {
+    it("shows first line of raw output when present", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "done", { raw: "output line 1\noutput line 2" }));
 
@@ -217,7 +217,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       expect(joined).toContain("output line 1");
-      expect(joined).toContain("output line 2");
+      expect(joined).not.toContain("output line 2");
     });
 
     it("respects width parameter for separator", () => {

@@ -5,7 +5,7 @@
  * in their forge.config file (or when no config file is found at all).
  */
 
-import type { AgentConfig, AgentModelConfig, ForgeConfig } from "./ForgeConfigSchema";
+import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
 /**
@@ -15,7 +15,6 @@ import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
  * is specified for a particular agent.
  */
 export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
-  model: Object.freeze({ model: "gpt-4" }),
   maxToolCalls: 40,
   maxTurns: 100,
 });
@@ -28,6 +27,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
  */
 export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
   logLevel: LogLevel.INFO,
+  logPrefix: "forge",
   workspaceProvider: WorkspaceProviderKind.GitWorktree,
   agents: new Map<string, AgentConfig>(),
   defaultAgent: DEFAULT_AGENT_CONFIG,
@@ -36,10 +36,8 @@ export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
   taskTimeoutMs: 60 * 60 * 1000,
   specDirectories: { flows: [], agents: [] },
   display: {
-    maxRawLength: 500,
     maxAgentEvents: 200,
     maxPreconnectBuffer: 2000,
-    maxTaskSnippetLength: 100,
     maxOverlayHeight: "85%",
   },
   dev: {
@@ -82,16 +80,20 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
 
   return {
     logLevel,
+    logPrefix: overrides.logPrefix ?? DEFAULT_FORGE_CONFIG.logPrefix,
     workspaceProvider: overrides.workspaceProvider ?? DEFAULT_FORGE_CONFIG.workspaceProvider,
     agents: resolvedAgents,
-    defaultAgent: {
-      // Deep-clone model to decouple from input reference
-      model: overrides.defaultAgent?.model
-        ? { ...overrides.defaultAgent.model }
-        : ({ ...DEFAULT_AGENT_CONFIG.model } as AgentModelConfig),
-      maxToolCalls: overrides.defaultAgent?.maxToolCalls ?? DEFAULT_AGENT_CONFIG.maxToolCalls,
-      maxTurns: overrides.defaultAgent?.maxTurns ?? DEFAULT_AGENT_CONFIG.maxTurns,
-    },
+    defaultAgent: ((): AgentConfig => {
+      const modelOverride = overrides.defaultAgent?.model;
+      const modelDefault = DEFAULT_AGENT_CONFIG.model;
+      return {
+        maxToolCalls: overrides.defaultAgent?.maxToolCalls ?? DEFAULT_AGENT_CONFIG.maxToolCalls,
+        maxTurns: overrides.defaultAgent?.maxTurns ?? DEFAULT_AGENT_CONFIG.maxTurns,
+        ...(modelOverride || modelDefault
+          ? { model: modelOverride ? { ...modelOverride } : { ...modelDefault! } }
+          : {}),
+      };
+    })(),
     logDir: overrides.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
     worktreeSymlinks: overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,

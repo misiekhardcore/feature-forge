@@ -4,8 +4,8 @@ import { DEFAULT_AGENT_CONFIG, DEFAULT_FORGE_CONFIG, resolveConfig } from "./For
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
 describe("DEFAULT_AGENT_CONFIG", () => {
-  it("has a default model with a string identifier", () => {
-    expect(DEFAULT_AGENT_CONFIG.model?.model).toBe("gpt-4");
+  it("has no default model", () => {
+    expect(DEFAULT_AGENT_CONFIG.model).toBeUndefined();
   });
 
   it("has maxToolCalls set to 40", () => {
@@ -65,7 +65,7 @@ describe("resolveConfig", () => {
     expect(config.logLevel).toBe(LogLevel.INFO);
     expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
     expect(config.agents.size).toBe(0);
-    expect(config.defaultAgent.model?.model).toBe("gpt-4");
+    expect(config.defaultAgent.model).toBeUndefined();
   });
 
   it("overrides logLevel", () => {

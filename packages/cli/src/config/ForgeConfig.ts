@@ -130,6 +130,15 @@ export class ForgeConfig {
   }
 
   /**
+   * Return the prefix for log filenames (e.g. agent id or "forge").
+   *
+   * Defaults to `"forge"`.
+   */
+  getLogPrefix(): string {
+    return this.getConfig().logPrefix ?? DEFAULT_FORGE_CONFIG.logPrefix;
+  }
+
+  /**
    * Return the directory for log files.
    *
    * Defaults to `.forge/logs` when config is loaded with defaults.
@@ -196,15 +205,6 @@ export class ForgeConfig {
   }
 
   /**
-   * Return the maximum characters of raw agent output to display per entry.
-   *
-   * Defaults to 500.
-   */
-  getDisplayMaxRawLength(): number {
-    return this.getDisplayConfig().maxRawLength ?? DEFAULT_FORGE_CONFIG.display.maxRawLength!;
-  }
-
-  /**
    * Return the maximum events kept in memory per agent (sliding window FIFO).
    *
    * Defaults to 200.
@@ -222,19 +222,6 @@ export class ForgeConfig {
     return (
       this.getDisplayConfig().maxPreconnectBuffer ??
       DEFAULT_FORGE_CONFIG.display.maxPreconnectBuffer!
-    );
-  }
-
-  /**
-   * Return the maximum characters of a send_task prompt snippet shown
-   * in the TUI. Longer prompts are truncated with "...".
-   *
-   * Defaults to 100.
-   */
-  getDisplayMaxTaskSnippetLength(): number {
-    return (
-      this.getDisplayConfig().maxTaskSnippetLength ??
-      DEFAULT_FORGE_CONFIG.display.maxTaskSnippetLength!
     );
   }
 
