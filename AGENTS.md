@@ -37,6 +37,7 @@ Specs are resolved by frontmatter `id`, not filename:
 - **Documentation**: ❌ Avoid undocumented architectural shifts $\to$ ✅ Update an ADR in `docs/adr` for any new abstraction or public API.
 - **Concurrency**: ❌ Avoid assuming shared in-memory state $\to$ ✅ Use explicit interfaces and serializable data for inter-process communication.
 - **Consistency**: ❌ Avoid divergent styles $\to$ ✅ Follow existing naming and TypeScript conventions of the surrounding package.
+- **TUI rendering**: ❌ Never use raw `.length` or `.slice()` to measure or truncate strings that may contain ANSI escape codes, OSC hyperlinks, or multi-byte characters $\to$ ✅ Always use `visibleWidth()` to measure and `truncateToWidth()` / `wrapTextWithAnsi()` from `@earendil-works/pi-tui` to truncate. Measure twice, cut once — raw string length is not display width.
 
 ## Procedural Workflows
 
