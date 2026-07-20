@@ -73,8 +73,19 @@ export interface StatusContribution {
   message: string;
 }
 
+/** Contribution from a "session" step — carries key/value pairs set during the routine. */
+export interface SessionContribution {
+  readonly type: "session";
+  readonly params: Record<string, string>;
+  /** The event phase label (e.g. "session-set"). */
+  readonly phase: string;
+  /** Human-readable description of the current progress. */
+  readonly message: string;
+}
+
 export type DisplayContribution =
   | AgentContribution
   | LoopContribution
   | WorkspaceContribution
-  | StatusContribution;
+  | StatusContribution
+  | SessionContribution;

@@ -18,6 +18,8 @@ export interface AccumulatedState {
   branch?: string;
   /** Loop continueWhile expression, if the routine uses a loop. */
   continueWhile?: string;
+  /** Override for the result suffix, set by session contributions. */
+  resultSnippet?: string;
 }
 
 /**
