@@ -1,8 +1,9 @@
-// @feature-forge/agent-viewer-test
+// @feature-forge/debug
 //
-// Pure data factories for AgentViewerOverlay test scenarios.
-// No dependency on AgentViewerOverlay, @feature-forge/cli, or @feature-forge/shared.
-// The cli extension imports these and wires them into actual overlays.
+// Dev-only test scenarios and commands.
+// Scenarios are pure data factories for AgentViewerOverlay.
+// Commands accept CLI-specific components via dependency interfaces
+// to avoid importing @feature-forge/cli directly.
 
 export type {
   RenderHelpers,
