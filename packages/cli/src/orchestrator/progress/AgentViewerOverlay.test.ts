@@ -12,6 +12,7 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
+import { AgentViewerBase } from "./AgentViewerBase";
 import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
 import type { AgentViewerEntry } from "./types";
@@ -512,21 +513,21 @@ describe("AgentViewerOverlay", () => {
     it("formats seconds when less than a minute", () => {
       const now = Date.now();
       const recent = new Date(now - 30 * 1000);
-      const result = AgentViewerOverlay.formatElapsed(recent);
+      const result = AgentViewerBase.formatElapsed(recent);
       expect(result).toMatch(/^\d+s$/);
     });
 
     it("formats minutes and seconds when less than an hour", () => {
       const now = Date.now();
       const recent = new Date(now - 120 * 1000);
-      const result = AgentViewerOverlay.formatElapsed(recent);
+      const result = AgentViewerBase.formatElapsed(recent);
       expect(result).toMatch(/^\d+m \d+s$/);
     });
 
     it("formats hours when elapsed exceeds one hour", () => {
       const now = Date.now();
       const old = new Date(now - 4000 * 1000);
-      const result = AgentViewerOverlay.formatElapsed(old);
+      const result = AgentViewerBase.formatElapsed(old);
       expect(result).toMatch(/^\d+h \d+m \d+s$/);
     });
   });

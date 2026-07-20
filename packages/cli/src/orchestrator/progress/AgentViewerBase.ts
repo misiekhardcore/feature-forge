@@ -21,6 +21,22 @@ export abstract class AgentViewerBase {
   static readonly BORDER_HEIGHT_OVERHEAD = 4;
 
   /**
+   * Format a human-readable elapsed time string from a creation timestamp.
+   *
+   * Computed dynamically so the value stays current when the overlay is open.
+   * The result is not cached — callers should compute it at render time.
+   */
+  static formatElapsed(createdAt: Date): string {
+    const ms = Date.now() - createdAt.getTime();
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  }
+
+  /**
    * Compute the content width available inside the border, clamped to 0
    * so that zero-width terminals never produce negative dimensions.
    */

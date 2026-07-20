@@ -66,7 +66,7 @@ export class AgentListView {
       const cursor = isSelected ? "→" : " ";
       const idStyled = isSelected ? theme.fg("accent", id) : id;
       const roleSuffix = entry.role ? theme.fg("muted", `(${entry.role})`) : "";
-      const elapsedSuffix = entry.elapsed ? theme.fg("muted", entry.elapsed) : "";
+      const elapsedSuffix = theme.fg("muted", AgentViewerBase.formatElapsed(entry.createdAt));
       lines.push(
         `${cursor} ${theme.fg(iconColor, icon)} ${idStyled} ${roleSuffix} ${elapsedSuffix}`,
       );

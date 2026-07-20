@@ -10,6 +10,4 @@ export interface RunningAgentEntry extends AgentEntryBase {
   status: "started";
   /** Most recent formatted stream line for this agent. */
   lastStreamLine?: string;
-  /** Optional elapsed time string (e.g. "2m 14s"). */
-  elapsed?: string;
 }
