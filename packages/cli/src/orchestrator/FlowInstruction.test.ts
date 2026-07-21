@@ -11,12 +11,14 @@ import {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
+  isRoutineRefInstruction,
   LoopInstructionSchema,
   makeLoopInstruction,
   makeParallelInstruction,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -866,5 +868,84 @@ describe("makeLoopInstruction", () => {
     expect(instr.steps).toHaveLength(1);
     expect(instr.continueWhile).toBe("!results.r?.parsed?.passed");
     expect(instr.accumulateFrom).toEqual(["review"]);
+  });
+});
+
+describe("RoutineRefInstructionSchema", () => {
+  it("validates a minimal routine ref instruction", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("validates a routine ref with output_as", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+      output_as: "review_result",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("rejects missing target", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("rejects empty target", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("ignores extra unrecognised fields", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+      routine: "inspect",
+    });
+    expect(result).toBe(true);
+  });
+});
+
+describe("isRoutineRefInstruction", () => {
+  it("returns true for routine instruction", () => {
+    expect(isRoutineRefInstruction({ type: "routine", id: "call-review", target: "review" })).toBe(
+      true,
+    );
+  });
+
+  it("returns false for agent instruction", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "agent",
+        id: "a1",
+        systemPrompt: "build",
+        prompt: "do it",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for loop instruction", () => {
+    expect(isRoutineRefInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for workspace instruction", () => {
+    expect(
+      isRoutineRefInstruction({ type: "workspace", id: "ws1", provider: "git-worktree" }),
+    ).toBe(false);
   });
 });
