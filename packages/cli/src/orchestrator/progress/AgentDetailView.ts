@@ -11,6 +11,9 @@ import { ScrollableBox } from "./ScrollableBox";
 
 /**
  * Renders detailed view of a single agent's conversation and logs.
+ *
+ * Composes {@link BorderedContainer} > {@link ScrollableBox} with
+ * conversation-line caching for rendering performance (#154).
  */
 export class AgentDetailView {
   /** Scroll offset for detail view content — delegates to ScrollableBox. */
@@ -44,6 +47,20 @@ export class AgentDetailView {
   private readonly scrollableBox: ScrollableBox;
   private readonly borderedContainer: BorderedContainer;
 
+  // ── Conversation cache (#154 perf) ───────────────────────
+
+  /** Cached rendered conversation lines from the last render call. */
+  private cachedConversationLines: string[] = [];
+
+  /** Width at which the cached conversation lines were rendered. -1 means not cached. */
+  private cachedConversationWidth = -1;
+
+  /** Whether the conversation line count cache needs to be recomputed. */
+  private conversationLinesDirty = true;
+
+  /** Heuristic: average lines rendered per message, tracked per-agent. */
+  private avgLinesPerMessage = new Map<string, number>();
+
   constructor(
     state: AgentViewerState,
     theme: Theme,
@@ -72,11 +89,12 @@ export class AgentDetailView {
   }
 
   /**
-   * Signal that new content has arrived. Rendering is stateless (full
-   * component tree is rebuilt on every render call), so this is a no-op.
+   * Mark the conversation cache as dirty — the next render will
+   * recompute conversation lines.
    */
   markDirty(): void {
-    // no-op: render() always rebuilds from state
+    this.conversationLinesDirty = true;
+    this.cachedConversationWidth = -1;
   }
 
   render(width: number): string[] {
@@ -121,18 +139,31 @@ export class AgentDetailView {
       this.scrollableBox.addChild(new Spacer(1));
     }
 
-    // Conversation
+    // Conversation (with caching from #154)
     this.scrollableBox.addChild(new Text(theme.fg("accent", "Conversation:"), 0, 0));
     this.scrollableBox.addChild(new Spacer(1));
-    const messages = this.state.getConversationMessages(entry.id);
-    const convLines = this.conversationRenderer.render(
-      messages,
-      BorderedContainer.contentWidth(width),
-    );
-    if (convLines.length === 0) {
+
+    const contentWidth = BorderedContainer.contentWidth(width);
+    let conversationLines: string[];
+
+    if (this.conversationLinesDirty || width !== this.cachedConversationWidth) {
+      const messages = this.state.getConversationMessages(entry.id);
+      conversationLines = this.conversationRenderer.render(messages, contentWidth);
+      this.cachedConversationLines = conversationLines;
+      this.cachedConversationWidth = width;
+      this.conversationLinesDirty = false;
+      this.avgLinesPerMessage.set(
+        entry.id,
+        messages.length > 0 ? conversationLines.length / messages.length : 1,
+      );
+    } else {
+      conversationLines = this.cachedConversationLines;
+    }
+
+    if (conversationLines.length === 0) {
       this.scrollableBox.addChild(new Text(theme.fg("muted", "No conversation recorded."), 0, 0));
     } else {
-      this.scrollableBox.addChild(new StaticContent(convLines));
+      this.scrollableBox.addChild(new StaticContent(conversationLines));
     }
     this.scrollableBox.addChild(new Spacer(1));
 
