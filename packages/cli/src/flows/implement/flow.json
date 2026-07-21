@@ -69,16 +69,22 @@
               "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files, all tests pass, and all prior feedback is resolved."
             },
             {
-              "type": "routine",
-              "id": "call_review",
-              "target": "review",
-              "output_as": "call_review"
-            },
-            {
-              "type": "routine",
-              "id": "call_verify",
-              "target": "verify",
-              "output_as": "call_verify"
+              "type": "parallel",
+              "id": "inspect",
+              "steps": [
+                {
+                  "type": "routine",
+                  "id": "call_review",
+                  "target": "review",
+                  "output_as": "call_review"
+                },
+                {
+                  "type": "routine",
+                  "id": "call_verify",
+                  "target": "verify",
+                  "output_as": "call_verify"
+                }
+              ]
             }
           ]
         }
