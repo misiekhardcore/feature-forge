@@ -488,8 +488,9 @@ describe("FlowDefinitionSchema", () => {
     orchestrator: {
       systemPrompt: "You are the orchestrator.",
     },
-    routines: {
-      run_build_loop: {
+    routines: [
+      {
+        id: "run_build_loop",
         params: [
           { name: "task", description: "The task description" },
           { name: "plan", description: "The implementation plan" },
@@ -545,7 +546,8 @@ describe("FlowDefinitionSchema", () => {
           { type: "cleanup" as const, id: "cleanup", of: "ws" },
         ],
       },
-      open_pr: {
+      {
+        id: "open_pr",
         params: [
           { name: "workspace" },
           { name: "title" },
@@ -595,7 +597,7 @@ describe("FlowDefinitionSchema", () => {
           },
         ],
       },
-    },
+    ],
   };
 
   it("validates a complete implement flow", () => {
@@ -643,18 +645,19 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("accepts empty routines object", () => {
-    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, routines: {} })).toBe(true);
+  it("accepts empty routines array", () => {
+    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, routines: [] })).toBe(true);
   });
 
   it("rejects a routine with missing params", () => {
     const invalid = {
       ...validFlow,
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           steps: [{ type: "cleanup", id: "c" }],
         },
-      },
+      ],
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -662,11 +665,12 @@ describe("FlowDefinitionSchema", () => {
   it("rejects a routine with missing steps", () => {
     const invalid = {
       ...validFlow,
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [{ name: "task" }],
         },
-      },
+      ],
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -674,12 +678,13 @@ describe("FlowDefinitionSchema", () => {
   it("rejects a step with unknown type", () => {
     const invalid = {
       ...validFlow,
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [{ type: "unknown", id: "x" }],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow();
   });
@@ -690,8 +695,9 @@ describe("FlowDefinitionSchema", () => {
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [
             {
@@ -704,7 +710,7 @@ describe("FlowDefinitionSchema", () => {
             },
           ],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
@@ -715,8 +721,9 @@ describe("FlowDefinitionSchema", () => {
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [
             {
@@ -735,7 +742,7 @@ describe("FlowDefinitionSchema", () => {
             },
           ],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
@@ -746,12 +753,13 @@ describe("FlowDefinitionSchema", () => {
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [{ type: "agent", id: "a1" }],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
@@ -763,7 +771,7 @@ describe("FlowDefinitionSchema", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: { main: { params: [], steps: [] } },
+        routines: [{ id: "main", params: [], steps: [] }],
       }),
     ).toBe(true);
   });
@@ -775,7 +783,7 @@ describe("FlowDefinitionSchema", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: { main: { params: [], steps: [] } },
+        routines: [{ id: "main", params: [], steps: [] }],
       }),
     ).toBe(false);
   });

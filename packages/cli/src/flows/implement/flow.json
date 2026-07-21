@@ -16,8 +16,9 @@
       "default": "main"
     }
   ],
-  "routines": {
-    "create_workspace": {
+  "routines": [
+    {
+      "id": "create_workspace",
       "params": [
         {
           "name": "branch",
@@ -38,7 +39,8 @@
         }
       ]
     },
-    "run_build_loop": {
+    {
+      "id": "run_build_loop",
       "params": [
         {
           "name": "workspace",
@@ -58,8 +60,8 @@
           "type": "loop",
           "id": "build_loop",
           "maxIterations": 5,
-          "continueWhile": "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
-          "accumulateFrom": ["review", "verify"],
+          "continueWhile": "!results.builder?.parsed?.passed || !results.call_review?.parsed?.passed || !results.call_verify?.parsed?.passed",
+          "accumulateFrom": ["call_review", "call_verify"],
           "steps": [
             {
               "type": "agent",
@@ -72,36 +74,23 @@
               "prompt": "Build: {{prompt}}\n\nPlan:\n{{plan}}\n\nPrevious feedback:\n{{feedback}}\n\nWorkspace: {{workspace}}\n\nEnd your response with a JSON block reporting the build outcome:\n```json\n{\n  \"passed\": true|false,\n  \"summary\": \"Brief description of what was built or attempted\"\n}\n```\n\nOnly report passed: true if you created/modified files, all tests pass, and all prior feedback is resolved."
             },
             {
-              "type": "parallel",
-              "id": "inspect",
-              "steps": [
-                {
-                  "type": "agent",
-                  "id": "review",
-                  "systemPrompt": "review",
-                  "workingDir": {
-                    "path": "{{workspace}}"
-                  },
-                  "parseJson": true,
-                  "prompt": "Review the code for quality: correctness, architecture, standards compliance, error handling, type safety, SOLID principles, and test quality.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
-                },
-                {
-                  "type": "agent",
-                  "id": "verify",
-                  "systemPrompt": "verify",
-                  "workingDir": {
-                    "path": "{{workspace}}"
-                  },
-                  "parseJson": true,
-                  "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nBuild output:\n{{results.builder.raw}}"
-                }
-              ]
+              "type": "routine",
+              "id": "call_review",
+              "target": "review",
+              "output_as": "call_review"
+            },
+            {
+              "type": "routine",
+              "id": "call_verify",
+              "target": "verify",
+              "output_as": "call_verify"
             }
           ]
         }
       ]
     },
-    "open_pr": {
+    {
+      "id": "open_pr",
       "params": [
         {
           "name": "workspace",
@@ -156,7 +145,8 @@
         }
       ]
     },
-    "destroy_workspace": {
+    {
+      "id": "destroy_workspace",
       "params": [
         {
           "name": "workspace",
@@ -171,5 +161,5 @@
         }
       ]
     }
-  }
+  ]
 }

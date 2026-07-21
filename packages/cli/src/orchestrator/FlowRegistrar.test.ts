@@ -118,9 +118,7 @@ function makeFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "test-orchestrator" },
-    routines: overrides.routines ?? {
-      build: { params: [], steps: [] },
-    },
+    routines: overrides.routines ?? [{ id: "build", params: [], steps: [] }],
     ...overrides,
   };
 }
@@ -313,9 +311,7 @@ describe("FlowRegistrar", () => {
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
-          routines: {
-            step1: { params: [], steps: [] },
-          },
+          routines: [{ id: "step1", params: [], steps: [] }],
         }),
       );
 
@@ -343,10 +339,10 @@ describe("FlowRegistrar", () => {
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
-          routines: {
-            step1: { params: [], steps: [] },
-            step2: { params: [], steps: [] },
-          },
+          routines: [
+            { id: "step1", params: [], steps: [] },
+            { id: "step2", params: [], steps: [] },
+          ],
         }),
       );
 
@@ -389,7 +385,7 @@ describe("FlowRegistrar", () => {
     it("registers orchestrator commands even when a flow has no routines", async () => {
       readdirMock.mockResolvedValue([{ name: "empty-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
-      flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: {} }));
+      flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: [] }));
 
       const cmdRegistry = {
         registerInstance: vi.fn().mockReturnValue(undefined),

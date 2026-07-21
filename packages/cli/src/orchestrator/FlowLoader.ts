@@ -124,10 +124,10 @@ export class FlowLoader {
   private static validateRoutineSteps(flow: FlowDefinition): void {
     const stepsSchema = Type.Array(FlowInstructionSchema);
     const allErrors: string[] = [];
-    for (const [routineName, routine] of Object.entries(flow.routines)) {
+    for (const routine of flow.routines) {
       if (!Value.Check(stepsSchema, routine.steps)) {
         for (const e of Value.Errors(stepsSchema, routine.steps)) {
-          allErrors.push(`  - /routines/${routineName}/steps${e.instancePath}: ${e.message}`);
+          allErrors.push(`  - /routines/${routine.id}/steps${e.instancePath}: ${e.message}`);
         }
       }
     }
@@ -143,8 +143,8 @@ export class FlowLoader {
   ): string[] {
     const errors: string[] = [];
 
-    for (const [routineName, routine] of Object.entries(flow.routines)) {
-      const scope = `routine "${routineName}"`;
+    for (const routine of flow.routines) {
+      const scope = `routine "${routine.id}"`;
       errors.push(...FlowLoader.checkDuplicateIds(routine.steps as FlowInstruction[], scope));
       FlowLoader.walkInstructions(
         routine.steps as FlowInstruction[],
@@ -154,6 +154,15 @@ export class FlowLoader {
         knownProviders,
         new Set(),
       );
+    }
+
+    // Validate no duplicate routine IDs (lost compile-time guarantee from Record→Array migration).
+    const routineIds = new Set<string>();
+    for (const routine of flow.routines) {
+      if (routineIds.has(routine.id)) {
+        errors.push(`Duplicate routine id "${routine.id}"`);
+      }
+      routineIds.add(routine.id);
     }
 
     return errors;
@@ -222,6 +231,12 @@ export class FlowLoader {
             );
           }
         }
+      }
+
+      if (instruction.type === "routine") {
+        // Routine ref steps have no nested steps to walk — the target
+        // flow is resolved at execution time, not load time.
+        continue;
       }
 
       if (isLoopInstruction(instruction)) {
@@ -299,13 +314,17 @@ export class FlowLoader {
     const parseJsonIds = new Set<string>();
     FlowLoader.collectIdsByFlag(loop.steps, "parseJson", parseJsonIds);
 
+    // Routine ref instructions always produce a parsed result.
+    const routineRefIds = new Set<string>();
+    FlowLoader.collectIdsByType(loop.steps, "routine", routineRefIds);
+
     for (const targetId of loop.accumulateFrom) {
       if (!reachableIds.has(targetId)) {
         errors.push(
           `accumulateFrom references unknown id "${targetId}" in loop ` +
             `"${path.join(" → ")}" (not found in loop body)`,
         );
-      } else if (!parseJsonIds.has(targetId)) {
+      } else if (!parseJsonIds.has(targetId) && !routineRefIds.has(targetId)) {
         errors.push(
           `accumulateFrom id "${targetId}" points to an instruction ` +
             `without parseJson: true in loop "${path.join(" → ")}"`,
@@ -334,6 +353,21 @@ export class FlowLoader {
       }
       if (isContainerInstruction(instruction)) {
         FlowLoader.collectIdsByFlag(instruction.steps, flag, ids);
+      }
+    }
+  }
+
+  private static collectIdsByType(
+    instructions: FlowInstruction[],
+    type: string,
+    ids: Set<string>,
+  ): void {
+    for (const instruction of instructions) {
+      if (instruction.type === type) {
+        ids.add(instruction.id);
+      }
+      if (isContainerInstruction(instruction)) {
+        FlowLoader.collectIdsByType(instruction.steps, type, ids);
       }
     }
   }

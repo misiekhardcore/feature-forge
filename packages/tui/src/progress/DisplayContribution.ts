@@ -83,9 +83,23 @@ export interface SessionContribution {
   readonly message: string;
 }
 
+/** Contribution from a "routine" ref step — tracks inline flattening progress. */
+export interface RoutineRefContribution {
+  readonly type: "routine-ref";
+  /** Target flow name. */
+  readonly flow: string;
+  /** Lifecycle status. */
+  readonly status: "started" | "done" | "error";
+  /** The event phase label. */
+  readonly phase: string;
+  /** Human-readable description of the current progress. */
+  readonly message: string;
+}
+
 export type DisplayContribution =
   | AgentContribution
   | LoopContribution
   | WorkspaceContribution
   | StatusContribution
-  | SessionContribution;
+  | SessionContribution
+  | RoutineRefContribution;

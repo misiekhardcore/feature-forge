@@ -49,13 +49,16 @@ import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 
 // ── Helpers ──────────────────────────────────────────────────
 
-/** Collect all parseJson: true agent IDs within a list of instructions (recursive). */
+/** Collect all parseJson: true agent IDs and routine ref IDs within a list of instructions (recursive). */
 function collectParseJsonIds(
   instructions: FlowInstruction[],
   ids = new Set<string>(),
 ): Set<string> {
   for (const instr of instructions) {
     if (instr.type === "agent" && instr.parseJson) {
+      ids.add(instr.id);
+    }
+    if (instr.type === "routine") {
       ids.add(instr.id);
     }
     if (isContainerInstruction(instr)) {
@@ -128,7 +131,7 @@ function collectFromRoutines(routines: FlowDefinition["routines"]): {
   const loops: LoopInstruction[] = [];
   const specRefs: string[] = [];
 
-  for (const [, routine] of Object.entries(routines)) {
+  for (const routine of routines) {
     collectAgentInstructions(routine.steps as FlowInstruction[], agentTasks);
     collectAgentSpecs(routine.steps as FlowInstruction[], specRefs);
     collectLoops(routine.steps as FlowInstruction[], loops);
@@ -166,7 +169,7 @@ describe("flow round-trip", () => {
 
     it("loads without validation errors", () => {
       expect(flow.name).toBe("implement");
-      expect(Object.keys(flow.routines).length).toBeGreaterThan(0);
+      expect(flow.routines.length).toBeGreaterThan(0);
     });
 
     // ── 2. No unresolved placeholders in any task ──────────────────
@@ -291,8 +294,6 @@ describe("flow round-trip", () => {
     // ── 7. RoutineTool name alignment with tools ──────────
 
     it("routine-based tools match registered RoutineTool names", () => {
-      // tools now come from orchestrator.md frontmatter, not flow.json.
-      // Verify that routine-based tool names match the routine names in the flow.
       const registry = new StepExecutorRegistry();
       const executor = new RoutineExecutor(
         flow,
@@ -302,8 +303,8 @@ describe("flow round-trip", () => {
       );
       const routineToolNames = new Set<string>();
 
-      for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-        const tool = new RoutineTool(flow.name, routineName, executor, routineDef, {
+      for (const routineDef of flow.routines) {
+        const tool = new RoutineTool(flow.name, routineDef, executor, {
           getAgent: vi.fn().mockReturnValue(undefined),
           getAllAgents: vi.fn().mockReturnValue([]),
         } as unknown as AgentSupervisor);
@@ -311,8 +312,8 @@ describe("flow round-trip", () => {
       }
 
       // Each routine is registered as a tool — verify the names match
-      for (const routineName of Object.keys(flow.routines)) {
-        expect(routineToolNames.has(routineName)).toBe(true);
+      for (const routine of flow.routines) {
+        expect(routineToolNames.has(routine.id)).toBe(true);
       }
     });
   });
@@ -358,7 +359,7 @@ describe("flow round-trip", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "test" },
-        routines: { build: { params: [], steps: [] } },
+        routines: [{ id: "build", params: [], steps: [] }],
         params: [{ name: "base", description: "Target branch", default: "main" }],
       };
 
@@ -381,7 +382,7 @@ describe("flow round-trip", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "test" },
-        routines: { build: { params: [], steps: [] } },
+        routines: [{ id: "build", params: [], steps: [] }],
       };
 
       const valid = validate(flowWithoutParams);
@@ -403,7 +404,7 @@ describe("flow round-trip", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "test" },
-        routines: { build: { params: [], steps: [] } },
+        routines: [{ id: "build", params: [], steps: [] }],
         params: [{}],
       };
 

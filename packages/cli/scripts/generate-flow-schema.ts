@@ -13,6 +13,7 @@ import {
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -49,6 +50,8 @@ const defs: Record<string, unknown> = {
   ShellInstruction: ShellInstructionSchema,
 };
 
+defs.RoutineRefInstruction = RoutineRefInstructionSchema;
+
 defs.FlowInstruction = {
   anyOf: [
     { $ref: "#/$defs/WorkspaceInstruction" },
@@ -59,6 +62,7 @@ defs.FlowInstruction = {
     { $ref: "#/$defs/GitInstruction" },
     { $ref: "#/$defs/SessionInstruction" },
     { $ref: "#/$defs/ShellInstruction" },
+    { $ref: "#/$defs/RoutineRefInstruction" },
   ],
 };
 
@@ -79,11 +83,12 @@ const schema = {
     command: { type: "string", minLength: 1 },
     orchestrator: { $ref: "#/$defs/OrchestratorConfig" },
     routines: {
-      type: "object",
-      additionalProperties: {
+      type: "array",
+      items: {
         type: "object",
-        required: ["params", "steps"],
+        required: ["id", "params", "steps"],
         properties: {
+          id: { type: "string", minLength: 1 },
           params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
           steps: {
             type: "array",

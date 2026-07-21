@@ -20,6 +20,8 @@ export interface AccumulatedState {
   continueWhile?: string;
   /** Override for the result suffix, set by session contributions. */
   resultSnippet?: string;
+  /** Target flow names from inlined routine refs (in order of appearance). */
+  routineRefs: string[];
 }
 
 /**
@@ -36,5 +38,6 @@ export function createAccumulatedState(): AccumulatedState {
     workspace: undefined,
     branch: undefined,
     continueWhile: undefined,
+    routineRefs: [],
   };
 }

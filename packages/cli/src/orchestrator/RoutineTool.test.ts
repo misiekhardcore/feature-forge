@@ -35,12 +35,13 @@ function makeFlow(routineParamNames: string[] = []): FlowDefinition {
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "t" },
-    routines: {
-      build: {
+    routines: [
+      {
+        id: "build",
         params: routineParamNames.map((name) => ({ name })),
         steps: [],
       },
-    },
+    ],
   };
 }
 
@@ -65,13 +66,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       expect(tool.name).toBe("build");
     });
@@ -85,13 +80,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       expect(tool.label).toContain("myflow/build");
     });
@@ -105,13 +94,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       expect(tool.description).not.toContain("Parameters:");
     });
@@ -125,13 +108,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       expect(tool.description).toContain("task, plan");
     });
@@ -145,13 +122,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       expect(tool.parameters).toBeDefined();
       // The schema is built dynamically — verify it has the expected structure.
@@ -168,12 +139,7 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
-            params: [],
-            steps: [],
-          },
-        },
+        routines: [{ id: "build", params: [], steps: [] }],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -183,13 +149,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const result = await tool.execute(
         "call-1",
@@ -233,8 +193,9 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
+        routines: [
+          {
+            id: "build",
             params: [{ name: "task" }],
             steps: [
               {
@@ -245,18 +206,12 @@ describe("RoutineTool", () => {
               } as unknown as import("./FlowInstruction").FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const result = await tool.execute(
         "call-1",
@@ -277,9 +232,7 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: { params: [], steps: [] },
-        },
+        routines: [{ id: "build", params: [], steps: [] }],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -289,13 +242,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const result = await tool.execute(
         "call-1",
@@ -316,12 +263,7 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
-            params: [{ name: "task" }, { name: "plan" }],
-            steps: [],
-          },
-        },
+        routines: [{ id: "build", params: [{ name: "task" }, { name: "plan" }], steps: [] }],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -331,13 +273,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const result = await tool.execute(
         "call-1",
@@ -377,8 +313,9 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
+        routines: [
+          {
+            id: "build",
             params: [],
             steps: [
               {
@@ -388,18 +325,12 @@ describe("RoutineTool", () => {
               },
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const onUpdateCalls: AgentToolResult<RoutineResult>[] = [];
       const onUpdate: AgentToolUpdateCallback<RoutineResult> = (result) => {
@@ -421,9 +352,7 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: { params: [], steps: [] },
-        },
+        routines: [{ id: "build", params: [], steps: [] }],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -433,13 +362,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       // Should not throw even though no _onUpdate is provided.
       const result = await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
@@ -455,12 +378,7 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
-            params: [],
-            steps: [],
-          },
-        },
+        routines: [{ id: "build", params: [], steps: [] }],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -470,13 +388,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
       const controller = new AbortController();
 
       const result = await tool.execute(
@@ -520,8 +432,9 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
+        routines: [
+          {
+            id: "build",
             params: [],
             steps: [
               {
@@ -532,18 +445,12 @@ describe("RoutineTool", () => {
               } as unknown as FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockSetStatus = vi.fn();
@@ -586,8 +493,9 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
+        routines: [
+          {
+            id: "build",
             params: [],
             steps: [
               {
@@ -598,18 +506,12 @@ describe("RoutineTool", () => {
               } as unknown as FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const mockUi = {
         setWidget: vi.fn(),
@@ -707,8 +609,9 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
+        routines: [
+          {
+            id: "build",
             params: [],
             steps: [
               {
@@ -719,18 +622,12 @@ describe("RoutineTool", () => {
               } as unknown as FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       await tool.execute("call-1", {}, undefined, undefined, ctx);
 
@@ -779,12 +676,7 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
-            params: [{ name: "branch" }],
-            steps: [],
-          },
-        },
+        routines: [{ id: "build", params: [{ name: "branch" }], steps: [] }],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -794,13 +686,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const result = await tool.execute(
         "call-1",
@@ -824,13 +710,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       // Execute with no UI to isolate listener registration testing.
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
@@ -856,7 +736,7 @@ describe("RoutineTool", () => {
               if (!agentId) return undefined;
               return {
                 type: "agent",
-                executionId: event.details.executionId,
+                executionId: (event.details as { executionId: string }).executionId,
                 agentId,
                 agentStatus:
                   event.phase === "agent-started"
@@ -902,8 +782,9 @@ describe("RoutineTool", () => {
         name: "test-flow",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          build: {
+        routines: [
+          {
+            id: "build",
             params: [],
             steps: [
               {
@@ -914,18 +795,12 @@ describe("RoutineTool", () => {
               } as unknown as FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
@@ -956,13 +831,7 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool(
-        "myflow",
-        "build",
-        executor,
-        flow.routines["build"],
-        mockSupervisor,
-      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockUi = {

@@ -274,6 +274,38 @@ describe("FlowContext", () => {
   });
 
   // -----------------------------------------------------------------------
+  // withDepth
+  // -----------------------------------------------------------------------
+
+  describe("withDepth", () => {
+    it("sets the depth counter", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withDepth(5);
+      expect(ctx.depth).toBe(5);
+    });
+
+    it("defaults depth to 0", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      expect(ctx.depth).toBe(0);
+    });
+
+    it("does not mutate the original context", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      ctx.withDepth(4);
+      expect(ctx.depth).toBe(2);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // withResultsCleared
   // -----------------------------------------------------------------------
 
