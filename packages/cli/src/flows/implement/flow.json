@@ -55,10 +55,7 @@
           "id": "build_loop",
           "maxIterations": 5,
           "continueWhile": "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
-          "accumulateFrom": [
-            "review",
-            "verify"
-          ],
+          "accumulateFrom": ["review", "verify"],
           "steps": [
             {
               "type": "agent",
