@@ -908,6 +908,19 @@ describe("RoutineRefInstructionSchema", () => {
     expect(result).toBe(false);
   });
 
+  it("validates a routine ref with input params", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+      input: {
+        output: "{{results.builder.raw}}",
+        workspace: "{{workspace}}",
+      },
+    });
+    expect(result).toBe(true);
+  });
+
   it("ignores extra unrecognised fields", () => {
     const result = Value.Check(RoutineRefInstructionSchema, {
       type: "routine",
@@ -924,6 +937,17 @@ describe("isRoutineRefInstruction", () => {
     expect(isRoutineRefInstruction({ type: "routine", id: "call-review", target: "review" })).toBe(
       true,
     );
+  });
+
+  it("returns true for routine instruction with input", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "routine",
+        id: "call-review",
+        target: "review",
+        input: { output: "x" },
+      }),
+    ).toBe(true);
   });
 
   it("returns false for agent instruction", () => {

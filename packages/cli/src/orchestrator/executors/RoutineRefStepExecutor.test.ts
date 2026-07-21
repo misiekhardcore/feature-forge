@@ -352,6 +352,60 @@ describe("RoutineRefStepExecutor", () => {
       expect(RecordExecutor.executed[2].id).toBe("r.multi.c");
     });
 
+    it("merges input params into context before inlining steps", async () => {
+      const capturedParams: Array<ReadonlyMap<string, string>> = [];
+      class ParamCheckExecutor extends StepExecutor {
+        readonly type = "param-check";
+        async execute(_: FlowInstruction, ctx: FlowContext): Promise<FlowContext> {
+          capturedParams.push(ctx.params);
+          return ctx;
+        }
+      }
+
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new ParamCheckExecutor());
+
+      const targetFlow = makeTargetFlow({
+        routines: [
+          {
+            id: "inspect",
+            params: [],
+            steps: [
+              { type: "param-check", id: "step1" } as unknown as FlowInstruction,
+              { type: "param-check", id: "step2" } as unknown as FlowInstruction,
+            ],
+          },
+        ],
+      });
+      const flowMap = new Map([[targetFlow.name, targetFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "test",
+        params: new Map([["existing", "from-parent"]]),
+      });
+
+      await executor.execute(
+        makeRefInstruction({
+          input: { output: "builder-result", workspace: "/tmp/ws" },
+        }),
+        context,
+        makeDispatch(registry, eventBus),
+        eventBus,
+      );
+
+      expect(capturedParams).toHaveLength(2);
+      for (const params of capturedParams) {
+        expect(params.get("existing")).toBe("from-parent");
+        expect(params.get("output")).toBe("builder-result");
+        expect(params.get("workspace")).toBe("/tmp/ws");
+      }
+    });
+
     it("propagates abort signal to inlined step execution", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new RecordExecutor());

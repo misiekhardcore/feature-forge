@@ -74,6 +74,9 @@ export class RoutineRefStepExecutor
     });
 
     let current = context.withDepth(newDepth);
+    if (instruction.input) {
+      current = current.withMergedParams(instruction.input);
+    }
     let allPassed = true;
     const inlinedRoutineIds: string[] = [];
 

@@ -76,13 +76,21 @@
                   "type": "routine",
                   "id": "call_review",
                   "target": "review",
-                  "output_as": "call_review"
+                  "output_as": "call_review",
+                  "input": {
+                    "output": "{{results.builder.raw}}",
+                    "workspace": "{{workspace}}"
+                  }
                 },
                 {
                   "type": "routine",
                   "id": "call_verify",
                   "target": "verify",
-                  "output_as": "call_verify"
+                  "output_as": "call_verify",
+                  "input": {
+                    "output": "{{results.builder.raw}}",
+                    "workspace": "{{workspace}}"
+                  }
                 }
               ]
             }
