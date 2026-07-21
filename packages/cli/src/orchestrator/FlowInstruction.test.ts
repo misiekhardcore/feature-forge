@@ -540,6 +540,7 @@ describe("FlowDefinitionSchema", () => {
             id: "fetch",
             command: "git fetch origin {{session.base}}",
             cwd: "{{workspace}}",
+            failFast: true,
           },
           {
             type: "shell" as const,

@@ -127,7 +127,8 @@
           "type": "shell",
           "id": "fetch",
           "command": "git fetch origin {{session.base}}",
-          "cwd": "{{workspace}}"
+          "cwd": "{{workspace}}",
+          "failFast": true
         },
         {
           "type": "shell",
