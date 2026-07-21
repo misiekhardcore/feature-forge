@@ -51,10 +51,15 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       throw new Error(`Unknown workspace provider "${providerName}"`);
     }
 
+    const resolvedBranch = instruction.branch ? context.resolve(instruction.branch) : undefined;
+    const isUnresolved =
+      !resolvedBranch || resolvedBranch.length === 0 || resolvedBranch.startsWith("{{");
+    const branch = isUnresolved ? `forge/${workspaceId}` : resolvedBranch;
+
     const path = await provider.createWorkspace(workspaceId, {
       symlinks: instruction.symlinks,
+      branch,
     });
-    const branch = `forge/${workspaceId}`;
     const handle = new WorkspaceHandle(path, new Date(), branch);
 
     await this.worktreeRegistry.register(handle);

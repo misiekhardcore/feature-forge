@@ -523,4 +523,56 @@ describe("GitWorktreeProvider", () => {
       expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
     });
   });
+
+  describe("createWorkspace — branch option", () => {
+    const existingBranch = "feature/existing";
+
+    beforeEach(() => {
+      mocks.reset();
+    });
+
+    it("reuses existing branch without -b flag", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // branchExists returns the branch (branch exists)
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], `  ${existingBranch}`);
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, existingBranch],
+        "worktree created",
+      );
+
+      const path = await p.createWorkspace("task-1", { branch: existingBranch });
+      expect(path).toBe(worktreePath);
+    });
+
+    it("creates new branch with -b when explicit branch does not exist", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // branchExists returns empty (branch doesn't exist)
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], "");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", existingBranch],
+        "worktree created",
+      );
+
+      const path = await p.createWorkspace("task-1", { branch: existingBranch });
+      expect(path).toBe(worktreePath);
+    });
+
+    it("skips branch-conflict check when explicit branch is provided", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // The key assertion: assertNoConflictingBranch is NOT called.
+      // Even though the branch exists, we should succeed (no WorktreeBranchExistsError).
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], `  ${existingBranch}`);
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, existingBranch],
+        "worktree created",
+      );
+
+      await expect(p.createWorkspace("task-1", { branch: existingBranch })).resolves.toBe(
+        worktreePath,
+      );
+    });
+  });
 });

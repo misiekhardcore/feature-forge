@@ -7,6 +7,9 @@ export interface CreateWorkspaceOptions {
    * the workspace after provisioning.
    */
   symlinks?: readonly string[];
+  /** Existing branch name to reuse. If provided, the provider may check out
+   *  an existing branch instead of creating a new one. */
+  branch?: string;
 }
 
 /**

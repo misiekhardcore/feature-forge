@@ -18,12 +18,18 @@
   ],
   "routines": {
     "create_workspace": {
-      "params": [],
+      "params": [
+        {
+          "name": "branch",
+          "description": "Existing branch name to reuse (e.g. for adding to an open PR). If omitted, a new forge/ws-* branch is created."
+        }
+      ],
       "steps": [
         {
           "type": "workspace",
           "id": "ws",
-          "provider": "git-worktree"
+          "provider": "git-worktree",
+          "branch": "{{branch}}"
         }
       ]
     },
@@ -92,13 +98,22 @@
     },
     "open_pr": {
       "params": [
-        { "name": "workspace", "description": "Worktree path from run_build_loop result" },
-        { "name": "title", "description": "PR title" },
+        {
+          "name": "workspace",
+          "description": "Worktree path from run_build_loop result"
+        },
+        {
+          "name": "title",
+          "description": "PR title"
+        },
         {
           "name": "commit_message",
           "description": "Commit message in conventional commits format"
         },
-        { "name": "body", "description": "Markdown PR description summarizing the changes" }
+        {
+          "name": "body",
+          "description": "Markdown PR description summarizing the changes"
+        }
       ],
       "steps": [
         {
@@ -108,7 +123,12 @@
           "cwd": "{{workspace}}",
           "message": "{{commit_message}}"
         },
-        { "type": "git", "id": "branch", "action": "push-current", "cwd": "{{workspace}}" },
+        {
+          "type": "git",
+          "id": "branch",
+          "action": "push-current",
+          "cwd": "{{workspace}}"
+        },
         {
           "type": "shell",
           "id": "pr",
