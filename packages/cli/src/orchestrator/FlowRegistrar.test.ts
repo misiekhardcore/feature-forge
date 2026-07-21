@@ -11,6 +11,7 @@ import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowRegistrar } from "./FlowRegistrar";
+import { FlowStateStore } from "./FlowStateStore";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Hoisted mock state ───────────────────────────────────────
@@ -457,6 +458,32 @@ describe("FlowRegistrar", () => {
 
       // 3 flows = 3 commands
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(3);
+    });
+
+    it("seeds FlowStateStore with flow-level param defaults", async () => {
+      setupSingleFlow();
+      flowLoaderLoadMock.mockResolvedValue(
+        makeFlow({
+          params: [
+            { name: "base", default: "main" },
+            { name: "mode", default: "full" },
+            { name: "target", description: "no default here" },
+          ],
+        }),
+      );
+
+      const setSpy = vi.spyOn(FlowStateStore.prototype, "set");
+
+      const params = makeParams();
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      expect(setSpy).toHaveBeenCalledWith("base", "main");
+      expect(setSpy).toHaveBeenCalledWith("mode", "full");
+      // Params without a default should NOT call set
+      expect(setSpy).not.toHaveBeenCalledWith("target", expect.anything());
+
+      setSpy.mockRestore();
     });
   });
 });

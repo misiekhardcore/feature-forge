@@ -17,8 +17,12 @@
  * add a `describe("new-flow-name", ...)` block here. The boilerplate is minimal —
  * the five assertions are the same for every flow.
  */
+import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { jsonParse } from "@feature-forge/shared";
+import Ajv from "ajv/dist/2020";
+import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { SpecRegistry } from "../agents/specifications/SpecRegistry";
@@ -290,6 +294,103 @@ describe("flow round-trip", () => {
       for (const routineName of Object.keys(flow.routines)) {
         expect(routineToolNames.has(routineName)).toBe(true);
       }
+    });
+  });
+
+  describe("flow-schema.json", () => {
+    const schemaPath = path.join(__dirname, "flow-schema.json");
+
+    it("loads and compiles without errors", () => {
+      const raw = fs.readFileSync(schemaPath, "utf-8");
+      const schema = jsonParse<Record<string, unknown>>(raw);
+
+      const ajv = new Ajv({ allErrors: true });
+      addFormats(ajv);
+
+      expect(() => ajv.compile(schema)).not.toThrow();
+    });
+
+    it("has top-level params property", () => {
+      const raw = fs.readFileSync(schemaPath, "utf-8");
+      const schema = jsonParse<Record<string, unknown>>(raw);
+
+      expect(schema.properties).toBeDefined();
+      const props = schema.properties as Record<string, unknown>;
+      expect(props.params).toBeDefined();
+
+      const params = props.params as Record<string, unknown>;
+      expect(params.type).toBe("array");
+      const items = params.items as Record<string, unknown>;
+      expect(items.required).toEqual(["name"]);
+    });
+
+    it("validates a flow with top-level params", () => {
+      const raw = fs.readFileSync(schemaPath, "utf-8");
+      const schema = jsonParse<Record<string, unknown>>(raw);
+
+      const ajv = new Ajv({ allErrors: true });
+      addFormats(ajv);
+      const validate = ajv.compile(schema);
+
+      const flowWithParams = {
+        $schema:
+          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+        name: "test",
+        command: "/test",
+        orchestrator: { systemPrompt: "test" },
+        routines: { build: { params: [], steps: [] } },
+        params: [{ name: "base", description: "Target branch", default: "main" }],
+      };
+
+      const valid = validate(flowWithParams);
+      expect(validate.errors).toBeNull();
+      expect(valid).toBe(true);
+    });
+
+    it("validates a flow without params (params is optional)", () => {
+      const raw = fs.readFileSync(schemaPath, "utf-8");
+      const schema = jsonParse<Record<string, unknown>>(raw);
+
+      const ajv = new Ajv({ allErrors: true });
+      addFormats(ajv);
+      const validate = ajv.compile(schema);
+
+      const flowWithoutParams = {
+        $schema:
+          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+        name: "test",
+        command: "/test",
+        orchestrator: { systemPrompt: "test" },
+        routines: { build: { params: [], steps: [] } },
+      };
+
+      const valid = validate(flowWithoutParams);
+      expect(validate.errors).toBeNull();
+      expect(valid).toBe(true);
+    });
+
+    it("rejects a flow with invalid params (missing required 'name')", () => {
+      const raw = fs.readFileSync(schemaPath, "utf-8");
+      const schema = jsonParse<Record<string, unknown>>(raw);
+
+      const ajv = new Ajv({ allErrors: true });
+      addFormats(ajv);
+      const validate = ajv.compile(schema);
+
+      const flowWithInvalidParams = {
+        $schema:
+          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+        name: "test",
+        command: "/test",
+        orchestrator: { systemPrompt: "test" },
+        routines: { build: { params: [], steps: [] } },
+        params: [{}],
+      };
+
+      const valid = validate(flowWithInvalidParams);
+      expect(valid).toBe(false);
+      expect(validate.errors).not.toBeNull();
+      expect(validate.errors!.some((e) => e.instancePath === "/params/0")).toBe(true);
     });
   });
 });

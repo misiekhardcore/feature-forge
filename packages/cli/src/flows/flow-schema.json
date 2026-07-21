@@ -9,6 +9,25 @@
       "type": "string",
       "const": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json"
     },
+    "params": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "default": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "name": {
       "type": "string",
       "minLength": 1
