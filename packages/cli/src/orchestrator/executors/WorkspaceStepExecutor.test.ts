@@ -169,11 +169,13 @@ describe("WorkspaceStepExecutor", () => {
     const context = new FlowContext({ results: new Map(), prompt: "task" });
     await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-    expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), expect.objectContaining({
-      baseRef: "origin/HEAD",
-    }));
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.stringContaining("ws-"),
+      expect.objectContaining({
+        baseRef: "origin/HEAD",
+      }),
+    );
   });
-
 
   describe("eventBus", () => {
     it("emits a workspace-ready event after workspace creation", async () => {
