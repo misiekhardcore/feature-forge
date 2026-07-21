@@ -8,16 +8,15 @@ import { describe, expect, it, vi } from "vitest";
 import type { RoutineResult } from "../RoutineResult";
 import type { DisplayContribution } from "./DisplayContribution";
 import { DisplayContributionRegistry } from "./DisplayContributionRegistry";
-import type { ThemeLike } from "./ProgressRenderer";
 import { ProgressRenderer } from "./ProgressRenderer";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function makeTheme(): ThemeLike {
+function makeTheme(): Theme {
   return {
     fg: (_color: string, text: string) => text,
-  };
+  } as Theme;
 }
 
 const theme = makeTheme();
@@ -68,12 +67,12 @@ describe("ProgressRenderer", () => {
 
     it("forwards colour name to theme.fg for running", () => {
       let capturedColor = "";
-      const testTheme: ThemeLike = {
+      const testTheme = {
         fg: (color, text) => {
           capturedColor = color;
           return text;
         },
-      };
+      } as Theme;
       ProgressRenderer.statusIcon("running", testTheme);
       expect(capturedColor).toBe("accent");
     });
@@ -424,7 +423,7 @@ describe("ProgressRenderer", () => {
         details: undefined as unknown as RoutineResult,
       };
       const options: ToolRenderResultOptions = { expanded: false, isPartial: true };
-      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const rendered = renderer.buildResultComponent(result, options, theme);
       const lines = rendered.render(80);
       expect(lines[0]).toContain("⟳");
       expect(lines[0]).toContain("test-routine");
@@ -445,7 +444,7 @@ describe("ProgressRenderer", () => {
         },
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
-      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const rendered = renderer.buildResultComponent(result, options, theme);
       const lines = rendered.render(80);
       expect(lines[0]).toContain("✓");
       expect(lines[0]).toContain("test-routine");
@@ -459,7 +458,7 @@ describe("ProgressRenderer", () => {
         details: undefined as unknown as RoutineResult,
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
-      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const rendered = renderer.buildResultComponent(result, options, theme);
       const lines = rendered.render(80);
       expect(lines[0]).toContain("✗");
       expect(lines[0]).toContain("test-routine");
@@ -501,7 +500,7 @@ describe("ProgressRenderer", () => {
         },
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
-      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const rendered = renderer.buildResultComponent(result, options, theme);
       const lines = rendered.render(80);
       expect(lines[0]).toContain("✓");
       expect(lines[0]).toContain("test-routine");
@@ -529,7 +528,7 @@ describe("ProgressRenderer", () => {
         },
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
-      const rendered = renderer.buildResultComponent(result, options, theme as unknown as Theme);
+      const rendered = renderer.buildResultComponent(result, options, theme);
       const lines = rendered.render(80);
       expect(lines[0]).toContain("✓");
       expect(lines[0]).toContain("test-routine");
@@ -545,7 +544,7 @@ describe("ProgressRenderer", () => {
         contributions: [],
       };
       const renderer = new ProgressRenderer(state, registry);
-      const component = renderer.buildCallComponent(theme as unknown as Theme);
+      const component = renderer.buildCallComponent(theme);
       const lines = component.render(80);
       expect(lines[0]).toContain("⟳");
       expect(lines[0]).toContain("build-routine");
@@ -597,7 +596,7 @@ describe("ProgressRenderer", () => {
         contributions,
       };
       const renderer = new ProgressRenderer(state, registry);
-      const component = renderer.buildCallComponent(theme as unknown as Theme);
+      const component = renderer.buildCallComponent(theme);
       const lines = component.render(80);
       expect(lines[0]).toContain("⟳");
       expect(lines[0]).toContain("build-routine");
@@ -626,7 +625,7 @@ describe("ProgressRenderer", () => {
         contributions,
       };
       const renderer = new ProgressRenderer(state, registry);
-      const component = renderer.buildCallComponent(theme as unknown as Theme);
+      const component = renderer.buildCallComponent(theme);
       const lines = component.render(80);
       expect(lines[0]).toContain("⟳");
       expect(lines[0]).toContain("build-routine");

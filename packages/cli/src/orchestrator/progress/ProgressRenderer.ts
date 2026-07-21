@@ -14,25 +14,14 @@ import type { DisplayContributionRegistry } from "./DisplayContributionRegistry"
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
-// ── Constants ───────────────────────────────────────────────
-
-const MAX_SEPARATOR_WIDTH = 60;
-const MIN_SEPARATOR_WIDTH = 20;
-const HEADER_PADDING = 8;
-
 // ── Theme-like contract (looser than pi's Theme) ────────────
-
-/** Minimal colouring contract shared by pi's Theme and no-op fallbacks. */
-export interface ThemeLike {
-  fg(color: string, text: string): string;
-}
 
 // ── Parameter interfaces (exported, backwards-compatible) ────
 
 /** Parameters for {@link ProgressRenderer.buildWidgetLines}. */
 export interface BuildWidgetLinesParams {
   /** Theme for colouring UI elements. */
-  theme: ThemeLike;
+  theme: Theme;
   /** Primary title (e.g. the routine name). */
   title: string;
   /** Optional subtitle (e.g. iteration counter). */
@@ -48,7 +37,7 @@ export interface BuildWidgetLinesParams {
 /** Parameters for {@link ProgressRenderer.buildStatusLine}. */
 export interface BuildStatusLineParams {
   /** Theme for colouring UI elements. */
-  theme: ThemeLike;
+  theme: Theme;
   /** Primary title (e.g. the routine name). */
   title: string;
   /** Optional subtitle (e.g. "2/3"). */
@@ -81,7 +70,7 @@ export class ProgressRenderer {
    * - `"error"` → error red ✗
    * - anything else → muted grey ○
    */
-  static statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string {
+  static statusIcon(status: string | undefined, theme: Theme, passed?: boolean): string {
     const { char, color } = AgentDisplayHelpers.getStatusIcon(status, passed);
     return theme.fg(color, char);
   }
@@ -117,14 +106,11 @@ export class ProgressRenderer {
     lines.push(header);
 
     // Separator
-    const separatorWidth = Math.min(
-      MAX_SEPARATOR_WIDTH,
-      Math.max(
-        visibleWidth(title) + (subtitle ? visibleWidth(subtitle) : 0) + HEADER_PADDING,
-        MIN_SEPARATOR_WIDTH,
-      ),
+    const separatorWidth = Math.max(
+      0,
+      visibleWidth(title) + (subtitle ? visibleWidth(subtitle) : 0),
     );
-    lines.push(new DynamicBorder((str) => theme.fg("muted", str)).render(separatorWidth)[0]);
+    lines.push(...new DynamicBorder((str) => theme.fg("muted", str)).render(separatorWidth));
 
     // Rows
     if (rows.length > 0) {
@@ -318,7 +304,7 @@ export class ProgressRenderer {
    * Builds widget lines and status text from the current state, then
    * calls `widget.render()`.
    */
-  renderToWidget(widget: ProgressWidget, theme: ThemeLike): void {
+  renderToWidget(widget: ProgressWidget, theme: Theme): void {
     const { state } = this;
 
     const acc = createAccumulatedState();
