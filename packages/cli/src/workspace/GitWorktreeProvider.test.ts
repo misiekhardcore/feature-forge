@@ -523,4 +523,78 @@ describe("GitWorktreeProvider", () => {
       expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
     });
   });
+
+  describe("createWorkspace — branch option", () => {
+    const existingBranch = "feature/existing";
+
+    beforeEach(() => {
+      mocks.reset();
+    });
+
+    it("reuses existing branch without -b flag", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // branchExists returns the branch (branch exists)
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], `  ${existingBranch}`);
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, existingBranch],
+        "worktree created",
+      );
+
+      const path = await p.createWorkspace("task-1", { branch: existingBranch });
+      expect(path).toBe(worktreePath);
+    });
+
+    it("creates new branch with -b when explicit branch does not exist", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // branch not found locally
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], "");
+      // also not found on remote
+      mocks.willSucceed("git", ["ls-remote", "--heads", "origin", existingBranch], "");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", existingBranch],
+        "worktree created",
+      );
+
+      const path = await p.createWorkspace("task-1", { branch: existingBranch });
+      expect(path).toBe(worktreePath);
+    });
+
+    it("fetches and reuses branch found on remote but not locally", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      const remoteBranch = "feature/remote-only";
+      // branch not found locally
+      mocks.willSucceed("git", ["branch", "--list", remoteBranch], "");
+      // but found on remote
+      mocks.willSucceed(
+        "git",
+        ["ls-remote", "--heads", "origin", remoteBranch],
+        "abc123\trefs/heads/feature/remote-only",
+      );
+      // fetch it
+      mocks.willSucceed("git", ["fetch", "origin", remoteBranch + ":" + remoteBranch], "");
+      // then reuse (no -b)
+      mocks.willSucceed("git", ["worktree", "add", worktreePath, remoteBranch], "worktree created");
+
+      const path = await p.createWorkspace("task-1", { branch: remoteBranch });
+      expect(path).toBe(worktreePath);
+    });
+
+    it("skips branch-conflict check when explicit branch is provided", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // The key assertion: assertNoConflictingBranch is NOT called.
+      // Even though the branch exists, we should succeed (no WorktreeBranchExistsError).
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], `  ${existingBranch}`);
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, existingBranch],
+        "worktree created",
+      );
+
+      await expect(p.createWorkspace("task-1", { branch: existingBranch })).resolves.toBe(
+        worktreePath,
+      );
+    });
+  });
 });

@@ -149,6 +149,7 @@ describe("WorkspaceStepExecutor", () => {
 
     expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
       symlinks: ["custom-dir", "another-dir"],
+      branch: expect.stringContaining("forge/ws-") as string,
     });
   });
 
@@ -276,6 +277,82 @@ describe("WorkspaceStepExecutor", () => {
       const handle = result.workspaces.get("ws");
       expect(handle).toBeDefined();
       expect(handle!.branch).toBe(`forge/ws-00000000`);
+    });
+    it("uses explicit branch from instruction when provided", async () => {
+      const provider = new CountingProvider();
+      const createSpy = vi.spyOn(provider, "createWorkspace");
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+      const instruction: WorkspaceInstruction = {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+        branch: "feature/existing-pr",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      const handle = result.workspaces.get("ws");
+      expect(handle).toBeDefined();
+      expect(handle!.branch).toBe("feature/existing-pr");
+      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
+        branch: "feature/existing-pr",
+      });
+    });
+
+    it("resolves branch from template when instruction.branch contains a placeholder", async () => {
+      const provider = new CountingProvider();
+      const createSpy = vi.spyOn(provider, "createWorkspace");
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+      const instruction: WorkspaceInstruction = {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+        branch: "{{branch}}",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["branch", "feature/from-template"]]),
+      });
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      const handle = result.workspaces.get("ws");
+      expect(handle!.branch).toBe("feature/from-template");
+      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
+        branch: "feature/from-template",
+      });
+    });
+
+    it("falls back to default branch when resolved branch is empty", async () => {
+      const provider = new CountingProvider();
+      const createSpy = vi.spyOn(provider, "createWorkspace");
+      const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+      const wtRegistry = stubWorktreeRegistry();
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+      const instruction: WorkspaceInstruction = {
+        type: "workspace",
+        id: "ws1",
+        provider: "git-worktree",
+        branch: "{{branch}}",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      const handle = result.workspaces.get("ws");
+      expect(handle!.branch).toBe("forge/ws-00000000");
+      expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
+        branch: "forge/ws-00000000",
+      });
     });
   });
 

@@ -70,20 +70,39 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     options?: import("./WorkspaceProvider").CreateWorkspaceOptions,
   ): Promise<string> {
     const worktreePath = this.getWorktreePath(workspaceId);
-    const branchName = this.getBranchName(workspaceId);
+    const branchName = options?.branch ?? this.getBranchName(workspaceId);
     logger.info("Creating workspace", { path: worktreePath, branch: branchName });
 
-    await this.assertNoConflictingBranch(branchName);
     await this.assertNoStalePath(worktreePath);
 
-    await this.execCommand("git", [
-      "worktree",
-      "add",
-      worktreePath,
-      this.baseRef,
-      "-b",
-      branchName,
-    ]);
+    if (options?.branch) {
+      // Explicit branch — allow reusing an existing branch (e.g. adding to open PR).
+      const exists = await this.branchExists(branchName);
+      if (exists) {
+        logger.info("Reusing existing branch", { branch: branchName });
+        await this.execCommand("git", ["worktree", "add", worktreePath, branchName]);
+      } else {
+        await this.execCommand("git", [
+          "worktree",
+          "add",
+          worktreePath,
+          this.baseRef,
+          "-b",
+          branchName,
+        ]);
+      }
+    } else {
+      // Default generated branch — must not already exist.
+      await this.assertNoConflictingBranch(branchName);
+      await this.execCommand("git", [
+        "worktree",
+        "add",
+        worktreePath,
+        this.baseRef,
+        "-b",
+        branchName,
+      ]);
+    }
 
     this.resolveSymlinks(worktreePath, options?.symlinks);
 
@@ -165,6 +184,35 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
       symlinkSync(relative(dirname(target), source), target);
     }
+  }
+
+  private async branchExists(branchName: string): Promise<boolean> {
+    // Check local branches first.
+    try {
+      const output = await this.execCommand("git", ["branch", "--list", branchName]);
+      if (output.trim().length > 0) return true;
+    } catch (error) {
+      logger.debug("Local branch check failed", { branchName, error });
+    }
+
+    // If not found locally, check remote; fetch if it exists there.
+    try {
+      const remoteOutput = await this.execCommand("git", [
+        "ls-remote",
+        "--heads",
+        "origin",
+        branchName,
+      ]);
+      if (remoteOutput.trim().length > 0) {
+        logger.info("Branch found on remote, fetching", { branchName });
+        await this.execCommand("git", ["fetch", "origin", `${branchName}:${branchName}`]);
+        return true;
+      }
+    } catch (error) {
+      logger.debug("Remote branch check failed", { branchName, error });
+    }
+
+    return false;
   }
 
   private async assertNoConflictingBranch(branchName: string): Promise<void> {
