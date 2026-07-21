@@ -51,6 +51,13 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       throw new Error(`Unknown workspace provider "${providerName}"`);
     }
 
+    if (instruction.branch !== undefined && instruction.baseRef !== undefined) {
+      throw new Error(
+        `Workspace instruction "${instruction.id}": branch and baseRef are mutually exclusive. ` +
+          "Pass branch to reuse an existing workspace, or baseRef to create from a specific commit.",
+      );
+    }
+
     const resolvedBranch = instruction.branch ? context.resolve(instruction.branch) : undefined;
     const isUnresolved =
       !resolvedBranch || resolvedBranch.length === 0 || resolvedBranch.startsWith("{{");
@@ -58,8 +65,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
 
     const path = await provider.createWorkspace(workspaceId, {
       symlinks: instruction.symlinks,
-      branch,
-      baseRef: instruction.baseRef,
+      ...(isUnresolved ? { baseRef: instruction.baseRef } : { branch }),
     });
     const handle = new WorkspaceHandle(path, new Date(), branch);
 

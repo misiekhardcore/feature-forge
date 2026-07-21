@@ -47,6 +47,8 @@ export const SessionInstructionSchema = defineInstruction("session", {
 
 // ── Leaf schemas ────────────────────────────────────────────
 
+  // branch and baseRef are mutually exclusive — pass one or the other, never both.
+  // branch = reuse an existing branch. baseRef = create from this ref.
 export const WorkspaceInstructionSchema = defineInstruction("workspace", {
   provider: Type.Union([Type.Literal("git-worktree"), Type.Literal("current-dir")]),
   symlinks: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),

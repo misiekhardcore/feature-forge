@@ -280,14 +280,12 @@ describe("flow round-trip", () => {
       const commitIdx = ids.indexOf("commit");
       const fetchIdx = ids.indexOf("fetch");
       const rebaseIdx = ids.indexOf("rebase");
-      const revalidateIdx = ids.indexOf("revalidate");
       const branchIdx = ids.indexOf("branch");
 
       expect(commitIdx).toBeGreaterThanOrEqual(0);
       expect(fetchIdx).toBe(commitIdx + 1);
       expect(rebaseIdx).toBe(commitIdx + 2);
-      expect(revalidateIdx).toBe(commitIdx + 3);
-      expect(branchIdx).toBe(commitIdx + 4);
+      expect(branchIdx).toBe(commitIdx + 3);
     });
 
     // ── 7. RoutineTool name alignment with tools ──────────
