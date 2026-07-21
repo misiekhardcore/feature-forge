@@ -3,16 +3,16 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
-import type { AgentViewerEntry } from "@feature-forge/tui";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
-import { AgentViewerState } from "@feature-forge/tui";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { ForgeConfig } from "../../config";
 import { ToolRegistry } from "../../registry/ToolRegistry";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDetailView } from "./AgentDetailView";
+import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { AgentListView } from "./AgentListView";
+import { AgentViewerState } from "./AgentViewerState";
+import type { AgentViewerEntry } from "./types";
 
 /**
  * View mode for the overlay.
@@ -129,6 +129,7 @@ export class AgentViewerOverlay implements Component {
     this.listView = new AgentListView(
       this.state,
       params.theme,
+      params.tui,
       (agentId) => this.openDetail(agentId),
       () => this.onDone(),
     );
@@ -283,6 +284,16 @@ export class AgentViewerOverlay implements Component {
     this.state.pushStreamEvent(agentId, event, (e) => AgentViewerOverlay.formatStreamEvent(e));
     this.detailView.markDirty();
     this.detailView.onStreamEvent(agentId);
+
+    // Auto-scroll to the bottom when in detail view with autoScroll enabled.
+    if (
+      this.detailView.autoScroll &&
+      this.viewMode === "detail" &&
+      this.detailView.selectedAgentId === agentId
+    ) {
+      this.detailView.scrollOffset = Number.MAX_SAFE_INTEGER;
+    }
+
     this.tui.requestRender();
   }
 
@@ -382,6 +393,16 @@ export class AgentViewerOverlay implements Component {
     }
   }
 
+  static formatElapsed(createdAt: Date): string {
+    const ms = Date.now() - createdAt.getTime();
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  }
+
   /**
    * Format a stream event into a single-line human-readable description.
    */
@@ -431,15 +452,9 @@ export class AgentViewerOverlay implements Component {
       eventSummary?: string,
     ) => {
       const agent = supervisor.getAgent(agentId);
-      let summary = eventSummary;
-      if (!summary && agent) {
-        summary =
-          passed === false
-            ? `${agent.specification.role} — failed`
-            : `${agent.specification.role} — ${agent.status}`;
-      } else if (!summary) {
-        summary = "Agent disconnected";
-      }
+      const summary =
+        eventSummary ??
+        (agent ? `${agent.specification.role} — ${agent.status}` : "Agent disconnected");
       viewer.update({
         id: agentId,
         status: mappedStatus as AgentViewerEntry["status"],
