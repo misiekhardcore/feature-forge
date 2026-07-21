@@ -88,6 +88,7 @@ export const ShellInstructionSchema = defineInstruction("shell", {
 export const RoutineRefInstructionSchema = defineInstruction("routine", {
   target: Type.String({ minLength: 1 }),
   output_as: Type.Optional(Type.String({ minLength: 1 })),
+  input: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 // ── Parallel failure mode ──────────────────────────────────

@@ -173,6 +173,23 @@ export class FlowContext {
     });
   }
 
+  withMergedParams(extra: Record<string, string>): FlowContext {
+    const next = new Map(this.params);
+    for (const [key, value] of Object.entries(extra)) {
+      next.set(key, value);
+    }
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: next,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+      depth: this.depth,
+    });
+  }
+
   // ── Workspace access ──────────────────────────────────────
 
   getWorkspacePath(name: string): string | undefined {
