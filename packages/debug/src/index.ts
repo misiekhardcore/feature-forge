@@ -9,7 +9,6 @@ export type {
   RenderHelpers,
   TestLoopDeps,
   TestLoopScenarios,
-  ThemeLike,
   ViewerHandle,
   WidgetHandle,
 } from "./commands/test-loop-routine.js";

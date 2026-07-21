@@ -3,6 +3,29 @@ import { describe, expect, it } from "vitest";
 
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 
+describe("formatElapsed", () => {
+  it("formats seconds when less than a minute", () => {
+    const now = Date.now();
+    const recent = new Date(now - 30 * 1000);
+    const result = AgentDisplayHelpers.formatElapsed(recent);
+    expect(result).toMatch(/^\d+s$/);
+  });
+
+  it("formats minutes and seconds when less than an hour", () => {
+    const now = Date.now();
+    const recent = new Date(now - 120 * 1000);
+    const result = AgentDisplayHelpers.formatElapsed(recent);
+    expect(result).toMatch(/^\d+m \d+s$/);
+  });
+
+  it("formats hours when elapsed exceeds one hour", () => {
+    const now = Date.now();
+    const old = new Date(now - 4000 * 1000);
+    const result = AgentDisplayHelpers.formatElapsed(old);
+    expect(result).toMatch(/^\d+h \d+m \d+s$/);
+  });
+});
+
 describe("getStatusIcon", () => {
   it('returns success icon for "done" status', () => {
     expect(AgentDisplayHelpers.getStatusIcon("done")).toEqual({ char: "✓", color: "success" });

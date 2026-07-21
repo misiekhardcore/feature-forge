@@ -5,11 +5,6 @@ import type { ScenarioData } from "../scenarios/index.js";
 
 // ── CLI dependency interfaces ───────────────────────────────
 
-/** Theme-like coloring contract. */
-export interface ThemeLike {
-  fg(color: string, text: string): string;
-}
-
 /** Minimal AgentViewerOverlay surface needed by the simulator. */
 export interface ViewerHandle {
   update(entry: { id: string; status: string; summary?: string; passed?: boolean }): void;
@@ -25,17 +20,17 @@ export interface WidgetHandle {
 
 /** Static rendering helpers matching ProgressRenderer. */
 export interface RenderHelpers {
-  statusIcon(status: string | undefined, theme: ThemeLike, passed?: boolean): string;
+  statusIcon(status: string | undefined, theme: Theme, passed?: boolean): string;
   formatAgentRow(icon: string, label: string, annotation?: string): string;
   buildWidgetLines(params: {
-    theme: ThemeLike;
+    theme: Theme;
     title: string;
     subtitle?: string;
     rows: string[];
     path?: string;
   }): string[];
   buildStatusLine(params: {
-    theme: ThemeLike;
+    theme: Theme;
     title: string;
     subtitle?: string;
     tags: string[];
