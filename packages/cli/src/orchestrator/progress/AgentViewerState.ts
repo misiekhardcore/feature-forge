@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import { jsonParse } from "@feature-forge/shared";
 
+import { logger } from "../../logging";
 import type { AgentViewerEntry } from "./types";
 
 /**
@@ -261,8 +262,11 @@ export class AgentViewerState {
           appendFileSync(messagesPath, `${JSON.stringify(message)}\n`, "utf-8");
         }
       }
-    } catch {
-      // Silently fail - persistence is best-effort
+    } catch (err) {
+      logger.warn("persistStreamEvent: failed to persist stream event", {
+        agentId,
+        error: String(err),
+      });
     }
   }
 
@@ -352,7 +356,8 @@ export class AgentViewerState {
       }
 
       return lines;
-    } catch {
+    } catch (err) {
+      logger.warn("loadStreamFile: failed to load stream file", { agentId, error: String(err) });
       return [];
     }
   }
@@ -375,7 +380,11 @@ export class AgentViewerState {
       }
 
       return messages;
-    } catch {
+    } catch (err) {
+      logger.warn("loadMessagesFile: failed to load messages file", {
+        agentId,
+        error: String(err),
+      });
       return [];
     }
   }
@@ -450,8 +459,10 @@ export class AgentViewerState {
           continue;
         }
       }
-    } catch {
-      // Silently ignore missing/inaccessible directories
+    } catch (err) {
+      logger.warn("prepopulateStreamFiles: failed to scan stream directory", {
+        error: String(err),
+      });
     }
 
     await Promise.allSettled(loadPromises);
@@ -495,13 +506,20 @@ export class AgentViewerState {
         try {
           const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
-        } catch {
-          // Skip malformed lines
+        } catch (err) {
+          logger.warn("loadConversationEvents: failed to parse event line", {
+            agentId,
+            error: String(err),
+          });
         }
       }
 
       return diskEvents;
-    } catch {
+    } catch (err) {
+      logger.warn("loadConversationEvents: failed to load events file", {
+        agentId,
+        error: String(err),
+      });
       return memoryEvents.slice(-count);
     }
   }
@@ -527,8 +545,11 @@ export class AgentViewerState {
         try {
           const parsed = jsonParse<AgentMessage>(line);
           disk.push(parsed);
-        } catch {
-          // Skip malformed lines
+        } catch (err) {
+          logger.warn("loadMessagesFromDiskIntoCache: failed to parse message line", {
+            agentId,
+            error: String(err),
+          });
         }
       }
 
@@ -539,8 +560,11 @@ export class AgentViewerState {
         merged.splice(0, merged.length - MAX_AGENT_EVENTS);
       }
       this.agentMessages.set(agentId, merged);
-    } catch {
-      // Silently skip unreadable files
+    } catch (err) {
+      logger.warn("loadMessagesFromDiskIntoCache: failed to load messages from disk", {
+        agentId,
+        error: String(err),
+      });
     }
   }
 }

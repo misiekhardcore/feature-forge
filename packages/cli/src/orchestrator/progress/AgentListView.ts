@@ -9,6 +9,13 @@ import { BorderedContainer } from "./BorderedContainer";
 /**
  * Renders the list of agent entries with their statuses using a
  * {@link SelectList} inside a {@link BorderedContainer}.
+ *
+ * This class does not extend {@link Container} because it composes
+ * {@link BorderedContainer} and {@link SelectList} internally. The
+ * intended public API is {@code render()}, {@code handleInput()}, and
+ * {@code setSelectedIndex()}. Exposing {@code children}/{@code addChild}
+ * would allow bypassing the internal state management and break
+ * encapsulation.
  */
 export class AgentListView {
   private readonly state: AgentViewerState;

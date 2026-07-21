@@ -1,7 +1,8 @@
-import type {
-  AgentToolResult,
-  Theme,
-  ToolRenderResultOptions,
+import {
+  type AgentToolResult,
+  DynamicBorder,
+  type Theme,
+  type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
@@ -12,6 +13,12 @@ import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
+
+// ── Constants ───────────────────────────────────────────────
+
+const MAX_SEPARATOR_WIDTH = 60;
+const MIN_SEPARATOR_WIDTH = 20;
+const HEADER_PADDING = 8;
 
 // ── Theme-like contract (looser than pi's Theme) ────────────
 
@@ -111,10 +118,13 @@ export class ProgressRenderer {
 
     // Separator
     const separatorWidth = Math.min(
-      60,
-      Math.max(visibleWidth(title) + (subtitle ? visibleWidth(subtitle) : 0) + 8, 20),
+      MAX_SEPARATOR_WIDTH,
+      Math.max(
+        visibleWidth(title) + (subtitle ? visibleWidth(subtitle) : 0) + HEADER_PADDING,
+        MIN_SEPARATOR_WIDTH,
+      ),
     );
-    lines.push(theme.fg("muted", AgentDisplayHelpers.getHorizontalLine(separatorWidth)));
+    lines.push(new DynamicBorder((str) => theme.fg("muted", str)).render(separatorWidth)[0]);
 
     // Rows
     if (rows.length > 0) {
