@@ -59,6 +59,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     const path = await provider.createWorkspace(workspaceId, {
       symlinks: instruction.symlinks,
       branch,
+      baseRef: instruction.baseRef,
     });
     const handle = new WorkspaceHandle(path, new Date(), branch);
 

@@ -29,7 +29,8 @@
           "type": "workspace",
           "id": "ws",
           "provider": "git-worktree",
-          "branch": "{{branch}}"
+          "branch": "{{branch}}",
+          "baseRef": "origin/HEAD"
         }
       ]
     },

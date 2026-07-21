@@ -10,6 +10,11 @@ export interface CreateWorkspaceOptions {
   /** Existing branch name to reuse. If provided, the provider may check out
    *  an existing branch instead of creating a new one. */
   branch?: string;
+  /**
+   * Git ref to create the worktree from. Overrides the provider's
+   * default baseRef when set.
+   */
+  baseRef?: string;
 }
 
 /**

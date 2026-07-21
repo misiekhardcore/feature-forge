@@ -75,6 +75,8 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
     await this.assertNoStalePath(worktreePath);
 
+    const effectiveBaseRef = options?.baseRef ?? this.baseRef;
+
     if (options?.branch) {
       // Explicit branch — allow reusing an existing branch (e.g. adding to open PR).
       const exists = await this.branchExists(branchName);
@@ -86,7 +88,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
           "worktree",
           "add",
           worktreePath,
-          this.baseRef,
+          effectiveBaseRef,
           "-b",
           branchName,
         ]);
@@ -98,7 +100,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
         "worktree",
         "add",
         worktreePath,
-        this.baseRef,
+        effectiveBaseRef,
         "-b",
         branchName,
       ]);

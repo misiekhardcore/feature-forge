@@ -51,6 +51,7 @@ export const WorkspaceInstructionSchema = defineInstruction("workspace", {
   provider: Type.Union([Type.Literal("git-worktree"), Type.Literal("current-dir")]),
   symlinks: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
   branch: Type.Optional(Type.String()),
+  baseRef: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const AgentInstructionSchema = defineInstruction("agent", {
