@@ -3,6 +3,13 @@ import { Container, Key, matchesKey, type TUI } from "@earendil-works/pi-tui";
 /**
  * Container that clips its children to a scrollable viewport.
  *
+ * Extends {@link Container} rather than {@link Box} because {@link Box}
+ * adds padding and background decorations — unnecessary overhead for a
+ * scrolling viewport whose only responsibility is clipping and offset
+ * management. {@link Container} provides the {@code children} iteration
+ * model which {@code ScrollableBox} overrides in {@code render()} to apply
+ * viewport clipping and scroll-offset logic.
+ *
  * Adds scrolling (page up/down, home/end, arrow keys) and auto-scroll
  * behaviour for the last-part-of-content pattern used by live-streaming views.
  */

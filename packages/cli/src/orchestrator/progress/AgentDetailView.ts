@@ -14,6 +14,13 @@ import { ScrollableBox } from "./ScrollableBox";
  *
  * Composes {@link BorderedContainer} > {@link ScrollableBox} with
  * conversation-line caching for rendering performance (#154).
+ *
+ * This class does not extend {@link Container} because it composes
+ * {@link BorderedContainer}, {@link ScrollableBox}, and
+ * {@link ConversationRenderer} internally. The intended public API is
+ * {@code render()}, {@code handleInput()}, {@code setCurrentAgent()},
+ * and {@code scrollToBottom()}. Exposing {@code children}/{@code addChild}
+ * would break encapsulation.
  */
 export class AgentDetailView {
   /** Scroll offset for detail view content — delegates to ScrollableBox. */

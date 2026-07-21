@@ -69,10 +69,6 @@ export class AgentDisplayHelpers {
     );
   }
 
-  static getHorizontalLine(width: number) {
-    return "─".repeat(Math.max(0, width));
-  }
-
   static getStatusLabel(
     status: string | undefined,
     passed?: boolean,
