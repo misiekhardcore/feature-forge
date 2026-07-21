@@ -64,8 +64,9 @@ describe("routine progress display (e2e)", () => {
       name: "e2e-progress",
       command: "/e2e-progress",
       orchestrator: { systemPrompt: "test" },
-      routines: {
-        run_build_loop: {
+      routines: [
+        {
+          id: "run_build_loop",
           params: [{ name: "task" }, { name: "plan" }],
           steps: [
             { type: "workspace", id: "ws", provider: "git-worktree" },
@@ -86,7 +87,7 @@ describe("routine progress display (e2e)", () => {
             },
           ],
         },
-      },
+      ],
     };
 
     const worktreeProvider = new GitWorktreeProvider(repoRoot, "HEAD");

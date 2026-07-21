@@ -50,6 +50,9 @@ const PROGRESS_CHANNELS = [
   "feature-forge:git-done",
   "feature-forge:shell-start",
   "feature-forge:shell-done",
+  "feature-forge:routine-ref-start",
+  "feature-forge:routine-ref-done",
+  "feature-forge:routine-ref-error",
 ] as const;
 
 /**
@@ -103,15 +106,14 @@ export class RoutineTool
 
   constructor(
     flowName: string,
-    routineName: string,
-    private readonly executor: RoutineExecutor,
     private readonly routineDef: RoutineDefinition,
+    private readonly executor: RoutineExecutor,
     private readonly supervisor: AgentSupervisor,
   ) {
-    this._routineName = routineName;
-    this.name = routineName;
-    this.label = `Routine: ${flowName}/${routineName}`;
-    this.description = this.buildDescription(routineName, routineDef);
+    this._routineName = routineDef.id;
+    this.name = routineDef.id;
+    this.label = `Routine: ${flowName}/${routineDef.id}`;
+    this.description = this.buildDescription(routineDef.id, routineDef);
     this.parameters = RoutineTool.buildParamsSchema(routineDef);
 
     // Wire the display contribution registry so ProgressRenderer can

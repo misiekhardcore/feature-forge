@@ -10,6 +10,7 @@ import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";
 import type { TypedEventBus } from "./eventBus";
+import type { FlowDefinition } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
@@ -21,6 +22,9 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
  * orchestrator commands and routine tools with the pi extension.
  */
 export class FlowRegistrar {
+  /** Shared flow map keyed by flow name, populated during registerAll. */
+  readonly flowMap = new Map<string, FlowDefinition>();
+
   constructor(
     private readonly params: {
       pi: ExtensionAPI;
@@ -39,6 +43,11 @@ export class FlowRegistrar {
   /**
    * Discover flow directories, load each flow definition, and register
    * orchestrator commands and routine tools.
+   *
+   * Flows are registered in a single pass. The shared {@link flowMap}
+   * is populated as each flow is loaded, then threaded to the
+   * {@link StepExecutorRegistry} after all flows are registered so
+   * that cross-flow routine refs can be resolved.
    */
   async registerAll(): Promise<void> {
     const {
@@ -70,6 +79,10 @@ export class FlowRegistrar {
         });
       }
     }
+
+    // Thread the fully populated flowMap to executors that need it
+    // for cross-flow routine ref resolution.
+    stepExecutorRegistry.setFlowMap(this.flowMap);
   }
 
   private async discoverFlowDirectories(flowsDir: string): Promise<string[]> {
@@ -140,6 +153,9 @@ export class FlowRegistrar {
     try {
       flow = await flowLoader.load("flow");
 
+      // Populate the shared flowMap for cross-flow routine ref resolution.
+      this.flowMap.set(flow.name, flow);
+
       // Seed flow-global session from flow-level param defaults.
       for (const param of flow.params ?? []) {
         if (param.default !== undefined) {
@@ -181,14 +197,8 @@ export class FlowRegistrar {
       toolRegistry,
       store,
     );
-    for (const [routineName, routineDef] of Object.entries(flow.routines)) {
-      const routineTool = new RoutineTool(
-        flowName,
-        routineName,
-        routineExecutor,
-        routineDef,
-        supervisor,
-      );
+    for (const routineDef of flow.routines) {
+      const routineTool = new RoutineTool(flowName, routineDef, routineExecutor, supervisor);
       try {
         toolRegistry.registerInstance(routineTool);
       } catch (error) {
