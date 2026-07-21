@@ -8,10 +8,7 @@ import { AgentSpecification, SkillResolver } from "../specifications";
  * (tools, excludedTools, toolRestrictions, thinkingLevel, systemPrompt)
  * are intentionally excluded — they are applied in activateSpecResolution().
  */
-export function buildPiCliArguments(
-  specification: AgentSpecification,
-  opts?: { disableAllExtensions?: boolean },
-): string[] {
+export function buildPiCliArguments(specification: AgentSpecification): string[] {
   const args: string[] = [];
 
   if (specification.disableBuiltinTools) {
@@ -19,10 +16,7 @@ export function buildPiCliArguments(
   }
 
   // --- Resource loading ---
-  // Subprocess agents must not load the parent session's extensions ---
-  // file locks and shared resources cause "Unknown system error -122"
-  // when two pi processes try to load the same extension files.
-  if (opts?.disableAllExtensions || specification.disableExtensions) {
+  if (specification.disableExtensions) {
     args.push("--no-extensions");
   }
   if (specification.disableSkills) {
