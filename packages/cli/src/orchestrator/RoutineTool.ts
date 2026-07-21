@@ -224,7 +224,7 @@ export class RoutineTool
               toolRegistry: this.executor.toolRegistry,
             });
 
-            connect(viewer, streamDir);
+            void connect(viewer, streamDir);
 
             overlayCleanup = () => {
               viewer.dispose();

@@ -29,6 +29,7 @@ export default defineConfig({
           root: "./packages/cli",
           globals: true,
           include: ["src/**/*.test.ts"],
+          setupFiles: ["src/test-setup.ts"],
           exclude: ["node_modules", "**/e2e/**", "**/dist/**"],
           coverage: {
             provider: "v8",
@@ -50,6 +51,7 @@ export default defineConfig({
           root: "./packages/cli",
           globals: true,
           include: ["e2e/**/*.test.ts"],
+          setupFiles: ["src/test-setup.ts"],
           testTimeout: 30_000,
           hookTimeout: 15_000,
         },

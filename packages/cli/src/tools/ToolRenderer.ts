@@ -4,7 +4,7 @@ import type {
   ThemeColor,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
+import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
 
 import type { SendTaskParams, SpawnAgentParams } from "../ipc/messages";
 
@@ -48,24 +48,70 @@ function resultText(result: AgentToolResult<unknown>, theme: Theme): string {
   return theme.fg("muted", "✓ done");
 }
 
+/** Builder API passed to renderers inside {@link ToolRenderer.build}. */
+interface Builder {
+  /** Add a single line that auto-truncates to viewport width when collapsed. */
+  line: (text: string) => void;
+  /** Add expandable multi-line content. Collapsed → single TruncatedText; expanded → multiple Text lines. */
+  expandable: (text: string | undefined, style?: ThemeColor) => void;
+}
+
 /** Shared renderCall and renderResult factories for tool TUI display. */
 export class ToolRenderer {
-  static MAX_TASK_SNIPPET_LENGTH = 100;
+  /**
+   * Construct a render Box with auto-truncation and expand/collapse built in.
+   *
+   * This is the **only** entry point for tool renderers — every `renderCall`
+   * and `renderResult` must pass through here.  The builder's {@link Builder.line}
+   * and {@link Builder.expandable} methods automatically wrap content in
+   * {@link TruncatedText} when the context is collapsed, so individual renderers
+   * never need to worry about terminal width.
+   */
+  private static build(
+    context: { state: Record<string, unknown>; expanded?: boolean },
+    theme: Theme,
+    toolName: string,
+    fn: (b: Builder) => void,
+  ): Box {
+    const box = shellBox(context, theme, toolName);
+    const expanded = context.expanded ?? false;
+
+    const builder: Builder = {
+      line: (text: string) => {
+        box.addChild(expanded ? new Text(text, 1, 0) : new TruncatedText(text, 1, 0));
+      },
+      expandable: (text: string | undefined, style?: ThemeColor) => {
+        if (!text) return;
+        if (expanded) {
+          for (const l of text.split("\n")) {
+            box.addChild(new Text(style ? theme.fg(style, l) : l, 1, 0));
+          }
+        } else {
+          const styled = style ? theme.fg(style, text) : text;
+          box.addChild(new TruncatedText(styled, 1, 0));
+        }
+      },
+    };
+
+    fn(builder);
+    return box;
+  }
+
   // ── spawn_agent ──────────────────────────────────────────────
 
   static spawnAgentCall = (
     args: SpawnAgentParams,
     theme: Theme,
-    context: { state: Record<string, unknown> },
-  ) => {
-    const box = shellBox(context, theme, "spawn_agent");
-    let content = header(theme, "success", `spawn_agent ${args.role}`);
-    if (args.model) {
-      content += " " + theme.fg("muted", `(${args.model})`);
-    }
-    box.addChild(new Text(content, 1, 0));
-    return box;
-  };
+    context: { state: Record<string, unknown>; expanded?: boolean },
+  ) =>
+    ToolRenderer.build(context, theme, "spawn_agent", ({ line, expandable }) => {
+      let content = header(theme, "success", `spawn_agent ${args.role}`);
+      if (args.model) {
+        content += " " + theme.fg("muted", `(${args.model})`);
+      }
+      line(content);
+      expandable(args.systemPrompt, "muted");
+    });
 
   static spawnAgentResult = (
     result: AgentToolResult<unknown>,
@@ -83,18 +129,20 @@ export class ToolRenderer {
   static sendTaskCall = (
     args: SendTaskParams,
     theme: Theme,
-    context: { state: Record<string, unknown> },
-  ) => {
-    const box = shellBox(context, theme, "send_task");
-    const snippet =
-      args.prompt.length > ToolRenderer.MAX_TASK_SNIPPET_LENGTH
-        ? args.prompt.substring(0, ToolRenderer.MAX_TASK_SNIPPET_LENGTH - 3) + "..."
-        : args.prompt;
-    let content = header(theme, "accent", `send_task ${args.agentId}`);
-    content += " " + theme.fg("muted", `"${snippet}"`);
-    box.addChild(new Text(content, 1, 0));
-    return box;
-  };
+    context: { state: Record<string, unknown>; expanded: boolean },
+  ) =>
+    ToolRenderer.build(context, theme, "send_task", ({ line, expandable }) => {
+      if (context.expanded) {
+        line(header(theme, "accent", `send_task ${args.agentId}`));
+        expandable(args.prompt, "muted");
+      } else {
+        const full =
+          header(theme, "accent", `send_task ${args.agentId}`) +
+          " " +
+          theme.fg("muted", `"${args.prompt}"`);
+        line(full);
+      }
+    });
 
   static sendTaskResult = ToolRenderer.spawnAgentResult;
 
@@ -104,11 +152,10 @@ export class ToolRenderer {
     args: { agentId: string },
     theme: Theme,
     context: { state: Record<string, unknown> },
-  ) => {
-    const box = shellBox(context, theme, "get_agent_result");
-    box.addChild(new Text(header(theme, "warning", `get_agent_result ${args.agentId}`), 1, 0));
-    return box;
-  };
+  ) =>
+    ToolRenderer.build(context, theme, "get_agent_result", ({ line }) => {
+      line(header(theme, "warning", `get_agent_result ${args.agentId}`));
+    });
 
   static getAgentResultResult = ToolRenderer.spawnAgentResult;
 
@@ -118,11 +165,10 @@ export class ToolRenderer {
     args: { agentId: string },
     theme: Theme,
     context: { state: Record<string, unknown> },
-  ) => {
-    const box = shellBox(context, theme, "destroy_agent");
-    box.addChild(new Text(header(theme, "error", `destroy_agent ${args.agentId}`), 1, 0));
-    return box;
-  };
+  ) =>
+    ToolRenderer.build(context, theme, "destroy_agent", ({ line }) => {
+      line(header(theme, "error", `destroy_agent ${args.agentId}`));
+    });
 
   static destroyAgentResult = ToolRenderer.spawnAgentResult;
 
@@ -132,11 +178,10 @@ export class ToolRenderer {
     _args: unknown,
     theme: Theme,
     context: { state: Record<string, unknown> },
-  ) => {
-    const box = shellBox(context, theme, "list_agents");
-    box.addChild(new Text(header(theme, "text", "list_agents"), 1, 0));
-    return box;
-  };
+  ) =>
+    ToolRenderer.build(context, theme, "list_agents", ({ line }) => {
+      line(header(theme, "text", "list_agents"));
+    });
 
   static listAgentsResult = ToolRenderer.spawnAgentResult;
 }

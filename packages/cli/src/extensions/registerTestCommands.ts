@@ -10,18 +10,21 @@ import {
   emptyScenario,
   errorScenario,
   manyTurnsScenario,
+  registerTestLoopRoutine,
   reviewerScenario,
   toolArgsScenario,
 } from "@feature-forge/debug";
 
+import { ForgeConfig } from "../config";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
-import type { AgentViewerEntry } from "../orchestrator/progress/types";
+import { ProgressRenderer } from "../orchestrator/progress/ProgressRenderer";
+import { TuiRoutineWidget } from "../orchestrator/progress/TuiProgressReporter";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
 
 export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegistry): void {
-  if (!process.env.FORGE_DEV) return;
+  if (!ForgeConfig.getInstance().getDevEnabled()) return;
 
   const DEFAULT_EVENT_DELAY = 200;
 
@@ -32,7 +35,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     baseDelay = 0,
     eventDelay = DEFAULT_EVENT_DELAY,
   ): void {
-    viewer.update({ id: scenario.agentId, status: "started", createdAt: new Date() });
+    viewer.update({ id: scenario.agentId, status: "started" });
     for (let i = 0; i < scenario.events.length; i++) {
       const delay = baseDelay + (i + 1) * eventDelay;
       const event = scenario.events[i];
@@ -44,11 +47,10 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
         () =>
           viewer.update({
             id: scenario.agentId,
-            status: scenario.status as AgentViewerEntry["status"],
+            status: scenario.status,
             summary: scenario.summary,
             passed: scenario.passed,
-            createdAt: new Date(),
-          } as AgentViewerEntry),
+          }),
         finalDelay,
       ),
     );
@@ -183,4 +185,34 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
       );
     },
   });
+
+  // ── Debug-package commands ────────────────────────────────
+
+  registerTestLoopRoutine(
+    pi,
+    {
+      createWidget: (ctx) => new TuiRoutineWidget({ ctx }),
+      createOverlay: ({ tui, theme, onDone }) =>
+        new AgentViewerOverlay({
+          tui,
+          theme,
+          onDone,
+          markdownTheme: getMarkdownTheme(),
+          cwd: process.cwd(),
+          toolRegistry,
+        }),
+      overlayOptions: AgentViewerOverlay.overlayOptions,
+      renderHelpers: {
+        statusIcon: ProgressRenderer.statusIcon.bind(ProgressRenderer),
+        formatAgentRow: ProgressRenderer.formatAgentRow.bind(ProgressRenderer),
+        buildWidgetLines: ProgressRenderer.buildWidgetLines.bind(ProgressRenderer),
+        buildStatusLine: ProgressRenderer.buildStatusLine.bind(ProgressRenderer),
+      },
+    },
+    {
+      builderScenario,
+      reviewerScenario,
+      errorScenario,
+    },
+  );
 }

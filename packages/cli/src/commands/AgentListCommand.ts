@@ -46,7 +46,7 @@ export class AgentListCommand extends Command {
               toolRegistry: this.toolRegistry,
             });
 
-            connect(viewer, streamDir);
+            void connect(viewer, streamDir);
 
             overlayCleanup = () => {
               unsubs.forEach((u) => u());

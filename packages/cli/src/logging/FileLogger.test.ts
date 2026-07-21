@@ -5,30 +5,25 @@ import { join } from "node:path";
 import { jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { LogLevel } from "../config";
 import { FileLogger } from "./FileLogger";
-import { LogLevel } from "./LogLevel";
+import { Logger } from "./Logger";
 
 describe("FileLogger", () => {
   let filePath: string;
-  let originalLogLevel: string | undefined;
   let logger: FileLogger;
 
   beforeEach(() => {
-    originalLogLevel = process.env.FEATURE_FORGE_LOG_LEVEL;
-    delete process.env.FEATURE_FORGE_LOG_LEVEL;
     filePath = join(
       tmpdir(),
       `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
     );
     logger = FileLogger.initialize(filePath);
+    Logger.setLogLevel(LogLevel.DEBUG);
   });
 
   afterEach(async () => {
-    if (originalLogLevel !== undefined) {
-      process.env.FEATURE_FORGE_LOG_LEVEL = originalLogLevel;
-    } else {
-      delete process.env.FEATURE_FORGE_LOG_LEVEL;
-    }
+    // Level filtering is set via Logger.setLogLevel() in individual tests
     await logger.close();
     if (existsSync(filePath)) {
       unlinkSync(filePath);
@@ -141,8 +136,9 @@ describe("FileLogger", () => {
   });
 
   describe("level filtering", () => {
-    it("writes all levels when threshold is debug (default)", async () => {
+    it("writes all levels when threshold is debug", async () => {
       const l = FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.DEBUG);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -155,8 +151,8 @@ describe("FileLogger", () => {
     });
 
     it("filters debug entries when threshold is info", async () => {
-      process.env.FEATURE_FORGE_LOG_LEVEL = LogLevel[LogLevel.INFO];
       const l = FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.INFO);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -169,8 +165,8 @@ describe("FileLogger", () => {
     });
 
     it("filters info and debug when threshold is warn", async () => {
-      process.env.FEATURE_FORGE_LOG_LEVEL = LogLevel[LogLevel.WARN];
       const l = FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.WARN);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -183,8 +179,8 @@ describe("FileLogger", () => {
     });
 
     it("filters everything except error when threshold is error", async () => {
-      process.env.FEATURE_FORGE_LOG_LEVEL = LogLevel[LogLevel.ERROR];
       const l = FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.ERROR);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -197,8 +193,8 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file when no entry meets the threshold", async () => {
-      process.env.FEATURE_FORGE_LOG_LEVEL = LogLevel[LogLevel.ERROR];
       const l = FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.ERROR);
       l.warn("w");
       l.info("i");
       l.debug("d");
@@ -208,33 +204,16 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file on construction regardless of level", () => {
-      process.env.FEATURE_FORGE_LOG_LEVEL = LogLevel[LogLevel.ERROR];
       FileLogger.initialize(filePath);
+      Logger.setLogLevel(LogLevel.ERROR);
       expect(existsSync(filePath)).toBe(false);
     });
   });
 
   describe("default log file path", () => {
-    const originalLogDir = process.env.FEATURE_FORGE_LOG_DIR;
-
-    afterEach(() => {
-      if (originalLogDir !== undefined) {
-        process.env.FEATURE_FORGE_LOG_DIR = originalLogDir;
-      } else {
-        delete process.env.FEATURE_FORGE_LOG_DIR;
-      }
-    });
-
-    it("falls back to .forge/logs when FEATURE_FORGE_LOG_DIR is not set", () => {
-      delete process.env.FEATURE_FORGE_LOG_DIR;
+    it("falls back to .forge/logs by default", () => {
       const defaultPath = FileLogger.getDefaultLogFilePath();
       expect(defaultPath).toContain(".forge/logs");
-    });
-
-    it("uses FEATURE_FORGE_LOG_DIR when set", () => {
-      process.env.FEATURE_FORGE_LOG_DIR = "/custom/log/dir";
-      const defaultPath = FileLogger.getDefaultLogFilePath();
-      expect(defaultPath).toContain("/custom/log/dir");
     });
   });
 

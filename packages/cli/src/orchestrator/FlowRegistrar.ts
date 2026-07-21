@@ -29,7 +29,7 @@ export class FlowRegistrar {
       supervisor: InMemoryAgentSupervisor;
       specManager: SpecManager;
       workspaceManager: WorkspaceManager;
-      flowsDir: string;
+      flowDirs: readonly string[];
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
@@ -48,27 +48,27 @@ export class FlowRegistrar {
       supervisor,
       specManager,
       workspaceManager,
-      flowsDir,
+      flowDirs,
       knownProviders,
       stepExecutorRegistry,
       eventBus,
     } = this.params;
 
-    const flowDirectories = await this.discoverFlowDirectories(flowsDir);
-
-    for (const flowName of flowDirectories) {
-      const flowDir = path.join(flowsDir, flowName);
-      await this.registerFlow(flowName, flowDir, {
-        pi,
-        cmdRegistry,
-        toolRegistry,
-        supervisor,
-        specManager,
-        workspaceManager,
-        knownProviders,
-        stepExecutorRegistry,
-        eventBus,
-      });
+    for (const flowDir of flowDirs) {
+      const flowNames = await this.discoverFlowDirectories(flowDir);
+      for (const flowName of flowNames) {
+        await this.registerFlow(flowName, path.join(flowDir, flowName), {
+          pi,
+          cmdRegistry,
+          toolRegistry,
+          supervisor,
+          specManager,
+          workspaceManager,
+          knownProviders,
+          stepExecutorRegistry,
+          eventBus,
+        });
+      }
     }
   }
 

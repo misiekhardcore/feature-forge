@@ -1,8 +1,8 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 
+import { ForgeConfig, LogLevel } from "../config";
 import { Logger } from "./Logger";
-import { LogLevel } from "./LogLevel";
 
 /** Shape of a single log entry written to the JSON Lines file. */
 interface LogEntry {
@@ -40,13 +40,27 @@ export class FileLogger extends Logger {
   }
 
   static initialize(filePath?: string): FileLogger {
-    Logger.instance = new FileLogger(filePath);
-    return Logger.instance as FileLogger;
+    const logger = new FileLogger(filePath);
+    Logger.instance = logger;
+    return logger;
   }
 
   static getDefaultLogFilePath(): string {
-    const logDir = process.env.FEATURE_FORGE_LOG_DIR ?? path.join(process.cwd(), ".forge", "logs");
-    return path.join(logDir, `${Date.now()}.log`);
+    const prefix = FileLogger.resolveLogPrefix();
+    const now = new Date();
+    const iso = now.toISOString().replace(/-/g, "").replace(/:/g, "").slice(0, 13);
+    return path.join(ForgeConfig.getInstance().getLogDir(), `${prefix}-${iso}.log`);
+  }
+
+  /**
+   * Resolve a human-readable prefix for log filenames from configuration.
+   *
+   * Delegates to {@link ForgeConfig.getLogPrefix}, which defaults to
+   * `"forge"` for the orchestrator. Child agents receive their agent id
+   * via the config initialisation path.
+   */
+  private static resolveLogPrefix(): string {
+    return ForgeConfig.getInstance().getLogPrefix();
   }
 
   /** Lazily-initialised write stream — no file created until first write. */
@@ -84,8 +98,9 @@ export class FileLogger extends Logger {
     if (!this._stream || this._stream.destroyed) {
       return;
     }
+    const stream = this._stream;
     return new Promise<void>((resolve) => {
-      this._stream!.end(() => resolve());
+      stream.end(() => resolve());
     });
   }
 
@@ -94,13 +109,13 @@ export class FileLogger extends Logger {
       return;
     }
 
-    if (!this.shouldLog(level, this.level)) {
+    if (!this.shouldLog(level, Logger.getLogLevel())) {
       return;
     }
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
-      level: LogLevel[level].toLowerCase(),
+      level: level.toLowerCase(),
       message,
     };
     if (data !== undefined) {
