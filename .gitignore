@@ -21,3 +21,4 @@ coverage/
 # pi coding agent runtime (symlinked per worktree)
 .pi
 coverage-single/
+.tmp/
