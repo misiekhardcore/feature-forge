@@ -74,6 +74,7 @@ const schema = {
   required: ["$schema", "name", "command", "orchestrator", "routines"],
   properties: {
     $schema: FlowDefinitionSchema.properties.$schema,
+    params: FlowDefinitionSchema.properties.params,
     name: { type: "string", minLength: 1 },
     command: { type: "string", minLength: 1 },
     orchestrator: { $ref: "#/$defs/OrchestratorConfig" },
