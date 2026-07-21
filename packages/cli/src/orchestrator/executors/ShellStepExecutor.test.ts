@@ -184,6 +184,91 @@ describe("ShellStepExecutor", () => {
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
     });
 
+    describe("failFast", () => {
+      it("throws instead of returning soft-failure when failFast is true", async () => {
+        mockExecFailure("Command failed", "error output");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "rebase",
+          command: "git rebase origin/main",
+          cwd: "/tmp/ws",
+          failFast: true,
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+        await expect(
+          executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
+        ).rejects.toThrow("Command failed");
+      });
+
+      it("returns soft-failure result when failFast is false (default)", async () => {
+        mockExecFailure("Command failed", "error output");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh4",
+          command: "exit 1",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
+
+        expect(result.results.get("sh4")!.parsed!.passed).toBe(false);
+      });
+
+      it("returns soft-failure result when failFast is explicitly false", async () => {
+        mockExecFailure("Command failed", "error output");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh5",
+          command: "exit 1",
+          cwd: "/tmp/ws",
+          failFast: false,
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
+
+        expect(result.results.get("sh5")!.parsed!.passed).toBe(false);
+      });
+
+      it("does nothing on success when failFast is true (no-op)", async () => {
+        mockExecSuccess("ok");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh6",
+          command: "echo ok",
+          cwd: "/tmp/ws",
+          failFast: true,
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
+
+        expect(result.results.get("sh6")!.parsed!.passed).toBe(true);
+      });
+    });
+
     describe("signal", () => {
       it("passes signal to execFile options", async () => {
         mockExecSuccess("ok");

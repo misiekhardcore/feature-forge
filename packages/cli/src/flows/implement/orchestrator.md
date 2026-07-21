@@ -129,6 +129,12 @@ After each call:
    is addressed. If any are missing, state why and ask the user whether to proceed with
    gaps. Do NOT silently ship a PR with known unmet ACs.
 
+0.5 **Sync gate.** The `open_pr` routine already runs `fetch`, `rebase`, and `revalidate`
+steps with `failFast: true` on the critical ones. Before calling `open_pr`, confirm
+that the worktree is still based on a recent-enough `main`. If the build loop took
+many rounds and `main` has moved significantly, briefly remind the user that the
+sync gate inside `open_pr` will catch drift.
+
 1. When all ACs are addressed (or the user explicitly accepts remaining gaps),
    call `open_pr(workspace, title, commit_message, body)` to commit, push, and
    create the PR.

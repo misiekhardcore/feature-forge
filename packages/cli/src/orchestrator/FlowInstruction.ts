@@ -79,6 +79,7 @@ export const GitInstructionSchema = defineInstruction("git", {
 export const ShellInstructionSchema = defineInstruction("shell", {
   command: Type.String({ minLength: 1 }),
   cwd: Type.String({ minLength: 1 }),
+  failFast: Type.Optional(Type.Boolean()),
 });
 
 // ── Parallel failure mode ──────────────────────────────────

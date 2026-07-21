@@ -405,6 +405,9 @@
         "cwd": {
           "type": "string",
           "minLength": 1
+        },
+        "failFast": {
+          "type": "boolean"
         }
       }
     },

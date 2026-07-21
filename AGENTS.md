@@ -43,6 +43,7 @@ Specs are resolved by frontmatter `id`, not filename:
 
 ### Validation Loop
 
+0. **Sync with main** — `git fetch origin main && git rebase origin/main && npm run fix && npm run lint && npm run typecheck && npm run test` — Rebase onto latest main and re-validate before pushing. This catches silent merge conflicts that local-only testing would miss.
 1. `npm run fix` — Apply automatic fixes.
 2. `npm run lint` — Verify style and rule adherence.
 3. `npm run typecheck` — Ensure type safety.

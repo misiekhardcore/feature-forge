@@ -124,11 +124,26 @@
           "message": "{{commit_message}}"
         },
         {
-          "type": "git",
-          "id": "branch",
-          "action": "push-current",
+          "type": "shell",
+          "id": "fetch",
+          "command": "git fetch origin {{session.base}}",
           "cwd": "{{workspace}}"
         },
+        {
+          "type": "shell",
+          "id": "rebase",
+          "command": "git rebase origin/{{session.base}}",
+          "cwd": "{{workspace}}",
+          "failFast": true
+        },
+        {
+          "type": "shell",
+          "id": "revalidate",
+          "command": "npm run fix && npm run lint && npm run typecheck && npm run test",
+          "cwd": "{{workspace}}",
+          "failFast": true
+        },
+        { "type": "git", "id": "branch", "action": "push-current", "cwd": "{{workspace}}" },
         {
           "type": "shell",
           "id": "pr",
