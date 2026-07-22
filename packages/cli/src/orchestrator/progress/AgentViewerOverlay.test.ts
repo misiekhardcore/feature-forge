@@ -15,7 +15,7 @@ import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
-import type { AgentViewerEntry } from "./types";
+import type { AgentViewerEntry } from "@feature-forge/tui";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;

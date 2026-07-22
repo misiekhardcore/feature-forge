@@ -12,7 +12,7 @@ import { AgentDetailView } from "./AgentDetailView";
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { AgentListView } from "./AgentListView";
 import { AgentViewerState } from "./AgentViewerState";
-import type { AgentViewerEntry } from "./types";
+import type { AgentViewerEntry } from "@feature-forge/tui";
 
 /**
  * View mode for the overlay.

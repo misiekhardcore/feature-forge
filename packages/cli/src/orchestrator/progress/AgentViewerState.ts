@@ -6,7 +6,7 @@ import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import { jsonParse } from "@feature-forge/shared";
 
 import { logger } from "../../logging";
-import type { AgentViewerEntry } from "./types";
+import type { AgentViewerEntry } from "@feature-forge/tui";
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).

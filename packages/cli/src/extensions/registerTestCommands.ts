@@ -19,7 +19,7 @@ import { ForgeConfig } from "../config";
 import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { ProgressRenderer } from "../orchestrator/progress/ProgressRenderer";
 import { TuiRoutineWidget } from "../orchestrator/progress/TuiProgressReporter";
-import type { AgentViewerEntry } from "../orchestrator/progress/types";
+import type { AgentViewerEntry } from "@feature-forge/tui";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────

@@ -23,5 +23,5 @@ export type {
   CompletedAgentEntry,
   ErroredAgentEntry,
   RunningAgentEntry,
-} from "./types";
-export type { AgentViewerEntry as DiscriminatedAgentViewerEntry } from "./types";
+} from "@feature-forge/tui";
+export type { AgentViewerEntry as DiscriminatedAgentViewerEntry } from "@feature-forge/tui";
