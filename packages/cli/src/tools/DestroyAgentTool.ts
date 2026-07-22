@@ -4,7 +4,7 @@ import { Type } from "typebox";
 
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { DestroyAgentParams, DestroyAgentResult } from "../ipc/messages";
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };

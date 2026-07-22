@@ -30,7 +30,7 @@ import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
-import { FileLogger, logger } from "./logging";
+import { FileLogger, logger } from "@feature-forge/shared";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";

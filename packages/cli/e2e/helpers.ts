@@ -11,7 +11,7 @@ import { expect, vi } from "vitest";
 import type { Agent } from "../src/agents/agents";
 import type { InSessionAgent } from "../src/agents/agents/InSessionAgent";
 import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import { AgentStatus } from "../src/agents/base";
+import { AgentStatus } from "@feature-forge/shared";
 import type { AgentSpecification, AgentSpecificationParams } from "../src/agents/specifications";
 import { DynamicAgentSpecification } from "../src/agents/specifications/DynamicAgentSpecification";
 import type { AgentSupervisor } from "../src/agents/supervisors";

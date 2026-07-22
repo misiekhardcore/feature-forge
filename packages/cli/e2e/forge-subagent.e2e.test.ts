@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSpecification } from "../src/agents";
 import type { Agent } from "../src/agents/agents";
 import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import { AgentStatus } from "../src/agents/base";
+import { AgentStatus } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../src/agents/supervisors";
 import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 import { makeMockPi, makeMockSpecManager } from "../src/test-utils";

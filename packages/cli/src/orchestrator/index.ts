@@ -57,14 +57,6 @@ export type { RoutineResult } from "./RoutineResult";
 export { RoutineTool } from "./RoutineTool";
 export { StepExecutor } from "./StepExecutor";
 export { StepExecutorRegistry } from "./StepExecutorRegistry";
-export type { DisplayContribution } from "@feature-forge/tui";
-export type { AgentProgressStatus, ProgressEvent } from "@feature-forge/tui";
-export type { BuildStatusLineParams, BuildWidgetLinesParams } from "@feature-forge/tui";
-export type { ProgressSnapshot } from "@feature-forge/tui";
-export type { RoutineProgressState } from "@feature-forge/tui";
-export { NoOpProgressReporter } from "@feature-forge/tui";
-export { ProgressRenderer } from "@feature-forge/tui";
-export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "@feature-forge/tui";
 
 import {
   FlowInstructionSchema,

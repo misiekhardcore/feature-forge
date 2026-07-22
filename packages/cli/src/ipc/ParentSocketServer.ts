@@ -9,7 +9,7 @@ import { AgentStatus, jsonParse } from "@feature-forge/shared";
 
 import type { SpecManager } from "../agents";
 import { AgentSupervisor, isSubprocessAgent } from "../agents";
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import {
   type SendTaskParams,
   type SocketMessage,

@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
 
-import { logger } from "../../logging";
+import { logger } from "@feature-forge/shared";
 import { PiSubprocessAgent, SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
 import { AgentCreationError, AgentFactory } from "./AgentFactory";

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { ForgeConfig } from "../config";
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import {
   WorkspaceError,
   WorktreeBranchExistsError,

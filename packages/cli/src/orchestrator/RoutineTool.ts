@@ -20,10 +20,10 @@ import { Type } from "typebox";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { ForgeConfig } from "../config";
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { DisplayContributionRegistry } from "./progress";
+import { DisplayContributionRegistry } from "@feature-forge/tui";
 import { SharedStreamDir } from "./progress/sharedStreamDir";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";

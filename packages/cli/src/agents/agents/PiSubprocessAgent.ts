@@ -4,7 +4,7 @@ import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 
 import { ForgeConfig } from "../../config";
-import { logger } from "../../logging";
+import { logger } from "@feature-forge/shared";
 import { AgentSpecification } from "../specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
 

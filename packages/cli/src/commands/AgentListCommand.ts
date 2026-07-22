@@ -3,7 +3,7 @@ import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 
 import { ForgeConfig } from "../config";
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import { TypedEventBus } from "../orchestrator/eventBus";
 import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";

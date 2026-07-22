@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 
 import type { DisplayContribution } from "@feature-forge/tui";
 
-import { logger } from "../../logging";
+import { logger } from "@feature-forge/shared";
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";

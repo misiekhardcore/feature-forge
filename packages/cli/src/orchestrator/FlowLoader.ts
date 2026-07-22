@@ -5,7 +5,7 @@ import { jsonParse } from "@feature-forge/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import { ExpressionEvaluator } from "./ExpressionEvaluator";
 import type { AgentInstruction, FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import {

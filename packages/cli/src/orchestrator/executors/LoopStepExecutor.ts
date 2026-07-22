@@ -1,7 +1,7 @@
 import type { DisplayContribution } from "@feature-forge/tui";
 import type { DisplayContributionRegistry } from "@feature-forge/tui";
 
-import { logger } from "../../logging";
+import { logger } from "@feature-forge/shared";
 import type { TypedEventBus } from "../eventBus";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";

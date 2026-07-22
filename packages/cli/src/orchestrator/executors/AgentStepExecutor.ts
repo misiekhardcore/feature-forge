@@ -8,7 +8,7 @@ import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { logger } from "../../logging";
+import { logger } from "@feature-forge/shared";
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";

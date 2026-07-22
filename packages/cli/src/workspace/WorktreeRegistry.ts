@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 
 import { jsonParse, Registry } from "@feature-forge/shared";
 
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 import { WorkspaceError } from "./WorkspaceError";
 import { WorkspaceHandle } from "./WorkspaceHandle";
 
