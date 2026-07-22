@@ -1,9 +1,10 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SelectItem, SelectListTheme, TUI } from "@earendil-works/pi-tui";
 import { SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
-import { AgentViewerState } from "@feature-forge/tui";
-import { BorderedContainer } from "@feature-forge/tui";
+
+import type { AgentEntryProvider, AgentStreamProvider } from "../api";
+import { BorderedContainer } from "../components/BorderedContainer";
+import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
 
 /**
  * Renders the list of agent entries with their statuses using a
@@ -17,7 +18,7 @@ import { BorderedContainer } from "@feature-forge/tui";
  * encapsulation.
  */
 export class AgentListView {
-  private readonly state: AgentViewerState;
+  private readonly state: AgentEntryProvider & AgentStreamProvider;
   private readonly theme: Theme;
   private readonly onSelectAgent: (agentId: string) => void;
   private readonly onDone: () => void;
@@ -28,7 +29,7 @@ export class AgentListView {
   private selectList?: SelectList;
 
   constructor(
-    state: AgentViewerState,
+    state: AgentEntryProvider & AgentStreamProvider,
     theme: Theme,
     _tui: TUI,
     onSelectAgent: (agentId: string) => void,

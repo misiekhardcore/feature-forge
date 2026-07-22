@@ -6,10 +6,10 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentViewerState } from "@feature-forge/tui";
+import { AgentDetailView } from "@feature-forge/tui";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockToolRegistry } from "../../test-utils";
-import { AgentDetailView } from "./AgentDetailView";
 
 beforeAll(() => {
   initTheme("dark");

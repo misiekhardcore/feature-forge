@@ -15,11 +15,11 @@ import {
   toolArgsScenario,
 } from "@feature-forge/debug";
 import type { AgentViewerEntry } from "@feature-forge/tui";
+import { AgentViewerOverlay } from "@feature-forge/tui";
+import { TuiRoutineWidget } from "@feature-forge/tui";
 
 import { ForgeConfig } from "../config";
-import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { ProgressRenderer } from "../orchestrator/progress/ProgressRenderer";
-import { TuiRoutineWidget } from "@feature-forge/tui";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
@@ -80,6 +80,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
       markdownTheme: getMarkdownTheme(),
       cwd: process.cwd(),
       toolRegistry,
+      config: ForgeConfig.getInstance(),
     });
     if (streamDir) viewer.setStreamDir(streamDir);
     const offset = scenarios.length <= 1 ? 0 : 200;
@@ -116,7 +117,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
             toolRegistry,
           );
         },
-        { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
+        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
       );
     },
   });
@@ -137,7 +138,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
             toolRegistry,
           );
         },
-        { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
+        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
       );
     },
   });
@@ -159,7 +160,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
             toolRegistry,
           );
         },
-        { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
+        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
       );
     },
   });
@@ -183,7 +184,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
             0,
           );
         },
-        { overlay: true, overlayOptions: AgentViewerOverlay.overlayOptions },
+        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
       );
     },
   });
@@ -202,8 +203,9 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
           markdownTheme: getMarkdownTheme(),
           cwd: process.cwd(),
           toolRegistry,
+          config: ForgeConfig.getInstance(),
         }),
-      overlayOptions: AgentViewerOverlay.overlayOptions,
+      overlayOptions: AgentViewerOverlay.getOverlayOptions(),
       renderHelpers: {
         statusIcon: ProgressRenderer.statusIcon.bind(ProgressRenderer),
         formatAgentRow: ProgressRenderer.formatAgentRow.bind(ProgressRenderer),

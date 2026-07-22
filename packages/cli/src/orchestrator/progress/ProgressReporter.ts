@@ -1,5 +1,4 @@
 import type { ProgressEvent } from "./ProgressEvent";
-import type { ProgressWidget } from "@feature-forge/tui";
 
 /**
  * Accumulated state snapshot returned by {@link ProgressReporter.getState}.

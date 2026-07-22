@@ -9,8 +9,8 @@ import {
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 import { jsonParse } from "@feature-forge/shared";
 
-import { ToolRegistry } from "../../registry/ToolRegistry";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
+import type { ToolFormatter } from "../api";
+import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
 
 /**
  * Parameters for constructing a {@link ConversationRenderer}.
@@ -25,7 +25,7 @@ export interface ConversationRendererParams {
   /** Current working directory — passed to tool execution components. */
   cwd: string;
   /** Registry for resolving tool definitions to restore argument formatting. */
-  toolRegistry: ToolRegistry;
+  toolRegistry: ToolFormatter;
 }
 
 /**
@@ -51,7 +51,7 @@ export class ConversationRenderer {
   private readonly markdownTheme: MarkdownTheme;
   private readonly tui: TUI;
   private readonly cwd: string;
-  private readonly toolRegistry: ToolRegistry;
+  private readonly toolRegistry: ToolFormatter;
 
   constructor(params: ConversationRendererParams) {
     this.theme = params.theme;
@@ -143,7 +143,8 @@ export class ConversationRenderer {
             resolvedArgs = toolCall.arguments as Record<string, unknown>;
           }
 
-          const toolDefinition = this.toolRegistry.get(toolCall.name);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const toolDefinition = this.toolRegistry.get(toolCall.name) as any;
 
           const toolComponent = new ToolExecutionComponent(
             toolCall.name,

@@ -1,11 +1,10 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import { ConversationRenderer } from "@feature-forge/tui";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { ToolRegistry } from "../../registry/ToolRegistry";
 import { makeMockToolRegistry } from "../../test-utils";
-import { ConversationRenderer } from "./ConversationRenderer";
 beforeAll(() => {
   initTheme("dark");
 });
@@ -297,7 +296,7 @@ describe("ConversationRenderer", () => {
         markdownTheme: makeMarkdownTheme(),
         tui: makeTui(),
         cwd: "/test/cwd",
-        toolRegistry: { get: getMock } as unknown as ToolRegistry,
+        toolRegistry: { get: getMock },
       });
 
       const messages = [

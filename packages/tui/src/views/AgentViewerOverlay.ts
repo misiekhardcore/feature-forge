@@ -3,14 +3,11 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
-import type { AgentViewerEntry } from "@feature-forge/tui";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
-import { AgentViewerState } from "@feature-forge/tui";
 
-import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { ForgeConfig } from "../../config";
-import { ToolRegistry } from "../../registry/ToolRegistry";
-import type { TypedEventBus } from "../eventBus";
+import type { AgentQuery, DisplayConfig, EventSubscriber, ToolFormatter } from "../api";
+import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import { AgentViewerState } from "../state/AgentViewerState";
+import type { AgentViewerEntry } from "../types";
 import { AgentDetailView } from "./AgentDetailView";
 import { AgentListView } from "./AgentListView";
 
@@ -26,16 +23,16 @@ export type ViewMode = "list" | "detail";
  * Maximum events kept in memory per agent (sliding window FIFO).
  * Older events are evicted but persist on disk via JSONL for lazy loading.
  */
-function getDisplayMaxAgentEvents(): number {
-  return ForgeConfig.getInstance().getDisplayMaxAgentEvents();
+function getDisplayMaxAgentEvents(config: DisplayConfig): number {
+  return config.getDisplayMaxAgentEvents();
 }
 
 /**
  * Maximum events buffered before {@link connect} is called.
  * Prevents unbounded memory from a burst of pre-connect events.
  */
-function getDisplayMaxPreconnectBuffer(): number {
-  return ForgeConfig.getInstance().getDisplayMaxPreconnectBuffer();
+function getDisplayMaxPreconnectBuffer(config: DisplayConfig): number {
+  return config.getDisplayMaxPreconnectBuffer();
 }
 
 /**
@@ -58,7 +55,9 @@ export interface AgentViewerOverlayParams {
   /** Current working directory — used by {@link ConversationRenderer} for tool execution display. */
   cwd: string;
   /** Registry for resolving tool definitions to restore argument formatting. */
-  toolRegistry: ToolRegistry;
+  toolRegistry: ToolFormatter;
+  /** Display configuration for overlay sizing and event caps. */
+  config: DisplayConfig;
 }
 
 /**
@@ -108,6 +107,7 @@ export class AgentViewerOverlay implements Component {
 
   /** Current working directory — passed through to detail view. */
   private readonly cwd: string;
+  private readonly config: DisplayConfig;
 
   /** View classes. */
   private readonly listView: AgentListView;
@@ -125,6 +125,7 @@ export class AgentViewerOverlay implements Component {
     this.onDone = params.onDone;
     this.markdownTheme = params.markdownTheme;
     this.cwd = params.cwd;
+    this.config = params.config;
 
     this.listView = new AgentListView(
       this.state,
@@ -235,8 +236,9 @@ export class AgentViewerOverlay implements Component {
    *
    * Returns a fresh copy so callers can mutate without affecting shared state.
    */
-  static get overlayOptions(): typeof OVERLAY_OPTIONS {
-    const configHeight = ForgeConfig.getInstance().getDisplayMaxOverlayHeight();
+  static getOverlayOptions(config?: DisplayConfig): typeof OVERLAY_OPTIONS {
+    if (!config) return { ...OVERLAY_OPTIONS };
+    const configHeight = config.getDisplayMaxOverlayHeight();
     if (configHeight === "85%") return { ...OVERLAY_OPTIONS };
     return { ...OVERLAY_OPTIONS, maxHeight: configHeight as "85%" };
   }
@@ -336,7 +338,7 @@ export class AgentViewerOverlay implements Component {
    */
   async loadConversationEvents(
     agentId: string,
-    count: number = getDisplayMaxAgentEvents(),
+    count: number = getDisplayMaxAgentEvents(this.config),
   ): Promise<AgentEvent[]> {
     return this.state.loadConversationEvents(agentId, count);
   }
@@ -421,11 +423,16 @@ export class AgentViewerOverlay implements Component {
    * to replay buffered events, set the stream directory, and populate initial
    * agent entries from the supervisor.
    */
-  static wireOverlayEvents(params: { eventBus: TypedEventBus; supervisor: AgentSupervisor }): {
+  static wireOverlayEvents(params: {
+    eventBus: EventSubscriber;
+    supervisor: AgentQuery;
+    config: DisplayConfig;
+    toolRegistry: ToolFormatter;
+  }): {
     connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
     unsubs: Array<() => void>;
   } {
-    const { eventBus, supervisor } = params;
+    const { eventBus, supervisor, config, toolRegistry } = params;
 
     const eventBuffer: Array<{
       agentId: string;
@@ -436,7 +443,7 @@ export class AgentViewerOverlay implements Component {
     }> = [];
 
     const capEventBuffer = (): void => {
-      const maxPreconnectBuffer = getDisplayMaxPreconnectBuffer();
+      const maxPreconnectBuffer = getDisplayMaxPreconnectBuffer(config);
       if (eventBuffer.length > maxPreconnectBuffer) {
         eventBuffer.splice(0, eventBuffer.length - maxPreconnectBuffer);
       }
@@ -472,7 +479,8 @@ export class AgentViewerOverlay implements Component {
     };
 
     const unsubs = [
-      eventBus.on("feature-forge:agent-stream", (payload) => {
+      eventBus.on("feature-forge:agent-stream", (_payload: unknown) => {
+        const payload = _payload as Record<string, any>;
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
@@ -486,12 +494,13 @@ export class AgentViewerOverlay implements Component {
         }
       }),
 
-      eventBus.on("feature-forge:agent-started", (payload) => {
+      eventBus.on("feature-forge:agent-started", (_payload: unknown) => {
+        const payload = _payload as Record<string, any>;
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
         const mappedStatus = AgentViewerOverlay.mapStatus(
-          supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+          (supervisor.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
         );
         if (connected) {
           deliverStatusEvent(viewer, agentId, mappedStatus);
@@ -501,12 +510,13 @@ export class AgentViewerOverlay implements Component {
         }
       }),
 
-      eventBus.on("feature-forge:agent-done", (payload) => {
+      eventBus.on("feature-forge:agent-done", (_payload: unknown) => {
+        const payload = _payload as Record<string, any>;
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
         const mappedStatus = AgentViewerOverlay.mapStatus(
-          supervisor.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+          (supervisor.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
         );
         const passed = payload.details.passed;
         const eventSummary = payload.details.summary;
@@ -540,7 +550,7 @@ export class AgentViewerOverlay implements Component {
       viewer.prepopulateStreamFiles(streamDir).catch(() => {});
 
       for (const agent of supervisor.getAllAgents()) {
-        const status = AgentViewerOverlay.mapStatus(agent.status);
+        const status = AgentViewerOverlay.mapStatus(agent.status as AgentStatus);
         viewer.update({
           id: agent.id,
           status: status as AgentViewerEntry["status"],

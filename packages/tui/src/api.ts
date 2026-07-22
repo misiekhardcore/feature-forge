@@ -35,7 +35,7 @@ export interface AgentQuery {
   getAgent(
     id: string,
   ): { specification: { role: string }; status: string; createdAt: Date } | undefined;
-  getAllAgents(): Array<{
+  getAllAgents(): ReadonlyArray<{
     id: string;
     specification: { role: string };
     status: string;
@@ -55,7 +55,7 @@ export interface DisplayConfig {
   getDisplayMaxOverlayHeight(): string;
 }
 
-/** Tool description lookup — satisfied by ToolRegistry. */
+/** Tool lookup — satisfied by ToolRegistry (extends Registry<Tool>). */
 export interface ToolFormatter {
-  getDescription(name: string): string | undefined;
+  get(name: string): unknown;
 }

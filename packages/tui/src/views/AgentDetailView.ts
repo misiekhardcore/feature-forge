@@ -1,15 +1,10 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
-import { AgentViewerState } from "@feature-forge/tui";
-import {
-  AgentDisplayHelpers,
-  BorderedContainer,
-  ScrollableBox,
-  StaticContent,
-} from "@feature-forge/tui";
 
-import type { ToolRegistry } from "../../registry/ToolRegistry";
+import type { AgentConversationProvider, AgentEntryProvider, ToolFormatter } from "../api";
+import { BorderedContainer, ScrollableBox, StaticContent } from "../components";
+import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
 import { ConversationRenderer } from "./ConversationRenderer";
 
 /**
@@ -48,7 +43,7 @@ export class AgentDetailView {
   /** Agent id currently being displayed. */
   selectedAgentId?: string;
 
-  private readonly state: AgentViewerState;
+  private readonly state: AgentEntryProvider & AgentConversationProvider;
   private readonly theme: Theme;
   private readonly tui: TUI;
   private readonly markdownTheme: MarkdownTheme;
@@ -72,12 +67,12 @@ export class AgentDetailView {
   private avgLinesPerMessage = new Map<string, number>();
 
   constructor(
-    state: AgentViewerState,
+    state: AgentEntryProvider & AgentConversationProvider,
     theme: Theme,
     markdownTheme: MarkdownTheme,
     tui: TUI,
     cwd: string,
-    toolRegistry: ToolRegistry,
+    toolRegistry: ToolFormatter,
   ) {
     this.state = state;
     this.theme = theme;

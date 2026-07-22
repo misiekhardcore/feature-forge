@@ -7,18 +7,26 @@ import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import type { AgentViewerEntry } from "@feature-forge/tui";
+import type { AgentViewerOverlayParams } from "@feature-forge/tui";
 import { AgentDisplayHelpers } from "@feature-forge/tui";
+import { AgentViewerOverlay } from "@feature-forge/tui";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
-import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
-import { AgentViewerOverlay } from "./AgentViewerOverlay";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;
+
+const mockConfig = {
+  getDisplayMaxAgentEvents: () => 200,
+  getDisplayMaxPreconnectBuffer: () => 100,
+  getDisplayMaxOverlayHeight: () => "85%",
+};
+
+const mockToolFormatter = { get: vi.fn(() => undefined) };
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -107,6 +115,7 @@ function makeOverlay(overrides: Partial<AgentViewerOverlayParams> = {}): AgentVi
     markdownTheme: makeMarkdownTheme(),
     cwd: "/test/cwd",
     toolRegistry: makeMockToolRegistry(),
+    config: mockConfig,
     ...overrides,
   });
 }
@@ -132,6 +141,7 @@ describe("AgentViewerOverlay", () => {
         markdownTheme,
         cwd: "/custom/cwd",
         toolRegistry: makeMockToolRegistry(),
+        config: mockConfig,
       });
 
       expect(overlay.entryCount).toBe(0);
@@ -1713,6 +1723,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -1747,6 +1759,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -1780,6 +1794,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       // Emit events BEFORE connect — they should be buffered.
@@ -1830,6 +1846,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       const overlay = makeOverlay();
@@ -1852,6 +1870,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -1880,6 +1900,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -1912,6 +1934,8 @@ describe("AgentViewerOverlay", () => {
         const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
           eventBus,
           supervisor,
+          config: mockConfig,
+          toolRegistry: mockToolFormatter,
         });
 
         connect(overlay, streamDir);
@@ -1949,6 +1973,8 @@ describe("AgentViewerOverlay", () => {
       const { unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       expect(unsubs).toHaveLength(3);
@@ -1966,6 +1992,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -2004,6 +2032,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       // Emit before connect so it is buffered.
@@ -2039,6 +2069,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -2066,6 +2098,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -2096,6 +2130,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -2127,6 +2163,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       connect(overlay, "");
@@ -2160,6 +2198,8 @@ describe("AgentViewerOverlay", () => {
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
         supervisor,
+        config: mockConfig,
+        toolRegistry: mockToolFormatter,
       });
 
       // Emit agent-stream without event details BEFORE connect.
@@ -2195,6 +2235,8 @@ describe("AgentViewerOverlay", () => {
         const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
           eventBus,
           supervisor,
+          config: mockConfig,
+          toolRegistry: mockToolFormatter,
         });
 
         // Emit events BEFORE connect — they should be buffered.
