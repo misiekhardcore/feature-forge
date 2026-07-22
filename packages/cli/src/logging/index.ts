@@ -1,6 +1,8 @@
-// ── Re-exports from shared (Logger, LogLevel, helpers) ─────────
+// ── All logging now lives in @feature-forge/shared ──────────────
 export {
+  ConsoleLogger,
   DEFAULT_LOG_LEVEL,
+  FileLogger,
   levelSeverity,
   LOG_LEVEL_ORDER,
   Logger,
@@ -8,7 +10,3 @@ export {
   LogLevel,
   shouldLog,
 } from "@feature-forge/shared";
-
-// ── CLI-specific logging implementations ───────────────────────
-export { ConsoleLogger } from "./ConsoleLogger";
-export { FileLogger } from "./FileLogger";

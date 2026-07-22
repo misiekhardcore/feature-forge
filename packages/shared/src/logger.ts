@@ -89,7 +89,7 @@ export class Logger {
   }
 
   /** Create and register a base Logger singleton. */
-  static initialize(): Logger {
+  static initialize(_options?: Record<string, unknown>): Logger {
     Logger.instance = new Logger();
     return Logger.instance;
   }

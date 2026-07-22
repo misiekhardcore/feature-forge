@@ -1,4 +1,4 @@
-import { Logger } from "@feature-forge/shared";
+import { Logger } from "../logger";
 
 /**
  * Logger that writes messages to stdout/stderr via console methods.
@@ -9,7 +9,7 @@ import { Logger } from "@feature-forge/shared";
  * file logging is not available.
  */
 export class ConsoleLogger extends Logger {
-  static initialize(): ConsoleLogger {
+  static initialize(_options?: Record<string, unknown>): ConsoleLogger {
     Logger.instance = new ConsoleLogger();
     return Logger.instance;
   }

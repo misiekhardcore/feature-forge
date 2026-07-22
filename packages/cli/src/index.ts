@@ -75,7 +75,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   Logger.setDefaultLogLevel(ForgeConfig.getInstance().getLogLevel());
 
   // ── Logging ────────────────────────────────────────────────────────
-  FileLogger.initialize();
+  FileLogger.initialize({
+    logDir: ForgeConfig.getInstance().getLogDir(),
+    logPrefix: ForgeConfig.getInstance().getLogPrefix(),
+  });
 
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
