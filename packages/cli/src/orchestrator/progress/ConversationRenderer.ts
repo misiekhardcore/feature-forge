@@ -8,9 +8,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 import { jsonParse } from "@feature-forge/shared";
+import { AgentDisplayHelpers } from "@feature-forge/tui";
 
 import { ToolRegistry } from "../../registry/ToolRegistry";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
 
 /**
  * Parameters for constructing a {@link ConversationRenderer}.

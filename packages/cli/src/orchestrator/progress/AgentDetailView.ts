@@ -1,10 +1,15 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
+import { AgentViewerState } from "@feature-forge/tui";
+import {
+  AgentDisplayHelpers,
+  BorderedContainer,
+  ScrollableBox,
+  StaticContent,
+} from "@feature-forge/tui";
 
 import type { ToolRegistry } from "../../registry/ToolRegistry";
-import { AgentViewerState } from "./AgentViewerState";
-import { AgentDisplayHelpers, BorderedContainer, ScrollableBox, StaticContent } from "@feature-forge/tui";
 import { ConversationRenderer } from "./ConversationRenderer";
 
 /**

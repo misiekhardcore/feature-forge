@@ -4,8 +4,7 @@ import { createInterface } from "node:readline";
 
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import { jsonParse } from "@feature-forge/shared";
-
-import { logger } from "../../logging";
+// Using console.warn for logging (no CLI dependency in TUI package)
 import type { AgentViewerEntry } from "@feature-forge/tui";
 
 /**
@@ -263,7 +262,7 @@ export class AgentViewerState {
         }
       }
     } catch (err) {
-      logger.warn("persistStreamEvent: failed to persist stream event", {
+      console.warn("persistStreamEvent: failed to persist stream event", {
         agentId,
         error: String(err),
       });
@@ -357,7 +356,7 @@ export class AgentViewerState {
 
       return lines;
     } catch (err) {
-      logger.warn("loadStreamFile: failed to load stream file", { agentId, error: String(err) });
+      console.warn("loadStreamFile: failed to load stream file", { agentId, error: String(err) });
       return [];
     }
   }
@@ -381,7 +380,7 @@ export class AgentViewerState {
 
       return messages;
     } catch (err) {
-      logger.warn("loadMessagesFile: failed to load messages file", {
+      console.warn("loadMessagesFile: failed to load messages file", {
         agentId,
         error: String(err),
       });
@@ -460,7 +459,7 @@ export class AgentViewerState {
         }
       }
     } catch (err) {
-      logger.warn("prepopulateStreamFiles: failed to scan stream directory", {
+      console.warn("prepopulateStreamFiles: failed to scan stream directory", {
         error: String(err),
       });
     }
@@ -507,7 +506,7 @@ export class AgentViewerState {
           const parsed = jsonParse<AgentEvent>(line);
           diskEvents.push(parsed);
         } catch (err) {
-          logger.warn("loadConversationEvents: failed to parse event line", {
+          console.warn("loadConversationEvents: failed to parse event line", {
             agentId,
             error: String(err),
           });
@@ -516,7 +515,7 @@ export class AgentViewerState {
 
       return diskEvents;
     } catch (err) {
-      logger.warn("loadConversationEvents: failed to load events file", {
+      console.warn("loadConversationEvents: failed to load events file", {
         agentId,
         error: String(err),
       });
@@ -546,7 +545,7 @@ export class AgentViewerState {
           const parsed = jsonParse<AgentMessage>(line);
           disk.push(parsed);
         } catch (err) {
-          logger.warn("loadMessagesFromDiskIntoCache: failed to parse message line", {
+          console.warn("loadMessagesFromDiskIntoCache: failed to parse message line", {
             agentId,
             error: String(err),
           });
@@ -561,7 +560,7 @@ export class AgentViewerState {
       }
       this.agentMessages.set(agentId, merged);
     } catch (err) {
-      logger.warn("loadMessagesFromDiskIntoCache: failed to load messages from disk", {
+      console.warn("loadMessagesFromDiskIntoCache: failed to load messages from disk", {
         agentId,
         error: String(err),
       });

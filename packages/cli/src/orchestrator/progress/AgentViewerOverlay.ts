@@ -3,16 +3,16 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/shared";
+import type { AgentViewerEntry } from "@feature-forge/tui";
+import { AgentDisplayHelpers } from "@feature-forge/tui";
+import { AgentViewerState } from "@feature-forge/tui";
 
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { ForgeConfig } from "../../config";
 import { ToolRegistry } from "../../registry/ToolRegistry";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDetailView } from "./AgentDetailView";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
 import { AgentListView } from "./AgentListView";
-import { AgentViewerState } from "./AgentViewerState";
-import type { AgentViewerEntry } from "@feature-forge/tui";
 
 /**
  * View mode for the overlay.

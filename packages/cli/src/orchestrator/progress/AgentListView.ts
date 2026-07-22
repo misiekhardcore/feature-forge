@@ -1,9 +1,8 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SelectItem, SelectListTheme, TUI } from "@earendil-works/pi-tui";
 import { SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
-
 import { AgentDisplayHelpers } from "@feature-forge/tui";
-import { AgentViewerState } from "./AgentViewerState";
+import { AgentViewerState } from "@feature-forge/tui";
 import { BorderedContainer } from "@feature-forge/tui";
 
 /**
