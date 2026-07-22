@@ -25,6 +25,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: "tui",
+          root: "./packages/tui",
+          globals: true,
+          include: ["src/**/*.test.ts"],
+        },
+      },
+      {
+        test: {
           name: "cli",
           root: "./packages/cli",
           globals: true,

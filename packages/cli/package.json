@@ -34,6 +34,7 @@
     "@earendil-works/pi-coding-agent": "0.79.8",
     "@earendil-works/pi-tui": "0.79.8",
     "@feature-forge/shared": "*",
+    "@feature-forge/tui": "*",
     "@feature-forge/debug": "*",
     "yaml": "^2.9.0"
   },

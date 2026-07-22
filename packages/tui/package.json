@@ -1,0 +1,31 @@
+{
+  "name": "@feature-forge/tui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Terminal user interface components for feature-forge",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "echo 'tui: nothing to build'",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "format": "prettier . --check",
+    "format:fix": "prettier . --write",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.79.10",
+    "@earendil-works/pi-ai": "0.79.10",
+    "@earendil-works/pi-coding-agent": "0.79.8",
+    "@earendil-works/pi-tui": "0.79.8",
+    "@feature-forge/shared": "*"
+  },
+  "devDependencies": {
+    "@feature-forge/eslint-config": "*"
+  }
+}
