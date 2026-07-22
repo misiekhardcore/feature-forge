@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { DisplayContribution } from "@feature-forge/tui";
-import type { DisplayContributionRegistry } from "@feature-forge/tui";
+import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";

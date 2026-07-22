@@ -5,17 +5,18 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import { AgentSupervisor } from "@feature-forge/cli/src/agents";
+import type { Agent } from "@feature-forge/cli/src/agents/agents/Agent";
+import type { AgentSpecification } from "@feature-forge/cli/src/agents/specifications";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
-import type { AgentViewerEntry } from "@feature-forge/tui";
-import type { AgentViewerOverlayParams } from "@feature-forge/tui";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
-import { AgentViewerOverlay } from "@feature-forge/tui";
+import {
+  AgentDisplayHelpers,
+  type AgentViewerEntry,
+  AgentViewerOverlay,
+  AgentViewerOverlayParams,
+} from "@feature-forge/tui";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { AgentSupervisor } from "../../agents";
-import type { Agent } from "../../agents/agents/Agent";
-import type { AgentSpecification } from "../../agents/specifications";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;

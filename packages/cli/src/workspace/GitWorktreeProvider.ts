@@ -2,8 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
-import { logger } from "@feature-forge/shared";
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 
 import {
   WorkspaceError,

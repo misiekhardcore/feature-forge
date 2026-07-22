@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { logger } from "@feature-forge/shared";
-import type { DisplayContribution } from "@feature-forge/tui";
-import type { DisplayContributionRegistry } from "@feature-forge/tui";
+import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";

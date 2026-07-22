@@ -7,7 +7,7 @@ import {
 import type { Component } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "../display";
 import type { ProgressWidget } from "./ProgressWidget";
 
 // Minimal result shape consumed by buildResultSuffix — avoids direct

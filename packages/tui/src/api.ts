@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import type { Tool } from "@feature-forge/shared";
+import type { AgentStatus, Tool } from "@feature-forge/shared";
 
 import type { AgentViewerEntry } from "./types";
 
@@ -9,6 +9,7 @@ export interface AgentEntryProvider {
   getAgentEntries(): ReadonlyMap<string, AgentViewerEntry>;
   getAgentIds(): string[];
   get entryCount(): number;
+  getVersion(): number;
 }
 
 /** Provides streaming line access for list view and overlay. */
@@ -35,11 +36,11 @@ export interface AgentStateWriter {
 export interface AgentQuery {
   getAgent(
     id: string,
-  ): { specification: { role: string }; status: string; createdAt: Date } | undefined;
+  ): { specification: { role: string }; status: AgentStatus; createdAt: Date } | undefined;
   getAllAgents(): ReadonlyArray<{
     id: string;
     specification: { role: string };
-    status: string;
+    status: AgentStatus;
     createdAt: Date;
   }>;
 }
@@ -58,6 +59,5 @@ export interface DisplayConfig {
 
 /** Tool lookup — satisfied by ToolRegistry (extends Registry<Tool>). */
 export interface ToolFormatter {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  get(name: string): Tool<any, any, any> | undefined;
+  get(name: string): Tool | undefined;
 }

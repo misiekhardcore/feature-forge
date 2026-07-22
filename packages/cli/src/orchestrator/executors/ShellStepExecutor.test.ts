@@ -21,8 +21,7 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
-import { createAccumulatedState } from "@feature-forge/tui";
-import { DisplayContributionRegistry } from "@feature-forge/tui";
+import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ConsoleLogger } from "../logging/ConsoleLogger";
+import { ConsoleLogger } from "./ConsoleLogger";
 
 describe("ConsoleLogger", () => {
   describe("log methods", () => {

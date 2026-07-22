@@ -10,7 +10,7 @@ import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works
 import { jsonParse } from "@feature-forge/shared";
 
 import type { ToolFormatter } from "../api";
-import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "../display";
 
 /**
  * Parameters for constructing a {@link ConversationRenderer}.

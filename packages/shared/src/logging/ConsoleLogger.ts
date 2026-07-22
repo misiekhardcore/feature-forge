@@ -1,4 +1,4 @@
-import { Logger } from "./logger";
+import { Logger } from "./Logger";
 
 /**
  * Logger that writes messages to stdout/stderr via console methods.
@@ -9,7 +9,7 @@ import { Logger } from "./logger";
  * file logging is not available.
  */
 export class ConsoleLogger extends Logger {
-  static initialize(_options?: Record<string, unknown>): ConsoleLogger {
+  static initialize(): ConsoleLogger {
     Logger.instance = new ConsoleLogger();
     return Logger.instance;
   }

@@ -4,7 +4,7 @@ import { SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 import type { AgentEntryProvider, AgentStreamProvider } from "../api";
 import { BorderedContainer } from "../components/BorderedContainer";
-import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "../display";
 
 /**
  * Renders the list of agent entries with their statuses using a
@@ -22,7 +22,7 @@ export class AgentListView {
   private readonly theme: Theme;
   private readonly onSelectAgent: (agentId: string) => void;
   private readonly onDone: () => void;
-  private lastEntryCount: number;
+  private lastVersion: number;
   private _selectedIndex = 0;
 
   private readonly borderedContainer: BorderedContainer;
@@ -41,7 +41,7 @@ export class AgentListView {
     this.onDone = onDone;
 
     this.borderedContainer = new BorderedContainer(theme, "Agent Viewer");
-    this.lastEntryCount = this.state.entryCount;
+    this.lastVersion = this.state.getVersion();
     this.rebuild();
   }
 
@@ -107,9 +107,9 @@ export class AgentListView {
    * Rebuilds the {@link SelectList} when the entry count changes.
    */
   private ensureUpToDate(): void {
-    const currentCount = this.state.entryCount;
-    if (currentCount !== this.lastEntryCount) {
-      this.lastEntryCount = currentCount;
+    const currentVersion = this.state.getVersion();
+    if (currentVersion !== this.lastVersion) {
+      this.lastVersion = currentVersion;
       this.rebuild();
     }
   }

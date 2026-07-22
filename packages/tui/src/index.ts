@@ -10,7 +10,7 @@ export type {
 } from "./api";
 export { BorderedContainer, StaticContent } from "./components/BorderedContainer";
 export { ScrollableBox } from "./components/ScrollableBox";
-export { AgentDisplayHelpers } from "./display/AgentDisplayHelpers";
+export { AgentDisplayHelpers } from "./display";
 export type { AccumulatedState } from "./progress/AccumulatedState";
 export { createAccumulatedState } from "./progress/AccumulatedState";
 export type {
@@ -44,3 +44,4 @@ export type { AgentViewerOverlayParams, ViewMode } from "./views/AgentViewerOver
 export { AgentViewerOverlay } from "./views/AgentViewerOverlay";
 export type { ConversationRendererParams } from "./views/ConversationRenderer";
 export { ConversationRenderer } from "./views/ConversationRenderer";
+export { ToolRenderer } from "./views/ToolRenderer";

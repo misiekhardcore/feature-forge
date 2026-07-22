@@ -1,6 +1,5 @@
 import { logger } from "@feature-forge/shared";
-import type { DisplayContribution } from "@feature-forge/tui";
-import type { DisplayContributionRegistry } from "@feature-forge/tui";
+import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";

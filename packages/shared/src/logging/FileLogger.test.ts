@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { LogLevel } from "../config";
 import { jsonParse } from "../helpers";
-import { FileLogger } from "../logging/FileLogger";
-import { Logger } from "./logger";
+import { FileLogger } from "./FileLogger";
+import { Logger } from "./Logger";
 
 describe("FileLogger", () => {
   let filePath: string;

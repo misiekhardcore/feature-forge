@@ -2,8 +2,7 @@ import { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
-import { logger } from "@feature-forge/shared";
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 
 import { AgentSpecification } from "../specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";

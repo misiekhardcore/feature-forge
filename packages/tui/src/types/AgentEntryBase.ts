@@ -1,3 +1,5 @@
+import { AgentSpecification } from "@feature-forge/cli/src/agents";
+
 /**
  * Base interface for agent entries managed by the viewer.
  *
@@ -8,6 +10,8 @@ export interface AgentEntryBase {
   id: string;
   /** Display role for the agent (e.g. "builder", "reviewer"). */
   role?: string;
+  /** Agent specification used to create this agent. */
+  specification?: AgentSpecification;
   /** Timestamp when the agent entry was created. */
   createdAt: Date;
   /** Optional raw output from the agent (truncated for display). */

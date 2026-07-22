@@ -1,11 +1,10 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { Tool } from "@feature-forge/shared";
-import { logger } from "@feature-forge/shared";
+import { logger, Tool } from "@feature-forge/shared";
+import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
 
 import type { ChildSocketClient } from "../ipc/ChildSocketClient";
 import { DestroyAgentParams, DestroyAgentResult } from "../ipc/messages";
-import { ToolRenderer } from "./ToolRenderer";
 
 const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
 

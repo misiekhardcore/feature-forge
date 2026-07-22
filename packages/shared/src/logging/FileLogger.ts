@@ -2,7 +2,7 @@ import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node
 import path from "node:path";
 
 import { ForgeConfig, LogLevel } from "../config";
-import { Logger } from "./logger";
+import { Logger } from "./Logger";
 
 /** Shape of a single log entry written to the JSON Lines file. */
 interface LogEntry {

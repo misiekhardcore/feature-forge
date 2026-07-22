@@ -1,6 +1,5 @@
 import type { DisplayContribution } from "@feature-forge/tui";
-import { createAccumulatedState } from "@feature-forge/tui";
-import { DisplayContributionRegistry } from "@feature-forge/tui";
+import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";

@@ -6,25 +6,11 @@ import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
 import { AgentStatus } from "@feature-forge/shared";
 
 import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
-import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "../display";
 import { AgentViewerState } from "../state/AgentViewerState";
 import type { AgentViewerEntry } from "../types";
 import { AgentDetailView } from "./AgentDetailView";
 import { AgentListView } from "./AgentListView";
-
-// ── Event payload types used by wireOverlayEvents ──────────────
-
-interface AgentStreamPayload {
-  details: { agentId: string; event?: AgentEvent };
-}
-
-interface AgentStartedPayload {
-  details: { agentId: string };
-}
-
-interface AgentDonePayload {
-  details: { agentId: string; passed?: boolean; summary?: string };
-}
 
 /**
  * View mode for the overlay.
@@ -494,8 +480,7 @@ export class AgentViewerOverlay implements Component {
     };
 
     const unsubs = [
-      eventBus.on("feature-forge:agent-stream", (_payload: unknown) => {
-        const payload = _payload as AgentStreamPayload;
+      eventBus.on("feature-forge:agent-stream", (payload) => {
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
@@ -509,13 +494,12 @@ export class AgentViewerOverlay implements Component {
         }
       }),
 
-      eventBus.on("feature-forge:agent-started", (_payload: unknown) => {
-        const payload = _payload as AgentStartedPayload;
+      eventBus.on("feature-forge:agent-started", (payload) => {
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
         const mappedStatus = AgentViewerOverlay.mapStatus(
-          (agentQuery.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
+          agentQuery.getAgent(agentId)?.status ?? AgentStatus.Spawned,
         );
         if (connected) {
           deliverStatusEvent(viewer, agentId, mappedStatus);
@@ -525,13 +509,12 @@ export class AgentViewerOverlay implements Component {
         }
       }),
 
-      eventBus.on("feature-forge:agent-done", (_payload: unknown) => {
-        const payload = _payload as AgentDonePayload;
+      eventBus.on("feature-forge:agent-done", (payload) => {
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
         const mappedStatus = AgentViewerOverlay.mapStatus(
-          (agentQuery.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
+          agentQuery.getAgent(agentId)?.status ?? AgentStatus.Spawned,
         );
         const passed = payload.details.passed;
         const eventSummary = payload.details.summary;
@@ -565,7 +548,7 @@ export class AgentViewerOverlay implements Component {
       viewer.prepopulateStreamFiles(streamDir).catch(() => {});
 
       for (const agent of agentQuery.getAllAgents()) {
-        const status = AgentViewerOverlay.mapStatus(agent.status as AgentStatus);
+        const status = AgentViewerOverlay.mapStatus(agent.status);
         viewer.update({
           id: agent.id,
           status: status as AgentViewerEntry["status"],

@@ -1,7 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { logger } from "@feature-forge/shared";
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 
 import { TypedEventBus } from "../orchestrator/eventBus";

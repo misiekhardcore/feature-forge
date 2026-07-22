@@ -4,7 +4,7 @@ import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-t
 
 import type { AgentConversationProvider, AgentEntryProvider, ToolFormatter } from "../api";
 import { BorderedContainer, ScrollableBox, StaticContent } from "../components";
-import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "../display";
 import { ConversationRenderer } from "./ConversationRenderer";
 
 /**
