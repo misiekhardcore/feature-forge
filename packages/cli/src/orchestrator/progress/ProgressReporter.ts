@@ -1,4 +1,5 @@
 import type { ProgressEvent } from "./ProgressEvent";
+import type { ProgressWidget } from "@feature-forge/tui";
 
 /**
  * Accumulated state snapshot returned by {@link ProgressReporter.getState}.
@@ -31,20 +32,6 @@ export const EMPTY_PROGRESS_SNAPSHOT: ProgressSnapshot = {
   maxIterations: 0,
   agents: new Map(),
 };
-
-/**
- * Generic progress-widget surface for routine execution.
- *
- * Implementations drive TUI or no-op rendering. The caller is responsible
- * for formatting lines and status text; the widget only handles
- * throttled rendering and surface lifecycle.
- */
-export interface ProgressWidget {
-  /** Render the given widget lines and status text to the display surface. */
-  render(lines: string[], status: string): void;
-  /** Remove all progress-related UI elements from the display surface. */
-  clear(): void;
-}
 
 /**
  * Abstract port for routine progress reporting.

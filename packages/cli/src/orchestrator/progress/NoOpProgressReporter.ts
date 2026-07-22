@@ -1,5 +1,6 @@
 import type { ProgressEvent } from "./ProgressEvent";
-import { ProgressReporter, type ProgressWidget } from "./ProgressReporter";
+import { ProgressReporter } from "./ProgressReporter"
+import type { ProgressWidget } from "@feature-forge/tui";
 
 /**
  * No-op implementation of {@link ProgressReporter} for non-TUI environments.

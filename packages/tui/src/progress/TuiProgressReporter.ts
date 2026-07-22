@@ -2,7 +2,7 @@ import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import type { ProgressWidget } from "./ProgressReporter";
+import type { ProgressWidget } from "./ProgressWidget";
 
 /**
  * TUI implementation of {@link ProgressWidget} that drives two surfaces:

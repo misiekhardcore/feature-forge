@@ -11,10 +11,11 @@ export { NoOpProgressReporter } from "./NoOpProgressReporter";
 export type { AgentProgressStatus, ProgressEvent } from "./ProgressEvent";
 export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./ProgressRenderer";
 export { ProgressRenderer } from "./ProgressRenderer";
-export type { ProgressSnapshot, ProgressWidget } from "./ProgressReporter";
+export type { ProgressSnapshot } from "./ProgressReporter";
+export type { ProgressWidget } from "@feature-forge/tui";
 export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./ProgressReporter";
 export type { RoutineProgressState } from "./RoutineProgressState";
-export { TuiRoutineWidget } from "./TuiProgressReporter";
+export { TuiRoutineWidget } from "@feature-forge/tui";
 export type {
   AgentEntryBase,
   CompletedAgentEntry,
