@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { Tool } from "@feature-forge/shared";
 
 import type { AgentViewerEntry } from "./types";
 
@@ -57,5 +58,6 @@ export interface DisplayConfig {
 
 /** Tool lookup — satisfied by ToolRegistry (extends Registry<Tool>). */
 export interface ToolFormatter {
-  get(name: string): unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  get(name: string): Tool<any, any, any> | undefined;
 }

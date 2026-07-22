@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ToolCall } from "@earendil-works/pi-ai";
 import type { Theme } from "@earendil-works/pi-coding-agent";
@@ -144,7 +143,7 @@ export class ConversationRenderer {
             resolvedArgs = toolCall.arguments as Record<string, unknown>;
           }
 
-          const toolDefinition = this.toolRegistry.get(toolCall.name) as any;
+          const toolDefinition = this.toolRegistry.get(toolCall.name);
 
           const toolComponent = new ToolExecutionComponent(
             toolCall.name,

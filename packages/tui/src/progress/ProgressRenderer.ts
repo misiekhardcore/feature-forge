@@ -6,8 +6,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import type { ProgressWidget } from "@feature-forge/tui";
-import { AgentDisplayHelpers } from "@feature-forge/tui";
+
+import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
+import type { ProgressWidget } from "./ProgressWidget";
 
 // Minimal result shape consumed by buildResultSuffix — avoids direct
 // dependency on CLI's RoutineResult type.

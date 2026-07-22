@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
@@ -8,6 +7,20 @@ import { AgentStatus } from "@feature-forge/shared";
 import type { AgentQuery, DisplayConfig, EventSubscriber, ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
 import { AgentViewerState } from "../state/AgentViewerState";
+
+// ── Event payload types used by wireOverlayEvents ──────────────
+
+interface AgentStreamPayload {
+  details: { agentId: string; event?: AgentEvent };
+}
+
+interface AgentStartedPayload {
+  details: { agentId: string };
+}
+
+interface AgentDonePayload {
+  details: { agentId: string; passed?: boolean; summary?: string };
+}
 import type { AgentViewerEntry } from "../types";
 import { AgentDetailView } from "./AgentDetailView";
 import { AgentListView } from "./AgentListView";
@@ -481,7 +494,7 @@ export class AgentViewerOverlay implements Component {
 
     const unsubs = [
       eventBus.on("feature-forge:agent-stream", (_payload: unknown) => {
-        const payload = _payload as Record<string, any>;
+        const payload = _payload as AgentStreamPayload;
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
@@ -496,7 +509,7 @@ export class AgentViewerOverlay implements Component {
       }),
 
       eventBus.on("feature-forge:agent-started", (_payload: unknown) => {
-        const payload = _payload as Record<string, any>;
+        const payload = _payload as AgentStartedPayload;
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
@@ -512,7 +525,7 @@ export class AgentViewerOverlay implements Component {
       }),
 
       eventBus.on("feature-forge:agent-done", (_payload: unknown) => {
-        const payload = _payload as Record<string, any>;
+        const payload = _payload as AgentDonePayload;
         const agentId = payload.details.agentId;
         if (!agentId) return;
 
