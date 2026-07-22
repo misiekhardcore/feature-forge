@@ -6,6 +6,8 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 export * from "./config";
 
+import { Logger } from "@feature-forge/shared";
+
 import {
   InMemoryAgentSupervisor,
   PiSubprocessAgentFactory,
@@ -67,6 +69,10 @@ import {
 const featureForgeExtension: ExtensionFactory = async (pi) => {
   // ── Configuration ─────────────────────────────────────────────────
   await ForgeConfig.create({ cwd: process.cwd() });
+
+  // Wire the shared Logger's default log level from ForgeConfig so
+  // the entire monorepo respects the same threshold.
+  Logger.setDefaultLogLevel(ForgeConfig.getInstance().getLogLevel());
 
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.initialize();

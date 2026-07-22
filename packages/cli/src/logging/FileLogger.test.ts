@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { jsonParse } from "@feature-forge/shared";
+import { Logger } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { LogLevel } from "../config";
 import { FileLogger } from "./FileLogger";
-import { Logger } from "./Logger";
 
 describe("FileLogger", () => {
   let filePath: string;

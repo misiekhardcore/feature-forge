@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { Logger } from "./Logger";
+import { Logger } from "../logger";
 
 describe("Logger", () => {
   /**

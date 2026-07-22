@@ -1,4 +1,4 @@
-import { Logger } from "./Logger";
+import { Logger } from "@feature-forge/shared";
 
 /**
  * Logger that writes messages to stdout/stderr via console methods.

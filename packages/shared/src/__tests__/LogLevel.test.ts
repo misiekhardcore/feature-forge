@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { LogLevel } from "../config";
-import { DEFAULT_LOG_LEVEL, levelSeverity, LOG_LEVEL_ORDER, shouldLog } from "./LogLevel";
+import { LogLevel } from "../logger";
+import { DEFAULT_LOG_LEVEL, levelSeverity, LOG_LEVEL_ORDER, shouldLog } from "../logger";
 
 describe("LogLevel", () => {
   describe("ordering", () => {
