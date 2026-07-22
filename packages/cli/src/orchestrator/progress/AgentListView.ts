@@ -69,11 +69,12 @@ export class AgentListView {
 
     const items: SelectItem[] = entries.map(([id, entry]) => {
       const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
+      const { label: statusLabel } = AgentDisplayHelpers.getStatusLabel(entry.status, entry.passed);
       const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt);
-      const role = entry.role ? `(${entry.role})` : "";
-      const label = `${icon} ${id} ${role} ${elapsed}`;
+      const role = entry.role ? ` (${entry.role})` : "";
+      const label = `${icon} ${id}${role} — ${statusLabel} (${elapsed})`;
       const lastLine = this.state.getLastLine(id);
-      const rawDescription = lastLine ?? entry.summary;
+      const rawDescription = lastLine || entry.summary;
       const description = rawDescription ? truncateToWidth(rawDescription, 60, "…") : undefined;
       return { value: id, label, description };
     });

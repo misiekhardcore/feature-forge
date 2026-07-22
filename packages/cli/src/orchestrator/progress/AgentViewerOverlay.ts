@@ -452,9 +452,15 @@ export class AgentViewerOverlay implements Component {
       eventSummary?: string,
     ) => {
       const agent = supervisor.getAgent(agentId);
-      const summary =
-        eventSummary ??
-        (agent ? `${agent.specification.role} — ${agent.status}` : "Agent disconnected");
+      let summary = eventSummary;
+      if (!summary && agent) {
+        summary =
+          passed === false
+            ? `${agent.specification.role} — failed`
+            : `${agent.specification.role} — ${agent.status}`;
+      } else if (!summary) {
+        summary = "Agent disconnected";
+      }
       viewer.update({
         id: agentId,
         status: mappedStatus as AgentViewerEntry["status"],

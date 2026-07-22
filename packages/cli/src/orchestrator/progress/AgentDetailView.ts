@@ -86,7 +86,7 @@ export class AgentDetailView {
     this.cwd = cwd;
 
     this.scrollableBox = new ScrollableBox(tui, 0.85, 4);
-    this.borderedContainer = new BorderedContainer(theme, undefined, 1, "warning");
+    this.borderedContainer = new BorderedContainer(theme, "Agent Detail", 1, "warning");
     this.borderedContainer.addChild(this.scrollableBox);
 
     this.conversationRenderer = new ConversationRenderer({
