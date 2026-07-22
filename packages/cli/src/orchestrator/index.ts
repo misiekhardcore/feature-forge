@@ -57,10 +57,8 @@ export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEven
 export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/ProgressRenderer";
 export { ProgressRenderer } from "./progress/ProgressRenderer";
 export type { ProgressSnapshot } from "./progress/ProgressReporter";
-export type { ProgressWidget } from "@feature-forge/tui";
 export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./progress/ProgressReporter";
 export type { RoutineProgressState } from "./progress/RoutineProgressState";
-export { TuiRoutineWidget } from "@feature-forge/tui";
 export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineProgressEvent } from "./RoutineProgress";
 export type { RoutineResult } from "./RoutineResult";

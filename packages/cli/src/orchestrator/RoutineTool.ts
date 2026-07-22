@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import type { ProgressWidget } from "@feature-forge/tui";
-import { TuiRoutineWidget } from "@feature-forge/tui";
+import { AgentViewerOverlay, TuiRoutineWidget } from "@feature-forge/tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
@@ -18,7 +18,7 @@ import { ForgeConfig } from "../config";
 import { logger } from "../logging";
 import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { AgentViewerOverlay, DisplayContributionRegistry } from "./progress";
+import { DisplayContributionRegistry } from "./progress";
 import { createAccumulatedState } from "./progress/AccumulatedState";
 import type { DisplayContribution } from "./progress/DisplayContribution";
 import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";

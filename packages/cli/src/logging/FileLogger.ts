@@ -1,8 +1,9 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 
-import { ForgeConfig, LogLevel } from "../config";
-import { Logger } from "./Logger";
+import { Logger, LogLevel } from "@feature-forge/shared";
+
+import { ForgeConfig } from "../config";
 
 /** Shape of a single log entry written to the JSON Lines file. */
 interface LogEntry {
