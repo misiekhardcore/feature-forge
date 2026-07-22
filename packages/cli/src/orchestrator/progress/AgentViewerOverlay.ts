@@ -9,7 +9,7 @@ import { ForgeConfig } from "../../config";
 import { ToolRegistry } from "../../registry/ToolRegistry";
 import type { TypedEventBus } from "../eventBus";
 import { AgentDetailView } from "./AgentDetailView";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "@feature-forge/tui";
 import { AgentListView } from "./AgentListView";
 import { AgentViewerState } from "./AgentViewerState";
 import type { AgentViewerEntry } from "@feature-forge/tui";

@@ -12,7 +12,7 @@ import type { Agent } from "../../agents/agents/Agent";
 import type { AgentSpecification } from "../../agents/specifications";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "@feature-forge/tui";
 import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
 import { AgentViewerOverlay } from "./AgentViewerOverlay";
 import type { AgentViewerEntry } from "@feature-forge/tui";

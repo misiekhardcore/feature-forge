@@ -9,7 +9,7 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works
 
 import type { RoutineResult } from "../RoutineResult";
 import { createAccumulatedState } from "./AccumulatedState";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "@feature-forge/tui";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";

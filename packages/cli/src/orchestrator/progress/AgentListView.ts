@@ -2,9 +2,9 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SelectItem, SelectListTheme, TUI } from "@earendil-works/pi-tui";
 import { SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import { AgentDisplayHelpers } from "@feature-forge/tui";
 import { AgentViewerState } from "./AgentViewerState";
-import { BorderedContainer } from "./BorderedContainer";
+import { BorderedContainer } from "@feature-forge/tui";
 
 /**
  * Renders the list of agent entries with their statuses using a

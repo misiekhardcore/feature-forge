@@ -3,11 +3,9 @@ import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 
 import type { ToolRegistry } from "../../registry/ToolRegistry";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import { AgentViewerState } from "./AgentViewerState";
-import { BorderedContainer, StaticContent } from "./BorderedContainer";
+import { AgentDisplayHelpers, BorderedContainer, ScrollableBox, StaticContent } from "@feature-forge/tui";
 import { ConversationRenderer } from "./ConversationRenderer";
-import { ScrollableBox } from "./ScrollableBox";
 
 /**
  * Renders detailed view of a single agent's conversation and logs.
