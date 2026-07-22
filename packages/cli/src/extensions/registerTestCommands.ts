@@ -17,9 +17,9 @@ import {
 import type { AgentViewerEntry } from "@feature-forge/tui";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 import { TuiRoutineWidget } from "@feature-forge/tui";
+import { ProgressRenderer } from "@feature-forge/tui";
 
 import { ForgeConfig } from "../config";
-import { ProgressRenderer } from "../orchestrator/progress/ProgressRenderer";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────

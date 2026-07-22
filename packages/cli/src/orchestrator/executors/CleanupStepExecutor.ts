@@ -1,11 +1,12 @@
+import type { DisplayContribution } from "@feature-forge/tui";
+import type { DisplayContributionRegistry } from "@feature-forge/tui";
+
 import { logger } from "../../logging";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { CleanupInstruction, FlowInstruction } from "../FlowInstruction";
-import type { DisplayContribution } from "../progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 

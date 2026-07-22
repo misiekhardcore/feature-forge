@@ -51,20 +51,20 @@ export {
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
 export { FlowRegistrar } from "./FlowRegistrar";
-export type { DisplayContribution } from "./progress/DisplayContribution";
-export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
-export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEvent";
-export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/ProgressRenderer";
-export { ProgressRenderer } from "./progress/ProgressRenderer";
-export type { ProgressSnapshot } from "./progress/ProgressReporter";
-export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./progress/ProgressReporter";
-export type { RoutineProgressState } from "./progress/RoutineProgressState";
 export { RoutineExecutor } from "./RoutineExecutor";
 export type { RoutineProgressEvent } from "./RoutineProgress";
 export type { RoutineResult } from "./RoutineResult";
 export { RoutineTool } from "./RoutineTool";
 export { StepExecutor } from "./StepExecutor";
 export { StepExecutorRegistry } from "./StepExecutorRegistry";
+export type { DisplayContribution } from "@feature-forge/tui";
+export type { AgentProgressStatus, ProgressEvent } from "@feature-forge/tui";
+export type { BuildStatusLineParams, BuildWidgetLinesParams } from "@feature-forge/tui";
+export type { ProgressSnapshot } from "@feature-forge/tui";
+export type { RoutineProgressState } from "@feature-forge/tui";
+export { NoOpProgressReporter } from "@feature-forge/tui";
+export { ProgressRenderer } from "@feature-forge/tui";
+export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "@feature-forge/tui";
 
 import {
   FlowInstructionSchema,

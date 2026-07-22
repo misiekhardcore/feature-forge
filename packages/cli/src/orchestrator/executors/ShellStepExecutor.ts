@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import type { DisplayContribution } from "@feature-forge/tui";
+
 import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
-import type { DisplayContribution } from "../progress/DisplayContribution";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 

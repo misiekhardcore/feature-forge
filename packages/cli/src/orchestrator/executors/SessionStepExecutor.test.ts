@@ -1,12 +1,12 @@
+import type { DisplayContribution } from "@feature-forge/tui";
+import { createAccumulatedState } from "@feature-forge/tui";
+import { DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
 import type { SessionInstruction } from "../FlowInstruction";
 import { FlowStateStore } from "../FlowStateStore";
-import { createAccumulatedState } from "../progress/AccumulatedState";
-import type { DisplayContribution } from "../progress/DisplayContribution";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { SessionStepExecutor } from "./SessionStepExecutor";
 

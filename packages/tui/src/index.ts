@@ -11,6 +11,25 @@ export type {
 export { BorderedContainer, StaticContent } from "./components/BorderedContainer";
 export { ScrollableBox } from "./components/ScrollableBox";
 export { AgentDisplayHelpers } from "./display/AgentDisplayHelpers";
+export type { AccumulatedState } from "./progress/AccumulatedState";
+export { createAccumulatedState } from "./progress/AccumulatedState";
+export type {
+  AgentContribution,
+  DisplayContribution,
+  LoopContribution,
+  SessionContribution,
+  StatusContribution,
+  WorkspaceContribution,
+} from "./progress/DisplayContribution";
+export type { ContributionHandler } from "./progress/DisplayContributionRegistry";
+export { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
+export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
+export type { AgentProgressStatus, ProgressEvent } from "./progress/ProgressEvent";
+export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/ProgressRenderer";
+export { ProgressRenderer } from "./progress/ProgressRenderer";
+export type { ProgressSnapshot } from "./progress/ProgressReporter";
+export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./progress/ProgressReporter";
+export type { RoutineProgressState } from "./progress/RoutineProgressState";
 export type { ProgressWidget } from "./progress/ProgressWidget";
 export { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 export { AgentViewerState } from "./state/AgentViewerState";

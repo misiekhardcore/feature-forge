@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { DisplayContribution } from "@feature-forge/tui";
+import type { DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { AgentSpecification } from "../../agents/specifications";
@@ -10,8 +12,6 @@ import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
-import type { DisplayContribution } from "../progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";

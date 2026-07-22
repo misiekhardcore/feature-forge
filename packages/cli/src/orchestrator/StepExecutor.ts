@@ -1,8 +1,9 @@
+import type { DisplayContribution } from "@feature-forge/tui";
+import type { DisplayContributionRegistry } from "@feature-forge/tui";
+
 import type { TypedEventBus } from "./eventBus";
 import type { FlowContext } from "./FlowContext";
 import type { FlowInstruction } from "./FlowInstruction";
-import type { DisplayContribution } from "./progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 
 /**

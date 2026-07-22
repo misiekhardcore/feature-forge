@@ -5,11 +5,24 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 
-import type { RoutineResult } from "../RoutineResult";
 import type { DisplayContribution } from "./DisplayContribution";
 import { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import { ProgressRenderer } from "./ProgressRenderer";
 import type { RoutineProgressState } from "./RoutineProgressState";
+
+// Local result shape matching RoutineResultLike used by ProgressRenderer.
+interface TestResult {
+  label?: string;
+  agentId?: string;
+  rounds?: number;
+  passed?: boolean;
+  summary?: string;
+  workspace?: string;
+  routine?: string;
+  session?: Record<string, unknown>;
+  results?: Record<string, unknown>;
+  [key: string]: unknown;
+}
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -84,7 +97,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns label-prefixed suffix when label is present (highest priority)", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -97,7 +110,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns agentId-prefixed suffix when label is absent but agentId is present", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -110,7 +123,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns rounds string when rounds > 0 (priority over workspace/summary)", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 3,
@@ -123,7 +136,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("uses singular 'round' for a single round", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 1,
@@ -135,7 +148,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("extracts PR URL from results.pr.raw when available (priority over workspace)", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -152,7 +165,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("falls through pr.raw when pr is missing from results", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -165,7 +178,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns workspace suffix when workspace is present but no rounds/label/agentId/pr", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -178,7 +191,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("extracts cleanup summary from results.cleanup.parsed.summary (priority over summary)", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -195,7 +208,7 @@ describe("ProgressRenderer", () => {
       // Regression: PR #115 added cleanup summary at step 6, but rounds was
       // always ≥1 in production (RoutineExecutor context.iteration + 1 bug)
       // so the cleanup path was unreachable for non-loop routines.
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "destroy_workspace",
         passed: true,
         rounds: 0,
@@ -214,7 +227,7 @@ describe("ProgressRenderer", () => {
     it("shows workspace path for create_workspace-style result (rounds > 0 regression guard)", () => {
       // Regression: rounds was always ≥1, masking workspace display for
       // non-loop routines like create_workspace.
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "create_workspace",
         passed: true,
         rounds: 0,
@@ -227,7 +240,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("falls through cleanup when parsed is missing", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -241,7 +254,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("falls through cleanup when results is empty", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -253,7 +266,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns summary when no label, rounds, workspace, pr, or cleanup are available", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -265,7 +278,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns 'passed' fallback when no details are present and result passed", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -277,7 +290,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("returns 'failed' fallback when no details are present and result failed", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: false,
         rounds: 0,
@@ -289,7 +302,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("prefers label over agentId when both are present", () => {
-      const details: RoutineResult = {
+      const details: TestResult = {
         routine: "test",
         passed: true,
         rounds: 0,
@@ -418,9 +431,9 @@ describe("ProgressRenderer", () => {
 
     it("renders running state with started icon in partial mode", () => {
       const renderer = makeRenderer();
-      const result: AgentToolResult<RoutineResult> = {
+      const result: AgentToolResult<TestResult> = {
         content: [],
-        details: undefined as unknown as RoutineResult,
+        details: undefined as unknown as TestResult,
       };
       const options: ToolRenderResultOptions = { expanded: false, isPartial: true };
       const rendered = renderer.buildResultComponent(result, options, theme);
@@ -432,7 +445,7 @@ describe("ProgressRenderer", () => {
 
     it("renders passed state with checkmark in final mode", () => {
       const renderer = makeRenderer();
-      const result: AgentToolResult<RoutineResult> = {
+      const result: AgentToolResult<TestResult> = {
         content: [],
         details: {
           routine: "test-routine",
@@ -453,9 +466,9 @@ describe("ProgressRenderer", () => {
 
     it("renders failed state with cross when details are undefined in final mode", () => {
       const renderer = makeRenderer();
-      const result: AgentToolResult<RoutineResult> = {
+      const result: AgentToolResult<TestResult> = {
         content: [],
-        details: undefined as unknown as RoutineResult,
+        details: undefined as unknown as TestResult,
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
       const rendered = renderer.buildResultComponent(result, options, theme);
@@ -487,7 +500,7 @@ describe("ProgressRenderer", () => {
       };
       const renderer = new ProgressRenderer(state, registry);
 
-      const result: AgentToolResult<RoutineResult> = {
+      const result: AgentToolResult<TestResult> = {
         content: [],
         details: {
           routine: "test-routine",
@@ -516,7 +529,7 @@ describe("ProgressRenderer", () => {
       };
       const renderer = new ProgressRenderer(state, registry);
 
-      const result: AgentToolResult<RoutineResult> = {
+      const result: AgentToolResult<TestResult> = {
         content: [],
         details: {
           routine: "test-routine",

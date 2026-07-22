@@ -1,10 +1,11 @@
+import type { DisplayContribution } from "@feature-forge/tui";
+import type { DisplayContributionRegistry } from "@feature-forge/tui";
+
 import { logger } from "../../logging";
 import type { TypedEventBus } from "../eventBus";
 import { ExpressionEvaluator } from "../ExpressionEvaluator";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
-import type { DisplayContribution } from "../progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { collectAllIds } from "./helpers";
