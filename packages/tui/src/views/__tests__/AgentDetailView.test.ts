@@ -9,7 +9,9 @@ import { AgentViewerState } from "@feature-forge/tui";
 import { AgentDetailView } from "@feature-forge/tui";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeMockToolRegistry } from "../../test-utils";
+function makeMockToolFormatter() {
+  return { get: vi.fn(() => undefined) };
+}
 
 beforeAll(() => {
   initTheme("dark");
@@ -84,7 +86,7 @@ describe("AgentDetailView", () => {
       markdownTheme,
       tui,
       "/test/cwd",
-      makeMockToolRegistry(),
+      makeMockToolFormatter(),
     );
   });
 
@@ -210,7 +212,7 @@ describe("AgentDetailView", () => {
         markdownTheme,
         tuiNoRows,
         "/test/cwd",
-        makeMockToolRegistry(),
+        makeMockToolFormatter(),
       );
 
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });

@@ -4,7 +4,9 @@ import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { ConversationRenderer } from "@feature-forge/tui";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { makeMockToolRegistry } from "../../test-utils";
+function makeMockToolFormatter() {
+  return { get: vi.fn(() => undefined) };
+}
 beforeAll(() => {
   initTheme("dark");
 });
@@ -54,7 +56,7 @@ function makeRenderer(): ConversationRenderer {
     markdownTheme: makeMarkdownTheme(),
     tui: makeTui(),
     cwd: "/test/cwd",
-    toolRegistry: makeMockToolRegistry(),
+    toolRegistry: makeMockToolFormatter(),
   });
 }
 
