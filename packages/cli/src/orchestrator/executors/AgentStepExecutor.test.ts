@@ -1,3 +1,8 @@
+import {
+  AgentContribution,
+  createAccumulatedState,
+  DisplayContributionRegistry,
+} from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
@@ -8,9 +13,6 @@ import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { AgentInstruction } from "../FlowInstruction";
-import { createAccumulatedState } from "../progress/AccumulatedState";
-import type { AgentContribution } from "../progress/DisplayContribution";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 

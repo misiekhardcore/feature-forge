@@ -21,6 +21,7 @@
     "format": "prettier . --check",
     "format:fix": "prettier . --write",
     "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
     "test:watch": "vitest --watch",
     "test:e2e": "vitest run --project cli-e2e",
     "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts",
@@ -34,6 +35,7 @@
     "@earendil-works/pi-coding-agent": "0.79.8",
     "@earendil-works/pi-tui": "0.79.8",
     "@feature-forge/shared": "*",
+    "@feature-forge/tui": "*",
     "@feature-forge/debug": "*",
     "yaml": "^2.9.0"
   },

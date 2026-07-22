@@ -2,10 +2,10 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { jsonParse } from "@feature-forge/shared";
+import { logger } from "@feature-forge/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-import { logger } from "../logging";
 import { ExpressionEvaluator } from "./ExpressionEvaluator";
 import type { AgentInstruction, FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import {

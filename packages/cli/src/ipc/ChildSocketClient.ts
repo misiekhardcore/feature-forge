@@ -2,9 +2,8 @@ import { randomUUID } from "node:crypto";
 import { connect, type Socket } from "node:net";
 
 import { jsonParse } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 
-import { ForgeConfig } from "../config";
-import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } from "./messages";
 

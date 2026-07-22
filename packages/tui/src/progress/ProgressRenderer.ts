@@ -7,11 +7,27 @@ import {
 import type { Component } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-import type { RoutineResult } from "../RoutineResult";
+import { AgentDisplayHelpers } from "../display";
+import type { ProgressWidget } from "./ProgressWidget";
+
+// Minimal result shape consumed by buildResultSuffix — avoids direct
+// dependency on CLI's RoutineResult type.
+interface RoutineResultLike {
+  label?: string;
+  agentId?: string;
+  rounds?: number;
+  passed?: boolean;
+  summary?: string;
+  workspace?: string;
+  routine?: string;
+  results?: {
+    pr?: { raw?: string };
+    cleanup?: { parsed?: { summary?: string } };
+  };
+}
+
 import { createAccumulatedState } from "./AccumulatedState";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
-import type { ProgressWidget } from "./ProgressReporter";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
 // ── Theme-like contract (looser than pi's Theme) ────────────
@@ -162,12 +178,12 @@ export class ProgressRenderer {
    * 4. Workspace path — shows the worktree location.
    * 5. Cleanup summary — extracted from the `cleanup` instruction parsed output.
    * 6. Summary text — the routine's own digest message.
-   * 7. Fallback — "passed" / "failed" based on {@link RoutineResult.passed}.
+   * 7. Fallback — "passed" / "failed" based on {@link RoutineResultLike.passed}.
    *
    * @param details — The routine result details (may be undefined).
    * @returns A short human-readable suffix string.
    */
-  static buildResultSuffix(details: RoutineResult | undefined): string {
+  static buildResultSuffix(details: RoutineResultLike | undefined): string {
     if (!details) {
       return "failed";
     }
@@ -184,7 +200,7 @@ export class ProgressRenderer {
       return `${details.rounds} round${details.rounds > 1 ? "s" : ""}`;
     }
 
-    if (details.results.pr?.raw) {
+    if (details.results?.pr?.raw) {
       const raw = details.results.pr.raw;
       // Extract just the GitHub PR URL — raw may contain multi-line stderr
       const prUrlMatch = raw.match(/https?:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
@@ -201,7 +217,7 @@ export class ProgressRenderer {
       return `ws: ${base}`;
     }
 
-    if (details.results.cleanup?.parsed?.summary) {
+    if (details.results?.cleanup?.parsed?.summary) {
       return details.results.cleanup.parsed.summary;
     }
 
@@ -268,7 +284,7 @@ export class ProgressRenderer {
    * {@link buildResultSuffix}.
    */
   buildResultComponent(
-    result: AgentToolResult<RoutineResult>,
+    result: AgentToolResult<RoutineResultLike>,
     options: ToolRenderResultOptions,
     theme: Theme,
   ): Component {

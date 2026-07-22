@@ -9,8 +9,8 @@ import {
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
 import { jsonParse } from "@feature-forge/shared";
 
-import { ToolRegistry } from "../../registry/ToolRegistry";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
+import type { ToolFormatter } from "../api";
+import { AgentDisplayHelpers } from "../display";
 
 /**
  * Parameters for constructing a {@link ConversationRenderer}.
@@ -25,7 +25,7 @@ export interface ConversationRendererParams {
   /** Current working directory — passed to tool execution components. */
   cwd: string;
   /** Registry for resolving tool definitions to restore argument formatting. */
-  toolRegistry: ToolRegistry;
+  toolRegistry: ToolFormatter;
 }
 
 /**
@@ -51,7 +51,7 @@ export class ConversationRenderer {
   private readonly markdownTheme: MarkdownTheme;
   private readonly tui: TUI;
   private readonly cwd: string;
-  private readonly toolRegistry: ToolRegistry;
+  private readonly toolRegistry: ToolFormatter;
 
   constructor(params: ConversationRendererParams) {
     this.theme = params.theme;

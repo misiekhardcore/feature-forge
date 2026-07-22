@@ -13,25 +13,25 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { Theme } from "@earendil-works/pi-coding-agent";
+import { DisplayContribution, ProgressRenderer } from "@feature-forge/tui";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { InMemoryAgentSupervisor } from "../src/agents";
-import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
-import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
-import type { DisplayContribution } from "../src/orchestrator/progress/DisplayContribution";
-import { ProgressRenderer } from "../src/orchestrator/progress/ProgressRenderer";
-import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
-import type { RoutineProgressEvent } from "../src/orchestrator/RoutineProgress";
+import {
+  createStepExecutorRegistry,
+  FLOW_SCHEMA_URL,
+  FlowDefinition,
+  RoutineExecutor,
+  RoutineProgressEvent,
+} from "../src/orchestrator";
 import {
   makeMockFactory,
   makeMockSpecManager,
   makeMockToolRegistry,
   makeMockTypedEventBus,
 } from "../src/test-utils";
-import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
-import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
+import { GitWorktreeProvider, WorkspaceProviderRegistry, WorktreeRegistry } from "../src/workspace";
 
 function createTempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "forge-e2e-progress-"));
@@ -136,14 +136,14 @@ describe("routine progress display (e2e)", () => {
 
     expect(result.passed).toBe(true);
     expect(result.workspace).toBeDefined();
-    expect(existsSync(result.workspace!)).toBe(true);
+    expect(existsSync(result.workspace ?? "")).toBe(true);
 
     expect(agentState.has("mock")).toBe(true);
     expect(agentState.get("mock")!.status).toBe("done");
     expect(capturedIteration).toBe(0);
     expect(capturedMaxIterations).toBe(1);
 
-    const mockTheme = { fg: (_c: string, t: string) => t };
+    const mockTheme = { fg: (_c: string, t: string) => t } as Theme;
     const rows = [...agentState].map(
       ([l, a]) => `${a.status === "done" ? "✓" : "→"} ${l}${a.summary ? ` — ${a.summary}` : ""}`,
     );

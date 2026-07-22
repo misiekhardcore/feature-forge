@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/shared/src/helpers";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 

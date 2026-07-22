@@ -3,8 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { jsonParse, Registry } from "@feature-forge/shared";
+import { logger } from "@feature-forge/shared";
 
-import { logger } from "../logging";
 import { WorkspaceError } from "./WorkspaceError";
 import { WorkspaceHandle } from "./WorkspaceHandle";
 

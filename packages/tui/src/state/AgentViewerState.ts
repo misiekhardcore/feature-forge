@@ -3,10 +3,9 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse, logger } from "@feature-forge/shared";
 
-import { logger } from "../../logging";
-import type { AgentViewerEntry } from "./types";
+import type { AgentViewerEntry } from "../types";
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).
@@ -26,6 +25,9 @@ const MAX_AGENT_EVENTS = 200;
 export class AgentViewerState {
   /** Maps agent id → agent entry. */
   private agents = new Map<string, AgentViewerEntry>();
+
+  /** Monotonic version counter — incremented on every mutation. */
+  private version = 0;
 
   /** Maps agent id → most recent formatted stream line. */
   private lastLines = new Map<string, string>();
@@ -60,6 +62,13 @@ export class AgentViewerState {
    */
   getAgentEntry(id: string): AgentViewerEntry | undefined {
     return this.agents.get(id);
+  }
+
+  /**
+   * Get the current version number. Incremented on every state mutation.
+   */
+  getVersion(): number {
+    return this.version;
   }
 
   /**
@@ -144,6 +153,7 @@ export class AgentViewerState {
   update(entry: AgentViewerEntry): void {
     const existing = this.agents.get(entry.id);
     this.agents.set(entry.id, { ...existing, ...entry });
+    this.version++;
   }
 
   /**
@@ -193,6 +203,7 @@ export class AgentViewerState {
 
     const line = formatEvent(event);
     this.lastLines.set(agentId, line);
+    this.version++;
 
     // Update the running agent entry with the last stream line
     const existing = this.agents.get(agentId);

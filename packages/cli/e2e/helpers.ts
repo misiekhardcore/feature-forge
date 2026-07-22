@@ -6,12 +6,12 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 
 import { jsonParse } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/shared";
 import { expect, vi } from "vitest";
 
 import type { Agent } from "../src/agents/agents";
 import type { InSessionAgent } from "../src/agents/agents/InSessionAgent";
 import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import { AgentStatus } from "../src/agents/base";
 import type { AgentSpecification, AgentSpecificationParams } from "../src/agents/specifications";
 import { DynamicAgentSpecification } from "../src/agents/specifications/DynamicAgentSpecification";
 import type { AgentSupervisor } from "../src/agents/supervisors";

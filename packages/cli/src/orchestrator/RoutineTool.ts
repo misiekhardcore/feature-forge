@@ -8,22 +8,23 @@ import {
   type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
+import { logger } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/shared";
+import type { ProgressWidget } from "@feature-forge/tui";
+import type { DisplayContribution } from "@feature-forge/tui";
+import type { RoutineProgressState } from "@feature-forge/tui";
+import { AgentViewerOverlay, TuiRoutineWidget } from "@feature-forge/tui";
+import { createAccumulatedState } from "@feature-forge/tui";
+import { NoOpProgressReporter } from "@feature-forge/tui";
+import { ProgressRenderer } from "@feature-forge/tui";
+import { DisplayContributionRegistry } from "@feature-forge/tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { logger } from "../logging";
 import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { AgentViewerOverlay, DisplayContributionRegistry } from "./progress";
-import { createAccumulatedState } from "./progress/AccumulatedState";
-import type { DisplayContribution } from "./progress/DisplayContribution";
-import { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
-import { ProgressRenderer } from "./progress/ProgressRenderer";
-import type { ProgressWidget } from "./progress/ProgressReporter";
-import type { RoutineProgressState } from "./progress/RoutineProgressState";
 import { SharedStreamDir } from "./progress/sharedStreamDir";
-import { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
@@ -203,7 +204,9 @@ export class RoutineTool
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus: typedBus,
-        supervisor: this.supervisor,
+        agentQuery: this.supervisor,
+        config: ForgeConfig.getInstance(),
+        toolRegistry: this.executor.toolRegistry,
       });
       overlayUnsubs = unsubs;
 
@@ -222,6 +225,7 @@ export class RoutineTool
               markdownTheme: getMarkdownTheme(),
               cwd: ctx.cwd,
               toolRegistry: this.executor.toolRegistry,
+              config: ForgeConfig.getInstance(),
             });
 
             void connect(viewer, streamDir);
@@ -234,7 +238,7 @@ export class RoutineTool
           },
           {
             overlay: true,
-            overlayOptions: AgentViewerOverlay.overlayOptions,
+            overlayOptions: AgentViewerOverlay.getOverlayOptions(),
           },
         )
         .catch(() => {

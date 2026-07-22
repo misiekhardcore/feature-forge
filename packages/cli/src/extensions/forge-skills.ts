@@ -2,8 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
-import { logger } from "../logging";
+import { logger } from "@feature-forge/shared";
 
 /**
  * Register a `resources_discover` handler that contributes `.forge/skills/`

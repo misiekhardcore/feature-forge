@@ -2,25 +2,34 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "text-summary"],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 90,
+        statements: 90,
+      },
+    },
     projects: [
       {
         test: {
           name: "shared",
           root: "./packages/shared",
+          setupFiles: ["src/test-setup.ts"],
           globals: true,
           include: ["src/**/*.test.ts"],
-          coverage: {
-            provider: "v8",
-            include: ["src/**/*.ts"],
-            exclude: ["src/index.ts", "src/**/index.ts", "src/test-utils.ts"],
-            reporter: ["text", "text-summary"],
-            thresholds: {
-              lines: 90,
-              functions: 90,
-              branches: 90,
-              statements: 90,
-            },
-          },
+        },
+      },
+      {
+        test: {
+          name: "tui",
+          root: "./packages/tui",
+          globals: true,
+          setupFiles: ["src/test-setup.ts"],
+          include: ["src/**/*.test.ts"],
+          exclude: ["node_modules", "**/e2e/**", "**/dist/**"],
         },
       },
       {
@@ -31,18 +40,6 @@ export default defineConfig({
           include: ["src/**/*.test.ts"],
           setupFiles: ["src/test-setup.ts"],
           exclude: ["node_modules", "**/e2e/**", "**/dist/**"],
-          coverage: {
-            provider: "v8",
-            include: ["src/**/*.ts"],
-            exclude: ["src/index.ts", "src/**/index.ts", "src/test-utils.ts"],
-            reporter: ["text", "text-summary"],
-            thresholds: {
-              lines: 90,
-              functions: 90,
-              branches: 90,
-              statements: 90,
-            },
-          },
         },
       },
       {

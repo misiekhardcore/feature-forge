@@ -5,11 +5,10 @@ import { join } from "node:path";
 
 import { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentStatus, jsonParse } from "@feature-forge/shared";
+import { AgentStatus, jsonParse, logger } from "@feature-forge/shared";
 
 import type { SpecManager } from "../agents";
 import { AgentSupervisor, isSubprocessAgent } from "../agents";
-import { logger } from "../logging";
 import {
   type SendTaskParams,
   type SocketMessage,

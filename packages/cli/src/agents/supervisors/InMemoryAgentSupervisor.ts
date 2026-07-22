@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 
-import { logger } from "../../logging";
 import { Agent, InSessionAgent, SessionAgent, SubprocessAgent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../specifications";

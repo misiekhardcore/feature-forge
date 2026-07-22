@@ -2,12 +2,10 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 
-import type { ToolRegistry } from "../../registry/ToolRegistry";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
-import { AgentViewerState } from "./AgentViewerState";
-import { BorderedContainer, StaticContent } from "./BorderedContainer";
+import type { AgentConversationProvider, AgentEntryProvider, ToolFormatter } from "../api";
+import { BorderedContainer, ScrollableBox, StaticContent } from "../components";
+import { AgentDisplayHelpers } from "../display";
 import { ConversationRenderer } from "./ConversationRenderer";
-import { ScrollableBox } from "./ScrollableBox";
 
 /**
  * Renders detailed view of a single agent's conversation and logs.
@@ -45,7 +43,7 @@ export class AgentDetailView {
   /** Agent id currently being displayed. */
   selectedAgentId?: string;
 
-  private readonly state: AgentViewerState;
+  private readonly state: AgentEntryProvider & AgentConversationProvider;
   private readonly theme: Theme;
   private readonly tui: TUI;
   private readonly markdownTheme: MarkdownTheme;
@@ -69,12 +67,12 @@ export class AgentDetailView {
   private avgLinesPerMessage = new Map<string, number>();
 
   constructor(
-    state: AgentViewerState,
+    state: AgentEntryProvider & AgentConversationProvider,
     theme: Theme,
     markdownTheme: MarkdownTheme,
     tui: TUI,
     cwd: string,
-    toolRegistry: ToolRegistry,
+    toolRegistry: ToolFormatter,
   ) {
     this.state = state;
     this.theme = theme;
@@ -83,7 +81,7 @@ export class AgentDetailView {
     this.cwd = cwd;
 
     this.scrollableBox = new ScrollableBox(tui, 0.85, 4);
-    this.borderedContainer = new BorderedContainer(theme, undefined, 1, "warning");
+    this.borderedContainer = new BorderedContainer(theme, "Agent Detail", 1, "warning");
     this.borderedContainer.addChild(this.scrollableBox);
 
     this.conversationRenderer = new ConversationRenderer({

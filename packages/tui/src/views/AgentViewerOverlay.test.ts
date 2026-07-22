@@ -5,20 +5,27 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import { AgentSupervisor } from "@feature-forge/cli/src/agents";
+import type { Agent } from "@feature-forge/cli/src/agents/agents/Agent";
+import type { AgentSpecification } from "@feature-forge/cli/src/agents/specifications";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
+import {
+  AgentDisplayHelpers,
+  type AgentViewerEntry,
+  AgentViewerOverlay,
+  AgentViewerOverlayParams,
+} from "@feature-forge/tui";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { Agent } from "../../agents/agents/Agent";
-import type { AgentSpecification } from "../../agents/specifications";
-import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
-import type { AgentViewerOverlayParams } from "./AgentViewerOverlay";
-import { AgentViewerOverlay } from "./AgentViewerOverlay";
-import type { AgentViewerEntry } from "./types";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;
+
+const mockConfig = {
+  getDisplayMaxAgentEvents: () => 200,
+  getDisplayMaxPreconnectBuffer: () => 100,
+  getDisplayMaxOverlayHeight: () => "85%",
+};
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -107,6 +114,7 @@ function makeOverlay(overrides: Partial<AgentViewerOverlayParams> = {}): AgentVi
     markdownTheme: makeMarkdownTheme(),
     cwd: "/test/cwd",
     toolRegistry: makeMockToolRegistry(),
+    config: mockConfig,
     ...overrides,
   });
 }
@@ -132,6 +140,7 @@ describe("AgentViewerOverlay", () => {
         markdownTheme,
         cwd: "/custom/cwd",
         toolRegistry: makeMockToolRegistry(),
+        config: mockConfig,
       });
 
       expect(overlay.entryCount).toBe(0);
@@ -1706,13 +1715,15 @@ describe("AgentViewerOverlay", () => {
 
     it("propagates passed: true from agent-done event to the entry", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -1740,13 +1751,15 @@ describe("AgentViewerOverlay", () => {
 
     it("propagates passed: false from agent-done event to the entry", () => {
       const agent = makeMockAgent("reviewer", "reviewer", AgentStatus.Completed);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -1774,12 +1787,14 @@ describe("AgentViewerOverlay", () => {
 
     it("replays buffered events with passed data after connect", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       // Emit events BEFORE connect — they should be buffered.
@@ -1822,14 +1837,16 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("sets passed on entries when initializing from supervisor after connect", () => {
+    it("sets passed on entries when initializing from agentQuery after connect", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       const overlay = makeOverlay();
@@ -1845,13 +1862,15 @@ describe("AgentViewerOverlay", () => {
     });
 
     it("ignores events without agentId in details", () => {
-      const supervisor = makeMockSupervisor();
+      const agentQuery = makeMockSupervisor();
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -1873,13 +1892,15 @@ describe("AgentViewerOverlay", () => {
 
     it("calls pushStreamEvent for stream events after connect", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -1905,13 +1926,15 @@ describe("AgentViewerOverlay", () => {
       const streamDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
       try {
         const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-        const supervisor = makeMockSupervisor([agent]);
+        const agentQuery = makeMockSupervisor([agent]);
         const eventBus = makeMockTypedEventBus();
         const overlay = makeOverlay();
 
         const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
           eventBus,
-          supervisor,
+          agentQuery,
+          config: mockConfig,
+          toolRegistry: makeMockToolRegistry(),
         });
 
         connect(overlay, streamDir);
@@ -1943,12 +1966,14 @@ describe("AgentViewerOverlay", () => {
     });
 
     it("returns three unsubs, one per subscribed channel", () => {
-      const supervisor = makeMockSupervisor();
+      const agentQuery = makeMockSupervisor();
       const eventBus = makeMockTypedEventBus();
 
       const { unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       expect(unsubs).toHaveLength(3);
@@ -1959,13 +1984,15 @@ describe("AgentViewerOverlay", () => {
 
     it("unsubs stop event processing for the unsubscribed channel", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -1997,13 +2024,15 @@ describe("AgentViewerOverlay", () => {
     });
 
     it("uses fallback summary when getAgent returns undefined after connect", () => {
-      const supervisor = makeMockSupervisor([]);
+      const agentQuery = makeMockSupervisor([]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       // Emit before connect so it is buffered.
@@ -2032,13 +2061,15 @@ describe("AgentViewerOverlay", () => {
 
     it("handles agent-started event after connect", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -2059,18 +2090,20 @@ describe("AgentViewerOverlay", () => {
     });
 
     it("falls back to 'Agent disconnected' summary when no agent found and no event summary", () => {
-      const supervisor = makeMockSupervisor([]);
+      const agentQuery = makeMockSupervisor([]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
 
-      // Emit agent-done without a summary — supervisor has no agent,
+      // Emit agent-done without a summary — agentQuery has no agent,
       // so deliverStatusEvent should fall back to "Agent disconnected".
       eventBus.emit("feature-forge:agent-done", {
         phase: "agent-done",
@@ -2089,13 +2122,15 @@ describe("AgentViewerOverlay", () => {
 
     it("falls back to agent-based summary when no event summary and agent exists", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -2120,13 +2155,15 @@ describe("AgentViewerOverlay", () => {
 
     it("handles agent-stream event without event in details (falls through)", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-      const supervisor = makeMockSupervisor([agent]);
+      const agentQuery = makeMockSupervisor([agent]);
       const eventBus = makeMockTypedEventBus();
       const overlay = makeOverlay();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       connect(overlay, "");
@@ -2154,12 +2191,14 @@ describe("AgentViewerOverlay", () => {
     });
 
     it("buffers agent-stream event without event in details (no-op)", () => {
-      const supervisor = makeMockSupervisor([]);
+      const agentQuery = makeMockSupervisor([]);
       const eventBus = makeMockTypedEventBus();
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus,
-        supervisor,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
       });
 
       // Emit agent-stream without event details BEFORE connect.
@@ -2188,13 +2227,15 @@ describe("AgentViewerOverlay", () => {
       const streamDir = mkdtempSync(join(tmpdir(), "forge-buf-persist-"));
       try {
         const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-        const supervisor = makeMockSupervisor([agent]);
+        const agentQuery = makeMockSupervisor([agent]);
         const eventBus = makeMockTypedEventBus();
         const overlay = makeOverlay();
 
         const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
           eventBus,
-          supervisor,
+          agentQuery,
+          config: mockConfig,
+          toolRegistry: makeMockToolRegistry(),
         });
 
         // Emit events BEFORE connect — they should be buffered.

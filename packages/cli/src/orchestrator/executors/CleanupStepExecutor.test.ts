@@ -1,3 +1,5 @@
+import type { DisplayContribution } from "@feature-forge/tui";
+import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
@@ -8,9 +10,6 @@ import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegi
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
-import { createAccumulatedState } from "../progress/AccumulatedState";
-import type { DisplayContribution } from "../progress/DisplayContribution";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 

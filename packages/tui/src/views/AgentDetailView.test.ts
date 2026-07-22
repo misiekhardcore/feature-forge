@@ -5,11 +5,13 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import { AgentViewerState } from "@feature-forge/tui";
+import { AgentDetailView } from "@feature-forge/tui";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeMockToolRegistry } from "../../test-utils";
-import { AgentDetailView } from "./AgentDetailView";
-import { AgentViewerState } from "./AgentViewerState";
+function makeMockToolFormatter() {
+  return { get: vi.fn(() => undefined) };
+}
 
 beforeAll(() => {
   initTheme("dark");
@@ -84,7 +86,7 @@ describe("AgentDetailView", () => {
       markdownTheme,
       tui,
       "/test/cwd",
-      makeMockToolRegistry(),
+      makeMockToolFormatter(),
     );
   });
 
@@ -210,7 +212,7 @@ describe("AgentDetailView", () => {
         markdownTheme,
         tuiNoRows,
         "/test/cwd",
-        makeMockToolRegistry(),
+        makeMockToolFormatter(),
       );
 
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });

@@ -1,10 +1,8 @@
 import * as path from "node:path";
 
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-
 // Re-export public config API
-
-export * from "./config";
+import { FileLogger, ForgeConfig, logger } from "@feature-forge/shared";
 
 import {
   InMemoryAgentSupervisor,
@@ -21,14 +19,12 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
-import { ForgeConfig } from "./config";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
-import { FileLogger, logger } from "./logging";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";

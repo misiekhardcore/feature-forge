@@ -21,12 +21,12 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
+import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
+
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";
 import type { ShellInstruction } from "../FlowInstruction";
-import { createAccumulatedState } from "../progress/AccumulatedState";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { ShellStepExecutor } from "./ShellStepExecutor";
 

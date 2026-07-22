@@ -2,10 +2,10 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
-import { logger } from "../logging";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";

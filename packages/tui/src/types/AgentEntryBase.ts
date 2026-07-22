@@ -1,4 +1,4 @@
-import type { AgentSpecification } from "../../../agents/specifications";
+import { AgentSpecification } from "@feature-forge/cli/src/agents";
 
 /**
  * Base interface for agent entries managed by the viewer.

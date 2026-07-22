@@ -6,6 +6,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { jsonParse } from "@feature-forge/shared";
+import type { AgentContribution, DisplayContribution } from "@feature-forge/tui";
+import type { DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
@@ -18,8 +20,6 @@ import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
-import type { AgentContribution, DisplayContribution } from "./progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";

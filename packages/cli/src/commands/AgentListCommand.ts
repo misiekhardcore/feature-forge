@@ -1,9 +1,9 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { ForgeConfig, logger } from "@feature-forge/shared";
+import { AgentViewerOverlay } from "@feature-forge/tui";
 
-import { logger } from "../logging";
 import { TypedEventBus } from "../orchestrator/eventBus";
-import { AgentViewerOverlay } from "../orchestrator/progress/AgentViewerOverlay";
 import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";
 
@@ -30,7 +30,9 @@ export class AgentListCommand extends Command {
 
             const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
               eventBus: typedBus,
-              supervisor: this.supervisor,
+              agentQuery: this.supervisor,
+              config: ForgeConfig.getInstance(),
+              toolRegistry: this.toolRegistry,
             });
 
             const viewer = new AgentViewerOverlay({
@@ -44,6 +46,7 @@ export class AgentListCommand extends Command {
               markdownTheme: getMarkdownTheme(),
               cwd: ctx.cwd,
               toolRegistry: this.toolRegistry,
+              config: ForgeConfig.getInstance(),
             });
 
             void connect(viewer, streamDir);
@@ -57,7 +60,7 @@ export class AgentListCommand extends Command {
           },
           {
             overlay: true,
-            overlayOptions: AgentViewerOverlay.overlayOptions,
+            overlayOptions: AgentViewerOverlay.getOverlayOptions(),
           },
         )
         .catch((err) => {

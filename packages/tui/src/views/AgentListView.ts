@@ -2,9 +2,9 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { SelectItem, SelectListTheme, TUI } from "@earendil-works/pi-tui";
 import { SelectList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
-import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
-import { AgentViewerState } from "./AgentViewerState";
-import { BorderedContainer } from "./BorderedContainer";
+import type { AgentEntryProvider, AgentStreamProvider } from "../api";
+import { BorderedContainer } from "../components/BorderedContainer";
+import { AgentDisplayHelpers } from "../display";
 
 /**
  * Renders the list of agent entries with their statuses using a
@@ -18,18 +18,18 @@ import { BorderedContainer } from "./BorderedContainer";
  * encapsulation.
  */
 export class AgentListView {
-  private readonly state: AgentViewerState;
+  private readonly state: AgentEntryProvider & AgentStreamProvider;
   private readonly theme: Theme;
   private readonly onSelectAgent: (agentId: string) => void;
   private readonly onDone: () => void;
-  private lastEntryCount: number;
+  private lastVersion: number;
   private _selectedIndex = 0;
 
   private readonly borderedContainer: BorderedContainer;
   private selectList?: SelectList;
 
   constructor(
-    state: AgentViewerState,
+    state: AgentEntryProvider & AgentStreamProvider,
     theme: Theme,
     _tui: TUI,
     onSelectAgent: (agentId: string) => void,
@@ -41,7 +41,7 @@ export class AgentListView {
     this.onDone = onDone;
 
     this.borderedContainer = new BorderedContainer(theme, "Agent Viewer");
-    this.lastEntryCount = this.state.entryCount;
+    this.lastVersion = this.state.getVersion();
     this.rebuild();
   }
 
@@ -70,11 +70,12 @@ export class AgentListView {
 
     const items: SelectItem[] = entries.map(([id, entry]) => {
       const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
+      const { label: statusLabel } = AgentDisplayHelpers.getStatusLabel(entry.status, entry.passed);
       const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt);
-      const role = entry.role ? `(${entry.role})` : "";
-      const label = `${icon} ${id} ${role} ${elapsed}`;
+      const role = entry.role ? ` (${entry.role})` : "";
+      const label = `${icon} ${id}${role} — ${statusLabel} (${elapsed})`;
       const lastLine = this.state.getLastLine(id);
-      const rawDescription = lastLine ?? entry.summary;
+      const rawDescription = lastLine || entry.summary;
       const description = rawDescription ? truncateToWidth(rawDescription, 60, "…") : undefined;
       return { value: id, label, description };
     });
@@ -106,9 +107,9 @@ export class AgentListView {
    * Rebuilds the {@link SelectList} when the entry count changes.
    */
   private ensureUpToDate(): void {
-    const currentCount = this.state.entryCount;
-    if (currentCount !== this.lastEntryCount) {
-      this.lastEntryCount = currentCount;
+    const currentVersion = this.state.getVersion();
+    if (currentVersion !== this.lastVersion) {
+      this.lastVersion = currentVersion;
       this.rebuild();
     }
   }
