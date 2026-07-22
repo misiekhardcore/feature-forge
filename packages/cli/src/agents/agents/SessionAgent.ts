@@ -4,8 +4,8 @@ import type {
   ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
-
 import { logger } from "@feature-forge/shared";
+
 import type { AgentSpecification } from "../specifications";
 import { InSessionAgent } from "./InSessionAgent";
 

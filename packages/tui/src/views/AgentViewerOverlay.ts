@@ -2,11 +2,15 @@ import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
+import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
 import { AgentStatus } from "@feature-forge/shared";
 
-import type { AgentQuery, DisplayConfig, EventSubscriber, ToolFormatter } from "../api";
+import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
 import { AgentViewerState } from "../state/AgentViewerState";
+import type { AgentViewerEntry } from "../types";
+import { AgentDetailView } from "./AgentDetailView";
+import { AgentListView } from "./AgentListView";
 
 // ── Event payload types used by wireOverlayEvents ──────────────
 
@@ -21,9 +25,6 @@ interface AgentStartedPayload {
 interface AgentDonePayload {
   details: { agentId: string; passed?: boolean; summary?: string };
 }
-import type { AgentViewerEntry } from "../types";
-import { AgentDetailView } from "./AgentDetailView";
-import { AgentListView } from "./AgentListView";
 
 /**
  * View mode for the overlay.
@@ -435,18 +436,18 @@ export class AgentViewerOverlay implements Component {
    * Returns subscriptions and a {@code connect} callback.  Callers construct the
    * overlay after subscriptions are established and then call {@code connect}
    * to replay buffered events, set the stream directory, and populate initial
-   * agent entries from the supervisor.
+   * agent entries from the agentQuery.
    */
   static wireOverlayEvents(params: {
-    eventBus: EventSubscriber;
-    supervisor: AgentQuery;
+    eventBus: TypedEventBus;
+    agentQuery: AgentQuery;
     config: DisplayConfig;
     toolRegistry: ToolFormatter;
   }): {
     connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
     unsubs: Array<() => void>;
   } {
-    const { eventBus, supervisor, config } = params;
+    const { eventBus, agentQuery, config } = params;
 
     const eventBuffer: Array<{
       agentId: string;
@@ -472,7 +473,7 @@ export class AgentViewerOverlay implements Component {
       passed?: boolean,
       eventSummary?: string,
     ) => {
-      const agent = supervisor.getAgent(agentId);
+      const agent = agentQuery.getAgent(agentId);
       let summary = eventSummary;
       if (!summary && agent) {
         summary =
@@ -514,7 +515,7 @@ export class AgentViewerOverlay implements Component {
         if (!agentId) return;
 
         const mappedStatus = AgentViewerOverlay.mapStatus(
-          (supervisor.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
+          (agentQuery.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
         );
         if (connected) {
           deliverStatusEvent(viewer, agentId, mappedStatus);
@@ -530,7 +531,7 @@ export class AgentViewerOverlay implements Component {
         if (!agentId) return;
 
         const mappedStatus = AgentViewerOverlay.mapStatus(
-          (supervisor.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
+          (agentQuery.getAgent(agentId)?.status as AgentStatus) ?? AgentStatus.Spawned,
         );
         const passed = payload.details.passed;
         const eventSummary = payload.details.summary;
@@ -563,7 +564,7 @@ export class AgentViewerOverlay implements Component {
       // agent population runs synchronously below.
       viewer.prepopulateStreamFiles(streamDir).catch(() => {});
 
-      for (const agent of supervisor.getAllAgents()) {
+      for (const agent of agentQuery.getAllAgents()) {
         const status = AgentViewerOverlay.mapStatus(agent.status as AgentStatus);
         viewer.update({
           id: agent.id,

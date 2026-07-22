@@ -1,4 +1,4 @@
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig } from "./config";
 
 // Initialize ForgeConfig with built-in defaults before any test runs.
 // This ensures that modules calling ForgeConfig.getInstance() at import

@@ -4,9 +4,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { LogLevel } from "../config";
 import { jsonParse } from "../helpers";
-import { Logger, LogLevel } from "../logger";
 import { FileLogger } from "../logging/FileLogger";
+import { Logger } from "./logger";
 
 describe("FileLogger", () => {
   let filePath: string;
@@ -17,7 +18,7 @@ describe("FileLogger", () => {
       tmpdir(),
       `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
     );
-    logger = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+    logger = FileLogger.initialize(filePath);
     Logger.setLogLevel(LogLevel.DEBUG);
   });
 
@@ -97,7 +98,7 @@ describe("FileLogger", () => {
       logger.info("first");
       await logger.close();
 
-      const logger2 = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      const logger2 = FileLogger.initialize(filePath);
       logger2.info("second");
       await logger2.close();
 
@@ -136,7 +137,7 @@ describe("FileLogger", () => {
 
   describe("level filtering", () => {
     it("writes all levels when threshold is debug", async () => {
-      const l = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      const l = FileLogger.initialize(filePath);
       Logger.setLogLevel(LogLevel.DEBUG);
       l.error("e");
       l.warn("w");
@@ -150,7 +151,7 @@ describe("FileLogger", () => {
     });
 
     it("filters debug entries when threshold is info", async () => {
-      const l = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      const l = FileLogger.initialize(filePath);
       Logger.setLogLevel(LogLevel.INFO);
       l.error("e");
       l.warn("w");
@@ -164,7 +165,7 @@ describe("FileLogger", () => {
     });
 
     it("filters info and debug when threshold is warn", async () => {
-      const l = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      const l = FileLogger.initialize(filePath);
       Logger.setLogLevel(LogLevel.WARN);
       l.error("e");
       l.warn("w");
@@ -178,7 +179,7 @@ describe("FileLogger", () => {
     });
 
     it("filters everything except error when threshold is error", async () => {
-      const l = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      const l = FileLogger.initialize(filePath);
       Logger.setLogLevel(LogLevel.ERROR);
       l.error("e");
       l.warn("w");
@@ -192,7 +193,7 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file when no entry meets the threshold", async () => {
-      const l = FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      const l = FileLogger.initialize(filePath);
       Logger.setLogLevel(LogLevel.ERROR);
       l.warn("w");
       l.info("i");
@@ -203,7 +204,7 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file on construction regardless of level", () => {
-      FileLogger.initialize({ logDir: tmpdir(), logPrefix: "test", filePath });
+      FileLogger.initialize(filePath);
       Logger.setLogLevel(LogLevel.ERROR);
       expect(existsSync(filePath)).toBe(false);
     });
@@ -211,8 +212,8 @@ describe("FileLogger", () => {
 
   describe("default log file path", () => {
     it("falls back to .forge/logs by default", () => {
-      const defaultPath = FileLogger.buildDefaultPath(tmpdir(), "forge");
-      expect(defaultPath).toContain("/forge-");
+      const defaultPath = FileLogger.getDefaultLogFilePath();
+      expect(defaultPath).toContain(".forge/logs");
     });
   });
 

@@ -1,9 +1,9 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/shared";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 
-import { ForgeConfig } from "../config";
-import { logger } from "@feature-forge/shared";
 import { TypedEventBus } from "../orchestrator/eventBus";
 import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";
@@ -31,7 +31,7 @@ export class AgentListCommand extends Command {
 
             const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
               eventBus: typedBus,
-              supervisor: this.supervisor,
+              agentQuery: this.supervisor,
               config: ForgeConfig.getInstance(),
               toolRegistry: this.toolRegistry,
             });

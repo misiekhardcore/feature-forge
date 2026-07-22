@@ -4,13 +4,15 @@
   "private": true,
   "description": "Development debugging tools for feature-forge",
   "type": "module",
+  "main": "./src/index.ts",
   "scripts": {
     "build": "echo 'nothing to build'",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "format": "prettier . --check",
     "format:fix": "prettier . --write",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.79.10",
@@ -21,6 +23,5 @@
   "devDependencies": {
     "@feature-forge/eslint-config": "*",
     "typescript": "^5.0.0"
-  },
-  "main": "./src/index.ts"
+  }
 }

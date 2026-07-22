@@ -1,7 +1,8 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
 import path from "node:path";
 
-import { Logger, LogLevel } from "../logger";
+import { ForgeConfig, LogLevel } from "../config";
+import { Logger } from "./logger";
 
 /** Shape of a single log entry written to the JSON Lines file. */
 interface LogEntry {
@@ -26,31 +27,40 @@ export class FileLogger extends Logger {
   private _stream: WriteStream | null = null;
 
   /**
-   * @param options.logDir   — Directory for log files.
-   * @param options.logPrefix — Prefix for the log filename (e.g. "forge").
-   * @param options.filePath  — Override: absolute path to the log file.
+   * @param filePath — Absolute path to the log file (created on first write).
    */
-  private constructor(options: { logDir: string; logPrefix: string; filePath?: string }) {
+  private constructor(filePath?: string) {
     super();
 
-    this.filePath =
-      options.filePath ?? FileLogger.buildDefaultPath(options.logDir, options.logPrefix);
+    this.filePath = filePath ?? FileLogger.getDefaultLogFilePath();
     if (!existsSync(this.filePath)) {
       const dir = path.dirname(this.filePath);
       mkdirSync(dir, { recursive: true });
     }
   }
 
-  static initialize(options: { logDir: string; logPrefix: string; filePath?: string }): FileLogger {
-    const logger = new FileLogger(options);
+  static initialize(filePath?: string): FileLogger {
+    const logger = new FileLogger(filePath);
     Logger.instance = logger;
     return logger;
   }
 
-  static buildDefaultPath(logDir: string, logPrefix: string): string {
+  static getDefaultLogFilePath(): string {
+    const prefix = FileLogger.resolveLogPrefix();
     const now = new Date();
     const iso = now.toISOString().replace(/-/g, "").replace(/:/g, "").slice(0, 13);
-    return path.join(logDir, `${logPrefix}-${iso}.log`);
+    return path.join(ForgeConfig.getInstance().getLogDir(), `${prefix}-${iso}.log`);
+  }
+
+  /**
+   * Resolve a human-readable prefix for log filenames from configuration.
+   *
+   * Delegates to {@link ForgeConfig.getLogPrefix}, which defaults to
+   * `"forge"` for the orchestrator. Child agents receive their agent id
+   * via the config initialisation path.
+   */
+  private static resolveLogPrefix(): string {
+    return ForgeConfig.getInstance().getLogPrefix();
   }
 
   /** Lazily-initialised write stream — no file created until first write. */

@@ -8,6 +8,8 @@ import {
   type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
+import { logger } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/shared";
 import type { ProgressWidget } from "@feature-forge/tui";
 import type { DisplayContribution } from "@feature-forge/tui";
 import type { RoutineProgressState } from "@feature-forge/tui";
@@ -15,15 +17,13 @@ import { AgentViewerOverlay, TuiRoutineWidget } from "@feature-forge/tui";
 import { createAccumulatedState } from "@feature-forge/tui";
 import { NoOpProgressReporter } from "@feature-forge/tui";
 import { ProgressRenderer } from "@feature-forge/tui";
+import { DisplayContributionRegistry } from "@feature-forge/tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { ForgeConfig } from "../config";
-import { logger } from "@feature-forge/shared";
 import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { DisplayContributionRegistry } from "@feature-forge/tui";
 import { SharedStreamDir } from "./progress/sharedStreamDir";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
@@ -204,7 +204,7 @@ export class RoutineTool
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
         eventBus: typedBus,
-        supervisor: this.supervisor,
+        agentQuery: this.supervisor,
         config: ForgeConfig.getInstance(),
         toolRegistry: this.executor.toolRegistry,
       });

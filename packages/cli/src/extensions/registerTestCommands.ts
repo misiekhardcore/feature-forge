@@ -14,12 +14,12 @@ import {
   reviewerScenario,
   toolArgsScenario,
 } from "@feature-forge/debug";
+import { ForgeConfig } from "@feature-forge/shared";
 import type { AgentViewerEntry } from "@feature-forge/tui";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 import { TuiRoutineWidget } from "@feature-forge/tui";
 import { ProgressRenderer } from "@feature-forge/tui";
 
-import { ForgeConfig } from "../config";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────

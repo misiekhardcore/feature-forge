@@ -29,8 +29,8 @@ export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/P
 export { ProgressRenderer } from "./progress/ProgressRenderer";
 export type { ProgressSnapshot } from "./progress/ProgressReporter";
 export { EMPTY_PROGRESS_SNAPSHOT, ProgressReporter } from "./progress/ProgressReporter";
-export type { RoutineProgressState } from "./progress/RoutineProgressState";
 export type { ProgressWidget } from "./progress/ProgressWidget";
+export type { RoutineProgressState } from "./progress/RoutineProgressState";
 export { TuiRoutineWidget } from "./progress/TuiProgressReporter";
 export { AgentViewerState } from "./state/AgentViewerState";
 export type { AgentViewerEntry } from "./types";

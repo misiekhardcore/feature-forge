@@ -5,10 +5,6 @@
   "description": "Shared abstractions for feature-forge",
   "type": "module",
   "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
     "build": "echo 'shared: nothing to build'",
     "test": "vitest run",
@@ -16,7 +12,8 @@
     "lint:fix": "eslint --fix .",
     "format": "prettier . --check",
     "format:fix": "prettier . --write",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.79.8"

@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  DEFAULT_LOG_LEVEL,
-  levelSeverity,
-  LOG_LEVEL_ORDER,
-  Logger,
-  LogLevel,
-  shouldLog,
-} from "./logger";
+import { LogLevel } from "../config";
+import { Logger } from "./logger";
+import { DEFAULT_LOG_LEVEL, levelSeverity, LOG_LEVEL_ORDER, shouldLog } from "./LogLevel";
 
 describe("Logger", () => {
+  /**
+   * Minimal concrete Logger that captures every call for contract verification.
+   */
   class TestLogger extends Logger {
     public calls: Array<{ method: string; message: string; data?: Record<string, unknown> }> = [];
 

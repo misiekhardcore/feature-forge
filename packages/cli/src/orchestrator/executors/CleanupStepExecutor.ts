@@ -1,7 +1,7 @@
+import { logger } from "@feature-forge/shared";
 import type { DisplayContribution } from "@feature-forge/tui";
 import type { DisplayContributionRegistry } from "@feature-forge/tui";
 
-import { logger } from "@feature-forge/shared";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { TypedEventBus } from "../eventBus";

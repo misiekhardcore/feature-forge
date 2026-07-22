@@ -1,4 +1,4 @@
-import { Logger } from "../logger";
+import { Logger } from "./logger";
 
 /**
  * Logger that writes messages to stdout/stderr via console methods.

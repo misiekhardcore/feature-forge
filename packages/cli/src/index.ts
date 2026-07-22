@@ -1,12 +1,8 @@
 import * as path from "node:path";
 
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-
 // Re-export public config API
-
-export * from "./config";
-
-import { Logger } from "@feature-forge/shared";
+import { FileLogger, ForgeConfig, logger } from "@feature-forge/shared";
 
 import {
   InMemoryAgentSupervisor,
@@ -23,14 +19,12 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
 } from "./commands";
-import { ForgeConfig } from "./config";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
-import { FileLogger, logger } from "@feature-forge/shared";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
@@ -70,15 +64,8 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // ── Configuration ─────────────────────────────────────────────────
   await ForgeConfig.create({ cwd: process.cwd() });
 
-  // Wire the shared Logger's default log level from ForgeConfig so
-  // the entire monorepo respects the same threshold.
-  Logger.setDefaultLogLevel(ForgeConfig.getInstance().getLogLevel());
-
   // ── Logging ────────────────────────────────────────────────────────
-  FileLogger.initialize({
-    logDir: ForgeConfig.getInstance().getLogDir(),
-    logPrefix: ForgeConfig.getInstance().getLogPrefix(),
-  });
+  FileLogger.initialize();
 
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
