@@ -3,3 +3,4 @@ dist/
 coverage/
 .turbo/
 .forge/
+packages/cli/src/flows/flow-schema.json
