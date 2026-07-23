@@ -50,6 +50,7 @@ const PROGRESS_CHANNELS = [
   "feature-forge:git-done",
   "feature-forge:shell-start",
   "feature-forge:shell-done",
+  "feature-forge:session-set",
   "feature-forge:routine-ref-start",
   "feature-forge:routine-ref-done",
   "feature-forge:routine-ref-error",
