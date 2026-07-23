@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -18,6 +18,7 @@ export class SharedStreamDir {
 
   static get(baseDir: string): string {
     if (!SharedStreamDir.instance) {
+      mkdirSync(baseDir, { recursive: true });
       SharedStreamDir.instance = mkdtempSync(join(baseDir, "agent-streams-"));
     }
     return SharedStreamDir.instance;

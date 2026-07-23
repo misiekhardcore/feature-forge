@@ -3,13 +3,7 @@
   "title": "Feature Forge Flow Definition",
   "description": "Self-contained flow definition. Declares a slash command, orchestrator config, and named deterministic routines.",
   "type": "object",
-  "required": [
-    "$schema",
-    "name",
-    "command",
-    "orchestrator",
-    "routines"
-  ],
+  "required": ["$schema", "name", "command", "orchestrator", "routines"],
   "properties": {
     "$schema": {
       "type": "string",
@@ -19,9 +13,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string",
@@ -51,11 +43,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "id",
-          "params",
-          "steps"
-        ],
+        "required": ["id", "params", "steps"],
         "properties": {
           "id": {
             "type": "string",
@@ -80,9 +68,7 @@
   "$defs": {
     "OrchestratorConfig": {
       "type": "object",
-      "required": [
-        "systemPrompt"
-      ],
+      "required": ["systemPrompt"],
       "properties": {
         "systemPrompt": {
           "type": "string",
@@ -103,9 +89,7 @@
     },
     "RoutineParam": {
       "type": "object",
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "properties": {
         "name": {
           "type": "string",
@@ -121,11 +105,7 @@
     },
     "WorkspaceInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "provider"
-      ],
+      "required": ["id", "type", "provider"],
       "properties": {
         "id": {
           "type": "string",
@@ -165,12 +145,7 @@
     },
     "AgentInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "systemPrompt",
-        "prompt"
-      ],
+      "required": ["id", "type", "systemPrompt", "prompt"],
       "properties": {
         "id": {
           "type": "string",
@@ -191,9 +166,7 @@
           "anyOf": [
             {
               "type": "object",
-              "required": [
-                "workspace"
-              ],
+              "required": ["workspace"],
               "properties": {
                 "workspace": {
                   "type": "string",
@@ -203,9 +176,7 @@
             },
             {
               "type": "object",
-              "required": [
-                "path"
-              ],
+              "required": ["path"],
               "properties": {
                 "path": {
                   "type": "string",
@@ -230,10 +201,7 @@
     },
     "ParallelInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type"
-      ],
+      "required": ["id", "type"],
       "properties": {
         "id": {
           "type": "string",
@@ -269,11 +237,7 @@
     },
     "LoopInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "maxIterations"
-      ],
+      "required": ["id", "type", "maxIterations"],
       "properties": {
         "id": {
           "type": "string",
@@ -306,10 +270,7 @@
     },
     "CleanupInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type"
-      ],
+      "required": ["id", "type"],
       "properties": {
         "id": {
           "type": "string",
@@ -327,12 +288,7 @@
     },
     "GitInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "action",
-        "cwd"
-      ],
+      "required": ["id", "type", "action", "cwd"],
       "properties": {
         "id": {
           "type": "string",
@@ -366,12 +322,7 @@
     },
     "SessionInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "key",
-        "value"
-      ],
+      "required": ["id", "type", "key", "value"],
       "properties": {
         "id": {
           "type": "string",
@@ -392,12 +343,7 @@
     },
     "ShellInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "command",
-        "cwd"
-      ],
+      "required": ["id", "type", "command", "cwd"],
       "properties": {
         "id": {
           "type": "string",
@@ -422,11 +368,7 @@
     },
     "RoutineRefInstruction": {
       "type": "object",
-      "required": [
-        "id",
-        "type",
-        "target"
-      ],
+      "required": ["id", "type", "target"],
       "properties": {
         "id": {
           "type": "string",
