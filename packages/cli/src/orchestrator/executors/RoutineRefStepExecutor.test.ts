@@ -405,6 +405,73 @@ describe("RoutineRefStepExecutor", () => {
       }
     });
 
+    it("resolves template expressions in input values against parent context before merge", async () => {
+      // Regression: unresolved template strings like "{{workspace}}" in
+      // input would overwrite the real workspace path, causing the inlined
+      // agent's workingDir to resolve to a non-existent directory.
+      const capturedParams: Array<ReadonlyMap<string, string>> = [];
+      class ParamCheckExecutor extends StepExecutor {
+        readonly type = "param-check";
+        async execute(_: FlowInstruction, ctx: FlowContext): Promise<FlowContext> {
+          capturedParams.push(ctx.params);
+          return ctx;
+        }
+      }
+
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new ParamCheckExecutor());
+
+      const targetFlow = makeTargetFlow({
+        routines: [
+          {
+            id: "inspect",
+            params: [],
+            steps: [{ type: "param-check", id: "step1" } as unknown as FlowInstruction],
+          },
+        ],
+      });
+      const flowMap = new Map([[targetFlow.name, targetFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      // Parent context has a real workspace path and a builder result.
+      const context = new FlowContext({
+        results: new Map([
+          [
+            "builder",
+            {
+              raw: "the actual build output",
+              parsed: { passed: true, summary: "ok" },
+            },
+          ],
+        ]),
+        prompt: "test",
+        params: new Map([["workspace", "/real/workspace/path"]]),
+      });
+
+      await executor.execute(
+        makeRefInstruction({
+          input: {
+            output: "{{results.builder.raw}}",
+            workspace: "{{workspace}}",
+          },
+        }),
+        context,
+        makeDispatch(registry, eventBus),
+        eventBus,
+      );
+
+      expect(capturedParams).toHaveLength(1);
+      const params = capturedParams[0];
+      // The template expressions should be resolved to actual values:
+      // "{{results.builder.raw}}" → actual build output
+      expect(params.get("output")).toBe("the actual build output");
+      // "{{workspace}}" → real path, NOT the literal template string
+      expect(params.get("workspace")).toBe("/real/workspace/path");
+    });
+
     it("propagates abort signal to inlined step execution", async () => {
       const registry = new StepExecutorRegistry();
       registry.register(() => new RecordExecutor());

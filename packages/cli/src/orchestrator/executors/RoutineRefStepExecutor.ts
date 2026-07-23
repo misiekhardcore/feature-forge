@@ -75,7 +75,16 @@ export class RoutineRefStepExecutor
 
     let current = context.withDepth(newDepth);
     if (instruction.input) {
-      current = current.withMergedParams(instruction.input);
+      // Resolve template expressions (e.g. "{{workspace}}", "{{results.builder.raw}}")
+      // against the PARENT context before merging, so that the inlined steps
+      // receive the actual values rather than unresolved template strings.
+      // Without this, "{{workspace}}" would overwrite the real workspace path
+      // in params, causing the sub-flow's agents to spawn with a non-existent cwd.
+      const resolvedInput: Record<string, string> = {};
+      for (const [key, value] of Object.entries(instruction.input)) {
+        resolvedInput[key] = context.resolve(value);
+      }
+      current = current.withMergedParams(resolvedInput);
     }
     let allPassed = true;
     const inlinedRoutineIds: string[] = [];
