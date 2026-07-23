@@ -20,7 +20,7 @@ export class AgentListCommand extends Command {
     if (ctx.hasUI) {
       let overlayCleanup: (() => void) | undefined;
       let viewerDismiss: (() => void) | undefined;
-      const streamDir = SharedStreamDir.get();
+      const streamDir = SharedStreamDir.get(ForgeConfig.getInstance().getLogDir());
       await ctx.ui
         .custom<void>(
           (tui, theme, _kb, done) => {
