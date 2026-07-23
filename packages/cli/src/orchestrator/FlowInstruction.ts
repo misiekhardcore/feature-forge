@@ -181,6 +181,7 @@ export const RoutineParamSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   description: Type.Optional(Type.String()),
   default: Type.Optional(Type.String()),
+  optional: Type.Optional(Type.Boolean()),
 });
 
 const RoutineDefinitionSchema = Type.Object({
@@ -262,6 +263,7 @@ export type RoutineDefinition = {
   id: string;
   params: RoutineParam[];
   steps: FlowInstruction[];
+  description?: string;
 };
 
 export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {

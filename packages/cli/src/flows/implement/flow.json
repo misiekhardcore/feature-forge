@@ -19,14 +19,17 @@
   "routines": [
     {
       "id": "create_workspace",
+      "description": "Create an isolated workspace. Pass branch to reuse an existing workspace, or baseRef to create from a specific commit. branch and baseRef are mutually exclusive — pass only one, or neither (defaults to a new workspace from origin/HEAD).",
       "params": [
         {
           "name": "branch",
-          "description": "Existing branch name to reuse (e.g. for adding to an open PR). If omitted, a new forge/ws-* branch is created."
+          "description": "Existing branch name to reuse (e.g. for adding to an open PR). If omitted, a new forge/ws-* branch is created.",
+          "optional": true
         },
         {
           "name": "baseRef",
-          "description": "Git ref to create a new worktree from (defaults to origin/HEAD). Ignored when branch is provided."
+          "description": "Git ref to create a new worktree from (defaults to origin/HEAD). Ignored when branch is provided.",
+          "optional": true
         }
       ],
       "steps": [

@@ -476,6 +476,16 @@ describe("RoutineParamSchema", () => {
     const valid = { name: "task", description: "" };
     expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
   });
+
+  it("accepts optional flag", () => {
+    const valid = { name: "branch", optional: true };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
+  });
+
+  it("accepts param without optional flag", () => {
+    const valid = { name: "task" };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

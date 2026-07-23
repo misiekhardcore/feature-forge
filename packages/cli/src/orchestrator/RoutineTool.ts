@@ -339,18 +339,25 @@ export class RoutineTool
   private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {
     const properties: Record<string, ReturnType<typeof Type.String>> = {};
     for (const param of routineDef.params) {
-      properties[param.name] = Type.String({
+      const schema = Type.String({
         description: param.description,
       });
+      properties[param.name] = param.optional ? Type.Optional(schema) : schema;
     }
     return Type.Object(properties);
   }
 
   private buildDescription(routineName: string, routineDef: RoutineDefinition): string {
     if (routineDef.params.length === 0) {
-      return `Run the "${routineName}" routine.`;
+      return routineDef.description ?? `Run the "${routineName}" routine.`;
     }
-    const paramList = routineDef.params.map((p) => p.name).join(", ");
-    return `Run the "${routineName}" routine with params: ${paramList}.`;
+    const paramList = routineDef.params
+      .map(
+        (p) =>
+          `${p.name}${p.description ? ` (${p.description})` : ""}${p.optional ? " [optional]" : ""}`,
+      )
+      .join(", ");
+    const base = routineDef.description ?? `Run the "${routineName}" routine with params`;
+    return `${base}: ${paramList}.`;
   }
 }
