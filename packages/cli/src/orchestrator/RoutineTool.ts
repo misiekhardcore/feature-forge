@@ -202,7 +202,7 @@ export class RoutineTool
     let overlayCleanup: (() => void) | undefined;
     let overlayUnsubs: Array<() => void> | undefined;
     if (ctx.hasUI) {
-      const streamDir = SharedStreamDir.get();
+      const streamDir = SharedStreamDir.get(ForgeConfig.getInstance().getLogDir());
       const typedBus = new TypedEventBus(this.executor.eventBus);
 
       const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({

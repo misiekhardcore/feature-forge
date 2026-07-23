@@ -274,10 +274,10 @@ describe("flow round-trip", () => {
     // ── 6. open_pr step positions ─────────────────────────
 
     it("open_pr has fetch, rebase, revalidate between commit and branch (push)", () => {
-      const openPr = flow.routines["open_pr"];
+      const openPr = flow.routines.find((r) => r.id === "open_pr");
       expect(openPr).toBeDefined();
 
-      const steps = openPr.steps as FlowInstruction[];
+      const steps = openPr?.steps as FlowInstruction[];
       const ids = steps.map((s) => s.id);
 
       const commitIdx = ids.indexOf("commit");
