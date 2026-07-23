@@ -148,7 +148,7 @@ describe("WorkspaceStepExecutor", () => {
 
     expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
       symlinks: ["custom-dir", "another-dir"],
-      baseRef: undefined,
+      branch: expect.stringContaining("forge/ws-") as string,
     });
   });
 
@@ -375,7 +375,7 @@ describe("WorkspaceStepExecutor", () => {
       const handle = result.workspaces.get("ws");
       expect(handle!.branch).toBe("forge/ws-00000000");
       expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
-        baseRef: undefined,
+        branch: "forge/ws-00000000",
       });
     });
   });

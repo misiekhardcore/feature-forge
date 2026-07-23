@@ -22,6 +22,10 @@
         {
           "name": "branch",
           "description": "Existing branch name to reuse (e.g. for adding to an open PR). If omitted, a new forge/ws-* branch is created."
+        },
+        {
+          "name": "baseRef",
+          "description": "Git ref to create a new worktree from (defaults to origin/HEAD). Ignored when branch is provided."
         }
       ],
       "steps": [
@@ -30,7 +34,7 @@
           "id": "ws",
           "provider": "git-worktree",
           "branch": "{{branch}}",
-          "baseRef": "origin/HEAD"
+          "baseRef": "{{baseRef}}"
         }
       ]
     },
