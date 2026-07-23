@@ -385,6 +385,14 @@
         "output_as": {
           "type": "string",
           "minLength": 1
+        },
+        "input": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "string"
+            }
+          }
         }
       }
     },
