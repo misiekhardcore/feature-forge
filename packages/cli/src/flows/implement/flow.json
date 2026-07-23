@@ -22,6 +22,10 @@
         {
           "name": "branch",
           "description": "Existing branch name to reuse (e.g. for adding to an open PR). If omitted, a new forge/ws-* branch is created."
+        },
+        {
+          "name": "baseRef",
+          "description": "Git ref to create a new worktree from (defaults to origin/HEAD). Ignored when branch is provided."
         }
       ],
       "steps": [
@@ -29,7 +33,8 @@
           "type": "workspace",
           "id": "ws",
           "provider": "git-worktree",
-          "branch": "{{branch}}"
+          "branch": "{{branch}}",
+          "baseRef": "{{baseRef}}"
         }
       ]
     },
@@ -122,6 +127,20 @@
           "action": "add-and-commit",
           "cwd": "{{workspace}}",
           "message": "{{commit_message}}"
+        },
+        {
+          "type": "shell",
+          "id": "fetch",
+          "command": "git fetch origin {{session.base}}",
+          "cwd": "{{workspace}}",
+          "failFast": true
+        },
+        {
+          "type": "shell",
+          "id": "rebase",
+          "command": "git rebase origin/{{session.base}}",
+          "cwd": "{{workspace}}",
+          "failFast": true
         },
         {
           "type": "git",

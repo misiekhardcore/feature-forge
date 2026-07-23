@@ -52,13 +52,27 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     }
 
     const resolvedBranch = instruction.branch ? context.resolve(instruction.branch) : undefined;
-    const isUnresolved =
+    const isBranchUnresolved =
       !resolvedBranch || resolvedBranch.length === 0 || resolvedBranch.startsWith("{{");
-    const branch = isUnresolved ? `forge/${workspaceId}` : resolvedBranch;
+    const branch = isBranchUnresolved ? `forge/${workspaceId}` : resolvedBranch;
+
+    const resolvedBaseRef = instruction.baseRef ? context.resolve(instruction.baseRef) : undefined;
+    const baseRef =
+      resolvedBaseRef && resolvedBaseRef.length > 0 && !resolvedBaseRef.startsWith("{{")
+        ? resolvedBaseRef
+        : undefined;
+
+    if (!isBranchUnresolved && baseRef !== undefined) {
+      throw new Error(
+        `Workspace instruction "${instruction.id}": branch and baseRef are mutually exclusive. ` +
+          "Pass branch to reuse an existing workspace, or baseRef to create from a specific commit.",
+      );
+    }
 
     const path = await provider.createWorkspace(workspaceId, {
       symlinks: instruction.symlinks,
       branch,
+      ...(baseRef !== undefined ? { baseRef } : {}),
     });
     const handle = new WorkspaceHandle(path, new Date(), branch);
 

@@ -7,9 +7,18 @@ export interface CreateWorkspaceOptions {
    * the workspace after provisioning.
    */
   symlinks?: readonly string[];
-  /** Existing branch name to reuse. If provided, the provider may check out
-   *  an existing branch instead of creating a new one. */
+  /**
+   * Existing branch name to reuse. Mutually exclusive with {@link baseRef}.
+   * If the branch exists, the provider checks it out. If it does not exist,
+   * a new branch is created from the provider's default baseRef.
+   */
   branch?: string;
+  /**
+   * Git ref to create the worktree from. Mutually exclusive with {@link branch}.
+   * Overrides the provider's default baseRef when set. Use this to create
+   * a fresh worktree from a specific commit (e.g. "origin/HEAD").
+   */
+  baseRef?: string;
 }
 
 /**

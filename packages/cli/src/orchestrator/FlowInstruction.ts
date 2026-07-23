@@ -47,10 +47,13 @@ export const SessionInstructionSchema = defineInstruction("session", {
 
 // ── Leaf schemas ────────────────────────────────────────────
 
+// branch and baseRef are mutually exclusive — pass one or the other, never both.
+// branch = reuse an existing branch. baseRef = create from this ref.
 export const WorkspaceInstructionSchema = defineInstruction("workspace", {
   provider: Type.Union([Type.Literal("git-worktree"), Type.Literal("current-dir")]),
   symlinks: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
   branch: Type.Optional(Type.String()),
+  baseRef: Type.Optional(Type.String({ minLength: 1 })),
 });
 
 export const AgentInstructionSchema = defineInstruction("agent", {
@@ -79,6 +82,7 @@ export const GitInstructionSchema = defineInstruction("git", {
 export const ShellInstructionSchema = defineInstruction("shell", {
   command: Type.String({ minLength: 1 }),
   cwd: Type.String({ minLength: 1 }),
+  failFast: Type.Optional(Type.Boolean()),
 });
 
 // ── Parallel failure mode ──────────────────────────────────

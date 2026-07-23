@@ -268,7 +268,27 @@ describe("flow round-trip", () => {
       }
     });
 
-    // ── 6. RoutineTool name alignment with tools ──────────
+    // ── 6. open_pr step positions ─────────────────────────
+
+    it("open_pr has fetch, rebase, revalidate between commit and branch (push)", () => {
+      const openPr = flow.routines["open_pr"];
+      expect(openPr).toBeDefined();
+
+      const steps = openPr.steps as FlowInstruction[];
+      const ids = steps.map((s) => s.id);
+
+      const commitIdx = ids.indexOf("commit");
+      const fetchIdx = ids.indexOf("fetch");
+      const rebaseIdx = ids.indexOf("rebase");
+      const branchIdx = ids.indexOf("branch");
+
+      expect(commitIdx).toBeGreaterThanOrEqual(0);
+      expect(fetchIdx).toBe(commitIdx + 1);
+      expect(rebaseIdx).toBe(commitIdx + 2);
+      expect(branchIdx).toBe(commitIdx + 3);
+    });
+
+    // ── 7. RoutineTool name alignment with tools ──────────
 
     it("routine-based tools match registered RoutineTool names", () => {
       // tools now come from orchestrator.md frontmatter, not flow.json.

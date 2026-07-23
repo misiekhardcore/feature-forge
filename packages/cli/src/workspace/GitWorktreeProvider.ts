@@ -75,6 +75,12 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
     await this.assertNoStalePath(worktreePath);
 
+    // effectiveBaseRef determines the starting commit for new worktrees.
+    // It matters when creating a branch from a ref (the "new branch" path
+    // below). When branch is set and already exists, we just check it out
+    // directly — no ref needed.
+    const effectiveBaseRef = options?.baseRef ?? this.baseRef;
+
     if (options?.branch) {
       // Explicit branch — allow reusing an existing branch (e.g. adding to open PR).
       const exists = await this.branchExists(branchName);
@@ -86,7 +92,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
           "worktree",
           "add",
           worktreePath,
-          this.baseRef,
+          effectiveBaseRef,
           "-b",
           branchName,
         ]);
@@ -98,7 +104,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
         "worktree",
         "add",
         worktreePath,
-        this.baseRef,
+        effectiveBaseRef,
         "-b",
         branchName,
       ]);

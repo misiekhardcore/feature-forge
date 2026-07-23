@@ -57,6 +57,26 @@ describe("WorkspaceInstructionSchema", () => {
     const invalid = { type: "workspace", id: "ws1", provider: "docker" };
     expect(Value.Check(WorkspaceInstructionSchema, invalid)).toBe(false);
   });
+
+  it("validates a workspace with baseRef", () => {
+    const valid = {
+      type: "workspace",
+      id: "ws1",
+      provider: "git-worktree",
+      baseRef: "origin/HEAD",
+    };
+    expect(Value.Check(WorkspaceInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty baseRef", () => {
+    const invalid = {
+      type: "workspace",
+      id: "ws1",
+      provider: "git-worktree",
+      baseRef: "",
+    };
+    expect(Value.Check(WorkspaceInstructionSchema, invalid)).toBe(false);
+  });
 });
 
 describe("AgentInstructionSchema", () => {
@@ -307,6 +327,22 @@ describe("ShellInstructionSchema", () => {
     const invalid = { type: "shell", id: "s1", command: "echo hello" };
     expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
   });
+
+  it("validates a shell instruction with failFast", () => {
+    const valid = {
+      type: "shell",
+      id: "s1",
+      command: "echo hello",
+      cwd: "/tmp/ws",
+      failFast: true,
+    };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
+  });
+
+  it("accepts shell instruction without failFast (optional)", () => {
+    const valid = { type: "shell", id: "s1", command: "echo hello", cwd: "/tmp/ws" };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -459,7 +495,12 @@ describe("FlowDefinitionSchema", () => {
           { name: "plan", description: "The implementation plan" },
         ],
         steps: [
-          { type: "workspace" as const, id: "ws", provider: "git-worktree" as const },
+          {
+            type: "workspace" as const,
+            id: "ws",
+            provider: "git-worktree" as const,
+            baseRef: "origin/HEAD",
+          },
           {
             type: "loop" as const,
             id: "build_loop",
@@ -520,15 +561,36 @@ describe("FlowDefinitionSchema", () => {
             message: "{{commit_message}}",
           },
           {
+            type: "shell" as const,
+            id: "fetch",
+            command: "git fetch origin {{session.base}}",
+            cwd: "{{workspace}}",
+            failFast: true,
+          },
+          {
+            type: "shell" as const,
+            id: "rebase",
+            command: "git rebase origin/{{session.base}}",
+            cwd: "{{workspace}}",
+            failFast: true,
+          },
+          {
+            type: "shell" as const,
+            id: "revalidate",
+            command: "npm run fix && npm run lint && npm run typecheck && npm run test",
+            cwd: "{{workspace}}",
+            failFast: true,
+          },
+          {
             type: "git" as const,
-            id: "push",
+            id: "branch",
             action: "push-current" as const,
             cwd: "{{workspace}}",
           },
           {
             type: "shell" as const,
             id: "pr",
-            command: 'gh pr create --title "{{title}}" --body "{{body}}"',
+            command: 'gh pr create --title "{{title}}" --body "{{body}}" --base "{{session.base}}"',
             cwd: "{{workspace}}",
           },
         ],

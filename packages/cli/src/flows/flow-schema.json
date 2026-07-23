@@ -151,6 +151,10 @@
         },
         "branch": {
           "type": "string"
+        },
+        "baseRef": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -405,6 +409,9 @@
         "cwd": {
           "type": "string",
           "minLength": 1
+        },
+        "failFast": {
+          "type": "boolean"
         }
       }
     },

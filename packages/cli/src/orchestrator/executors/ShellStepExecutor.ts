@@ -104,6 +104,14 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         error: err,
       });
 
+      // failFast mirrors the deliberate asymmetry established in ADR 0008:
+      // steps that are preconditions for downstream steps must hard-fail so
+      // RoutineExecutor aborts before subsequent steps (e.g. push, PR create)
+      // execute against a broken state.
+      if (instruction.failFast) {
+        throw err;
+      }
+
       const failureResult: InstructionResult = {
         raw: raw,
         parsed: {

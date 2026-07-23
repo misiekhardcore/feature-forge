@@ -152,6 +152,31 @@ describe("WorkspaceStepExecutor", () => {
     });
   });
 
+  it("forwards baseRef to provider.createWorkspace", async () => {
+    const provider = new CountingProvider();
+    const createSpy = vi.spyOn(provider, "createWorkspace");
+
+    const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+    const wtRegistry = stubWorktreeRegistry();
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+
+    const instruction: WorkspaceInstruction = {
+      type: "workspace",
+      id: "ws1",
+      provider: "git-worktree",
+      baseRef: "origin/HEAD",
+    };
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
+    await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.stringContaining("ws-"),
+      expect.objectContaining({
+        baseRef: "origin/HEAD",
+      }),
+    );
+  });
+
   describe("eventBus", () => {
     it("emits a workspace-ready event after workspace creation", async () => {
       const provider = new CountingProvider();
