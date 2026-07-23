@@ -1,9 +1,9 @@
-import { logger } from "../../logging";
+import { logger } from "@feature-forge/shared";
+import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
+
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineRefInstruction } from "../FlowInstruction";
-import type { DisplayContribution } from "../progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { FlowMapAware } from "./FlowMapAware";
