@@ -1,11 +1,10 @@
+import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { TypedEventBus } from "../eventBus";
 import { FlowContext } from "../FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineRefInstruction } from "../FlowInstruction";
-import { createAccumulatedState } from "../progress/AccumulatedState";
-import { DisplayContributionRegistry } from "../progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
