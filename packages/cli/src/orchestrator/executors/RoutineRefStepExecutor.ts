@@ -227,6 +227,11 @@ export class RoutineRefStepExecutor
   registerDisplayHandler(registry: DisplayContributionRegistry): void {
     registry.register("routine-ref", (state, contribution) => {
       if (contribution.type !== "routine-ref") return;
+      // Defensive: routineRefs may not exist on AccumulatedState from older @feature-forge/tui.
+      // Initialise lazily so this executor works regardless of which tui version is resolved.
+      if (!state.routineRefs) {
+        state.routineRefs = [];
+      }
       if (!state.routineRefs.includes(contribution.flow)) {
         state.routineRefs.push(contribution.flow);
       }
