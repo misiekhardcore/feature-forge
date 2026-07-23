@@ -164,12 +164,12 @@ export class AgentViewerOverlay implements Component {
     this.detailView.selectedAgentId = v;
   }
 
-  get scrollOffset(): number {
-    return this.detailView.scrollOffset;
+  get scrollOffsetEnd(): number {
+    return this.detailView.scrollOffsetEnd;
   }
 
-  set scrollOffset(v: number) {
-    this.detailView.scrollOffset = v;
+  set scrollOffsetEnd(v: number) {
+    this.detailView.scrollOffsetEnd = v;
   }
 
   get autoScroll(): boolean {
@@ -194,7 +194,7 @@ export class AgentViewerOverlay implements Component {
       if (this.viewMode === "detail") {
         this.viewMode = "list";
         this.detailView.selectedAgentId = undefined;
-        this.detailView.scrollOffset = 0;
+        this.detailView.scrollOffsetEnd = 0;
         this.detailView.autoScroll = false;
         this.tui.requestRender();
         return;
@@ -267,7 +267,7 @@ export class AgentViewerOverlay implements Component {
     this.viewMode = "list";
     this.listView.selectedIndex = 0;
     this.detailView.selectedAgentId = undefined;
-    this.detailView.scrollOffset = 0;
+    this.detailView.scrollOffsetEnd = 0;
     this.detailView.autoScroll = false;
   }
 
@@ -294,7 +294,7 @@ export class AgentViewerOverlay implements Component {
       this.viewMode === "detail" &&
       this.detailView.selectedAgentId === agentId
     ) {
-      this.detailView.scrollOffset = Number.MAX_SAFE_INTEGER;
+      this.detailView.scrollOffsetEnd = 0;
     }
 
     this.tui.requestRender();
@@ -568,7 +568,7 @@ export class AgentViewerOverlay implements Component {
     this.viewMode = "detail";
     this.detailView.selectedAgentId = agentId;
     this.detailView.autoScroll = true;
-    this.detailView.scrollOffset = Number.MAX_SAFE_INTEGER;
+    this.detailView.scrollOffsetEnd = 0;
     this.tui.requestRender();
   }
 

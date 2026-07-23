@@ -1073,13 +1073,13 @@ describe("AgentViewerOverlay", () => {
       overlay.update(makeEntry("builder", "started"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
-      overlay.scrollOffset = 5;
+      overlay.scrollOffsetEnd = 5;
 
       overlay.handleInput("\x1b");
 
       expect(overlay.viewMode).toBe("list");
       expect(overlay.selectedAgentId).toBeUndefined();
-      expect(overlay.scrollOffset).toBe(0);
+      expect(overlay.scrollOffsetEnd).toBe(0);
       expect(tui.requestRender).toHaveBeenCalled();
       expect(onDone).not.toHaveBeenCalled();
     });
@@ -1154,7 +1154,7 @@ describe("AgentViewerOverlay", () => {
 
       expect(overlay.viewMode).toBe("detail");
       expect(overlay.selectedAgentId).toBe("agent-b");
-      // Auto-scroll enabled and scrollOffset set to max on entering detail view.
+      // Auto-scroll enabled and scrollOffsetEnd set to bottom on entering detail view.
       expect(overlay.autoScroll).toBe(true);
       expect(tui.requestRender).toHaveBeenCalled();
     });
@@ -1183,25 +1183,25 @@ describe("AgentViewerOverlay", () => {
       overlay.update(makeEntry("builder", "done"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
-      overlay.scrollOffset = 3;
+      overlay.scrollOffsetEnd = 3;
 
       overlay.handleInput("\x1b[A");
 
-      expect(overlay.scrollOffset).toBe(2);
+      expect(overlay.scrollOffsetEnd).toBe(4);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
-    it("does not scroll above zero in detail view", () => {
+    it("scrolls up from bottom", () => {
       const tui = makeTui();
       const overlay = makeOverlay({ tui });
       overlay.update(makeEntry("builder", "done"));
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
-      overlay.scrollOffset = 0;
+      overlay.scrollOffsetEnd = 0;
 
       overlay.handleInput("\x1b[A");
 
-      expect(overlay.scrollOffset).toBe(0);
+      expect(overlay.scrollOffsetEnd).toBe(1);
     });
 
     it("scrolls down in detail view with ArrowDown", () => {
@@ -1229,11 +1229,11 @@ describe("AgentViewerOverlay", () => {
       }
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
-      overlay.scrollOffset = 0;
+      overlay.scrollOffsetEnd = 5;
 
       overlay.handleInput("\x1b[B");
 
-      expect(overlay.scrollOffset).toBe(1);
+      expect(overlay.scrollOffsetEnd).toBe(4);
       expect(tui.requestRender).toHaveBeenCalled();
     });
   });
@@ -1617,14 +1617,14 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.selectedIndex = 3;
-      overlay.scrollOffset = 5;
+      overlay.scrollOffsetEnd = 5;
 
       overlay.clearMemory();
 
       expect(overlay.viewMode).toBe("list");
       expect(overlay.selectedIndex).toBe(0);
       expect(overlay.selectedAgentId).toBeUndefined();
-      expect(overlay.scrollOffset).toBe(0);
+      expect(overlay.scrollOffsetEnd).toBe(0);
     });
   });
 
@@ -3095,12 +3095,12 @@ describe("AgentViewerOverlay", () => {
 
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
-      overlay.scrollOffset = 0;
+      overlay.scrollOffsetEnd = 0;
 
       const beforeScroll = overlay.render(80);
 
-      // Scroll down by several lines.
-      overlay.scrollOffset = 3;
+      // Scroll up by several lines.
+      overlay.scrollOffsetEnd = 3;
       const afterScroll = overlay.render(80);
 
       // Scrolled render should differ from the non-scrolled one.
@@ -3109,7 +3109,7 @@ describe("AgentViewerOverlay", () => {
       expect(beforeJoined).not.toBe(afterJoined);
     });
 
-    it("clamps scroll offset to zero as minimum", () => {
+    it("scroll offset increases on ArrowUp", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
       overlay.pushStreamEvent("builder", {
@@ -3125,19 +3125,18 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
-      overlay.scrollOffset = 5;
+      overlay.scrollOffsetEnd = 5;
 
-      // Arrow up should decrement.
+      // Arrow up should increment (scrolls up away from bottom).
       overlay.handleInput("\x1b[A");
-      expect(overlay.scrollOffset).toBe(4);
+      expect(overlay.scrollOffsetEnd).toBe(6);
 
-      // Arrow up past zero should clamp.
-      overlay.scrollOffset = 0;
+      // Arrow up again increments further.
       overlay.handleInput("\x1b[A");
-      expect(overlay.scrollOffset).toBe(0);
+      expect(overlay.scrollOffsetEnd).toBe(7);
     });
 
-    it("clamps scroll down to content maximum", () => {
+    it("clamps scroll down to zero as minimum", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
 
@@ -3157,12 +3156,12 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
-      // Try scrolling far beyond content.
-      overlay.scrollOffset = 50;
+      // ArrowDown from a positive offset decrements toward bottom.
+      overlay.scrollOffsetEnd = 5;
       overlay.handleInput("\x1b[B");
 
-      // Should be clamped, not grow to 51.
-      expect(overlay.scrollOffset).toBeLessThanOrEqual(50 + 1);
+      // Should be decrementing: 5 → 4.
+      expect(overlay.scrollOffsetEnd).toBe(4);
     });
 
     it("scroll offset does not grow unbounded over many scrolls", () => {
@@ -3184,7 +3183,7 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
 
-      // Simulate many scroll-down operations.
+      // Simulate many scroll-down operations — should not go below 0.
       for (let i = 0; i < 200; i++) {
         overlay.handleInput("\x1b[B");
       }
@@ -3192,8 +3191,8 @@ describe("AgentViewerOverlay", () => {
       // Should still be within reasonable bounds.
       const lines = overlay.render(80);
       expect(lines.length).toBeGreaterThan(0);
-      // offset should not have grown to 200 for a small conversation.
-      expect(overlay.scrollOffset).toBeLessThan(20);
+      // offset should not have gone negative for a small conversation.
+      expect(overlay.scrollOffsetEnd).toBe(0);
     });
 
     it("computes max scroll bound from conversation content", () => {
@@ -3223,10 +3222,10 @@ describe("AgentViewerOverlay", () => {
       // Render at least once to compute scroll bounds.
       overlay.render(80);
 
-      // ArrowDown from 0 should increment by 1.
-      overlay.scrollOffset = 0;
+      // ArrowDown from a positive offset decrements.
+      overlay.scrollOffsetEnd = 5;
       overlay.handleInput("\x1b[B");
-      expect(overlay.scrollOffset).toBe(1);
+      expect(overlay.scrollOffsetEnd).toBe(4);
     });
   });
 
@@ -3367,11 +3366,11 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.autoScroll = false;
-      // Set scrollOffset past the max — ArrowDown will clamp to max and resume auto-scroll.
-      overlay.scrollOffset = 999999;
+      // Set scrollOffsetEnd to 1 — one step above bottom.
+      overlay.scrollOffsetEnd = 1;
 
       overlay.handleInput("\x1b[B");
-      // Render clamps scrollOffset and sets autoScroll when at bottom.
+      // Render re-enables autoScroll when scrollOffsetEnd reaches 0 (bottom).
       overlay.render(80);
 
       expect(overlay.autoScroll).toBe(true);
@@ -3394,7 +3393,7 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.autoScroll = false;
-      overlay.scrollOffset = 0;
+      overlay.scrollOffsetEnd = 5;
 
       overlay.handleInput("\x1b[B");
 
@@ -3424,8 +3423,8 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
       } as unknown as AgentEvent);
 
-      // Should have scrolled to bottom (past zero).
-      expect(overlay.scrollOffset).toBeGreaterThan(0);
+      // Should have scrolled to bottom (scrollOffsetEnd === 0).
+      expect(overlay.scrollOffsetEnd).toBe(0);
     });
 
     it("does not auto-scroll when autoScroll is off", () => {
@@ -3434,15 +3433,15 @@ describe("AgentViewerOverlay", () => {
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
       overlay.autoScroll = false;
-      overlay.scrollOffset = 0;
+      overlay.scrollOffsetEnd = 5;
 
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
       } as unknown as AgentEvent);
 
-      // Scroll offset should remain 0.
-      expect(overlay.scrollOffset).toBe(0);
+      // Scroll offset should remain unchanged.
+      expect(overlay.scrollOffsetEnd).toBe(5);
     });
 
     it("resets autoScroll on clearMemory", () => {
