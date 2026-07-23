@@ -21,6 +21,7 @@ export class ScrollableBox extends Container {
   private readonly tui: TUI;
   private readonly maxHeightPercent: number;
   private readonly borderOverhead: number;
+  private lastTotalLines = 0;
 
   constructor(tui: TUI, maxHeightPercent: number, borderOverhead = 4) {
     super();
@@ -36,6 +37,7 @@ export class ScrollableBox extends Container {
         allLines.push(line);
       }
     }
+    this.lastTotalLines = allLines.length;
 
     const viewportHeight = this.computeViewportHeight();
 
@@ -43,7 +45,8 @@ export class ScrollableBox extends Container {
     if (this.scrollOffsetEnd === 0) {
       this.autoScroll = true;
     }
-    this.scrollOffsetEnd = Math.max(0, this.scrollOffsetEnd);
+    const maxEnd = Math.max(0, allLines.length - viewportHeight);
+    this.scrollOffsetEnd = Math.max(0, Math.min(this.scrollOffsetEnd, maxEnd));
 
     const startIndex = Math.max(0, allLines.length - viewportHeight - this.scrollOffsetEnd);
     return allLines.slice(startIndex, Math.min(startIndex + viewportHeight, allLines.length));
@@ -69,7 +72,7 @@ export class ScrollableBox extends Container {
       this.tui.requestRender();
     } else if (matchesKey(data, Key.home)) {
       this.autoScroll = false;
-      this.scrollOffsetEnd = Number.MAX_SAFE_INTEGER;
+      this.scrollOffsetEnd = Math.max(0, this.lastTotalLines - viewportHeight);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.end)) {
       this.scrollToBottom();

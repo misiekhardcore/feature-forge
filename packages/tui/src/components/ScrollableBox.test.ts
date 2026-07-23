@@ -106,23 +106,38 @@ describe("ScrollableBox", () => {
       expect(lines[0]).toBe("line 9");
     });
 
-    it("overshoot at top is handled by render — startIndex clips to 0", () => {
+    it("overshoot at top is handled by render — scrollOffsetEnd clamped to visible range", () => {
       box.addChild(new FakeLines(5));
       box.scrollOffsetEnd = 100;
       box.render(80);
-      // 5 lines, viewport = 16, startIndex = max(0, 5-16-100) = 0 — top clamped
-      expect(box.scrollOffsetEnd).toBe(100);
+      // 5 lines, viewport = 16, maxEnd = max(0, 5-16) = 0, clamped to 0.
+      expect(box.scrollOffsetEnd).toBe(0);
     });
 
-    it("large scrollOffsetEnd stays large — no clamping except min 0", () => {
+    it("large scrollOffsetEnd is clamped to visible range", () => {
       box.addChild(new FakeLines(30));
       box.scrollOffsetEnd = 100;
       box.autoScroll = false;
       box.render(80);
-      // scrollOffsetEnd is only clamped to max(0, 100) = 100.
-      // scrollOffsetEnd !== 0 so autoScroll stays false.
-      expect(box.scrollOffsetEnd).toBe(100);
+      // 30 lines, viewport = 16, maxEnd = max(0, 30-16) = 14.
+      expect(box.scrollOffsetEnd).toBe(14);
       expect(box.autoScroll).toBe(false);
+    });
+
+    it("scrollOffsetEnd is clamped down when content shrinks", () => {
+      box.addChild(new FakeLines(30));
+      box.scrollOffsetEnd = 20;
+      box.autoScroll = false;
+      box.render(80);
+      // 30 lines, viewport = 16, maxEnd = 14, clamped to 14.
+      expect(box.scrollOffsetEnd).toBe(14);
+
+      // Shrink content to 5 lines.
+      (box as unknown as { children: unknown[] }).children.length = 0;
+      box.addChild(new FakeLines(5));
+      box.render(80);
+      // 5 lines, viewport = 16, maxEnd = max(0, 5-16) = 0, clamped to 0.
+      expect(box.scrollOffsetEnd).toBe(0);
     });
 
     it("at bottom when scrollOffsetEnd is 0", () => {
@@ -213,8 +228,10 @@ describe("ScrollableBox", () => {
       box.addChild(new FakeLines(30));
       box.scrollOffsetEnd = 5;
       box.autoScroll = true;
+      box.render(80);
       box.handleInput("\x1b[H");
-      expect(box.scrollOffsetEnd).toBe(Number.MAX_SAFE_INTEGER);
+      // 30 lines, viewport = 16, top = max(0, 30 - 16) = 14.
+      expect(box.scrollOffsetEnd).toBe(14);
       expect(box.autoScroll).toBe(false);
       expect(tui.requestRender).toHaveBeenCalled();
     });
