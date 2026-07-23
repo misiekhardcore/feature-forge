@@ -18,6 +18,8 @@ type FlowContextParams = {
   readonly iteration?: number;
   /** Flow-global session that persists across routine calls. */
   readonly store?: FlowStateStore;
+  /** Nesting depth for inline routine refs (guards against infinite recursion). */
+  readonly depth?: number;
 };
 
 /**
@@ -41,6 +43,8 @@ export class FlowContext {
   readonly iteration: number;
   /** Flow-global session that persists across routine calls. */
   readonly store: FlowStateStore;
+  /** Nesting depth for inline routine refs (guards against infinite recursion). */
+  readonly depth: number;
 
   constructor(params: FlowContextParams) {
     this.results = params.results;
@@ -50,6 +54,7 @@ export class FlowContext {
     this.feedback = params.feedback;
     this.iteration = params.iteration ?? 0;
     this.store = params.store ?? new FlowStateStore();
+    this.depth = params.depth ?? 0;
   }
 
   // ── Mutations (return new FlowContext) ────────────────────
@@ -65,6 +70,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -79,6 +85,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -93,6 +100,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -105,6 +113,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -117,6 +126,7 @@ export class FlowContext {
       feedback: feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -129,6 +139,7 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: n,
       store: this.store,
+      depth: this.depth,
     });
   }
 
@@ -145,6 +156,37 @@ export class FlowContext {
       feedback: this.feedback,
       iteration: this.iteration,
       store: this.store,
+      depth: this.depth,
+    });
+  }
+
+  withDepth(n: number): FlowContext {
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: this.params,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+      depth: n,
+    });
+  }
+
+  withMergedParams(extra: Record<string, string>): FlowContext {
+    const next = new Map(this.params);
+    for (const [key, value] of Object.entries(extra)) {
+      next.set(key, value);
+    }
+    return new FlowContext({
+      results: this.results,
+      prompt: this.prompt,
+      workspaces: this.workspaces,
+      params: next,
+      feedback: this.feedback,
+      iteration: this.iteration,
+      store: this.store,
+      depth: this.depth,
     });
   }
 

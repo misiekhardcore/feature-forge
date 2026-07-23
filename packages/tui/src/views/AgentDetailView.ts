@@ -21,12 +21,12 @@ import { ConversationRenderer } from "./ConversationRenderer";
  * would break encapsulation.
  */
 export class AgentDetailView {
-  /** Scroll offset for detail view content — delegates to ScrollableBox. */
-  get scrollOffset(): number {
-    return this.scrollableBox.scrollOffset;
+  /** Scroll offset from end for detail view content — delegates to ScrollableBox. */
+  get scrollOffsetEnd(): number {
+    return this.scrollableBox.scrollOffsetEnd;
   }
-  set scrollOffset(v: number) {
-    this.scrollableBox.scrollOffset = v;
+  set scrollOffsetEnd(v: number) {
+    this.scrollableBox.scrollOffsetEnd = v;
   }
 
   /**

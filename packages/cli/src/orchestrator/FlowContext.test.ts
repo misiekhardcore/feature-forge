@@ -246,6 +246,57 @@ describe("FlowContext", () => {
   });
 
   // -----------------------------------------------------------------------
+  // withMergedParams
+  // -----------------------------------------------------------------------
+
+  describe("withMergedParams", () => {
+    it("merges extra params into existing params", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["existing", "from-parent"]]),
+      });
+      const next = ctx.withMergedParams({ output: "builder-result", workspace: "/tmp/ws" });
+
+      expect(next.params.get("existing")).toBe("from-parent");
+      expect(next.params.get("output")).toBe("builder-result");
+      expect(next.params.get("workspace")).toBe("/tmp/ws");
+      expect(next.params.size).toBe(3);
+    });
+
+    it("does not mutate the original context", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["a", "1"]]),
+      });
+      ctx.withMergedParams({ b: "2" });
+      expect(ctx.params.size).toBe(1);
+      expect(ctx.params.has("b")).toBe(false);
+    });
+
+    it("overwrites existing params with the same key", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([["key", "old"]]),
+      });
+      const next = ctx.withMergedParams({ key: "new" });
+      expect(next.params.get("key")).toBe("new");
+    });
+
+    it("works with empty initial params", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      const next = ctx.withMergedParams({ x: "y" });
+      expect(next.params.get("x")).toBe("y");
+      expect(next.params.size).toBe(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // withFeedback
   // -----------------------------------------------------------------------
 
@@ -270,6 +321,38 @@ describe("FlowContext", () => {
         prompt: "task",
       }).withIteration(3);
       expect(ctx.iteration).toBe(3);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // withDepth
+  // -----------------------------------------------------------------------
+
+  describe("withDepth", () => {
+    it("sets the depth counter", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withDepth(5);
+      expect(ctx.depth).toBe(5);
+    });
+
+    it("defaults depth to 0", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      expect(ctx.depth).toBe(0);
+    });
+
+    it("does not mutate the original context", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        depth: 2,
+      });
+      ctx.withDepth(4);
+      expect(ctx.depth).toBe(2);
     });
   });
 

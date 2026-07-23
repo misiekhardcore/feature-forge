@@ -6,6 +6,7 @@ import {
   GitStepExecutor,
   LoopStepExecutor,
   ParallelStepExecutor,
+  RoutineRefStepExecutor,
   SessionStepExecutor,
   ShellStepExecutor,
   WorkspaceStepExecutor,
@@ -38,6 +39,9 @@ export function createStepExecutorRegistry(
   registry.register(() => new GitStepExecutor());
   registry.register(() => new ShellStepExecutor());
   registry.register(() => new SessionStepExecutor());
+
+  // Routine ref executor — inline flattens sub-flows.
+  registry.register(() => new RoutineRefStepExecutor());
 
   // Container executors — registered after leaves so they can use the
   // populated registry for child dispatch.

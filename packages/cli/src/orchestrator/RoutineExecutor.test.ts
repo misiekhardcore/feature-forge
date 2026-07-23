@@ -48,14 +48,15 @@ class FailingExecutor extends StepExecutor {
   }
 }
 
-function makeTestFlow(overrides: Partial<FlowDefinition["routines"]["_"]> = {}): FlowDefinition {
+function makeTestFlow(overrides: Partial<FlowDefinition["routines"][number]> = {}): FlowDefinition {
   return {
     $schema: FLOW_SCHEMA_URL,
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "You are the test orchestrator." },
-    routines: {
-      main: {
+    routines: [
+      {
+        id: "main",
         params: [{ name: "task" }],
         steps: [
           { type: "record", id: "step1" },
@@ -69,7 +70,7 @@ function makeTestFlow(overrides: Partial<FlowDefinition["routines"]["_"]> = {}):
         ],
         ...overrides,
       },
-    },
+    ],
   } satisfies FlowDefinition;
 }
 
@@ -162,11 +163,12 @@ describe("RoutineExecutor", () => {
         name: "loop-flow",
         command: "/loop-test",
         orchestrator: { systemPrompt: "test" },
-        routines: {
-          "loop-main": {
+        routines: [
+          {
+            id: "loop-main",
             steps: [{ type: "loop-sim", id: "loop" } as unknown as FlowInstruction],
           },
-        },
+        ],
       } as unknown as FlowDefinition;
 
       const eventBus = makeMockTypedEventBus();
@@ -233,12 +235,13 @@ describe("RoutineExecutor", () => {
         name: "ws-flow",
         command: "/ws",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [{ type: "ws", id: "myws" } as unknown as FlowInstruction],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -257,15 +260,16 @@ describe("RoutineExecutor", () => {
         name: "fail-flow",
         command: "/fail",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [
               { type: "fail", id: "f1" } as unknown as FlowInstruction,
               { type: "record", id: "after" } as unknown as FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -299,12 +303,13 @@ describe("RoutineExecutor", () => {
         name: "step-fail-flow",
         command: "/step-fail",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [{ type: "agent", id: "a1" } as unknown as FlowInstruction],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -371,15 +376,16 @@ describe("RoutineExecutor", () => {
         name: "event-bus-flow",
         command: "/event-bus",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [
               { type: "event-bus-aware", id: "step1" } as unknown as FlowInstruction,
               { type: "event-bus-aware", id: "step2" } as unknown as FlowInstruction,
             ],
           },
-        },
+        ],
       };
 
       const emitSpy = vi.fn();
@@ -452,12 +458,13 @@ describe("RoutineExecutor", () => {
         name: "event-bus-flow",
         command: "/event-bus",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [{ type: "event-bus-aware", id: "step1" } as unknown as FlowInstruction],
           },
-        },
+        ],
       };
 
       const emitSpy = vi.fn();
@@ -503,12 +510,13 @@ describe("RoutineExecutor", () => {
         name: "signal-flow",
         command: "/signal",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [{ type: "signal-aware", id: "step1" } as unknown as FlowInstruction],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -562,12 +570,13 @@ describe("RoutineExecutor", () => {
         name: "abort-flow",
         command: "/abort",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          main: {
+        routines: [
+          {
+            id: "main",
             params: [],
             steps: [{ type: "abort-during", id: "step1" } as unknown as FlowInstruction],
           },
-        },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();
@@ -596,10 +605,10 @@ describe("RoutineExecutor", () => {
         name: "multi",
         command: "/multi",
         orchestrator: { systemPrompt: "t" },
-        routines: {
-          alpha: { params: [], steps: [] },
-          beta: { params: [], steps: [] },
-        },
+        routines: [
+          { id: "alpha", params: [], steps: [] },
+          { id: "beta", params: [], steps: [] },
+        ],
       };
 
       const eventBus = makeMockTypedEventBus();

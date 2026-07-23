@@ -14,13 +14,14 @@ import { Container, Key, matchesKey, type TUI } from "@earendil-works/pi-tui";
  * behaviour for the last-part-of-content pattern used by live-streaming views.
  */
 export class ScrollableBox extends Container {
-  scrollOffset = 0;
+  scrollOffsetEnd = 0;
   autoScroll = false;
 
   private currentAgentId?: string;
   private readonly tui: TUI;
   private readonly maxHeightPercent: number;
   private readonly borderOverhead: number;
+  private lastTotalLines = 0;
 
   constructor(tui: TUI, maxHeightPercent: number, borderOverhead = 4) {
     super();
@@ -36,18 +37,19 @@ export class ScrollableBox extends Container {
         allLines.push(line);
       }
     }
+    this.lastTotalLines = allLines.length;
 
     const viewportHeight = this.computeViewportHeight();
-    const maxOffset = Math.max(0, allLines.length - viewportHeight);
 
-    // Re-enable autoScroll when at bottom; then clamp.
-    if (this.scrollOffset >= maxOffset) {
+    // Re-enable autoScroll when at bottom (scrollOffsetEnd === 0).
+    if (this.scrollOffsetEnd === 0) {
       this.autoScroll = true;
     }
-    this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, maxOffset));
+    const maxEnd = Math.max(0, allLines.length - viewportHeight);
+    this.scrollOffsetEnd = Math.max(0, Math.min(this.scrollOffsetEnd, maxEnd));
 
-    const viewportEnd = Math.min(this.scrollOffset + viewportHeight, allLines.length);
-    return allLines.slice(this.scrollOffset, viewportEnd);
+    const startIndex = Math.max(0, allLines.length - viewportHeight - this.scrollOffsetEnd);
+    return allLines.slice(startIndex, Math.min(startIndex + viewportHeight, allLines.length));
   }
 
   handleInput(data: string): void {
@@ -56,21 +58,21 @@ export class ScrollableBox extends Container {
 
     if (matchesKey(data, Key.up)) {
       this.autoScroll = false;
-      this.scrollOffset = Math.max(0, this.scrollOffset - 1);
+      this.scrollOffsetEnd += 1;
       this.tui.requestRender();
     } else if (matchesKey(data, Key.down)) {
-      this.scrollOffset = this.scrollOffset + 1;
+      this.scrollOffsetEnd = Math.max(0, this.scrollOffsetEnd - 1);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.pageUp)) {
       this.autoScroll = false;
-      this.scrollOffset = Math.max(0, this.scrollOffset - viewportHeight);
+      this.scrollOffsetEnd += viewportHeight;
       this.tui.requestRender();
     } else if (matchesKey(data, Key.pageDown)) {
-      this.scrollOffset = this.scrollOffset + viewportHeight;
+      this.scrollOffsetEnd = Math.max(0, this.scrollOffsetEnd - viewportHeight);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.home)) {
       this.autoScroll = false;
-      this.scrollOffset = 0;
+      this.scrollOffsetEnd = Math.max(0, this.lastTotalLines - viewportHeight);
       this.tui.requestRender();
     } else if (matchesKey(data, Key.end)) {
       this.scrollToBottom();
@@ -79,7 +81,7 @@ export class ScrollableBox extends Container {
   }
 
   scrollToBottom(): void {
-    this.scrollOffset = Number.MAX_SAFE_INTEGER;
+    this.scrollOffsetEnd = 0;
     this.autoScroll = true;
   }
 

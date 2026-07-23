@@ -11,12 +11,14 @@ import {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
+  isRoutineRefInstruction,
   LoopInstructionSchema,
   makeLoopInstruction,
   makeParallelInstruction,
   OrchestratorConfigSchema,
   ParallelInstructionSchema,
   RoutineParamSchema,
+  RoutineRefInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -474,6 +476,16 @@ describe("RoutineParamSchema", () => {
     const valid = { name: "task", description: "" };
     expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
   });
+
+  it("accepts optional flag", () => {
+    const valid = { name: "branch", optional: true };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
+  });
+
+  it("accepts param without optional flag", () => {
+    const valid = { name: "task" };
+    expect(Value.Check(RoutineParamSchema, valid)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -488,8 +500,9 @@ describe("FlowDefinitionSchema", () => {
     orchestrator: {
       systemPrompt: "You are the orchestrator.",
     },
-    routines: {
-      run_build_loop: {
+    routines: [
+      {
+        id: "run_build_loop",
         params: [
           { name: "task", description: "The task description" },
           { name: "plan", description: "The implementation plan" },
@@ -545,7 +558,8 @@ describe("FlowDefinitionSchema", () => {
           { type: "cleanup" as const, id: "cleanup", of: "ws" },
         ],
       },
-      open_pr: {
+      {
+        id: "open_pr",
         params: [
           { name: "workspace" },
           { name: "title" },
@@ -595,7 +609,7 @@ describe("FlowDefinitionSchema", () => {
           },
         ],
       },
-    },
+    ],
   };
 
   it("validates a complete implement flow", () => {
@@ -643,18 +657,19 @@ describe("FlowDefinitionSchema", () => {
     expect(Value.Check(FlowDefinitionSchema, rest)).toBe(false);
   });
 
-  it("accepts empty routines object", () => {
-    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, routines: {} })).toBe(true);
+  it("accepts empty routines array", () => {
+    expect(Value.Check(FlowDefinitionSchema, { ...validFlow, routines: [] })).toBe(true);
   });
 
   it("rejects a routine with missing params", () => {
     const invalid = {
       ...validFlow,
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           steps: [{ type: "cleanup", id: "c" }],
         },
-      },
+      ],
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -662,11 +677,12 @@ describe("FlowDefinitionSchema", () => {
   it("rejects a routine with missing steps", () => {
     const invalid = {
       ...validFlow,
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [{ name: "task" }],
         },
-      },
+      ],
     };
     expect(Value.Check(FlowDefinitionSchema, invalid)).toBe(false);
   });
@@ -674,12 +690,13 @@ describe("FlowDefinitionSchema", () => {
   it("rejects a step with unknown type", () => {
     const invalid = {
       ...validFlow,
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [{ type: "unknown", id: "x" }],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow();
   });
@@ -690,8 +707,9 @@ describe("FlowDefinitionSchema", () => {
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [
             {
@@ -704,7 +722,7 @@ describe("FlowDefinitionSchema", () => {
             },
           ],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
@@ -715,8 +733,9 @@ describe("FlowDefinitionSchema", () => {
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [
             {
@@ -735,7 +754,7 @@ describe("FlowDefinitionSchema", () => {
             },
           ],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
@@ -746,12 +765,13 @@ describe("FlowDefinitionSchema", () => {
       name: "test",
       command: "/test",
       orchestrator: { systemPrompt: "t" },
-      routines: {
-        main: {
+      routines: [
+        {
+          id: "main",
           params: [],
           steps: [{ type: "agent", id: "a1" }],
         },
-      },
+      ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
@@ -763,7 +783,7 @@ describe("FlowDefinitionSchema", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: { main: { params: [], steps: [] } },
+        routines: [{ id: "main", params: [], steps: [] }],
       }),
     ).toBe(true);
   });
@@ -775,7 +795,7 @@ describe("FlowDefinitionSchema", () => {
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "t" },
-        routines: { main: { params: [], steps: [] } },
+        routines: [{ id: "main", params: [], steps: [] }],
       }),
     ).toBe(false);
   });
@@ -920,5 +940,108 @@ describe("makeLoopInstruction", () => {
     expect(instr.steps).toHaveLength(1);
     expect(instr.continueWhile).toBe("!results.r?.parsed?.passed");
     expect(instr.accumulateFrom).toEqual(["review"]);
+  });
+});
+
+describe("RoutineRefInstructionSchema", () => {
+  it("validates a minimal routine ref instruction", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("validates a routine ref with output_as", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+      output_as: "review_result",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("rejects missing target", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("rejects empty target", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("validates a routine ref with input params", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+      input: {
+        output: "{{results.builder.raw}}",
+        workspace: "{{workspace}}",
+      },
+    });
+    expect(result).toBe(true);
+  });
+
+  it("ignores extra unrecognised fields", () => {
+    const result = Value.Check(RoutineRefInstructionSchema, {
+      type: "routine",
+      id: "call-review",
+      target: "review",
+      routine: "inspect",
+    });
+    expect(result).toBe(true);
+  });
+});
+
+describe("isRoutineRefInstruction", () => {
+  it("returns true for routine instruction", () => {
+    expect(isRoutineRefInstruction({ type: "routine", id: "call-review", target: "review" })).toBe(
+      true,
+    );
+  });
+
+  it("returns true for routine instruction with input", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "routine",
+        id: "call-review",
+        target: "review",
+        input: { output: "x" },
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false for agent instruction", () => {
+    expect(
+      isRoutineRefInstruction({
+        type: "agent",
+        id: "a1",
+        systemPrompt: "build",
+        prompt: "do it",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for loop instruction", () => {
+    expect(isRoutineRefInstruction({ type: "loop", id: "l1", maxIterations: 3, steps: [] })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for workspace instruction", () => {
+    expect(
+      isRoutineRefInstruction({ type: "workspace", id: "ws1", provider: "git-worktree" }),
+    ).toBe(false);
   });
 });
