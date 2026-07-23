@@ -1,8 +1,5 @@
-import {
-  AgentContribution,
-  createAccumulatedState,
-  DisplayContributionRegistry,
-} from "@feature-forge/tui";
+import type { AgentContribution } from "@feature-forge/tui";
+import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";

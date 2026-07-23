@@ -1,8 +1,5 @@
-import type {
-  AccumulatedState,
-  DisplayContribution,
-  DisplayContributionRegistry,
-} from "@feature-forge/tui";
+import type { AccumulatedState } from "@feature-forge/tui";
+import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";
 import type { FlowContext } from "../FlowContext";
