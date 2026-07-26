@@ -16,7 +16,8 @@ export class AgentDisplayHelpers {
    * Computed dynamically so the value stays current when the overlay is open.
    * The result is not cached — callers should compute it at render time.
    */
-  static formatElapsed(createdAt: Date): string {
+  static formatElapsed(createdAt: Date | undefined): string {
+    if (!createdAt) return "--";
     const ms = Date.now() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
     if (seconds < 60) return `${seconds}s`;
