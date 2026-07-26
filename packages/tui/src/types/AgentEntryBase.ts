@@ -12,8 +12,8 @@ export interface AgentEntryBase {
   role?: string;
   /** Timestamp when the agent entry was created. */
   createdAt: Date;
-  /** Frozen elapsed time string for completed/errored agents (e.g. "2m 14s"). */
-  elapsed?: string;
+  /** Timestamp when the agent finished (set on done/error, undefined while running). */
+  finishedAt?: Date;
   /** Optional one-line summary from a completed or errored agent step. */
   summary?: string;
 }

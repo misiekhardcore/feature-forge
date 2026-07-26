@@ -41,7 +41,7 @@ export class ScrollableBox extends Container {
 
     const viewportHeight = this.computeViewportHeight();
 
-    // Re-enable autoScroll when at bottom (scrollOffsetEnd === 0).
+    // Re-enable autoScroll when at bottom.
     if (this.scrollOffsetEnd === 0) {
       this.autoScroll = true;
     }

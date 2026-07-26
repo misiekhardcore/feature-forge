@@ -154,27 +154,10 @@ export class AgentViewerState {
     const existing = this.agents.get(entry.id);
     const merged: AgentViewerEntry = { ...existing, ...entry };
 
-    // Freeze elapsed for terminal statuses so the value persists across
-    // overlay close/reopen cycles (where createdAt is recomputed from stale
-    // disk entries and Date.now() drifts).
-    if (
-      !merged.elapsed &&
-      (merged.status === "done" || merged.status === "error") &&
-      merged.createdAt
-    ) {
-      const ms = Date.now() - merged.createdAt.getTime();
-      const seconds = Math.floor(ms / 1000);
-      if (seconds < 60) {
-        merged.elapsed = `${seconds}s`;
-      } else {
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) {
-          merged.elapsed = `${minutes}m ${seconds % 60}s`;
-        } else {
-          const hours = Math.floor(minutes / 60);
-          merged.elapsed = `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-        }
-      }
+    // Stamp finishedAt for terminal statuses so elapsed displays correctly
+    // across overlay close/reopen cycles without pre-computing strings.
+    if (!merged.finishedAt && (merged.status === "done" || merged.status === "error")) {
+      merged.finishedAt = new Date();
     }
 
     this.agents.set(entry.id, merged);
@@ -459,31 +442,18 @@ export class AgentViewerState {
     const ensureStaleEntry = (agentId: string, filePath?: string): void => {
       if (this.agents.has(agentId)) return;
 
-      // Use the stream file's birthtime as a best-effort createdAt so the
-      // elapsed display is meaningful even for agents whose lifecycle has
-      // long since ended. Falls back to now if the stat call fails.
+      // Use the stream file's birthtime as a best-effort createdAt and
+      // mtime as a best-effort finishedAt so elapsed displays meaningfully
+      // for agents whose lifecycle has long since ended.
       let createdAt = new Date();
+      let finishedAt: Date | undefined;
       if (filePath) {
         try {
-          createdAt = statSync(filePath).birthtime;
+          const stat = statSync(filePath);
+          createdAt = stat.birthtime;
+          finishedAt = stat.mtime;
         } catch {
-          // Use current time as fallback.
-        }
-      }
-
-      // Snapshot elapsed now so it doesn't reset to 0s on next reopen.
-      const ms = Date.now() - createdAt.getTime();
-      const seconds = Math.floor(ms / 1000);
-      let elapsed: string;
-      if (seconds < 60) {
-        elapsed = `${seconds}s`;
-      } else {
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) {
-          elapsed = `${minutes}m ${seconds % 60}s`;
-        } else {
-          const hours = Math.floor(minutes / 60);
-          elapsed = `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+          // Use current time as fallback for createdAt.
         }
       }
 
@@ -491,7 +461,7 @@ export class AgentViewerState {
         id: agentId,
         status: "done",
         createdAt,
-        elapsed,
+        finishedAt,
         passed: false,
         summary: "Agent completed",
       });

@@ -30,7 +30,7 @@ export function createSetFlowParamTool(
         id: "set",
         key: "{{key}}",
         value: "{{value}}",
-      } as unknown as FlowInstruction,
+      } satisfies FlowInstruction,
     ],
   };
 

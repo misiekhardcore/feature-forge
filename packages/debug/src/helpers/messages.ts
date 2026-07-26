@@ -55,7 +55,23 @@ export function assistantMsg(text: string, toolCalls?: ToolCall[]): AssistantMes
  * assistant message avoids leaking premature metadata onto the start event.
  */
 export function assistantStartMsg(): AgentMessage {
-  return { role: "assistant", content: [] } as unknown as AgentMessage;
+  return {
+    role: "assistant",
+    content: [],
+    api: "openai-completions",
+    model: "model",
+    provider: "",
+    usage: {
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0, total: 0 },
+      input: 0,
+      output: 0,
+      totalTokens: 0,
+    },
+    stopReason: "stop",
+    timestamp: Date.now(),
+  };
 }
 
 export function toolResultMsg(

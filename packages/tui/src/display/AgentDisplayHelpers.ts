@@ -13,14 +13,16 @@ import type { AgentViewerEntry } from "../types";
  */
 export class AgentDisplayHelpers {
   /**
-   * Format a human-readable elapsed time string from a creation timestamp.
+   * Format a human-readable elapsed time string.
    *
-   * Computed dynamically so the value stays current when the overlay is open.
-   * The result is not cached — callers should compute it at render time.
+   * When `finishedAt` is provided (completed/errored agents) the duration
+   * is computed from `createdAt` to `finishedAt` — stable across redraws.
+   * For running agents (no `finishedAt`) the duration is live:
+   * `Date.now() - createdAt`.
    */
-  static formatElapsed(createdAt: Date | undefined): string {
-    if (!createdAt) return "--";
-    const ms = Date.now() - createdAt.getTime();
+  static formatElapsed(createdAt: Date, finishedAt?: Date): string {
+    const end = finishedAt ?? new Date();
+    const ms = end.getTime() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
     if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);

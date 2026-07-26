@@ -72,7 +72,7 @@ export class AgentListView {
       const passed = AgentDisplayHelpers.getEntryPassed(entry);
       const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, passed);
       const { label: statusLabel } = AgentDisplayHelpers.getStatusLabel(entry.status, passed);
-      const elapsed = entry.elapsed ?? AgentDisplayHelpers.formatElapsed(entry.createdAt);
+      const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt, entry.finishedAt);
       const role = entry.role ? ` (${entry.role})` : "";
       const label = `${icon} ${id}${role} — ${statusLabel} (${elapsed})`;
       const lastLine = this.state.getLastLine(id);
