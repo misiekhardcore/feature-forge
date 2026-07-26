@@ -2,9 +2,6 @@
   "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
   "name": "review",
   "command": "/review",
-  "orchestrator": {
-    "systemPrompt": "review-orchestrator"
-  },
   "routines": [
     {
       "id": "inspect",

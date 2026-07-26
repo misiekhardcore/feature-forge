@@ -53,9 +53,9 @@ describe("validateStructure", () => {
     expect(() => FlowLoader.validateStructure(makeValidFlow({ name: "" }))).toThrow();
   });
 
-  it("throws for missing orchestrator", () => {
+  it("accepts missing orchestrator (now optional)", () => {
     const { orchestrator: _, ...rest } = makeValidFlow();
-    expect(() => FlowLoader.validateStructure(rest)).toThrow();
+    expect(() => FlowLoader.validateStructure(rest)).not.toThrow();
   });
 
   it("throws for missing routines", () => {

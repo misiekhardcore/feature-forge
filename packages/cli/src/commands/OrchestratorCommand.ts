@@ -56,7 +56,7 @@ export class OrchestratorCommand extends Command {
 
     if (!this.spec) {
       this.spec = this.specManager.resolve({
-        spec: this.flow.orchestrator.systemPrompt,
+        spec: this.flow.orchestrator!.systemPrompt,
       });
     }
 
@@ -75,9 +75,9 @@ export class OrchestratorCommand extends Command {
    * `{{key}}` is resolved from `flow.orchestrator.promptParams`.
    */
   private resolveTask(userTask: string): string {
-    const template = this.flow.orchestrator.prompt ?? "";
+    const template = this.flow.orchestrator!.prompt ?? "";
     const params: Record<string, string> = {
-      ...(this.flow.orchestrator.promptParams ?? {}),
+      ...(this.flow.orchestrator!.promptParams ?? {}),
       prompt: userTask,
     };
 

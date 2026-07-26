@@ -5,7 +5,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/shared";
 
 import { InMemoryAgentSupervisor, SpecManager } from "../agents";
-import { OrchestratorCommand } from "../commands";
+import { HeadlessFlowCommand, OrchestratorCommand } from "../commands";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
 import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";
@@ -121,42 +121,16 @@ export class FlowRegistrar {
       eventBus,
     } = ctx;
 
-    // Skip flows without an orchestrator markdown file.
-    const orchestratorFile = path.join(flowDir, "orchestrator.md");
-    try {
-      await fs.access(orchestratorFile);
-    } catch (error) {
-      logger.warn(`[feature-forge] Orchestrator persona file not found for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    // Register the orchestrator persona as a spec in the shared registry before
-    // loading the flow definition, so the spec name participates in FlowLoader's
-    // semantic validation. The persona stays co-located with its flow but is
-    // loaded by the same `SpecLoader`. See ADR 0007.
-    try {
-      await specManager.loadFromDirectory(flowDir);
-    } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    // Load and validate the flow definition with an up-to-date spec snapshot.
+    // Load and validate the flow definition first — this always populates
+    // the shared flowMap so cross-flow routineRefs can resolve the flow
+    // regardless of whether it has an orchestrator.
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
     const store = new FlowStateStore();
     try {
       flow = await flowLoader.load("flow");
-
-      // Populate the shared flowMap for cross-flow routine ref resolution.
       this.flowMap.set(flow.name, flow);
-
-      // Seed flow-global session from flow-level param defaults.
       for (const param of flow.params ?? []) {
         if (param.default !== undefined) {
           store.set(param.name, param.default);
@@ -167,29 +141,7 @@ export class FlowRegistrar {
       return;
     }
 
-    // Construct the orchestrator command with pi (needed for the base Command
-    // class and agent mounting), then register it through the CommandRegistry
-    // so it follows the same registration path as all other commands.
-    const orchestratorCommand = new OrchestratorCommand(
-      supervisor,
-      pi,
-      specManager,
-      toolRegistry,
-      workspaceManager,
-      flow,
-    );
-    try {
-      cmdRegistry.registerInstance(orchestratorCommand);
-    } catch (error) {
-      logger.warn(
-        `[feature-forge] Failed to register OrchestratorCommand "${OrchestratorCommand.name}"`,
-        {
-          error,
-        },
-      );
-    }
-
-    // Register routine tools for this flow.
+    // ── Routine tools (always registered, shared across both paths) ──
     const routineExecutor = new RoutineExecutor(
       flow,
       stepExecutorRegistry,
@@ -207,12 +159,65 @@ export class FlowRegistrar {
         });
       }
     }
-
-    // Builtin routines — available in every flow, not declared in flow.json.
     try {
       toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor, supervisor));
     } catch (error) {
       logger.warn("[feature-forge] Failed to register set_flow_param", { error });
+    }
+
+    // ── Command registration (orchestrated vs headless) ──
+    const orchestratorFile = path.join(flowDir, "orchestrator.md");
+    const hasOrchestrator = await fs
+      .access(orchestratorFile)
+      .then(() => true)
+      .catch(() => false);
+
+    if (hasOrchestrator) {
+      // Orchestrator-driven flow — register the persona spec and mount
+      // an in-session LLM agent to drive the routines.
+      try {
+        await specManager.loadFromDirectory(flowDir);
+      } catch (error) {
+        logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
+          error,
+        });
+        return;
+      }
+
+      const orchestratorCommand = new OrchestratorCommand(
+        supervisor,
+        pi,
+        specManager,
+        toolRegistry,
+        workspaceManager,
+        flow,
+      );
+      try {
+        cmdRegistry.registerInstance(orchestratorCommand);
+      } catch (error) {
+        logger.warn(`[feature-forge] Failed to register OrchestratorCommand for "${flowName}"`, {
+          error,
+        });
+      }
+    } else {
+      // Headless flow (no orchestrator) — register a command that parses
+      // key=value params from the slash-command args and runs routines
+      // directly, with no LLM intermediary.
+      const headlessCommand = new HeadlessFlowCommand(
+        flow,
+        routineExecutor,
+        supervisor,
+        pi,
+        specManager,
+        toolRegistry,
+      );
+      try {
+        cmdRegistry.registerInstance(headlessCommand);
+      } catch (error) {
+        logger.warn(`[feature-forge] Failed to register HeadlessFlowCommand for "${flowName}"`, {
+          error,
+        });
+      }
     }
   }
 }

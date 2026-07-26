@@ -211,7 +211,7 @@ export const FlowDefinitionSchema = Type.Object({
   params: Type.Optional(Type.Array(RoutineParamSchema)),
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
-  orchestrator: OrchestratorConfigSchema,
+  orchestrator: Type.Optional(OrchestratorConfigSchema),
   routines: routinesArray,
 });
 
