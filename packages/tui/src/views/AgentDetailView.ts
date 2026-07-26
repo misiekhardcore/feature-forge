@@ -117,14 +117,12 @@ export class AgentDetailView {
       return this.borderedContainer.render(width);
     }
 
+    const passed = AgentDisplayHelpers.getEntryPassed(entry);
     const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
       entry.status,
-      entry.passed,
+      passed,
     );
-    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(
-      entry.status,
-      entry.passed,
-    );
+    const { label, color: statusColor } = AgentDisplayHelpers.getStatusLabel(entry.status, passed);
 
     // Header
     this.scrollableBox.addChild(

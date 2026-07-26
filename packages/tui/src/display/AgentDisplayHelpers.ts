@@ -2,6 +2,8 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Message, TextContent } from "@earendil-works/pi-ai";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 
+import type { AgentViewerEntry } from "../types";
+
 /**
  * Display helpers for agent viewer rendering.
  *
@@ -98,6 +100,17 @@ export class AgentDisplayHelpers {
    * - `"error"` → `{ char: "✗", color: "error" }`
    * - anything else → `{ char: "○", color: "muted" }`
    */
+  /**
+   * Extract the `passed` flag from the discriminated union.
+   *
+   * Only {@link CompletedAgentEntry} carries this field. Returns
+   * `undefined` for "started" and "error" statuses where the concept
+   * does not apply.
+   */
+  static getEntryPassed(entry: AgentViewerEntry): boolean | undefined {
+    return entry.status === "done" ? entry.passed : undefined;
+  }
+
   static getStatusIcon(
     status: string | undefined,
     passed?: boolean,

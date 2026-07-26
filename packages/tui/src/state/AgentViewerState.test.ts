@@ -101,10 +101,12 @@ describe("AgentViewerState", () => {
         passed: true,
         createdAt: new Date(),
       });
-      const entry = state.getAgentEntry("builder");
-      expect(entry!.status).toBe("done");
-      expect(entry!.summary).toBe("Build passed");
-      expect(entry!.passed).toBe(true);
+      const entry = state.getAgentEntry("builder")!;
+      expect(entry.status).toBe("done");
+      expect(entry.summary).toBe("Build passed");
+      if (entry.status === "done") {
+        expect(entry.passed).toBe(true);
+      }
     });
 
     it("preserves fields not overwritten by second update", () => {
