@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { TObject } from "typebox";
+import type { TObject } from "typebox";
 
 import {
   AgentInstructionSchema,
@@ -23,20 +23,28 @@ import {
 /**
  * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.
  *
- * The top-level {@link FlowDefinitionSchema} drives the output structure
- * (`required`, `properties`). The only manual override is `routines[].steps` —
- * that array refers back to `FlowInstruction`, which creates a cycle. We replace
- * it with a `$ref` so the output stays a valid JSON Schema document.
+ * The top-level structure (`required`, `properties.routines`) is derived from
+ * {@link FlowDefinitionSchema}. Only what's needed for the recursive `steps`
+ * cycle and the `$defs` block is hand-assembled:
  *
- * Container schemas (parallel, loop) also have their `steps` replaced with
- * a `$ref` for the same reason.
+ * - `$defs.FlowInstruction` — an anyOf union with `$ref` pointers
+ * - `orchestrator` → `$ref` to OrchestratorConfig
+ * - `routines[].steps` → `$ref` to FlowInstruction
+ * - Parallel / Loop `steps` → `$ref` to FlowInstruction
+ *
+ * Everything else (required arrays, property types, constraints) flows
+ * directly from the TypeBox schemas.
  */
 
 // ── Constants ─────────────────────────────────────────────
 
 const META_SCHEMA_URL = "https://json-schema.org/draft/2020-12/schema";
 
-// ── Build individual defs (TypeBox schemas → JSON Schema) ──
+// ── $defs: instruction schemas + FlowInstruction union ─────
+// `replaceStepsRef` swaps inline `steps` for `$ref` in containers
+// that reference FlowInstruction recursively (Parallel, Loop).
+// The `anyOf` list is hand-written because TypeBox 1.1 inlines
+// `Type.Ref` instead of keeping `$ref` pointers.
 
 const defs: Record<string, unknown> = {
   OrchestratorConfig: OrchestratorConfigSchema,
@@ -49,22 +57,20 @@ const defs: Record<string, unknown> = {
   GitInstruction: GitInstructionSchema,
   SessionInstruction: SessionInstructionSchema,
   ShellInstruction: ShellInstructionSchema,
-};
-
-defs.RoutineRefInstruction = RoutineRefInstructionSchema;
-
-defs.FlowInstruction = {
-  anyOf: [
-    { $ref: "#/$defs/WorkspaceInstruction" },
-    { $ref: "#/$defs/AgentInstruction" },
-    { $ref: "#/$defs/ParallelInstruction" },
-    { $ref: "#/$defs/LoopInstruction" },
-    { $ref: "#/$defs/CleanupInstruction" },
-    { $ref: "#/$defs/GitInstruction" },
-    { $ref: "#/$defs/SessionInstruction" },
-    { $ref: "#/$defs/ShellInstruction" },
-    { $ref: "#/$defs/RoutineRefInstruction" },
-  ],
+  RoutineRefInstruction: RoutineRefInstructionSchema,
+  FlowInstruction: {
+    anyOf: [
+      { $ref: "#/$defs/WorkspaceInstruction" },
+      { $ref: "#/$defs/AgentInstruction" },
+      { $ref: "#/$defs/ParallelInstruction" },
+      { $ref: "#/$defs/LoopInstruction" },
+      { $ref: "#/$defs/CleanupInstruction" },
+      { $ref: "#/$defs/GitInstruction" },
+      { $ref: "#/$defs/SessionInstruction" },
+      { $ref: "#/$defs/ShellInstruction" },
+      { $ref: "#/$defs/RoutineRefInstruction" },
+    ],
+  },
 };
 
 // ── Top-level schema: derived from FlowDefinitionSchema ─────
@@ -73,16 +79,14 @@ defs.FlowInstruction = {
 // are typed objects — replacing them with raw JSON Schema objects (e.g.
 // $refs, inline literals) needs a type escape.
 
-const topProps = structuredClone(FlowDefinitionSchema.properties);
-topProps.orchestrator = { $ref: "#/$defs/OrchestratorConfig" };
+const properties = structuredClone(FlowDefinitionSchema.properties);
+properties.orchestrator = { $ref: "#/$defs/OrchestratorConfig" };
 
 // Clone the TypeBox routinesArray and replace only the recursive `steps`
 // with a $ref — everything else (id, params shape, minLength) comes from TypeBox.
 const routinesDef = structuredClone(routinesArray);
-const items = routinesDef.items;
-const itemsProps = items.properties;
-itemsProps.steps = { type: "array", items: { $ref: "#/$defs/FlowInstruction" } };
-topProps.routines = routinesDef;
+routinesDef.items.properties.steps = { type: "array", items: { $ref: "#/$defs/FlowInstruction" } };
+properties.routines = routinesDef;
 
 const schema: Record<string, unknown> = {
   $schema: META_SCHEMA_URL,
@@ -91,8 +95,8 @@ const schema: Record<string, unknown> = {
     "Self-contained flow definition. " +
     "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: FlowDefinitionSchema.required ?? [],
-  properties: topProps,
+  required: FlowDefinitionSchema.required,
+  properties,
   $defs: defs,
 };
 
