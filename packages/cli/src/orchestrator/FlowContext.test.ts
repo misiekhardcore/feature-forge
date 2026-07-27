@@ -256,10 +256,10 @@ describe("FlowContext", () => {
         prompt: "task",
         params: new Map([["existing", "from-parent"]]),
       });
-      const next = ctx.withMergedParams({ output: "builder-result", workspace: "/tmp/ws" });
+      const next = ctx.withMergedParams({ changes: "builder-result", workspace: "/tmp/ws" });
 
       expect(next.params.get("existing")).toBe("from-parent");
-      expect(next.params.get("output")).toBe("builder-result");
+      expect(next.params.get("changes")).toBe("builder-result");
       expect(next.params.get("workspace")).toBe("/tmp/ws");
       expect(next.params.size).toBe(3);
     });

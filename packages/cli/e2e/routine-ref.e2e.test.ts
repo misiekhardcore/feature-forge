@@ -3,7 +3,7 @@
  *
  * Exercises the full RoutineExecutor cycle with a parent flow that
  * references a sub-flow via type: "routine" — steps are inlined,
- * namespaced, and results flow back to the parent via output_as.
+ * name: "output_as".
  *
  * Run via: `npm run test:e2e`
  */
@@ -74,10 +74,7 @@ describe("routine ref inline flattening (e2e)", () => {
     const childFlow = makeChildFlow("review", "/review", [
       {
         id: "inspect",
-        params: [
-          { name: "output", description: "Raw output" },
-          { name: "workspace", description: "Workspace path" },
-        ],
+        params: [{ name: "changes" }, { name: "workspace", description: "Workspace path" }],
         steps: [
           agentStep(
             "review",
@@ -105,7 +102,7 @@ describe("routine ref inline flattening (e2e)", () => {
             id: "call_review",
             target: "review",
             output_as: "call_review",
-            input: { output: "{{results.builder.raw}}", workspace: "{{workspace}}" },
+            input: { changes: "{{results.builder.raw}}", workspace: "{{workspace}}" },
           },
         ],
       },
@@ -189,7 +186,7 @@ describe("routine ref inline flattening (e2e)", () => {
     const reviewFlow = makeChildFlow("review", "/review", [
       {
         id: "inspect",
-        params: [{ name: "output" }, { name: "workspace" }],
+        params: [{ name: "changes" }, { name: "workspace" }],
         steps: [agentStep("review", "review", { path: "{{workspace}}" }, "Review: {{output}}")],
       },
     ]);
@@ -197,7 +194,7 @@ describe("routine ref inline flattening (e2e)", () => {
     const verifyFlow = makeChildFlow("verify", "/verify", [
       {
         id: "check",
-        params: [{ name: "output" }, { name: "workspace" }],
+        params: [{ name: "changes" }, { name: "workspace" }],
         steps: [agentStep("verify", "verify", { path: "{{workspace}}" }, "Verify: {{output}}")],
       },
     ]);
@@ -212,14 +209,14 @@ describe("routine ref inline flattening (e2e)", () => {
             id: "call_review",
             target: "review",
             output_as: "review_out",
-            input: { output: "n/a", workspace: "/tmp/ws" },
+            input: { changes: "n/a", workspace: "/tmp/ws" },
           },
           {
             type: "routine",
             id: "call_verify",
             target: "verify",
             output_as: "verify_out",
-            input: { output: "n/a", workspace: "/tmp/ws" },
+            input: { changes: "n/a", workspace: "/tmp/ws" },
           },
         ],
       },
@@ -281,7 +278,7 @@ describe("routine ref inline flattening (e2e)", () => {
     const childFlow = makeChildFlow("review", "/review", [
       {
         id: "inspect",
-        params: [{ name: "output" }, { name: "workspace" }],
+        params: [{ name: "changes" }, { name: "workspace" }],
         steps: [
           agentStep("review", "review", { path: "{{workspace}}" }, "Review output: {{output}}"),
         ],
@@ -299,7 +296,7 @@ describe("routine ref inline flattening (e2e)", () => {
             id: "call_review",
             target: "review",
             output_as: "call_review",
-            input: { output: "{{results.builder.raw}}", workspace: "{{workspace}}" },
+            input: { changes: "{{results.builder.raw}}", workspace: "{{workspace}}" },
           },
         ],
       },

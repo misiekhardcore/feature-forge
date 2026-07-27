@@ -86,7 +86,7 @@
                   "target": "review",
                   "output_as": "call_review",
                   "input": {
-                    "output": "{{results.builder.raw}}",
+                    "changes": "{{results.builder.raw}}",
                     "workspace": "{{workspace}}"
                   }
                 },
@@ -96,7 +96,7 @@
                   "target": "verify",
                   "output_as": "call_verify",
                   "input": {
-                    "output": "{{results.builder.raw}}",
+                    "changes": "{{results.builder.raw}}",
                     "workspace": "{{workspace}}"
                   }
                 }

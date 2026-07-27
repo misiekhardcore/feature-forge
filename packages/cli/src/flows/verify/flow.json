@@ -7,8 +7,8 @@
       "id": "check",
       "params": [
         {
-          "name": "output",
-          "description": "Raw output from previous step"
+          "name": "changes",
+          "description": "The code or changes to verify"
         },
         {
           "name": "workspace",
@@ -26,7 +26,7 @@
             "path": "{{workspace}}"
           },
           "parseJson": true,
-          "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nPrevious step output:\n{{output}}"
+          "prompt": "Verify that every acceptance criterion and issue objective is met, and that e2e coverage is sufficient. Run e2e tests if available.\n\nTask:\n{{prompt}}\n\nChanges to verify:\n{{changes}}"
         }
       ]
     }

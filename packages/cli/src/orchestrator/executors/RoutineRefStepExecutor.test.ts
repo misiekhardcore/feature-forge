@@ -390,7 +390,7 @@ describe("RoutineRefStepExecutor", () => {
 
       await executor.execute(
         makeRefInstruction({
-          input: { output: "builder-result", workspace: "/tmp/ws" },
+          input: { changes: "builder-result", workspace: "/tmp/ws" },
         }),
         context,
         makeDispatch(registry, eventBus),
@@ -400,7 +400,7 @@ describe("RoutineRefStepExecutor", () => {
       expect(capturedParams).toHaveLength(2);
       for (const params of capturedParams) {
         expect(params.get("existing")).toBe("from-parent");
-        expect(params.get("output")).toBe("builder-result");
+        expect(params.get("changes")).toBe("builder-result");
         expect(params.get("workspace")).toBe("/tmp/ws");
       }
     });
@@ -454,7 +454,7 @@ describe("RoutineRefStepExecutor", () => {
       await executor.execute(
         makeRefInstruction({
           input: {
-            output: "{{results.builder.raw}}",
+            changes: "{{results.builder.raw}}",
             workspace: "{{workspace}}",
           },
         }),
@@ -467,7 +467,7 @@ describe("RoutineRefStepExecutor", () => {
       const params = capturedParams[0];
       // The template expressions should be resolved to actual values:
       // "{{results.builder.raw}}" → actual build output
-      expect(params.get("output")).toBe("the actual build output");
+      expect(params.get("changes")).toBe("the actual build output");
       // "{{workspace}}" → real path, NOT the literal template string
       expect(params.get("workspace")).toBe("/real/workspace/path");
     });
