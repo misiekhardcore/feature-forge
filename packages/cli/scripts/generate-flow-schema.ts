@@ -22,13 +22,13 @@ import {
 /**
  * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.
  *
- * TypeBox schemas ARE JSON Schema objects — we don't transform them,
- * we just compose them into a `$defs`-based document so the recursive
- * `steps` arrays use `$ref` pointers instead of object-level cycles.
+ * The top-level {@link FlowDefinitionSchema} drives the output structure
+ * (`required`, `properties`). The only manual override is `routines[].steps` —
+ * that array refers back to `FlowInstruction`, which creates a cycle. We replace
+ * it with a `$ref` so the output stays a valid JSON Schema document.
  *
- * Container schemas (parallel, loop) have `steps` added via a property
- * patch at module-init time. We clone them and replace `steps` with a
- * `$ref` to `FlowInstruction` for the export.
+ * Container schemas (parallel, loop) also have their `steps` replaced with
+ * a `$ref` for the same reason.
  */
 
 // ── Constants ─────────────────────────────────────────────
@@ -66,38 +66,39 @@ defs.FlowInstruction = {
   ],
 };
 
-// ── Top-level schema ────────────────────────────────────────
+// ── Top-level schema: derived from FlowDefinitionSchema ─────
+// The only override: routines[].steps gets a $ref to break the cycle.
+// We cast through Record<string, unknown> because TypeBox property types
+// are typed objects — replacing them with raw JSON Schema objects (e.g.
+// $refs, inline literals) needs a type escape.
 
-const schema = {
+const topProps = structuredClone(FlowDefinitionSchema.properties) as Record<string, unknown>;
+topProps.orchestrator = { $ref: "#/$defs/OrchestratorConfig" };
+topProps.routines = {
+  type: "array",
+  items: {
+    type: "object",
+    required: ["id", "params", "steps"],
+    properties: {
+      id: { type: "string", minLength: 1 },
+      params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
+      steps: {
+        type: "array",
+        items: { $ref: "#/$defs/FlowInstruction" },
+      },
+    },
+  },
+};
+
+const schema: Record<string, unknown> = {
   $schema: META_SCHEMA_URL,
   title: "Feature Forge Flow Definition",
   description:
     "Self-contained flow definition. " +
     "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: ["$schema", "name", "command", "routines"],
-  properties: {
-    $schema: FlowDefinitionSchema.properties.$schema,
-    params: FlowDefinitionSchema.properties.params,
-    name: { type: "string", minLength: 1 },
-    command: { type: "string", minLength: 1 },
-    orchestrator: { $ref: "#/$defs/OrchestratorConfig" },
-    routines: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["id", "params", "steps"],
-        properties: {
-          id: { type: "string", minLength: 1 },
-          params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
-          steps: {
-            type: "array",
-            items: { $ref: "#/$defs/FlowInstruction" },
-          },
-        },
-      },
-    },
-  },
+  required: FlowDefinitionSchema.required ?? [],
+  properties: topProps,
   $defs: defs,
 };
 
