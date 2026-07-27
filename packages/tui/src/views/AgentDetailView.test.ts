@@ -223,11 +223,11 @@ describe("AgentDetailView", () => {
   });
 
   describe("scroll delegation", () => {
-    it("get/set scrollOffset delegates to ScrollableBox", () => {
-      view.scrollOffset = 10;
-      expect(view.scrollOffset).toBe(10);
-      view.scrollOffset = 0;
-      expect(view.scrollOffset).toBe(0);
+    it("get/set scrollOffsetEnd delegates to ScrollableBox", () => {
+      view.scrollOffsetEnd = 10;
+      expect(view.scrollOffsetEnd).toBe(10);
+      view.scrollOffsetEnd = 0;
+      expect(view.scrollOffsetEnd).toBe(0);
     });
 
     it("get/set autoScroll delegates to ScrollableBox", () => {
@@ -240,13 +240,13 @@ describe("AgentDetailView", () => {
 
   describe("handleInput", () => {
     it("scrolls up on arrow up", () => {
-      view.scrollOffset = 5;
+      view.scrollOffsetEnd = 5;
       view.handleInput("\x1b[A");
-      expect(view.scrollOffset).toBe(4);
+      expect(view.scrollOffsetEnd).toBe(6);
     });
 
     it("scrolls down on arrow down", () => {
-      view.scrollOffset = 0;
+      view.scrollOffsetEnd = 5;
 
       // Push enough content to create scrollable area exceeding viewport.
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
@@ -265,9 +265,10 @@ describe("AgentDetailView", () => {
       // Render first to compute scroll bounds.
       view.render(100);
 
-      expect(view.scrollOffset).toBe(0);
+      // scrollOffsetEnd starts at 5, ArrowDown decrements toward bottom.
+      expect(view.scrollOffsetEnd).toBe(5);
       view.handleInput("\x1b[B");
-      expect(view.scrollOffset).toBe(1);
+      expect(view.scrollOffsetEnd).toBe(4);
     });
 
     it("enables autoScroll when scrolling to bottom", () => {
@@ -296,12 +297,12 @@ describe("AgentDetailView", () => {
       }
       view.render(100);
       expect(view.autoScroll).toBe(true);
-      const offsetAfterScroll = view.scrollOffset;
-      expect(offsetAfterScroll).toBeGreaterThan(0);
-      // Scrolling further down should not increase the clamped offset.
+      const offsetAfterScroll = view.scrollOffsetEnd;
+      expect(offsetAfterScroll).toBe(0);
+      // Scrolling further down should keep at bottom.
       view.handleInput("\x1b[B");
       view.render(100);
-      expect(view.scrollOffset).toBe(offsetAfterScroll);
+      expect(view.scrollOffsetEnd).toBe(0);
     });
   });
 
@@ -335,18 +336,17 @@ describe("AgentDetailView", () => {
       state.pushStreamEvent("builder", makeMessageEndEvent("update"), () => "last line");
       view.onStreamEvent("builder");
 
-      // onStreamEvent sets scrollOffset to Number.MAX_SAFE_INTEGER
-      // to signal "scroll to bottom"; the next render clamps it.
-      expect(view.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      // onStreamEvent sets scrollOffsetEnd to 0 to signal "scroll to bottom".
+      expect(view.scrollOffsetEnd).toBe(0);
       view.render(100);
 
-      // After render, scrollOffset is clamped to the actual max.
-      const clampedOffset = view.scrollOffset;
-      expect(clampedOffset).toBeGreaterThan(0);
-      // Scrolling down again should keep it at the clamped max.
+      // After render, scrollOffsetEnd stays 0 (at bottom).
+      const clampedOffset = view.scrollOffsetEnd;
+      expect(clampedOffset).toBe(0);
+      // Scrolling down again should keep it at 0.
       view.handleInput("\x1b[B");
       view.render(100);
-      expect(view.scrollOffset).toBe(clampedOffset);
+      expect(view.scrollOffsetEnd).toBe(0);
       expect(view.autoScroll).toBe(true);
     });
 
@@ -354,12 +354,12 @@ describe("AgentDetailView", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
       view.selectedAgentId = "builder";
       view.autoScroll = false;
-      view.scrollOffset = 0;
+      view.scrollOffsetEnd = 0;
 
       state.pushStreamEvent("builder", makeMessageEndEvent("update"), () => "line2");
       view.onStreamEvent("builder");
 
-      expect(view.scrollOffset).toBe(0);
+      expect(view.scrollOffsetEnd).toBe(0);
     });
   });
 

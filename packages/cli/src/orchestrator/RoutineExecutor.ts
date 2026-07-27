@@ -58,11 +58,12 @@ export class RoutineExecutor {
     routineDefOverride?: RoutineDefinition,
   ): Promise<RoutineResult> {
     const routine: RoutineDefinition | undefined =
-      routineDefOverride ?? this.flow.routines[routineName];
+      routineDefOverride ??
+      (this.flow.routines.find((r) => r.id === routineName) as RoutineDefinition);
     if (!routine) {
       throw new Error(
         `Routine "${routineName}" not found in flow "${this.flow.name}". ` +
-          `Available: ${Object.keys(this.flow.routines).join(", ")}`,
+          `Available: ${this.flow.routines.map((r) => r.id).join(", ")}`,
       );
     }
 

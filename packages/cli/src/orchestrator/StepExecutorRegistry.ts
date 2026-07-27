@@ -1,3 +1,5 @@
+import { isFlowMapAware } from "./executors/FlowMapAware";
+import type { FlowDefinition } from "./FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 
 /**
@@ -45,5 +47,17 @@ export class StepExecutorRegistry {
   /** Return all registered executors. */
   getAll(): ReadonlyMap<string, StepExecutor> {
     return this.executors;
+  }
+
+  /**
+   * Provide the shared flow map so executors that reference other flows
+   * (e.g. RoutineRefStepExecutor) can resolve targets at execution time.
+   */
+  setFlowMap(flowMap: Map<string, FlowDefinition>): void {
+    for (const executor of this.executors.values()) {
+      if (isFlowMapAware(executor)) {
+        executor.setFlowMap(flowMap);
+      }
+    }
   }
 }

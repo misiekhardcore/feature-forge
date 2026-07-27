@@ -7,7 +7,6 @@
     "$schema",
     "name",
     "command",
-    "orchestrator",
     "routines"
   ],
   "properties": {
@@ -32,6 +31,9 @@
           },
           "default": {
             "type": "string"
+          },
+          "optional": {
+            "type": "boolean"
           }
         }
       }
@@ -48,18 +50,41 @@
       "$ref": "#/$defs/OrchestratorConfig"
     },
     "routines": {
-      "type": "object",
-      "additionalProperties": {
+      "type": "array",
+      "items": {
         "type": "object",
         "required": [
+          "id",
           "params",
           "steps"
         ],
         "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
           "params": {
             "type": "array",
             "items": {
-              "$ref": "#/$defs/RoutineParam"
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "default": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "boolean"
+                }
+              }
             }
           },
           "steps": {
@@ -111,6 +136,9 @@
         },
         "default": {
           "type": "string"
+        },
+        "optional": {
+          "type": "boolean"
         }
       }
     },
@@ -415,6 +443,40 @@
         }
       }
     },
+    "RoutineRefInstruction": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "target"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "const": "routine"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "output_as": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "type": "object",
+          "patternProperties": {
+            "^.*$": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
     "FlowInstruction": {
       "anyOf": [
         {
@@ -440,6 +502,9 @@
         },
         {
           "$ref": "#/$defs/ShellInstruction"
+        },
+        {
+          "$ref": "#/$defs/RoutineRefInstruction"
         }
       ]
     }

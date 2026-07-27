@@ -95,73 +95,88 @@ describe("ScrollableBox", () => {
       const lines = box.render(80);
       // Viewport height = floor(0.5 * 40) - 4 = 20 - 4 = 16
       expect(lines.length).toBe(16);
-      expect(lines[0]).toBe("line 0");
+      expect(lines[0]).toBe("line 9");
     });
 
-    it("shifts viewport by scrollOffset", () => {
+    it("shifts viewport by scrollOffsetEnd", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       const lines = box.render(80);
-      expect(lines[0]).toBe("line 5");
+      // startIndex = max(0, 30 - 16 - 5) = 9
+      expect(lines[0]).toBe("line 9");
     });
 
-    it("clamps scrollOffset to max when it exceeds content", () => {
+    it("overshoot at top is handled by render — scrollOffsetEnd clamped to visible range", () => {
       box.addChild(new FakeLines(5));
-      box.scrollOffset = 100;
+      box.scrollOffsetEnd = 100;
       box.render(80);
-      // 5 lines, viewport = 16, maxOffset = max(0, 5-16) = 0
-      expect(box.scrollOffset).toBe(0);
+      // 5 lines, viewport = 16, maxEnd = max(0, 5-16) = 0, clamped to 0.
+      expect(box.scrollOffsetEnd).toBe(0);
     });
 
-    it("clamps scrollOffset when it exceeds max and re-enables autoScroll at bottom", () => {
+    it("large scrollOffsetEnd is clamped to visible range", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 100;
+      box.scrollOffsetEnd = 100;
       box.autoScroll = false;
       box.render(80);
-      // scrollOffset is clamped to max (30 - 16 = 14).
-      // Since scrollOffset (100) >= maxOffset (14), autoScroll re-enables.
-      expect(box.scrollOffset).toBe(14);
-      expect(box.autoScroll).toBe(true);
+      // 30 lines, viewport = 16, maxEnd = max(0, 30-16) = 14.
+      expect(box.scrollOffsetEnd).toBe(14);
+      expect(box.autoScroll).toBe(false);
     });
 
-    it("sticky-scrolls to bottom when autoScroll is true and offset reaches max", () => {
+    it("scrollOffsetEnd is clamped down when content shrinks", () => {
       box.addChild(new FakeLines(30));
-      // maxOffset = 30 - 16 = 14. Set scrollOffset >= maxOffset so autoScroll kicks in
-      box.scrollOffset = 15;
+      box.scrollOffsetEnd = 20;
+      box.autoScroll = false;
+      box.render(80);
+      // 30 lines, viewport = 16, maxEnd = 14, clamped to 14.
+      expect(box.scrollOffsetEnd).toBe(14);
+
+      // Shrink content to 5 lines.
+      (box as unknown as { children: unknown[] }).children.length = 0;
+      box.addChild(new FakeLines(5));
+      box.render(80);
+      // 5 lines, viewport = 16, maxEnd = max(0, 5-16) = 0, clamped to 0.
+      expect(box.scrollOffsetEnd).toBe(0);
+    });
+
+    it("at bottom when scrollOffsetEnd is 0", () => {
+      box.addChild(new FakeLines(30));
+      // scrollOffsetEnd = 0 means fully at bottom.
+      // startIndex = max(0, 30 - 16 - 0) = 14
+      box.scrollOffsetEnd = 0;
       box.autoScroll = true;
       box.render(80);
-      // autoScroll + scrollOffset >= maxOffset => clamped to maxOffset exactly
-      expect(box.scrollOffset).toBe(14);
+      expect(box.scrollOffsetEnd).toBe(0);
     });
 
     it("preserves autoScroll=false when not at bottom", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 0;
+      box.scrollOffsetEnd = 5;
       box.autoScroll = false;
       box.render(80);
       expect(box.autoScroll).toBe(false);
     });
 
-    it("re-enables autoScroll when manually scrolling to bottom", () => {
+    it("re-enables autoScroll when scrollOffsetEnd is 0", () => {
       box.addChild(new FakeLines(30));
-      // maxOffset = 30 - 16 = 14. Set scrollOffset past it.
-      box.scrollOffset = 14;
+      // scrollOffsetEnd = 0 means at bottom.
+      box.scrollOffsetEnd = 0;
       box.autoScroll = false;
       box.render(80);
       // At bottom → autoScroll re-enabled.
       expect(box.autoScroll).toBe(true);
-      // scrollOffset is clamped to max.
-      expect(box.scrollOffset).toBe(14);
+      expect(box.scrollOffsetEnd).toBe(0);
     });
   });
 
   describe("handleInput", () => {
     it("scrolls up on arrow up", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       box.autoScroll = false;
       box.handleInput("\x1b[A");
-      expect(box.scrollOffset).toBe(4);
+      expect(box.scrollOffsetEnd).toBe(6);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
@@ -170,84 +185,85 @@ describe("ScrollableBox", () => {
       box.autoScroll = true;
       box.handleInput("\x1b[A");
       expect(box.autoScroll).toBe(false);
-      expect(box.scrollOffset).toBe(0);
+      expect(box.scrollOffsetEnd).toBe(1);
     });
 
     it("scrolls down on arrow down", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 0;
+      box.scrollOffsetEnd = 5;
       box.handleInput("\x1b[B");
-      expect(box.scrollOffset).toBe(1);
+      expect(box.scrollOffsetEnd).toBe(4);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
-    it("does not scroll past top on arrow up", () => {
+    it("does not scroll past top on arrow up — render clamps startIndex to 0", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 0;
+      // viewport = 16, 30 lines. Top = startIndex 0 when scrollOffsetEnd >= 14.
+      box.scrollOffsetEnd = 14;
       box.handleInput("\x1b[A");
-      expect(box.scrollOffset).toBe(0);
+      expect(box.scrollOffsetEnd).toBe(15);
     });
 
     it("scrolls page up", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 20;
+      box.scrollOffsetEnd = 4;
       box.autoScroll = false;
       box.handleInput("\x1b[5~");
       // viewport height = floor(0.5 * 40) - 4 = 16
-      expect(box.scrollOffset).toBe(4);
+      expect(box.scrollOffsetEnd).toBe(20);
       expect(box.autoScroll).toBe(false);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
     it("scrolls page down", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 0;
+      box.scrollOffsetEnd = 20;
       box.handleInput("\x1b[6~");
       // viewport height = 16
-      expect(box.scrollOffset).toBe(16);
+      expect(box.scrollOffsetEnd).toBe(4);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
     it("jumps to top on home", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 10;
+      box.scrollOffsetEnd = 5;
       box.autoScroll = true;
+      box.render(80);
       box.handleInput("\x1b[H");
-      expect(box.scrollOffset).toBe(0);
+      // 30 lines, viewport = 16, top = max(0, 30 - 16) = 14.
+      expect(box.scrollOffsetEnd).toBe(14);
       expect(box.autoScroll).toBe(false);
       expect(tui.requestRender).toHaveBeenCalled();
     });
 
     it("jumps to bottom on end", () => {
       box.addChild(new FakeLines(30));
-      box.scrollOffset = 0;
+      box.scrollOffsetEnd = 5;
       box.autoScroll = false;
       box.handleInput("\x1b[F");
-      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      expect(box.scrollOffsetEnd).toBe(0);
       expect(box.autoScroll).toBe(true);
       expect(tui.requestRender).toHaveBeenCalled();
     });
   });
 
   describe("scrollToBottom", () => {
-    it("sets scrollOffset to MAX_SAFE_INTEGER and enables autoScroll", () => {
+    it("sets scrollOffsetEnd to 0 and enables autoScroll", () => {
       box.scrollToBottom();
-      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      expect(box.scrollOffsetEnd).toBe(0);
       expect(box.autoScroll).toBe(true);
     });
 
-    it("clamps MAX_SAFE_INTEGER sentinel to actual maxOffset in render", () => {
+    it("scrollOffsetEnd 0 yields bottom in render", () => {
       box.addChild(new FakeLines(30));
       box.scrollToBottom();
-      // scrollOffset is MAX_SAFE_INTEGER, autoScroll is true.
-      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      // scrollOffsetEnd is 0, autoScroll is true.
+      expect(box.scrollOffsetEnd).toBe(0);
       expect(box.autoScroll).toBe(true);
 
-      // render clamps MAX_SAFE_INTEGER to the real maxOffset.
+      // render: startIndex = max(0, 30 - 16 - 0) = 14
       box.render(80);
-      // maxOffset = 30 - 16 = 14 (viewport = 0.5 * 40 - 4 = 16)
-      expect(box.scrollOffset).toBe(14);
-      // autoScroll stays true (already at bottom).
+      expect(box.scrollOffsetEnd).toBe(0);
       expect(box.autoScroll).toBe(true);
     });
   });
@@ -256,43 +272,43 @@ describe("ScrollableBox", () => {
     it("scrolls to bottom when autoScroll is enabled", () => {
       box.addChild(new FakeLines(30));
       box.autoScroll = true;
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       box.onStreamEvent();
-      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      expect(box.scrollOffsetEnd).toBe(0);
     });
 
     it("does nothing when autoScroll is disabled", () => {
       box.addChild(new FakeLines(30));
       box.autoScroll = false;
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       box.onStreamEvent();
-      expect(box.scrollOffset).toBe(5);
+      expect(box.scrollOffsetEnd).toBe(5);
     });
 
     it("scrolls for matching agentId when currentAgent is set", () => {
       box.addChild(new FakeLines(30));
       box.autoScroll = true;
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       box.setCurrentAgent("agent-1");
       box.onStreamEvent("agent-1");
-      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      expect(box.scrollOffsetEnd).toBe(0);
     });
 
     it("ignores event for non-matching agentId", () => {
       box.addChild(new FakeLines(30));
       box.autoScroll = true;
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       box.setCurrentAgent("agent-1");
       box.onStreamEvent("agent-2");
-      expect(box.scrollOffset).toBe(5);
+      expect(box.scrollOffsetEnd).toBe(5);
     });
 
     it("scrolls when no currentAgent is set (unscoped mode)", () => {
       box.addChild(new FakeLines(30));
       box.autoScroll = true;
-      box.scrollOffset = 5;
+      box.scrollOffsetEnd = 5;
       box.onStreamEvent("any-agent");
-      expect(box.scrollOffset).toBe(Number.MAX_SAFE_INTEGER);
+      expect(box.scrollOffsetEnd).toBe(0);
     });
   });
 

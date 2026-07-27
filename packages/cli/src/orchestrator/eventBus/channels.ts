@@ -106,4 +106,22 @@ export interface ForgeChannels {
     message: string;
     details: { key: string; value: string; executionId?: string };
   };
+
+  "feature-forge:routine-ref-start": {
+    phase: "routine-ref-start";
+    message: string;
+    details: { instructionId: string; target: string; flow: string };
+  };
+
+  "feature-forge:routine-ref-done": {
+    phase: "routine-ref-done";
+    message: string;
+    details: { instructionId: string; target: string; flow: string; passed: boolean };
+  };
+
+  "feature-forge:routine-ref-error": {
+    phase: "routine-ref-error";
+    message: string;
+    details: { instructionId: string; target: string; flow: string; stepId?: string };
+  };
 }

@@ -2,6 +2,8 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Message, TextContent } from "@earendil-works/pi-ai";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 
+import type { AgentViewerEntry } from "../types";
+
 /**
  * Display helpers for agent viewer rendering.
  *
@@ -11,13 +13,16 @@ import type { ThemeColor } from "@earendil-works/pi-coding-agent";
  */
 export class AgentDisplayHelpers {
   /**
-   * Format a human-readable elapsed time string from a creation timestamp.
+   * Format a human-readable elapsed time string.
    *
-   * Computed dynamically so the value stays current when the overlay is open.
-   * The result is not cached — callers should compute it at render time.
+   * When `finishedAt` is provided (completed/errored agents) the duration
+   * is computed from `createdAt` to `finishedAt` — stable across redraws.
+   * For running agents (no `finishedAt`) the duration is live:
+   * `Date.now() - createdAt`.
    */
-  static formatElapsed(createdAt: Date): string {
-    const ms = Date.now() - createdAt.getTime();
+  static formatElapsed(createdAt: Date, finishedAt?: Date): string {
+    const end = finishedAt ?? new Date();
+    const ms = end.getTime() - createdAt.getTime();
     const seconds = Math.floor(ms / 1000);
     if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
@@ -97,6 +102,17 @@ export class AgentDisplayHelpers {
    * - `"error"` → `{ char: "✗", color: "error" }`
    * - anything else → `{ char: "○", color: "muted" }`
    */
+  /**
+   * Extract the `passed` flag from the discriminated union.
+   *
+   * Only {@link CompletedAgentEntry} carries this field. Returns
+   * `undefined` for "started" and "error" statuses where the concept
+   * does not apply.
+   */
+  static getEntryPassed(entry: AgentViewerEntry): boolean | undefined {
+    return entry.status === "done" ? entry.passed : undefined;
+  }
+
   static getStatusIcon(
     status: string | undefined,
     passed?: boolean,

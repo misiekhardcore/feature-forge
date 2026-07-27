@@ -1,7 +1,9 @@
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
+import { isFlowMapAware } from "./executors/FlowMapAware";
 import type { FlowContext } from "./FlowContext";
+import type { FlowDefinition } from "./FlowInstruction";
 import type { WorkspaceInstruction } from "./FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -110,6 +112,54 @@ describe("StepExecutorRegistry", () => {
       const types = registry.types();
       registry.register(() => new FakeExecutor("b"));
       expect(types.size).toBe(1);
+    });
+  });
+
+  describe("setFlowMap", () => {
+    class FlowMapAwareExecutor extends FakeExecutor {
+      receivedMap: Map<string, FlowDefinition> | null = null;
+
+      setFlowMap(flowMap: Map<string, FlowDefinition>): void {
+        this.receivedMap = flowMap;
+      }
+    }
+
+    it("forwards flowMap to FlowMapAware executors", () => {
+      const registry = new StepExecutorRegistry();
+      const executor = new FlowMapAwareExecutor("routine");
+      registry.register(() => executor);
+
+      expect(isFlowMapAware(executor)).toBe(true);
+
+      const flowMap = new Map<string, FlowDefinition>();
+      registry.setFlowMap(flowMap);
+
+      expect(executor.receivedMap).toBe(flowMap);
+    });
+
+    it("skips non-FlowMapAware executors without error", () => {
+      const registry = new StepExecutorRegistry();
+      const executor = new FakeExecutor("workspace");
+      registry.register(() => executor);
+
+      expect(isFlowMapAware(executor)).toBe(false);
+
+      const flowMap = new Map<string, FlowDefinition>();
+      expect(() => registry.setFlowMap(flowMap)).not.toThrow();
+    });
+
+    it("updates flowMap on a previously registered FlowMapAware executor", () => {
+      const registry = new StepExecutorRegistry();
+      const executor = new FlowMapAwareExecutor("routine");
+      registry.register(() => executor);
+
+      const map1 = new Map<string, FlowDefinition>();
+      registry.setFlowMap(map1);
+      expect(executor.receivedMap).toBe(map1);
+
+      const map2 = new Map<string, FlowDefinition>();
+      registry.setFlowMap(map2);
+      expect(executor.receivedMap).toBe(map2);
     });
   });
 });

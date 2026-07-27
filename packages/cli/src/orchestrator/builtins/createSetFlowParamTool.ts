@@ -19,6 +19,7 @@ export function createSetFlowParamTool(
   supervisor: AgentSupervisor,
 ): RoutineTool {
   const definition = {
+    id: "set_flow_param",
     params: [
       { name: "key", description: "Session key to set" },
       { name: "value", description: "Value to store" },
@@ -29,9 +30,9 @@ export function createSetFlowParamTool(
         id: "set",
         key: "{{key}}",
         value: "{{value}}",
-      } as unknown as FlowInstruction,
+      } satisfies FlowInstruction,
     ],
   };
 
-  return new RoutineTool(flowName, "set_flow_param", executor, definition, supervisor);
+  return new RoutineTool(flowName, definition, executor, supervisor);
 }

@@ -85,6 +85,12 @@ export const ShellInstructionSchema = defineInstruction("shell", {
   failFast: Type.Optional(Type.Boolean()),
 });
 
+export const RoutineRefInstructionSchema = defineInstruction("routine", {
+  target: Type.String({ minLength: 1 }),
+  output_as: Type.Optional(Type.String({ minLength: 1 })),
+  input: Type.Optional(Type.Record(Type.String(), Type.String())),
+});
+
 // ── Parallel failure mode ──────────────────────────────────
 
 export const ParallelFailureModeSchema = Type.Union([
@@ -138,6 +144,7 @@ const FlowInstructionUnion = Type.Union([
   GitInstructionSchema,
   SessionInstructionSchema,
   ShellInstructionSchema,
+  RoutineRefInstructionSchema,
 ]);
 
 // Patch container schemas so `steps` validates recursively.
@@ -174,49 +181,36 @@ export const RoutineParamSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   description: Type.Optional(Type.String()),
   default: Type.Optional(Type.String()),
+  optional: Type.Optional(Type.Boolean()),
 });
 
 const RoutineDefinitionSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
   params: Type.Array(RoutineParamSchema),
-  // steps placeholder — Type.Any() avoids the circular FlowInstructionUnion reference
-  // during Type.Record's internal Clone. The real validator is patched onto the
-  // cloned copy stored inside the TRecord below.
-  steps: Type.Any(),
+  steps: Type.Array(FlowInstructionUnion),
 });
+
+// Patch the cloned copy inside the TArray with the real FlowInstructionUnion-based
+// validator so Value.Check can reject invalid nested instructions.
+// Type.Array clones the item schema internally, so we reach into the clone.
+export const routines = Type.Array(RoutineDefinitionSchema);
+if (routines.items?.properties) {
+  Object.defineProperty(routines.items.properties, "steps", {
+    value: Type.Array(FlowInstructionUnion),
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
 
 export const FlowDefinitionSchema = Type.Object({
   $schema: Type.String({ const: FLOW_SCHEMA_URL }),
   params: Type.Optional(Type.Array(RoutineParamSchema)),
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
-  orchestrator: OrchestratorConfigSchema,
-  routines: Type.Record(Type.String(), RoutineDefinitionSchema),
+  orchestrator: Type.Optional(OrchestratorConfigSchema),
+  routines,
 });
-
-// After Type.Record has cloned RoutineDefinitionSchema (with Type.Any() for steps
-// to avoid the circular clone), patch the cloned copy inside the TRecord with the
-// real FlowInstructionUnion-based validator so Value.Check can reject invalid
-// nested instructions.
-// Reaching into TypeBox internals via a structural accessor typed through unknown.
-const routineRecord = FlowDefinitionSchema.properties.routines;
-const patterns: Record<string, { properties?: Record<string, unknown> }> | undefined = (
-  routineRecord as unknown as {
-    patternProperties?: Record<string, { properties?: Record<string, unknown> }>;
-  }
-).patternProperties;
-if (patterns) {
-  for (const patternKey of Object.keys(patterns)) {
-    const clonedRoutine = patterns[patternKey];
-    if (clonedRoutine?.properties) {
-      Object.defineProperty(clonedRoutine.properties, "steps", {
-        value: Type.Array(FlowInstructionUnion),
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      });
-    }
-  }
-}
 
 // ── Explicit TypeScript types ─────────────────────────────────
 
@@ -241,6 +235,8 @@ export type SessionInstruction = Type.Static<typeof SessionInstructionSchema>;
 
 export type ShellInstruction = Type.Static<typeof ShellInstructionSchema>;
 
+export type RoutineRefInstruction = Type.Static<typeof RoutineRefInstructionSchema>;
+
 /** Instructions that contain nested `steps` arrays. */
 export type ContainerInstruction = ParallelInstruction | LoopInstruction;
 
@@ -252,20 +248,23 @@ export type FlowInstruction =
   | CleanupInstruction
   | GitInstruction
   | ShellInstruction
-  | SessionInstruction;
+  | SessionInstruction
+  | RoutineRefInstruction;
 
 export type OrchestratorConfig = Type.Static<typeof OrchestratorConfigSchema>;
 
 export type RoutineParam = Type.Static<typeof RoutineParamSchema>;
 
 export type RoutineDefinition = {
+  id: string;
   params: RoutineParam[];
   steps: FlowInstruction[];
+  description?: string;
 };
 
 export type FlowDefinition = Type.Static<typeof FlowDefinitionSchema> & {
   params?: RoutineParam[];
-  routines: Record<string, RoutineDefinition>;
+  routines: RoutineDefinition[];
 };
 
 // ── Type guard functions ──────────────────────────────────────
@@ -280,6 +279,10 @@ export function isLoopInstruction(instr: FlowInstruction): instr is LoopInstruct
 
 export function isContainerInstruction(instr: FlowInstruction): instr is ContainerInstruction {
   return instr.type === "parallel" || instr.type === "loop";
+}
+
+export function isRoutineRefInstruction(instr: FlowInstruction): instr is RoutineRefInstruction {
+  return instr.type === "routine";
 }
 
 // ── Helper constructors ────────────────────────────────────────

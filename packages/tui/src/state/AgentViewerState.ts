@@ -1,4 +1,4 @@
-import { appendFileSync, createReadStream, mkdirSync, readdirSync } from "node:fs";
+import { appendFileSync, createReadStream, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -152,7 +152,15 @@ export class AgentViewerState {
    */
   update(entry: AgentViewerEntry): void {
     const existing = this.agents.get(entry.id);
-    this.agents.set(entry.id, { ...existing, ...entry });
+    const merged: AgentViewerEntry = { ...existing, ...entry };
+
+    // Stamp finishedAt for terminal statuses so elapsed displays correctly
+    // across overlay close/reopen cycles without pre-computing strings.
+    if (!merged.finishedAt && (merged.status === "done" || merged.status === "error")) {
+      merged.finishedAt = new Date();
+    }
+
+    this.agents.set(entry.id, merged);
     this.version++;
   }
 
@@ -431,12 +439,29 @@ export class AgentViewerState {
    * fully streamed into the cache.
    */
   async prepopulateStreamFiles(streamDir: string): Promise<void> {
-    const ensureStaleEntry = (agentId: string): void => {
+    const ensureStaleEntry = (agentId: string, filePath?: string): void => {
       if (this.agents.has(agentId)) return;
+
+      // Use the stream file's birthtime as a best-effort createdAt and
+      // mtime as a best-effort finishedAt so elapsed displays meaningfully
+      // for agents whose lifecycle has long since ended.
+      let createdAt = new Date();
+      let finishedAt: Date | undefined;
+      if (filePath) {
+        try {
+          const stat = statSync(filePath);
+          createdAt = stat.birthtime;
+          finishedAt = stat.mtime;
+        } catch {
+          // Use current time as fallback for createdAt.
+        }
+      }
+
       this.update({
         id: agentId,
         status: "done",
-        createdAt: new Date(),
+        createdAt,
+        finishedAt,
         passed: false,
         summary: "Agent completed",
       });
@@ -446,27 +471,27 @@ export class AgentViewerState {
 
     try {
       for (const entry of readdirSync(streamDir)) {
+        const filePath = join(streamDir, entry);
+
         if (entry.endsWith(".stream")) {
           const agentId = entry.slice(0, -".stream".length);
-          this.streamFiles.set(agentId, join(streamDir, entry));
-          ensureStaleEntry(agentId);
+          this.streamFiles.set(agentId, filePath);
+          ensureStaleEntry(agentId, filePath);
           continue;
         }
 
         if (entry.endsWith(".messages.jsonl")) {
           const agentId = entry.slice(0, -".messages.jsonl".length);
-          const filePath = join(streamDir, entry);
           this.messagesFiles.set(agentId, filePath);
-          ensureStaleEntry(agentId);
+          ensureStaleEntry(agentId, filePath);
           loadPromises.push(this.loadMessagesFromDiskIntoCache(agentId, filePath));
           continue;
         }
 
         if (entry.endsWith(".events.jsonl")) {
           const agentId = entry.slice(0, -".events.jsonl".length);
-          const filePath = join(streamDir, entry);
           this.eventsFiles.set(agentId, filePath);
-          ensureStaleEntry(agentId);
+          ensureStaleEntry(agentId, filePath);
           continue;
         }
       }

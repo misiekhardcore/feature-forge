@@ -69,9 +69,10 @@ export class AgentListView {
     }
 
     const items: SelectItem[] = entries.map(([id, entry]) => {
-      const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, entry.passed);
-      const { label: statusLabel } = AgentDisplayHelpers.getStatusLabel(entry.status, entry.passed);
-      const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt);
+      const passed = AgentDisplayHelpers.getEntryPassed(entry);
+      const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, passed);
+      const { label: statusLabel } = AgentDisplayHelpers.getStatusLabel(entry.status, passed);
+      const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt, entry.finishedAt);
       const role = entry.role ? ` (${entry.role})` : "";
       const label = `${icon} ${id}${role} — ${statusLabel} (${elapsed})`;
       const lastLine = this.state.getLastLine(id);

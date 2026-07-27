@@ -51,8 +51,9 @@ function makeWorkspaceFlow(): FlowDefinition {
     name: "ws-test",
     command: "/ws-test",
     orchestrator: { systemPrompt: "test" },
-    routines: {
-      create_workspace: {
+    routines: [
+      {
+        id: "create_workspace",
         params: [],
         steps: [
           {
@@ -62,11 +63,12 @@ function makeWorkspaceFlow(): FlowDefinition {
           },
         ],
       },
-      destroy_workspace: {
+      {
+        id: "destroy_workspace",
         params: [{ name: "path", description: "Worktree path to release" }],
         steps: [{ type: "cleanup", id: "cleanup", of: "{{path}}" }],
       },
-    },
+    ],
   };
 }
 

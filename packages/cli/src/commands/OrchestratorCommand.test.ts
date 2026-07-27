@@ -72,7 +72,7 @@ describe("OrchestratorCommand", () => {
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "implement" },
-    routines: {},
+    routines: [],
   };
 
   function makeSupervisor() {

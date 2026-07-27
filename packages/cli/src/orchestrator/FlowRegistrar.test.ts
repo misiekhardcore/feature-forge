@@ -68,6 +68,7 @@ vi.mock("./FlowLoader", () => ({
 
 vi.mock("../commands", () => ({
   OrchestratorCommand: orchestratorCtorMock,
+  HeadlessFlowCommand: vi.fn(),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -118,9 +119,7 @@ function makeFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
     name: "test-flow",
     command: "/test",
     orchestrator: { systemPrompt: "test-orchestrator" },
-    routines: overrides.routines ?? {
-      build: { params: [], steps: [] },
-    },
+    routines: overrides.routines ?? [{ id: "build", params: [], steps: [] }],
     ...overrides,
   };
 }
@@ -178,16 +177,16 @@ describe("FlowRegistrar", () => {
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
     });
 
-    it("skips directories without an orchestrator.md file", async () => {
+    it("registers headless flow commands for directories without orchestrator.md", async () => {
       readdirMock.mockResolvedValue([
         { name: "valid-flow", isDirectory: () => true },
-        { name: "no-md", isDirectory: () => true },
+        { name: "headless-flow", isDirectory: () => true },
       ]);
-      // valid-flow has orchestrator.md, no-md does not
-      accessMock.mockImplementation(async (p: string) => {
-        if (p.includes("no-md")) throw new Error("ENOENT");
-      });
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
+      // Both flows load fine; valid-flow has orchestrator.md, headless-flow does not.
+      accessMock.mockImplementation(async (p: string) => {
+        if (p.includes("headless-flow")) throw new Error("ENOENT");
+      });
 
       const cmdRegistry = {
         registerInstance: vi.fn().mockReturnValue(undefined),
@@ -196,7 +195,9 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      // Both flows get commands: OrchestratorCommand for valid-flow,
+      // HeadlessFlowCommand for headless-flow.
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
     });
 
     it("skips flows that fail to load and logs a warning (non-Error throw)", async () => {
@@ -313,9 +314,7 @@ describe("FlowRegistrar", () => {
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
-          routines: {
-            step1: { params: [], steps: [] },
-          },
+          routines: [{ id: "step1", params: [], steps: [] }],
         }),
       );
 
@@ -343,10 +342,10 @@ describe("FlowRegistrar", () => {
       accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
-          routines: {
-            step1: { params: [], steps: [] },
-            step2: { params: [], steps: [] },
-          },
+          routines: [
+            { id: "step1", params: [], steps: [] },
+            { id: "step2", params: [], steps: [] },
+          ],
         }),
       );
 
@@ -389,7 +388,7 @@ describe("FlowRegistrar", () => {
     it("registers orchestrator commands even when a flow has no routines", async () => {
       readdirMock.mockResolvedValue([{ name: "empty-flow", isDirectory: () => true }]);
       accessMock.mockResolvedValue(undefined);
-      flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: {} }));
+      flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: [] }));
 
       const cmdRegistry = {
         registerInstance: vi.fn().mockReturnValue(undefined),

@@ -3,6 +3,7 @@ export { AgentDestroyCommand } from "./AgentDestroyCommand";
 export { AgentListCommand } from "./AgentListCommand";
 export { Command } from "./Command";
 export { FlowExitCommand } from "./FlowExitCommand";
+export { HeadlessFlowCommand } from "./HeadlessFlowCommand";
 export { OrchestratorCommand } from "./OrchestratorCommand";
 export { ResearchCommand } from "./ResearchCommand";
 export { WorktreeDestroyCommand } from "./WorktreeDestroyCommand";
