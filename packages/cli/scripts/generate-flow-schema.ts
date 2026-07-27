@@ -14,6 +14,7 @@ import {
   ParallelInstructionSchema,
   RoutineParamSchema,
   RoutineRefInstructionSchema,
+  routinesArray,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -72,23 +73,16 @@ defs.FlowInstruction = {
 // are typed objects — replacing them with raw JSON Schema objects (e.g.
 // $refs, inline literals) needs a type escape.
 
-const topProps = structuredClone(FlowDefinitionSchema.properties) as Record<string, unknown>;
+const topProps = structuredClone(FlowDefinitionSchema.properties);
 topProps.orchestrator = { $ref: "#/$defs/OrchestratorConfig" };
-topProps.routines = {
-  type: "array",
-  items: {
-    type: "object",
-    required: ["id", "params", "steps"],
-    properties: {
-      id: { type: "string", minLength: 1 },
-      params: { type: "array", items: { $ref: "#/$defs/RoutineParam" } },
-      steps: {
-        type: "array",
-        items: { $ref: "#/$defs/FlowInstruction" },
-      },
-    },
-  },
-};
+
+// Clone the TypeBox routinesArray and replace only the recursive `steps`
+// with a $ref — everything else (id, params shape, minLength) comes from TypeBox.
+const routinesDef = structuredClone(routinesArray);
+const items = routinesDef.items;
+const itemsProps = items.properties;
+itemsProps.steps = { type: "array", items: { $ref: "#/$defs/FlowInstruction" } };
+topProps.routines = routinesDef;
 
 const schema: Record<string, unknown> = {
   $schema: META_SCHEMA_URL,

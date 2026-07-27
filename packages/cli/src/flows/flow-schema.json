@@ -55,7 +55,23 @@
           "params": {
             "type": "array",
             "items": {
-              "$ref": "#/$defs/RoutineParam"
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "default": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "boolean"
+                }
+              }
             }
           },
           "steps": {

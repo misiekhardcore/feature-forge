@@ -195,7 +195,7 @@ const RoutineDefinitionSchema = Type.Object({
 // Patch the cloned copy inside the TArray with the real FlowInstructionUnion-based
 // validator so Value.Check can reject invalid nested instructions.
 // Type.Array clones the item schema internally, so we reach into the clone.
-const routinesArray = Type.Array(RoutineDefinitionSchema);
+export const routinesArray = Type.Array(RoutineDefinitionSchema);
 const items = routinesArray.items;
 if (items?.properties) {
   Object.defineProperty(items.properties, "steps", {
