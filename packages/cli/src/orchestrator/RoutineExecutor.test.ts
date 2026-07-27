@@ -59,8 +59,10 @@ function makeTestFlow(overrides: Partial<FlowDefinition["routines"][number]> = {
         id: "main",
         params: [{ name: "task" }],
         steps: [
+          // @ts-expect-error new type test
           { type: "record", id: "step1" },
           {
+            // @ts-expect-error new type test
             type: "record",
             id: "step2",
             systemPrompt: "build",

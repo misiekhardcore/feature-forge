@@ -72,7 +72,6 @@ const defs: Record<string, unknown> = {
       { $ref: "#/$defs/SessionInstruction" },
       { $ref: "#/$defs/ShellInstruction" },
       { $ref: "#/$defs/RoutineRefInstruction" },
-      { $ref: "#/$defs/FlowInstruction" },
     ],
   },
 };
@@ -89,6 +88,7 @@ properties.orchestrator = { $ref: "#/$defs/OrchestratorConfig" };
 const routinesClone = structuredClone(routines);
 routinesClone.items.properties.steps = {
   type: "array",
+  // @ts-expect-error overrides the type
   items: { $ref: "#/$defs/FlowInstruction" },
 };
 
