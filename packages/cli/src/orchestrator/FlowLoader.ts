@@ -114,7 +114,7 @@ export class FlowLoader {
     // Validate each routine's steps against FlowInstructionSchema separately.
     // Type.Record in FlowDefinitionSchema uses Type.Any() for steps to avoid
     // a clone-induced stack overflow on the circular FlowInstructionUnion.
-    FlowLoader.validateRoutineSteps(value);
+    FlowLoader.validateRoutineSteps(value as FlowDefinition);
   }
 
   /**
@@ -145,15 +145,8 @@ export class FlowLoader {
 
     for (const routine of flow.routines) {
       const scope = `routine "${routine.id}"`;
-      errors.push(...FlowLoader.checkDuplicateIds(routine.steps as FlowInstruction[], scope));
-      FlowLoader.walkInstructions(
-        routine.steps as FlowInstruction[],
-        [],
-        errors,
-        knownSpecs,
-        knownProviders,
-        new Set(),
-      );
+      errors.push(...FlowLoader.checkDuplicateIds(routine.steps, scope));
+      FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders, new Set());
     }
 
     // Validate no duplicate routine IDs (lost compile-time guarantee from Record→Array migration).

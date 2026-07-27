@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { TObject } from "typebox";
+import { TObject } from "typebox";
 
 import {
   AgentInstructionSchema,
@@ -14,7 +14,7 @@ import {
   ParallelInstructionSchema,
   RoutineParamSchema,
   RoutineRefInstructionSchema,
-  routinesArray,
+  routines,
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
@@ -23,17 +23,20 @@ import {
 /**
  * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.
  *
- * The top-level structure (`required`, `properties.routines`) is derived from
- * {@link FlowDefinitionSchema}. Only what's needed for the recursive `steps`
- * cycle and the `$defs` block is hand-assembled:
+ * Nearly everything is derived directly from the TypeBox schemas. The only
+ * manual work is for `$ref` pointers that AJV requires but TypeBox 1.1
+ * doesn't produce natively:
  *
- * - `$defs.FlowInstruction` — an anyOf union with `$ref` pointers
+ * - `$defs.FlowInstruction` — an anyOf union listing every instruction type
+ *   via $ref. TypeBox would inline Type.Ref instead.
  * - `orchestrator` → `$ref` to OrchestratorConfig
- * - `routines[].steps` → `$ref` to FlowInstruction
- * - Parallel / Loop `steps` → `$ref` to FlowInstruction
+ *   TypeBox stores `{ $ref: "OrchestratorConfig" }` (bare name); AJV needs
+ *   the `#/$defs/` prefix.
+ * - `steps` arrays in routines, Parallel, Loop → `$ref` to FlowInstruction
+ *   These circularly reference the union; need $ref to avoid infinite inline.
  *
- * Everything else (required arrays, property types, constraints) flows
- * directly from the TypeBox schemas.
+ * Everything else (required arrays, id minLength, params shape, OrchestratorConfig
+ * properties, all instruction property definitions) flows from TypeBox unchanged.
  */
 
 // ── Constants ─────────────────────────────────────────────
@@ -69,24 +72,29 @@ const defs: Record<string, unknown> = {
       { $ref: "#/$defs/SessionInstruction" },
       { $ref: "#/$defs/ShellInstruction" },
       { $ref: "#/$defs/RoutineRefInstruction" },
+      { $ref: "#/$defs/FlowInstruction" },
     ],
   },
 };
 
-// ── Top-level schema: derived from FlowDefinitionSchema ─────
-// The only override: routines[].steps gets a $ref to break the cycle.
-// We cast through Record<string, unknown> because TypeBox property types
-// are typed objects — replacing them with raw JSON Schema objects (e.g.
-// $refs, inline literals) needs a type escape.
+// ── Top-level properties: derived from FlowDefinitionSchema ──
 
-const properties = structuredClone(FlowDefinitionSchema.properties);
+const properties = structuredClone(FlowDefinitionSchema.properties) as Record<string, unknown>;
+
+// Fix TypeBox's bare `$ref` → AJV-compatible `#/$defs/` prefix.
 properties.orchestrator = { $ref: "#/$defs/OrchestratorConfig" };
 
-// Clone the TypeBox routinesArray and replace only the recursive `steps`
-// with a $ref — everything else (id, params shape, minLength) comes from TypeBox.
-const routinesDef = structuredClone(routinesArray);
-routinesDef.items.properties.steps = { type: "array", items: { $ref: "#/$defs/FlowInstruction" } };
-properties.routines = routinesDef;
+// Replace inline `steps` with `$ref` in routines items.
+
+const routinesClone = structuredClone(routines);
+routinesClone.items.properties.steps = {
+  type: "array",
+  items: { $ref: "#/$defs/FlowInstruction" },
+};
+
+properties.routines = routinesClone;
+
+// ── Assemble ────────────────────────────────────────────────
 
 const schema: Record<string, unknown> = {
   $schema: META_SCHEMA_URL,
@@ -110,10 +118,9 @@ const outPath = path.join(outDir, "flow-schema.json");
 fs.writeFileSync(outPath, JSON.stringify(schema, null, 2) + "\n");
 
 console.log(`Wrote flow-schema.json to ${outPath}`);
-
 // ── Helpers ─────────────────────────────────────────────────
 
-function replaceStepsRef(containerSchema: TObject) {
+function replaceStepsRef<ObjectType extends TObject>(containerSchema: ObjectType) {
   const clone = structuredClone<TObject>(containerSchema);
   const props = clone.properties;
   if (props?.steps) {
@@ -122,5 +129,7 @@ function replaceStepsRef(containerSchema: TObject) {
       items: { $ref: "#/$defs/FlowInstruction" },
     };
   }
-  return clone;
+  return clone as ObjectType & {
+    steps: { type: "array"; items: { $ref: "#/$defs/FlowInstruction" } };
+  };
 }

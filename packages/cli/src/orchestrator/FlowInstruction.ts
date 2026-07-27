@@ -187,18 +187,15 @@ export const RoutineParamSchema = Type.Object({
 const RoutineDefinitionSchema = Type.Object({
   id: Type.String({ minLength: 1 }),
   params: Type.Array(RoutineParamSchema),
-  // steps placeholder — Type.Any() avoids the circular FlowInstructionUnion reference
-  // during Type.Array's internal Clone. The real validator is patched below.
-  steps: Type.Any(),
+  steps: Type.Array(FlowInstructionUnion),
 });
 
 // Patch the cloned copy inside the TArray with the real FlowInstructionUnion-based
 // validator so Value.Check can reject invalid nested instructions.
 // Type.Array clones the item schema internally, so we reach into the clone.
-export const routinesArray = Type.Array(RoutineDefinitionSchema);
-const items = routinesArray.items;
-if (items?.properties) {
-  Object.defineProperty(items.properties, "steps", {
+export const routines = Type.Array(RoutineDefinitionSchema);
+if (routines.items?.properties) {
+  Object.defineProperty(routines.items.properties, "steps", {
     value: Type.Array(FlowInstructionUnion),
     writable: true,
     enumerable: true,
@@ -212,7 +209,7 @@ export const FlowDefinitionSchema = Type.Object({
   name: Type.String({ minLength: 1 }),
   command: Type.String({ minLength: 1 }),
   orchestrator: Type.Optional(OrchestratorConfigSchema),
-  routines: routinesArray,
+  routines,
 });
 
 // ── Explicit TypeScript types ─────────────────────────────────

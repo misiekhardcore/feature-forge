@@ -132,9 +132,9 @@ function collectFromRoutines(routines: FlowDefinition["routines"]): {
   const specRefs: string[] = [];
 
   for (const routine of routines) {
-    collectAgentInstructions(routine.steps as FlowInstruction[], agentTasks);
-    collectAgentSpecs(routine.steps as FlowInstruction[], specRefs);
-    collectLoops(routine.steps as FlowInstruction[], loops);
+    collectAgentInstructions(routine.steps, agentTasks);
+    collectAgentSpecs(routine.steps, specRefs);
+    collectLoops(routine.steps, loops);
   }
 
   return { agentTasks, loops, specRefs };
