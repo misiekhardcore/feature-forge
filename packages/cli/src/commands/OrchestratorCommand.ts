@@ -15,10 +15,11 @@ import { Command } from "./Command";
  *
  * Each loaded flow gets one `OrchestratorCommand` registered under the flow's
  * slash-command name (e.g. `/implement`). The command:
- * 1. resolves the orchestrator spec by name (`flow.orchestrator.systemPrompt`)
- *    via {@link SpecManager} — the same path sub-agent specs use. The persona
- *    markdown is bundled with its flow but loaded once at startup by the same
- *    `SpecLoader` and filed in the shared registry; see ADR 0007.
+ * The {@code systemPrompt} field in the orchestrator config is **not** raw
+ * prompt text — it is a spec identifier (e.g. {@code "implement-orchestrator"})
+ * resolved through {@link SpecManager}. The actual markdown content lives in
+ * the flow's {@code orchestrator.md} file, whose frontmatter {@code id} matches
+ * the {@code systemPrompt} value. See ADR 0007.
  * 2. resolves `flow.orchestrator.prompt` against the user's slash-command args
  *    (trivial `{{prompt}}` substitution, plus `promptParams`) into a final
  *    `task` string;
@@ -54,9 +55,17 @@ export class OrchestratorCommand extends Command {
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
     const userTask = args.trim() || "(no task provided)";
 
+    if (!this.flow.orchestrator) {
+      ctx.ui.notify(
+        `Flow "${this.flow.name}" has no orchestrator config — use a headless command instead.`,
+        "error",
+      );
+      return;
+    }
+
     if (!this.spec) {
       this.spec = this.specManager.resolve({
-        spec: this.flow.orchestrator!.systemPrompt,
+        spec: this.flow.orchestrator.systemPrompt,
       });
     }
 
@@ -70,14 +79,14 @@ export class OrchestratorCommand extends Command {
   }
 
   /**
-   * Resolve the orchestrator prompt template against the user's slash-command
-   * args. `{{prompt}}` maps to the (fallback-guarded) user task; any other
-   * `{{key}}` is resolved from `flow.orchestrator.promptParams`.
+   * Resolve the orchestrator prompt template against the user's args.
+   * `{{prompt}}` → user task; other `{{key}}` → `orchestrator.promptParams`.
    */
   private resolveTask(userTask: string): string {
-    const template = this.flow.orchestrator!.prompt ?? "";
+    const config = this.flow.orchestrator;
+    const template = config?.prompt ?? "";
     const params: Record<string, string> = {
-      ...(this.flow.orchestrator!.promptParams ?? {}),
+      ...(config?.promptParams ?? {}),
       prompt: userTask,
     };
 
