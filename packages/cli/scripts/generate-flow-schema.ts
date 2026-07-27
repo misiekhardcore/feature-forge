@@ -75,7 +75,7 @@ const schema = {
     "Self-contained flow definition. " +
     "Declares a slash command, orchestrator config, and named deterministic routines.",
   type: "object",
-  required: ["$schema", "name", "command", "orchestrator", "routines"],
+  required: ["$schema", "name", "command", "routines"],
   properties: {
     $schema: FlowDefinitionSchema.properties.$schema,
     params: FlowDefinitionSchema.properties.params,
