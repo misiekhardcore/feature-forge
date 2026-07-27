@@ -14,14 +14,14 @@ describe("orchestrator system prompt", () => {
     const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
     const flow = await loader.load("flow");
 
-    const systemPrompt = flow.orchestrator!.systemPrompt;
-    expect(systemPrompt.length).toBeGreaterThan(0);
+    const systemPrompt = flow.orchestrator?.systemPrompt;
+    expect(systemPrompt?.length).toBeGreaterThan(0);
 
     const ctx = new FlowContext({
       results: new Map(),
       prompt: "Add user authentication",
     });
-    const resolved = ctx.resolve(systemPrompt);
+    const resolved = ctx.resolve(systemPrompt ?? "");
 
     // The resolved systemPrompt must not contain any {{...}} tokens.
     expect(resolved).not.toMatch(/\{\{/);
@@ -31,7 +31,7 @@ describe("orchestrator system prompt", () => {
   it("contains no uppercase placeholder tokens in raw form", async () => {
     const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
     const flow = await loader.load("flow");
-    const systemPrompt = flow.orchestrator!.systemPrompt;
+    const systemPrompt = flow.orchestrator?.systemPrompt;
 
     // No {{CONTEXT}} or {{WORKSPACE}} or {{TASK}} should remain.
     expect(systemPrompt).not.toMatch(/\{\{CONTEXT\}\}/);
@@ -43,11 +43,11 @@ describe("orchestrator system prompt", () => {
     const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
     const flow = await loader.load("flow");
 
-    expect(flow.orchestrator!.systemPrompt).toBeTruthy();
-    expect(flow.orchestrator!.systemPrompt.length).toBeGreaterThan(0);
+    expect(flow.orchestrator?.systemPrompt).toBeTruthy();
+    expect(flow.orchestrator?.systemPrompt.length).toBeGreaterThan(0);
 
     // systemPrompt is a spec name resolved through SpecManager — symmetric
     // with how flow agent steps reference sub-agent specs like "build".
-    expect(flow.orchestrator!.systemPrompt).toBe("implement-orchestrator");
+    expect(flow.orchestrator?.systemPrompt).toBe("implement-orchestrator");
   });
 });

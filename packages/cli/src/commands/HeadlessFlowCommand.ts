@@ -1,7 +1,9 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 
-import type { AgentSupervisor } from "../agents";
-import type { FlowDefinition } from "../orchestrator/FlowInstruction";
+import type { AgentSupervisor, SpecManager } from "../agents";
+import type { FlowDefinition, RoutineDefinition } from "../orchestrator/FlowInstruction";
 import type { RoutineExecutor } from "../orchestrator/RoutineExecutor";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import { Command } from "./Command";
@@ -26,8 +28,8 @@ export class HeadlessFlowCommand extends Command {
     private readonly flow: FlowDefinition,
     private readonly routineExecutor: RoutineExecutor,
     supervisor: AgentSupervisor,
-    pi: import("@earendil-works/pi-coding-agent").ExtensionAPI,
-    specManager: import("../agents/SpecManager").SpecManager,
+    pi: ExtensionAPI,
+    specManager: SpecManager,
     toolRegistry: ToolRegistry,
   ) {
     super(supervisor, pi, specManager, toolRegistry);
@@ -36,14 +38,29 @@ export class HeadlessFlowCommand extends Command {
   }
 
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
-    const params = HeadlessFlowCommand.parseArgs(args);
     const routine = this.flow.routines[0];
     if (!routine) {
       ctx.ui.notify(`${this.flow.name} flow has no routines to run.`, "error");
       return;
     }
 
-    const prompt = params["prompt"] ?? args.trim();
+    const { params, prompt } = HeadlessFlowCommand.parseArgs(args, routine);
+
+    // Validate against the routine's declared param schema.
+    const schema = HeadlessFlowCommand.buildValidationSchema(routine);
+    if (!Value.Check(schema, params)) {
+      const errors = [...Value.Errors(schema, params)]
+        .map((e) => `  ${(e as { instancePath?: string }).instancePath?.slice(1) || e.message}`)
+        .join("\n");
+      ctx.ui.notify(
+        `Invalid params for ${this.flow.name}:\n${errors}\n\nExpected: ` +
+          routine.params
+            .map((p) => `${p.name}${p.optional !== true ? " (required)" : ""}`)
+            .join(", "),
+        "error",
+      );
+      return;
+    }
 
     ctx.ui.notify(`Running ${this.flow.name}...`, "info");
 
@@ -62,25 +79,74 @@ export class HeadlessFlowCommand extends Command {
   }
 
   /**
-   * Parse `key=value` pairs from slash-command args.
+   * Parse `key=value` pairs and free-text prompt from slash-command args.
    *
-   * Supports:
-   * - `key=value` — unquoted single-token values
-   * - `key="value with spaces"` — double-quoted values
+   * `key=value` tokens are extracted wherever they appear in the string;
+   * the remaining text (with matched tokens stripped) becomes the prompt.
+   * An explicit `prompt=...` token overrides the extracted free text.
    *
-   * Any text that doesn't match the pattern is silently ignored.
+   * Order-independent — all of these produce the same result:
+   * - `/review workspace=/ws review auth`
+   * - `/review review auth workspace=/ws`
+   * - `/review workspace=/ws prompt="review auth"`
    */
-  static parseArgs(args: string): Record<string, string> {
+  static parseArgs(
+    args: string,
+    routine: RoutineDefinition,
+  ): { params: Record<string, string>; prompt: string } {
     const params: Record<string, string> = {};
     const regex = /(\w+)=("(?:[^"\\]|\\.)*"|\S+)/g;
+    const consumed: Array<{ start: number; end: number }> = [];
     let match: RegExpExecArray | null;
+
     while ((match = regex.exec(args)) !== null) {
       let value = match[2];
       if (value.startsWith('"') && value.endsWith('"')) {
         value = value.slice(1, -1).replaceAll(/\\"/g, '"');
       }
       params[match[1]] = value;
+      consumed.push({ start: match.index, end: match.index + match[0].length });
     }
-    return params;
+
+    // Build the prompt from text that wasn't consumed as key=value tokens.
+    let prompt = "";
+    let cursor = 0;
+    for (const range of consumed.sort((a, b) => a.start - b.start)) {
+      prompt += args.slice(cursor, range.start);
+      cursor = range.end;
+    }
+    prompt += args.slice(cursor);
+    prompt = prompt.replaceAll(/\s+/g, " ").trim();
+
+    // An explicit prompt=... param overrides the extracted free text.
+    if (params["prompt"]) {
+      prompt = params["prompt"];
+      delete params["prompt"];
+    }
+
+    // Apply defaults for missing optional params.
+    for (const param of routine.params) {
+      if (!(param.name in params) && param.default !== undefined) {
+        params[param.name] = param.default;
+      }
+    }
+
+    return { params, prompt };
+  }
+
+  /**
+   * Build a TypeBox schema from the routine's declared params for validation.
+   *
+   * Each param becomes a `Type.String()` property. Params with `optional: true`
+   * are wrapped in `Type.Optional()`. Unknown keys are rejected via
+   * `additionalProperties: false`.
+   */
+  static buildValidationSchema(routine: RoutineDefinition): ReturnType<typeof Type.Object> {
+    const properties: Record<string, ReturnType<typeof Type.String>> = {};
+    for (const param of routine.params) {
+      const schema = Type.String({ minLength: 1 });
+      properties[param.name] = param.optional === true ? Type.Optional(schema) : schema;
+    }
+    return Type.Object(properties, { additionalProperties: false });
   }
 }

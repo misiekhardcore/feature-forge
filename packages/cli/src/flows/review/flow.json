@@ -8,12 +8,13 @@
       "params": [
         {
           "name": "output",
-          "description": "Raw output from previous step",
-          "required": true
+          "description": "Raw output from previous step"
         },
         {
           "name": "workspace",
-          "description": "Absolute path to the workspace"
+          "description": "Absolute path to the workspace",
+          "optional": true,
+          "default": "."
         }
       ],
       "steps": [

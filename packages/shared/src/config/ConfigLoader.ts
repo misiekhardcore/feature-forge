@@ -11,6 +11,7 @@ import * as path from "node:path";
 
 import type { Type } from "typebox";
 import { Value } from "typebox/value";
+import { parse as parseYaml } from "yaml";
 
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { resolveConfig } from "./ForgeConfigDefaults";
@@ -137,7 +138,6 @@ export class ConfigLoader {
   private async parseContent(content: string, ext: string, filePath: string): Promise<unknown> {
     try {
       if (ext === ".yaml" || ext === ".yml") {
-        const { parse: parseYaml } = await import("yaml");
         return parseYaml(content);
       }
       // Default to JSON

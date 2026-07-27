@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,7 +56,6 @@ async function main(): Promise<void> {
   // Read and parse JSON
   let raw: string;
   try {
-    const { readFile } = await import("node:fs/promises");
     raw = await readFile(filepath, "utf-8");
   } catch {
     console.error(`✗ File not found: ${filepath}`);

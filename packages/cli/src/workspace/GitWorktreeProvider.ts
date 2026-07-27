@@ -9,7 +9,7 @@ import {
   WorktreeBranchExistsError,
   WorktreePathExistsError,
 } from "./WorkspaceError";
-import { WorkspaceProvider } from "./WorkspaceProvider";
+import { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
 
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
@@ -67,7 +67,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
    */
   public override async createWorkspace(
     workspaceId: string,
-    options?: import("./WorkspaceProvider").CreateWorkspaceOptions,
+    options?: CreateWorkspaceOptions,
   ): Promise<string> {
     const worktreePath = this.getWorktreePath(workspaceId);
     const branchName = options?.branch ?? this.getBranchName(workspaceId);
