@@ -18,6 +18,7 @@ export {
   MissingConfigError,
   MissingConfigFileError,
   resolveConfig,
+  resolveModel,
   SpecDirectories,
   SpecDirectoriesSchema,
   WorkspaceProviderKind,

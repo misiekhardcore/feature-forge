@@ -40,6 +40,8 @@ export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
     maxPreconnectBuffer: 2000,
     maxOverlayHeight: "85%",
   },
+  models: {},
+  defaultModel: undefined,
   dev: {
     enabled: false,
   },
@@ -98,6 +100,8 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     worktreeSymlinks: overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
     specDirectories: overrides.specDirectories ?? DEFAULT_FORGE_CONFIG.specDirectories,
+    models: overrides.models ? { ...overrides.models } : DEFAULT_FORGE_CONFIG.models,
+    defaultModel: overrides.defaultModel ?? DEFAULT_FORGE_CONFIG.defaultModel,
     display: overrides.display ?? DEFAULT_FORGE_CONFIG.display,
     dev: overrides.dev ?? DEFAULT_FORGE_CONFIG.dev,
   };

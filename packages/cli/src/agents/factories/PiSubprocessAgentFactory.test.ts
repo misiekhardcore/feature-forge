@@ -90,4 +90,19 @@ describe("PiSubprocessAgentFactory", () => {
     await factory.create(makeSpec("model-test", { model: "claude-sonnet-4-5" }));
     expect(rpcMock.instance.start).toHaveBeenCalled();
   });
+
+  it("resolves model via models map when alias matches", async () => {
+    factory = new PiSubprocessAgentFactory(
+      {},
+      { smart: { model: "claude-sonnet-4-5", provider: "anthropic" } },
+    );
+    await factory.create(makeSpec("resolved-test", { model: "smart" }));
+    expect(rpcMock.instance.start).toHaveBeenCalled();
+  });
+
+  it("passes raw model string through when alias not in models map", async () => {
+    factory = new PiSubprocessAgentFactory({}, { smart: { model: "claude-sonnet-4-5" } });
+    await factory.create(makeSpec("passthrough-test", { model: "gpt-4o" }));
+    expect(rpcMock.instance.start).toHaveBeenCalled();
+  });
 });

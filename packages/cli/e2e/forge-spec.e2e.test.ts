@@ -89,6 +89,21 @@ describe("FORGE_SPEC E2E", () => {
     }, 20_000);
   });
 
+  describe("model", () => {
+    it("loads without crash when FORGE_SPEC contains model field", async () => {
+      await spawnAndVerify(
+        createMockSpec({
+          id: "spec-model",
+          role: "spec-model",
+          systemPrompt: "Agent with model field",
+          toolRestrictions: { read: [], grep: [] },
+          model: "gpt-4",
+        }).toJSON(),
+        "model",
+      );
+    }, 20_000);
+  });
+
   describe("thinkingLevel", () => {
     const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 

@@ -70,6 +70,12 @@ export const AgentModelConfigSchema = Type.Object({
 });
 
 /**
+ * Named model presets (e.g., "smart", "medium", "dumb").
+ * Each value is an {@link AgentModelConfig}.
+ */
+export const ModelsMapSchema = Type.Readonly(Type.Record(Type.String(), AgentModelConfigSchema));
+
+/**
  * Agent-level configuration overrides.
  */
 export const AgentConfigSchema = Type.Object({
@@ -158,6 +164,12 @@ export const ForgeConfigSchema = Type.Object({
   /** Display configuration for the agent viewer overlay. */
   display: Type.Readonly(Type.Optional(DisplayConfigSchema)),
 
+  /** Named model presets ("smart", "medium", "dumb"). Each value is an AgentModelConfig. */
+  models: Type.Readonly(Type.Optional(ModelsMapSchema)),
+
+  /** Default model preset key. References a key in `models`. Undefined means no preset default — the system falls back to `defaultAgent.model` or a hard-coded fallback. */
+  defaultModel: Type.Readonly(Type.Optional(Type.String())),
+
   /** Development-mode configuration. */
   dev: Type.Readonly(Type.Optional(DevConfigSchema)),
 });
@@ -166,6 +178,9 @@ export const ForgeConfigSchema = Type.Object({
 
 /** TypeScript type derived from {@link AgentModelConfigSchema}. */
 export type AgentModelConfig = Type.Static<typeof AgentModelConfigSchema>;
+
+/** TypeScript type derived from {@link ModelsMapSchema}. */
+export type ModelsMap = Type.Static<typeof ModelsMapSchema>;
 
 /** TypeScript type derived from {@link AgentConfigSchema}. */
 export type AgentConfig = Type.Static<typeof AgentConfigSchema>;
@@ -185,6 +200,11 @@ export type DevConfig = Type.Static<typeof DevConfigSchema>;
  * The `agents` field is typed as `ReadonlyMap` rather than `Record`
  * to enforce immutability at runtime.
  */
-export type ForgeConfig = Omit<Type.Static<typeof ForgeConfigSchema>, "agents"> & {
+export type ForgeConfig = Omit<
+  Type.Static<typeof ForgeConfigSchema>,
+  "agents" | "models" | "defaultModel"
+> & {
   readonly agents: ReadonlyMap<string, AgentConfig>;
+  readonly models: Readonly<Record<string, AgentModelConfig>>;
+  readonly defaultModel: string | undefined;
 };
