@@ -6,6 +6,7 @@ import { logger, resolveModel } from "@feature-forge/shared";
 
 import { PiSubprocessAgent, SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
+import { DynamicAgentSpecification } from "../specifications/DynamicAgentSpecification";
 import { AgentCreationError, AgentFactory } from "./AgentFactory";
 import { buildPiCliArguments } from "./helpers";
 
@@ -44,12 +45,23 @@ export class PiSubprocessAgentFactory extends AgentFactory {
   }
 
   private buildRpcClient(specification: AgentSpecification): RpcClient {
-    const args = [...(this.options.args ?? []), ...buildPiCliArguments(specification)];
     const resolvedModel = resolveModel(specification.model, this.models);
+
+    // If the resolved model preset has a thinkingLevel and the spec doesn't
+    // already have one, clone the spec with the preset's thinkingLevel applied.
+    const effectiveSpec =
+      resolvedModel?.thinkingLevel && !specification.thinkingLevel
+        ? new DynamicAgentSpecification({
+            ...specification.toJSON(),
+            thinkingLevel: resolvedModel.thinkingLevel,
+          })
+        : specification;
+
+    const args = [...(this.options.args ?? []), ...buildPiCliArguments(effectiveSpec)];
 
     return new RpcClient({
       cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),
-      cwd: specification.cwd ?? this.options.cwd ?? process.cwd(),
+      cwd: effectiveSpec.cwd ?? this.options.cwd ?? process.cwd(),
       model: resolvedModel?.model ?? this.options.model,
       provider: resolvedModel?.provider ?? this.options.provider,
       args,

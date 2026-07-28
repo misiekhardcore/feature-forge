@@ -68,10 +68,11 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     // the same routine; here we resolve it at runtime to a concrete path.
     const cwd = this.resolveCwd(instruction, context);
 
-    // Apply all overrides (cwd, model) in a single createDynamic call.
+    // Apply all overrides (cwd, model, thinkingLevel) in a single createDynamic call.
     const overrides: Record<string, unknown> = {};
     if (cwd !== undefined) overrides.cwd = cwd;
     if (instruction.model) overrides.model = instruction.model;
+    if (instruction.thinkingLevel) overrides.thinkingLevel = instruction.thinkingLevel;
 
     const effectiveSpecification =
       Object.keys(overrides).length > 0

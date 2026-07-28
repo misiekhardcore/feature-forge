@@ -322,6 +322,45 @@ describe("ForgeConfigSchema", () => {
       };
       expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
     });
+
+    it("validates a model preset with thinkingLevel", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "claude-sonnet-4-5", thinkingLevel: "high" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("validates a model preset without thinkingLevel (optional)", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "claude-sonnet-4-5" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("rejects a model preset with empty thinkingLevel", () => {
+      const invalid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "gpt-4o", thinkingLevel: "" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    });
   });
 
   it("rejects agents with invalid values", () => {

@@ -67,6 +67,20 @@ export const AgentModelConfigSchema = Type.Object({
 
   /** Optional provider override (e.g., "anthropic", "openai"). */
   provider: Type.Readonly(Type.Optional(Type.String())),
+
+  /** Optional thinking/reasoning level override. */
+  thinkingLevel: Type.Readonly(
+    Type.Optional(
+      Type.Union([
+        Type.Literal("off"),
+        Type.Literal("minimal"),
+        Type.Literal("low"),
+        Type.Literal("medium"),
+        Type.Literal("high"),
+        Type.Literal("xhigh"),
+      ]),
+    ),
+  ),
 });
 
 /**

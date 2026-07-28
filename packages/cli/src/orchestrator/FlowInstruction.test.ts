@@ -205,6 +205,33 @@ describe("AgentInstructionSchema", () => {
     };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
+
+  it("validates agent instruction with thinkingLevel", () => {
+    const valid = {
+      type: "agent",
+      id: "a1",
+      systemPrompt: "build",
+      prompt: "do it",
+      thinkingLevel: "high",
+    };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("accepts agent instruction without thinkingLevel (optional)", () => {
+    const valid = { type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty thinkingLevel string", () => {
+    const invalid = {
+      type: "agent",
+      id: "a1",
+      systemPrompt: "build",
+      prompt: "do it",
+      thinkingLevel: "",
+    };
+    expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
 });
 
 describe("ParallelInstructionSchema", () => {

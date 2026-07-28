@@ -30,7 +30,7 @@ const hoisted = vi.hoisted(() => {
     get tools() {
       return [];
     },
-  } as AgentSpecification;
+  } as unknown as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),
   };

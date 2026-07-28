@@ -6,6 +6,7 @@
  * created via vi.hoisted() in each test file to avoid TDZ issues with
  * vi.mock hoisting.
  */
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import {
   type EventBus,
   type ExtensionAPI,
@@ -59,7 +60,9 @@ export function makeSpec(
     systemPrompt: string;
     toolRestrictions: Record<string, readonly string[]>;
     model: string;
+    thinkingLevel: ThinkingLevel;
     ephemeral: boolean;
+    cwd: string;
   }> = {},
 ): AgentSpecification {
   return new (class extends AgentSpecification {
@@ -70,7 +73,9 @@ export function makeSpec(
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
         toolRestrictions: overrides.toolRestrictions,
         model: overrides.model,
+        thinkingLevel: overrides.thinkingLevel,
         ephemeral: overrides.ephemeral,
+        cwd: overrides.cwd,
       });
     }
   })();
@@ -336,8 +341,30 @@ export function makeMockSpecManager() {
         skills: [],
         excludedSkills: [],
         toolRestrictions: params.toolRestrictions ?? {},
-        model: undefined,
-        thinkingLevel: undefined,
+        model: params.model,
+        thinkingLevel: params.thinkingLevel,
+        /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+        toJSON(this: any) {
+          return {
+            id: this.id,
+            role: this.role,
+            systemPrompt: this.systemPrompt,
+            excludedTools: this.excludedTools,
+            toolRestrictions: this.toolRestrictions,
+            skills: this.skills,
+            excludedSkills: this.excludedSkills,
+            model: this.model,
+            thinkingLevel: this.thinkingLevel,
+            disableBuiltinTools: this.disableBuiltinTools,
+            disableExtensions: this.disableExtensions,
+            disableSkills: this.disableSkills,
+            disablePromptTemplates: this.disablePromptTemplates,
+            disableContextFiles: this.disableContextFiles,
+            ephemeral: this.ephemeral,
+            cwd: this.cwd,
+          };
+        },
+        /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
       } satisfies AgentSpecification;
     }),
     createDynamic: vi.fn().mockImplementation((params: AgentSpecificationParams) => {
@@ -360,7 +387,29 @@ export function makeMockSpecManager() {
         excludedSkills: [],
         skills: [],
         toolRestrictions: params.toolRestrictions ?? {},
-        thinkingLevel: undefined,
+        thinkingLevel: params.thinkingLevel,
+        /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+        toJSON(this: any) {
+          return {
+            id: this.id,
+            role: this.role,
+            systemPrompt: this.systemPrompt,
+            excludedTools: this.excludedTools,
+            toolRestrictions: this.toolRestrictions,
+            skills: this.skills,
+            excludedSkills: this.excludedSkills,
+            model: this.model,
+            thinkingLevel: this.thinkingLevel,
+            disableBuiltinTools: this.disableBuiltinTools,
+            disableExtensions: this.disableExtensions,
+            disableSkills: this.disableSkills,
+            disablePromptTemplates: this.disablePromptTemplates,
+            disableContextFiles: this.disableContextFiles,
+            ephemeral: this.ephemeral,
+            cwd: this.cwd,
+          };
+        },
+        /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
       } satisfies AgentSpecification;
     }),
   } as unknown as SpecManager;

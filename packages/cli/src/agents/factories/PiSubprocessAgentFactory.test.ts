@@ -34,6 +34,17 @@ const rpcMock = vi.hoisted(() => {
 
 vi.mock("@earendil-works/pi-coding-agent", () => rpcMock.factory());
 
+vi.mock("@feature-forge/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@feature-forge/shared")>();
+  return {
+    ...actual,
+    resolveModel: vi.fn((m: string | undefined, _models: Record<string, unknown>) =>
+      m === undefined ? undefined : { model: m },
+    ),
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  };
+});
+
 import { makeSpec } from "../../test-utils";
 import { PiSubprocessAgent } from "../agents/PiSubprocessAgent";
 import { AgentCreationError } from "./AgentFactory";
@@ -97,6 +108,24 @@ describe("PiSubprocessAgentFactory", () => {
       { smart: { model: "claude-sonnet-4-5", provider: "anthropic" } },
     );
     await factory.create(makeSpec("resolved-test", { model: "smart" }));
+    expect(rpcMock.instance.start).toHaveBeenCalled();
+  });
+
+  it("applies thinkingLevel from model preset to specification", async () => {
+    factory = new PiSubprocessAgentFactory(
+      {},
+      { smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "high" } },
+    );
+    await factory.create(makeSpec("think-test", { model: "smart" }));
+    expect(rpcMock.instance.start).toHaveBeenCalled();
+  });
+
+  it("does not override existing thinkingLevel with preset value", async () => {
+    factory = new PiSubprocessAgentFactory(
+      {},
+      { smart: { model: "claude-sonnet-4-5", thinkingLevel: "high" } },
+    );
+    await factory.create(makeSpec("think-test", { model: "smart", thinkingLevel: "low" }));
     expect(rpcMock.instance.start).toHaveBeenCalled();
   });
 
