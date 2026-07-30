@@ -1,6 +1,6 @@
 {
-  "name": "@feature-forge/cli",
-  "version": "0.1.0",
+  "name": "@misiekhardcore/feature-forge",
+  "version": "0.1.3",
   "description": "Feature Forge CLI — autonomous software engineering platform",
   "type": "module",
   "pi": {
@@ -16,7 +16,7 @@
   ],
   "main": "dist/index.js",
   "bin": {
-    "forge": "./bin/forge.js"
+    "forge": "bin/forge.js"
   },
   "scripts": {
     "build": "tsup && node --input-type=module -e \"import m from './dist/index.js'; if (typeof m !== 'function') process.exit(1)\"",

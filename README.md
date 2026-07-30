@@ -1,59 +1,61 @@
 # Feature Forge
 
-[![CI](https://github.com/misiekhardcore/feature-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/misiekhardcore/feature-forge/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue.svg)](LICENSE)
+Autonomous software engineering platform for [pi](https://github.com/earendil-works/pi-coding-agent) — takes ideas from discovery through implementation, driven by structured planning, ADR-driven design, and multi-agent orchestration.
 
-Autonomous software engineering platform — from idea to production-ready implementation, driven by structured discovery, ADR-driven design, and multi-agent orchestration.
-
-## Core capabilities
-
-- **Interactive ideation** and requirements discovery
-- **Architecture and design decisions** (ADR-driven)
-- **Autonomous feature planning and implementation**
-- **Build, test, and validation loops**
-- **Project, design, and failure memory**
-- **Model routing** (Opus, Sonnet, Haiku)
-- **Dynamic task decomposition** and agent allocation
-- **Continuous learning** from reviews and implementation failures
-
-## Repository structure
-
-This is a Turborepo monorepo managed with npm workspaces:
-
-| Package                        | Location                  | Description                                                  |
-| ------------------------------ | ------------------------- | ------------------------------------------------------------ |
-| `@feature-forge/cli`           | `packages/cli/`           | Main pi extension — orchestrator, step executors, IPC agents |
-| `@feature-forge/shared`        | `packages/shared/`        | Shared base types and abstractions                           |
-| `@feature-forge/eslint-config` | `packages/eslint-config/` | Shared ESLint configuration                                  |
-| `@feature-forge/web`           | `packages/web/`           | Web UI (TBD)                                                 |
-
-## Installation
+## Install
 
 ```bash
-git clone https://github.com/misiekhardcore/feature-forge.git
-cd feature-forge
-npm install
+pi install npm:@misiekhardcore/feature-forge
 ```
 
-## Usage
+## Initialize a project
 
-Feature Forge runs as a [pi](https://github.com/earendil-works/pi-coding-agent) extension. Add it to your pi configuration to enable the feature development pipeline commands.
+Run inside any git repository:
 
-## Development
+```
+/forge:init
+```
+
+Or non-interactively:
 
 ```bash
-npm test            # Run tests (vitest, all packages)
-npm run check       # Run all checks (lint + format + test)
-npm run typecheck   # Full TypeScript type safety check
-npm run lint        # Check code style (turbo, all packages)
-npm run lint:fix    # Auto-fix lint issues (turbo, all packages)
-npm run format      # Check formatting (turbo, all packages)
-npm run format:fix  # Auto-fix formatting (turbo, all packages)
-npm run fix         # Combined: lint:fix + format:fix — run before pushing
-npm run changelog   # Generate CHANGELOG.md
+npx @misiekhardcore/feature-forge init --yes
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, and [AGENTS.md](AGENTS.md) for coding conventions, operational patterns, and project structure.
+This scaffolds `.forge/` directories, a default `forge.config.json`, and `.gitignore` entries.
+
+## Commands
+
+| Command             | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| `/forge:research`   | Research a topic with web search and structured findings |
+| `/forge:implement`  | Run the full build → review → verify loop                |
+| `/agent:spawn`      | Spawn a sub-agent for parallel work                      |
+| `/agent:list`       | List active agents                                       |
+| `/agent:destroy`    | Destroy an agent                                         |
+| `/worktree:list`    | List active worktrees                                    |
+| `/worktree:destroy` | Destroy a worktree                                       |
+| `/worktree:prune`   | Prune stale worktrees                                    |
+| `/forge:init`       | Initialize project scaffolding                           |
+
+## Configuration
+
+Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your project root. Defaults:
+
+```json
+{
+  "logLevel": "info",
+  "workspaceProvider": "git-worktree",
+  "worktreeSymlinks": ["node_modules", ".env"],
+  "specDirectories": { "flows": [], "agents": [] }
+}
+```
+
+Environment variables override config: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, repository structure, pull request guidelines, and release process.
 
 ## License
 

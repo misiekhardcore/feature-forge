@@ -1,8 +1,7 @@
 {
-  "name": "feature-forge",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Autonomous software engineering platform — idea to PR via structured discovery, ADR-driven design, and multi-agent implementation",
+  "name": "@misiekhardcore/feature-forge",
+  "version": "0.1.3",
+  "description": "Pi extension for autonomous software engineering — structured discovery, ADR-driven design, and multi-agent implementation from idea to PR.",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -48,5 +47,28 @@
     "typebox": "1.3.8",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
+  },
+  "files": [
+    "packages/cli/dist/index.js",
+    "packages/cli/scripts/",
+    "packages/cli/defaults/",
+    "packages/cli/bin/"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "coding-agent",
+    "orchestrator",
+    "autonomous",
+    "software-engineering"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/misiekhardcore/feature-forge.git"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://github.com/misiekhardcore/feature-forge#readme",
+  "bugs": {
+    "url": "https://github.com/misiekhardcore/feature-forge/issues"
   }
 }
