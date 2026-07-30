@@ -1,3 +1,8 @@
 import { baseConfig } from "@feature-forge/eslint-config";
 
-export default baseConfig;
+export default [
+  ...baseConfig,
+  {
+    ignores: ["bin/forge.js", "tsup.config.ts"],
+  },
+];
