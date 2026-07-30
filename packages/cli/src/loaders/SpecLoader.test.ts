@@ -363,5 +363,133 @@ toolPreset: "fullAccess"
 
       await expect(loader.load(filepath)).rejects.toThrow(/broken\.md/);
     });
+
+    describe("colon syntax in tools", () => {
+      it("handles unrestricted entries (no colon)", async () => {
+        const filepath = join(tempDir, "unrestricted.md");
+        await fs.writeFile(
+          filepath,
+          `---
+id: "unrestricted"
+role: "unrestricted"
+tools:
+  - run_build_loop
+  - open_pr
+ephemeral: true
+---
+# Unrestricted
+`,
+        );
+        const parsed = await loader.load(filepath);
+        registry.register(parsed.name, parsed.factory);
+        const spec = registry.create("unrestricted");
+        expect(spec.tools).toEqual(["run_build_loop", "open_pr"]);
+        expect(spec.toolRestrictions).toEqual({
+          run_build_loop: [],
+          open_pr: [],
+        });
+      });
+
+      it("parses a single colon pattern", async () => {
+        const filepath = join(tempDir, "single-pattern.md");
+        await fs.writeFile(
+          filepath,
+          `---
+id: "single-pattern"
+role: "single-pattern"
+tools:
+  - read:src/**
+ephemeral: true
+---
+# Single Pattern
+`,
+        );
+        const parsed = await loader.load(filepath);
+        registry.register(parsed.name, parsed.factory);
+        const spec = registry.create("single-pattern");
+        expect(spec.tools).toEqual(["read"]);
+        expect(spec.toolRestrictions).toEqual({
+          read: ["src/**"],
+        });
+      });
+
+      it("merges multiple patterns for the same tool", async () => {
+        const filepath = join(tempDir, "multi-pattern.md");
+        await fs.writeFile(
+          filepath,
+          `---
+id: "multi-pattern"
+role: "multi-pattern"
+tools:
+  - read:src/**
+  - read:*.md
+  - read:*.json
+ephemeral: true
+---
+# Multi Pattern
+`,
+        );
+        const parsed = await loader.load(filepath);
+        registry.register(parsed.name, parsed.factory);
+        const spec = registry.create("multi-pattern");
+        expect(spec.tools).toEqual(["read"]);
+        expect(spec.toolRestrictions).toEqual({
+          read: ["src/**", "*.md", "*.json"],
+        });
+      });
+
+      it("mixes colon entries with unrestricted entries", async () => {
+        const filepath = join(tempDir, "mixed.md");
+        await fs.writeFile(
+          filepath,
+          `---
+id: "mixed"
+role: "mixed"
+tools:
+  - run_build_loop
+  - read:src/**
+  - bash:git *
+  - ls
+ephemeral: true
+---
+# Mixed
+`,
+        );
+        const parsed = await loader.load(filepath);
+        registry.register(parsed.name, parsed.factory);
+        const spec = registry.create("mixed");
+        expect(spec.tools).toEqual(["run_build_loop", "read", "bash", "ls"]);
+        expect(spec.toolRestrictions).toEqual({
+          run_build_loop: [],
+          read: ["src/**"],
+          bash: ["git *"],
+          ls: [],
+        });
+      });
+
+      it("loads the real tool-restricted-test.md fixture", async () => {
+        const fixturePath = join(
+          __dirname,
+          "..",
+          "agents",
+          "declarative-specs",
+          "tool-restricted-test.md",
+        );
+        const parsed = await loader.load(fixturePath);
+        registry.register(parsed.name, parsed.factory);
+        const spec = registry.create("tool-restricted-test");
+        // Object.keys deduplicates — each tool appears once
+        expect(spec.tools).toEqual(["read", "grep", "ls", "bash", "write", "edit", "find"]);
+        expect(spec.toolRestrictions).toEqual({
+          read: ["src/**", "packages/**", "*.md", "*.json"],
+          grep: ["src/**", "packages/**"],
+          ls: ["src/**", "packages/**", "."],
+          bash: ["git *", "npm *"],
+          write: ["src/**"],
+          edit: ["src/**"],
+          find: ["src/**"],
+        });
+      });
+    });
   });
 });

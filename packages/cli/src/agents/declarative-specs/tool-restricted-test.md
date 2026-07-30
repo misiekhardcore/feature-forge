@@ -2,37 +2,21 @@
 id: "tool-restricted-test"
 role: "tool-restricted-test"
 tools:
-  - read
-  - grep
-  - ls
+  - read:src/**
+  - read:packages/**
+  - read:*.md
+  - read:*.json
+  - grep:src/**
+  - grep:packages/**
+  - ls:src/**
+  - ls:packages/**
+  - ls:.
   - bash:git *
   - bash:npm *
   - write:src/**
   - edit:src/**
   - find:src/**
 ephemeral: true
-toolRestrictions:
-  bash:
-    - git *
-    - npm *
-  write:
-    - src/**
-  grep:
-    - src/**
-    - packages/**
-  read:
-    - src/**
-    - packages/**
-    - "*.md"
-    - "*.json"
-  edit:
-    - src/**
-  find:
-    - src/**
-  ls:
-    - src/**
-    - packages/**
-    - .
 ---
 
 # Tool-Restricted Test Agent
