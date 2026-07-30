@@ -66,3 +66,12 @@ jobs:
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
+
+      - name: Setup npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish -w @feature-forge/cli --access public
