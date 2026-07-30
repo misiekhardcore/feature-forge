@@ -1,6 +1,6 @@
 {
 
-  "logLevel": "info",
+  "logLevel": "debug",
   "logPrefix": "forge",
   "workspaceProvider": "git-worktree",
   "logDir": ".forge/logs",
@@ -32,6 +32,6 @@
   },
 
   "dev": {
-    "enabled": false
+    "enabled": true
   }
 }

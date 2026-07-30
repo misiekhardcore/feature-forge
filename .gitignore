@@ -6,19 +6,23 @@ dist/
 .DS_Store
 coverage/
 .turbo/
-.env
-.env.local
 
 # Project memory artifacts
-.claude/
+.lavish/
 
-# Worktree runtime state — ignore children by default; allow skills dir
+# pi coding agent runtime (symlinked per worktree)
+coverage-single/
+
+# Feature Forge runtime
 .forge/*
 !.forge/skills/
 !.forge/skills/**
 !.forge/config.json
-.lavish/
-
-# pi coding agent runtime (symlinked per worktree)
-.pi
 coverage-single/
+
+# pi coding agent runtime
+.pi/
+
+# Environment overrides
+.env
+.env.local
