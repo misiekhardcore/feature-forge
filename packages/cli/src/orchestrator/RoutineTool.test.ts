@@ -11,7 +11,13 @@ import type { DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
+import {
+  makeMockToolRegistry,
+  makeMockTypedEventBus,
+  MockWorkspaceProvider,
+  MockWorktreeRegistry,
+} from "../test-utils";
+import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
@@ -381,7 +387,14 @@ describe("RoutineTool", () => {
         new FakeProvider(),
       );
       const registry = new StepExecutorRegistry();
-      registry.register(() => new WorkspaceStepExecutor(wpRegistry, new WorktreeRegistry()));
+      registry.register(
+        () =>
+          new WorkspaceStepExecutor(
+            wpRegistry,
+            new WorktreeRegistry(),
+            new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
+          ),
+      );
 
       const flow: FlowDefinition = {
         $schema: FLOW_SCHEMA_URL,
