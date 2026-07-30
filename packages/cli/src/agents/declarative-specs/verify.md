@@ -1,6 +1,7 @@
 ---
 id: "verify"
 role: "verify"
+model: "medium"
 toolPreset: "verify"
 ephemeral: true
 skills:

@@ -1,6 +1,7 @@
 ---
 id: "review"
 role: "review"
+model: "smart"
 toolPreset: "reviewOnly"
 ephemeral: true
 skills:

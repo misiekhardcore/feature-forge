@@ -1,6 +1,7 @@
 ---
 id: "build"
 role: "build"
+model: "dumb"
 toolPreset: "fullAccess"
 ephemeral: true
 skills:
