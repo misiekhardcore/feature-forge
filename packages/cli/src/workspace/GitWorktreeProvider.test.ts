@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => {
   const rmSync = vi.fn();
   const symlinkSync = vi.fn();
   const mkdirSync = vi.fn();
+  const lstatSync = vi.fn();
+  const readlinkSync = vi.fn();
   /** Maps "cmd::JSON.stringify(args)" → { stdout } | { error, stderr } */
   const execResults = new Map<
     string,
@@ -24,6 +26,8 @@ const mocks = vi.hoisted(() => {
     rmSync.mockReset();
     symlinkSync.mockReset();
     mkdirSync.mockReset();
+    lstatSync.mockReset();
+    readlinkSync.mockReset();
 
     execFile.mockImplementation(
       (
@@ -78,6 +82,12 @@ const mocks = vi.hoisted(() => {
     get mkdirSync() {
       return mkdirSync;
     },
+    get lstatSync() {
+      return lstatSync;
+    },
+    get readlinkSync() {
+      return readlinkSync;
+    },
     reset,
     addExistingPath,
     willSucceed,
@@ -97,6 +107,8 @@ vi.mock("node:fs", async () => {
     rmSync: mocks.rmSync,
     symlinkSync: mocks.symlinkSync,
     mkdirSync: mocks.mkdirSync,
+    lstatSync: mocks.lstatSync,
+    readlinkSync: mocks.readlinkSync,
   };
 });
 
@@ -570,6 +582,95 @@ describe("GitWorktreeProvider", () => {
 
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
       expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
+    });
+
+    it("skips symlink when target directory already exists (tracked in git)", async () => {
+      // .pi is tracked in git, so the worktree already contains it
+      mocks.addExistingPath(`${worktreePath}/.pi`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      // lstatSync should have been consulted
+      expect(mocks.lstatSync).toHaveBeenCalled();
+      // symlinkSync should NOT be called for .pi (it already exists)
+      const piSymlinkCalls = mocks.symlinkSync.mock.calls.filter((call: unknown[]) =>
+        (call[1] as string).endsWith(".pi"),
+      );
+      expect(piSymlinkCalls).toHaveLength(0);
+    });
+
+    it("skips symlink when target symlink already points to the same source", async () => {
+      mocks.addExistingPath(`${worktreePath}/.pi`);
+      // lstatSync reports it's a symlink
+      mocks.lstatSync.mockReturnValueOnce({
+        isSymbolicLink: () => true,
+      });
+      // readlinkSync returns the expected relative path
+      mocks.readlinkSync.mockReturnValueOnce("../../../.pi");
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      const piSymlinkCalls = mocks.symlinkSync.mock.calls.filter((call: unknown[]) =>
+        (call[1] as string).endsWith(".pi"),
+      );
+      expect(piSymlinkCalls).toHaveLength(0);
+    });
+
+    it("skips symlink when target symlink points elsewhere (with warning)", async () => {
+      mocks.addExistingPath(`${worktreePath}/.pi`);
+      mocks.lstatSync.mockReturnValueOnce({
+        isSymbolicLink: () => true,
+      });
+      mocks.readlinkSync.mockReturnValueOnce("/some/other/path");
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      const piSymlinkCalls = mocks.symlinkSync.mock.calls.filter((call: unknown[]) =>
+        (call[1] as string).endsWith(".pi"),
+      );
+      expect(piSymlinkCalls).toHaveLength(0);
+    });
+
+    it("skips symlink when lstatSync throws on existing target", async () => {
+      mocks.addExistingPath(`${worktreePath}/.pi`);
+      mocks.lstatSync.mockImplementationOnce(() => {
+        throw new Error("EACCES");
+      });
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      const piSymlinkCalls = mocks.symlinkSync.mock.calls.filter((call: unknown[]) =>
+        (call[1] as string).endsWith(".pi"),
+      );
+      expect(piSymlinkCalls).toHaveLength(0);
     });
   });
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpcMock = vi.hoisted(() => {
   let instance: Record<string, ReturnType<typeof vi.fn>>;
+  let lastRpcOptions: Record<string, unknown> = {};
 
   function reset() {
     instance = {
@@ -10,16 +11,21 @@ const rpcMock = vi.hoisted(() => {
       prompt: vi.fn().mockResolvedValue(undefined),
       onEvent: vi.fn().mockReturnValue(vi.fn()),
     };
+    lastRpcOptions = {};
   }
   reset();
 
-  function MockRpcClientConstructor() {
+  function MockRpcClientConstructor(opts: Record<string, unknown>) {
+    lastRpcOptions = opts;
     return instance;
   }
 
   return {
     get instance() {
       return instance!;
+    },
+    get lastRpcOptions() {
+      return lastRpcOptions;
     },
     reset,
     factory: () => ({
@@ -38,9 +44,14 @@ vi.mock("@feature-forge/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@feature-forge/shared")>();
   return {
     ...actual,
-    resolveModel: vi.fn((m: string | undefined, _models: Record<string, unknown>) =>
-      m === undefined ? undefined : { model: m },
-    ),
+    resolveModel: vi.fn((m: string | undefined, models: Record<string, unknown>) => {
+      if (m === undefined) return undefined;
+      if (m in models) {
+        const preset = models[m] as Record<string, unknown>;
+        return { ...preset };
+      }
+      return { model: m };
+    }),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   };
 });
@@ -81,7 +92,6 @@ describe("PiSubprocessAgentFactory", () => {
     rpcMock.instance.start.mockRejectedValue("string cause");
     const spec = makeSpec("fail-str");
     await expect(factory.create(spec)).rejects.toThrow(AgentCreationError);
-    // The inner cause is stored but AgentCreationError message doesn't include it
     const err = await factory.create(spec).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AgentCreationError);
   });
@@ -133,5 +143,22 @@ describe("PiSubprocessAgentFactory", () => {
     factory = new PiSubprocessAgentFactory({}, { smart: { model: "claude-sonnet-4-5" } });
     await factory.create(makeSpec("passthrough-test", { model: "gpt-4o" }));
     expect(rpcMock.instance.start).toHaveBeenCalled();
+  });
+
+  it("does not pass model to RpcClient when preset name is not configured", async () => {
+    await factory.create(makeSpec("dumb-test", { model: "dumb" }));
+    expect(rpcMock.lastRpcOptions.model).toBeUndefined();
+  });
+
+  it("passes resolved model to RpcClient when preset is configured", async () => {
+    factory = new PiSubprocessAgentFactory({}, { medium: { model: "claude-sonnet-4-5" } });
+    await factory.create(makeSpec("medium-test", { model: "medium" }));
+    expect(rpcMock.lastRpcOptions.model).toBe("claude-sonnet-4-5");
+  });
+
+  it("still passes through raw model when presets are configured", async () => {
+    factory = new PiSubprocessAgentFactory({}, { medium: { model: "claude-sonnet-4-5" } });
+    await factory.create(makeSpec("raw-test", { model: "gpt-4o" }));
+    expect(rpcMock.lastRpcOptions.model).toBe("gpt-4o");
   });
 });
