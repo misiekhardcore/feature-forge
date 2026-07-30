@@ -18,6 +18,7 @@ export {
   MissingConfigError,
   MissingConfigFileError,
   resolveConfig,
+  ResolvedModelConfig,
   resolveModel,
   SpecDirectories,
   SpecDirectoriesSchema,

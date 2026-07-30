@@ -18,6 +18,7 @@ describe("resolveModel", () => {
     expect(resolveModel("smart", models)).toEqual({
       model: "claude-sonnet-4-5",
       provider: "anthropic",
+      resolved: true,
     });
   });
 
@@ -25,25 +26,25 @@ describe("resolveModel", () => {
     const models: Record<string, AgentModelConfig> = {
       medium: { model: "claude-sonnet-4-5" },
     };
-    expect(resolveModel("medium", models)).toEqual({ model: "claude-sonnet-4-5" });
+    expect(resolveModel("medium", models)).toEqual({ model: "claude-sonnet-4-5", resolved: true });
   });
 
   it("treats unknown string as raw model name (passthrough)", () => {
     const models: Record<string, AgentModelConfig> = {
       smart: { model: "claude-sonnet-4-5", provider: "anthropic" },
     };
-    expect(resolveModel("gpt-4o", models)).toEqual({ model: "gpt-4o" });
+    expect(resolveModel("gpt-4o", models)).toEqual({ model: "gpt-4o", resolved: false });
   });
 
   it("treats empty string as raw model name (passthrough)", () => {
     const models: Record<string, AgentModelConfig> = {
       smart: { model: "claude-sonnet-4-5", provider: "anthropic" },
     };
-    expect(resolveModel("", models)).toEqual({ model: "" });
+    expect(resolveModel("", models)).toEqual({ model: "", resolved: false });
   });
 
   it("works with empty models map (always passthrough)", () => {
     const models: Record<string, AgentModelConfig> = {};
-    expect(resolveModel("any-model", models)).toEqual({ model: "any-model" });
+    expect(resolveModel("any-model", models)).toEqual({ model: "any-model", resolved: false });
   });
 });
