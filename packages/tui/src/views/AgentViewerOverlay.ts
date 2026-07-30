@@ -2,8 +2,8 @@ import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
-import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
 import { AgentStatus } from "@feature-forge/shared";
+import { TypedEventBus } from "@misiekhardcore/feature-forge/src/orchestrator/eventBus";
 
 import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display";

@@ -5,10 +5,6 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { AgentSupervisor } from "@feature-forge/cli/src/agents";
-import type { Agent } from "@feature-forge/cli/src/agents/agents/Agent";
-import type { AgentSpecification } from "@feature-forge/cli/src/agents/specifications";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import {
   AgentDisplayHelpers,
@@ -16,6 +12,13 @@ import {
   AgentViewerOverlay,
   AgentViewerOverlayParams,
 } from "@feature-forge/tui";
+import { AgentSupervisor } from "@misiekhardcore/feature-forge/src/agents";
+import type { Agent } from "@misiekhardcore/feature-forge/src/agents/agents/Agent";
+import type { AgentSpecification } from "@misiekhardcore/feature-forge/src/agents/specifications";
+import {
+  makeMockToolRegistry,
+  makeMockTypedEventBus,
+} from "@misiekhardcore/feature-forge/src/test-utils";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Re-export constant for test assertions
@@ -1710,7 +1713,12 @@ describe("AgentViewerOverlay", () => {
       return {
         getAgent: vi.fn((agentId: string) => agents.find((a) => a.id === agentId)),
         getAllAgents: vi.fn(() => agents),
-      } as unknown as AgentSupervisor;
+        spawnGuest: vi.fn(),
+        mountInSession: vi.fn(),
+        runAgent: vi.fn(),
+        destroyAgent: vi.fn(),
+        destroyAll: vi.fn(),
+      };
     }
 
     it("propagates passed: true from agent-done event to the entry", () => {
