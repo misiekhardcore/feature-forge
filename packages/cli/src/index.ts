@@ -124,18 +124,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const worktreeProvider = new GitWorktreeProvider(repoRoot);
   const worktreeRegistry = new WorktreeRegistry();
   await worktreeRegistry.load();
-  const report = await worktreeRegistry.reconcile(repoRoot);
-  if (
-    report.staleRegistryEntries.length > 0 ||
-    report.orphanedWorktrees.length > 0 ||
-    report.orphanedBranches.length > 0
-  ) {
-    logger.warn("[feature-forge] Worktree registry reconciliation found issues", {
-      staleRegistryEntries: report.staleRegistryEntries,
-      orphanedWorktrees: report.orphanedWorktrees,
-      orphanedBranches: report.orphanedBranches,
-    });
-  }
+  await worktreeRegistry.reconcileAndLog(repoRoot);
   const workspaceManager = new WorkspaceManager(worktreeProvider, worktreeRegistry);
 
   // ── Signal handlers ────────────────────────────────────────────────

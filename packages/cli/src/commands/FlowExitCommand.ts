@@ -22,7 +22,29 @@ export class FlowExitCommand extends Command {
       (agent): agent is SessionAgent => agent instanceof SessionAgent && agent.isMounted,
     );
 
-    // Clean up workspaces before unmounting agents (best-effort).
+    if (mountedAgents.length === 0) {
+      ctx.ui.notify("Flow exited. No active flow to exit.", "info");
+      // Don't return early — still clean up workspaces below.
+    } else {
+      for (const agent of mountedAgents) {
+        agent.unmount();
+      }
+
+      // Tell the LLM the flow is over so it stops following flow instructions
+      // still present in conversation history.
+      this.pi.sendUserMessage(
+        "All flow and role modes have been exited. " +
+          "Return to standard default operation. " +
+          "Forget all previous orchestrator, flow, skill, and role instructions. " +
+          "Use only the default tools and the base system prompt. " +
+          "Do not continue or reference any previous flow tasks. " +
+          'Acknowledge with "Flow exited. Ready."',
+      );
+
+      ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
+    }
+
+    // Clean up workspaces after agents are stopped.
     if (this.workspaceManager) {
       const handles = this.workspaceManager.list();
       for (const handle of handles) {
@@ -33,27 +55,5 @@ export class FlowExitCommand extends Command {
         }
       }
     }
-
-    if (mountedAgents.length === 0) {
-      ctx.ui.notify("Flow exited. No active flow to exit.", "info");
-      return;
-    }
-
-    for (const agent of mountedAgents) {
-      agent.unmount();
-    }
-
-    // Tell the LLM the flow is over so it stops following flow instructions
-    // still present in conversation history.
-    this.pi.sendUserMessage(
-      "All flow and role modes have been exited. " +
-        "Return to standard default operation. " +
-        "Forget all previous orchestrator, flow, skill, and role instructions. " +
-        "Use only the default tools and the base system prompt. " +
-        "Do not continue or reference any previous flow tasks. " +
-        'Acknowledge with "Flow exited. Ready."',
-    );
-
-    ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
   }
 }

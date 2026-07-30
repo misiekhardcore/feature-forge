@@ -158,6 +158,27 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
   }
 
   /**
+   * Run {@link reconcile} and log a warning if any mismatches are found.
+   *
+   * @param repoRoot — Absolute path to the repository root (defaults to two
+   *   levels up from the storage path).
+   */
+  async reconcileAndLog(repoRoot?: string): Promise<void> {
+    const report = await this.reconcile(repoRoot);
+    if (
+      report.staleRegistryEntries.length > 0 ||
+      report.orphanedWorktrees.length > 0 ||
+      report.orphanedBranches.length > 0
+    ) {
+      logger.warn("[feature-forge] Worktree registry reconciliation found issues", {
+        staleRegistryEntries: report.staleRegistryEntries,
+        orphanedWorktrees: report.orphanedWorktrees,
+        orphanedBranches: report.orphanedBranches,
+      });
+    }
+  }
+
+  /**
    * Write the current state to disk.
    */
   private async persist(): Promise<void> {

@@ -237,7 +237,7 @@ describe("FlowExitCommand", () => {
       );
     });
 
-    it("destroys active workspaces before unmounting agents", async () => {
+    it("destroys active workspaces after unmounting agents", async () => {
       const handle = await workspaceManager.create("task-1");
       const destroySpy = vi.spyOn(workspaceManager, "destroy");
 
