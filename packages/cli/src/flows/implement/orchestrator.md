@@ -32,6 +32,19 @@ You have access to these sub-agent types via routine tools:
 
 ## Workflow
 
+### Phase 0: Detect Rework Intent
+
+Before provisioning a workspace, scan the user's prompt for rework signals:
+
+| Signal    | Examples                                                                            |
+| --------- | ----------------------------------------------------------------------------------- |
+| PR number | `#42`, `PR #42`, `rework #42`, `fix #42`                                            |
+| Keywords  | "rework", "fix PR feedback", "update PR", "add to PR", "revise", "address feedback" |
+
+**If rework is detected**: read `packages/cli/src/flows/implement/references/rework-flow.md` and follow the Rework Flow. The rework flow reuses the existing PR branch and skips PR creation -- it commits and pushes to the existing branch instead.
+
+**If no rework signals**: proceed with the Greenfield Flow below.
+
 ### Phase 1: Plan
 
 1. Call `create_workspace()` to provision a git worktree. Capture the returned
