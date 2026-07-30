@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
+import { addSessionWorkspace } from "../../workspace/sessionWorkspaces";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
@@ -77,6 +78,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     const handle = new WorkspaceHandle(path, new Date(), branch);
 
     await this.worktreeRegistry.register(handle);
+    addSessionWorkspace(path);
 
     eventBus.emit("feature-forge:workspace-ready", {
       phase: "workspace-ready",

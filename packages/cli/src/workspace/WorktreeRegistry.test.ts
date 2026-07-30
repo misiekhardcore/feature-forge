@@ -33,6 +33,13 @@ describe("WorktreeRegistry", () => {
     storagePath = join(tmpDir, "worktrees.json");
   });
 
+  /** Create a subdirectory inside tmpDir so it exists on disk. */
+  function makeDir(name: string): string {
+    const p = join(tmpDir, name);
+    mkdirSync(p, { recursive: true });
+    return p;
+  }
+
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -54,53 +61,77 @@ describe("WorktreeRegistry", () => {
 
     it("loads previously persisted data", async () => {
       const first = makeRegistry();
-      await first.register(makeHandle("/tmp/task-1"));
+      await first.register(makeHandle(makeDir("task-1")));
 
       const second = makeRegistry();
       await second.load();
 
-      const loaded = second.get("/tmp/task-1");
+      const loaded = second.get(makeDir("task-1"));
       expect(loaded).toBeDefined();
-      expect(loaded!.path).toBe("/tmp/task-1");
+      expect(loaded!.path).toBe(makeDir("task-1"));
     });
 
     it("loads multiple entries", async () => {
       const first = makeRegistry();
-      await first.register(makeHandle("/tmp/task-1"));
-      await first.register(makeHandle("/tmp/task-2"));
-      await first.register(makeHandle("/tmp/task-3"));
+      await first.register(makeHandle(makeDir("task-1")));
+      await first.register(makeHandle(makeDir("task-2")));
+      await first.register(makeHandle(makeDir("task-3")));
 
       const second = makeRegistry();
       await second.load();
 
       expect(second.getAll()).toHaveLength(3);
-      expect(second.get("/tmp/task-1")).toBeDefined();
-      expect(second.get("/tmp/task-2")).toBeDefined();
-      expect(second.get("/tmp/task-3")).toBeDefined();
+      expect(second.get(makeDir("task-1"))).toBeDefined();
+      expect(second.get(makeDir("task-2"))).toBeDefined();
+      expect(second.get(makeDir("task-3"))).toBeDefined();
     });
 
     it("replaces in-memory state with disk contents (does not accumulate)", async () => {
       const registry = makeRegistry();
-      await registry.register(makeHandle("/tmp/entry-1"));
-      await registry.register(makeHandle("/tmp/entry-2"));
+      await registry.register(makeHandle(makeDir("entry-1")));
+      await registry.register(makeHandle(makeDir("entry-2")));
       expect(registry.getAll()).toHaveLength(2);
 
       await registry.load();
       expect(registry.getAll()).toHaveLength(2);
-      expect(registry.get("/tmp/entry-1")).toBeDefined();
-      expect(registry.get("/tmp/entry-2")).toBeDefined();
+      expect(registry.get(makeDir("entry-1"))).toBeDefined();
+      expect(registry.get(makeDir("entry-2"))).toBeDefined();
     });
 
     it("preserves createdAt timestamp when loading", async () => {
       const date = new Date("2026-06-24T12:00:00.000Z");
       const first = makeRegistry();
-      await first.register(makeHandle("/tmp/task-1", date));
+      await first.register(makeHandle(makeDir("task-1"), date));
 
       const second = makeRegistry();
       await second.load();
 
-      const loaded = second.get("/tmp/task-1");
+      const loaded = second.get(makeDir("task-1"));
       expect(loaded!.createdAt.getTime()).toBe(date.getTime());
+    });
+
+    it("filters out stale entries whose paths no longer exist on disk", async () => {
+      const first = makeRegistry();
+      // Register a handle that exists on disk (tmpDir itself exists).
+      const validPath = tmpDir;
+      await first.register(makeHandle(validPath));
+
+      // Write a non-existent path directly into the persisted JSON.
+      const nonExistentPath = "/tmp/definitely-does-not-exist-" + Date.now();
+      const raw = JSON.stringify([
+        { path: validPath, createdAt: new Date().toISOString() },
+        { path: nonExistentPath, createdAt: new Date().toISOString() },
+      ]);
+      writeFileSync(storagePath, raw, "utf-8");
+
+      const second = makeRegistry();
+      await second.load();
+
+      // The non-existent path should be filtered out during load.
+      expect(second.get(validPath)).toBeDefined();
+      expect(second.get(nonExistentPath)).toBeUndefined();
+      // Only one valid entry should remain.
+      expect(second.getAll()).toHaveLength(1);
     });
   });
 
@@ -108,39 +139,39 @@ describe("WorktreeRegistry", () => {
     it("adds a handle and makes it retrievable", async () => {
       const registry = makeRegistry();
       await registry.load();
-      await registry.register(makeHandle("/tmp/task-1"));
+      await registry.register(makeHandle(makeDir("task-1")));
 
-      expect(registry.get("/tmp/task-1")).toBeDefined();
+      expect(registry.get(makeDir("task-1"))).toBeDefined();
     });
 
     it("persists to disk so a new registry instance can load it", async () => {
       const first = makeRegistry();
       await first.load();
-      await first.register(makeHandle("/tmp/persistent"));
+      await first.register(makeHandle(makeDir("persistent")));
 
       const second = makeRegistry();
       await second.load();
-      expect(second.get("/tmp/persistent")).toBeDefined();
+      expect(second.get(makeDir("persistent"))).toBeDefined();
     });
 
     it("throws when registering a duplicate path", async () => {
       const registry = makeRegistry();
       await registry.load();
-      await registry.register(makeHandle("/tmp/task-1"));
+      await registry.register(makeHandle(makeDir("task-1")));
 
-      await expect(registry.register(makeHandle("/tmp/task-1"))).rejects.toThrow(
-        "Item already registered: /tmp/task-1",
+      await expect(registry.register(makeHandle(makeDir("task-1")))).rejects.toThrow(
+        /Item already registered/,
       );
     });
 
     it("does not create duplicates when loading and re-registering same path", async () => {
       const first = makeRegistry();
-      await first.register(makeHandle("/tmp/task-1"));
+      await first.register(makeHandle(makeDir("task-1")));
 
       const second = makeRegistry();
       await second.load();
-      await expect(second.register(makeHandle("/tmp/task-1"))).rejects.toThrow(
-        "Item already registered: /tmp/task-1",
+      await expect(second.register(makeHandle(makeDir("task-1")))).rejects.toThrow(
+        /Item already registered/,
       );
     });
   });
@@ -149,22 +180,22 @@ describe("WorktreeRegistry", () => {
     it("removes a registered handle", async () => {
       const registry = makeRegistry();
       await registry.load();
-      await registry.register(makeHandle("/tmp/task-1"));
-      expect(registry.get("/tmp/task-1")).toBeDefined();
+      await registry.register(makeHandle(makeDir("task-1")));
+      expect(registry.get(makeDir("task-1"))).toBeDefined();
 
-      await registry.remove("/tmp/task-1");
-      expect(registry.get("/tmp/task-1")).toBeUndefined();
+      await registry.remove(makeDir("task-1"));
+      expect(registry.get(makeDir("task-1"))).toBeUndefined();
     });
 
     it("persists removal to disk", async () => {
       const first = makeRegistry();
       await first.load();
-      await first.register(makeHandle("/tmp/task-1"));
-      await first.remove("/tmp/task-1");
+      await first.register(makeHandle(makeDir("task-1")));
+      await first.remove(makeDir("task-1"));
 
       const second = makeRegistry();
       await second.load();
-      expect(second.get("/tmp/task-1")).toBeUndefined();
+      expect(second.get(makeDir("task-1"))).toBeUndefined();
     });
 
     it("is a no-op for non-existent paths", async () => {
@@ -190,11 +221,11 @@ describe("WorktreeRegistry", () => {
       const nestedPath = join(tmpDir, "nested", "deep", "worktrees.json");
       const registry = new WorktreeRegistry(nestedPath);
       await registry.load();
-      await registry.register(makeHandle("/tmp/task-1"));
+      await registry.register(makeHandle(makeDir("task-1")));
 
       const restored = new WorktreeRegistry(nestedPath);
       await restored.load();
-      expect(restored.get("/tmp/task-1")).toBeDefined();
+      expect(restored.get(makeDir("task-1"))).toBeDefined();
     });
   });
 
@@ -381,13 +412,11 @@ describe("WorktreeRegistry", () => {
       expect(report.orphanedWorktrees).toEqual([]);
     });
 
-    it("derives repoRoot from storage path when not provided", async () => {
-      // storagePath is `<tmpDir>/worktrees.json`, so derived repoRoot is `tmpdir()`.
-      // Only verify we don't crash and the arrays are empty (no orphaned dirs).
+    it("returns empty report for a clean state with explicit repoRoot", async () => {
       const registry = makeRegistry();
       await registry.load();
 
-      const report = await registry.reconcile();
+      const report = await registry.reconcile(tmpDir);
 
       // All arrays should be empty — no stale entries, no orphaned dirs, no branches.
       expect(report.staleRegistryEntries).toEqual([]);

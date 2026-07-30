@@ -1,6 +1,12 @@
 export { CurrentDirProvider } from "./CurrentDirProvider";
 export { GitWorktreeProvider } from "./GitWorktreeProvider";
 export {
+  addSessionWorkspace,
+  clearSessionWorkspaces,
+  getSessionWorkspacePaths,
+  removeSessionWorkspace,
+} from "./sessionWorkspaces";
+export {
   DirtyWorkingTreeError,
   WorkspaceError,
   WorktreeBranchExistsError,

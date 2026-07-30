@@ -93,9 +93,19 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
       const raw = await readFile(this.storagePath, "utf-8");
       const data = jsonParse<{ path: string; createdAt: string }[]>(raw);
 
+      let staleCount = 0;
       for (const entry of data) {
+        if (!existsSync(entry.path)) {
+          staleCount++;
+          continue;
+        }
         const handle = WorkspaceHandle.fromJSON(entry);
         this.set(handle.path, handle);
+      }
+
+      // Persist cleaned registry to disk so stale entries don't accumulate.
+      if (staleCount > 0) {
+        await this.persist();
       }
     } catch (cause) {
       logger.error("Registry load failed", { path: this.storagePath, cause });
@@ -115,8 +125,8 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
    * @param repoRoot — Absolute path to the repository root (defaults to two
    *   levels up from the storage path).
    */
-  async reconcile(repoRoot?: string): Promise<ReconciliationReport> {
-    const root = repoRoot ?? resolve(dirname(dirname(this.storagePath)));
+  async reconcile(repoRoot: string): Promise<ReconciliationReport> {
+    const root = repoRoot;
     const worktreesDir = resolve(root, ".forge", "worktrees");
 
     // 1. Registry entries whose paths don't exist on disk.
@@ -163,7 +173,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
    * @param repoRoot — Absolute path to the repository root (defaults to two
    *   levels up from the storage path).
    */
-  async reconcileAndLog(repoRoot?: string): Promise<void> {
+  async reconcileAndLog(repoRoot: string): Promise<void> {
     const report = await this.reconcile(repoRoot);
     if (
       report.staleRegistryEntries.length > 0 ||

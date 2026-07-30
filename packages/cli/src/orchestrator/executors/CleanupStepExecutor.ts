@@ -1,6 +1,7 @@
 import { logger } from "@feature-forge/shared";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
+import { removeSessionWorkspace } from "../../workspace/sessionWorkspaces";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
@@ -68,6 +69,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       const branch = handle?.branch ?? this.findHandleByPath(path, context.workspaces)?.branch;
       await this.destroyPath(path, branch, this.providerRegistry);
       await this.worktreeRegistry.remove(path);
+      removeSessionWorkspace(path);
       cleaned.push(targetName);
     } else {
       logger.info("Cleanup step — destroying all workspaces", {
@@ -79,6 +81,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
         try {
           await this.destroyPath(handle.path, handle.branch, this.providerRegistry);
           await this.worktreeRegistry.remove(handle.path);
+          removeSessionWorkspace(handle.path);
           cleaned.push(name);
         } catch (error) {
           logger.error("Workspace destruction failed", {

@@ -2,6 +2,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/shared";
 
 import { SessionAgent } from "../agents/agents/SessionAgent";
+import { removeSessionWorkspace } from "../workspace/sessionWorkspaces";
 import { Command } from "./Command";
 
 /**
@@ -51,6 +52,7 @@ export class FlowExitCommand extends Command {
         for (const path of paths) {
           try {
             await this.workspaceManager.destroy(path);
+            removeSessionWorkspace(path);
           } catch (error) {
             logger.error(`Failed to destroy workspace "${path}" during flow exit`, { error });
           }
