@@ -1,6 +1,7 @@
 import { logger } from "@feature-forge/shared";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
+import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { TypedEventBus } from "../eventBus";
@@ -64,7 +65,8 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
         path,
       });
 
-      await this.destroyPath(path, this.providerRegistry);
+      const branch = handle?.branch ?? this.findHandleByPath(path, context.workspaces)?.branch;
+      await this.destroyPath(path, branch, this.providerRegistry);
       await this.worktreeRegistry.remove(path);
       cleaned.push(targetName);
     } else {
@@ -75,7 +77,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
 
       for (const [name, handle] of context.workspaces) {
         try {
-          await this.destroyPath(handle.path, this.providerRegistry);
+          await this.destroyPath(handle.path, handle.branch, this.providerRegistry);
           await this.worktreeRegistry.remove(handle.path);
           cleaned.push(name);
         } catch (error) {
@@ -109,13 +111,17 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
     return updatedContext;
   }
 
-  private async destroyPath(path: string, registry: WorkspaceProviderRegistry): Promise<void> {
+  private async destroyPath(
+    path: string,
+    branch: string | undefined,
+    registry: WorkspaceProviderRegistry,
+  ): Promise<void> {
     const errors: Error[] = [];
     for (const providerName of registry.names()) {
       const provider = registry.get(providerName);
       if (!provider) continue;
       try {
-        await provider.destroyWorkspace(path, undefined);
+        await provider.destroyWorkspace(path, branch);
       } catch (error) {
         errors.push(error instanceof Error ? error : new Error(String(error)));
       }
@@ -125,6 +131,16 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
         `Failed to destroy workspace at "${path}": ${errors.map((e) => e.message).join("; ")}`,
       );
     }
+  }
+
+  private findHandleByPath(
+    path: string,
+    workspaces: ReadonlyMap<string, WorkspaceHandle>,
+  ): WorkspaceHandle | undefined {
+    for (const handle of workspaces.values()) {
+      if (handle.path === path) return handle;
+    }
+    return undefined;
   }
 
   /**
