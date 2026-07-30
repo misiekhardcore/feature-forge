@@ -296,5 +296,51 @@ describe("FlowExitCommand", () => {
         "info",
       );
     });
+
+    it("only destroys workspaces created after agent snapshot", async () => {
+      // Pre-existing workspace before snapshot
+      const preExisting = await workspaceManager.create("preexisting");
+
+      const spec = makeSpec("orchestrator", { role: "orchestrator" });
+      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+
+      // Snapshot captures only the pre-existing workspace
+      agent.snapshotWorkspaces(workspaceManager);
+
+      // Mount the agent
+      agent.mount(pi, "start task");
+
+      // New workspace created after snapshot
+      const newWs = await workspaceManager.create("new-workspace");
+
+      const destroySpy = vi.spyOn(workspaceManager, "destroy");
+
+      await cmd.handler("", ctx);
+
+      // Only the new workspace should be destroyed
+      expect(destroySpy).toHaveBeenCalledWith(newWs.path);
+      expect(destroySpy).not.toHaveBeenCalledWith(preExisting.path);
+      expect(destroySpy).toHaveBeenCalledTimes(1);
+      expect(agent.isMounted).toBe(false);
+    });
+
+    it("destroys all workspaces when snapshot was never taken (safety fallback)", async () => {
+      const ws1 = await workspaceManager.create("task-1");
+      const ws2 = await workspaceManager.create("task-2");
+
+      const spec = makeSpec("orchestrator", { role: "orchestrator" });
+      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      // No snapshotWorkspaces call — simulates non-orchestrator agent
+      agent.mount(pi, "start task");
+
+      const destroySpy = vi.spyOn(workspaceManager, "destroy");
+
+      await cmd.handler("", ctx);
+
+      // Both workspaces destroyed (degenerate to old behavior)
+      expect(destroySpy).toHaveBeenCalledWith(ws1.path);
+      expect(destroySpy).toHaveBeenCalledWith(ws2.path);
+      expect(destroySpy).toHaveBeenCalledTimes(2);
+    });
   });
 });

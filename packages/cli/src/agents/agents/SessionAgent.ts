@@ -6,6 +6,7 @@ import type {
 import { AgentStatus } from "@feature-forge/shared";
 import { logger } from "@feature-forge/shared";
 
+import type { WorkspaceManager } from "../../workspace";
 import type { AgentSpecification } from "../specifications";
 import { InSessionAgent } from "./InSessionAgent";
 
@@ -36,6 +37,7 @@ export class SessionAgent extends InSessionAgent {
   private handler: BeforeAgentStartHandler | undefined;
   private unmounted = true;
   private defaultTools: string[] = [];
+  private preExistingWorkspacePaths: Set<string> = new Set();
 
   constructor(specification: AgentSpecification) {
     super();
@@ -110,6 +112,26 @@ export class SessionAgent extends InSessionAgent {
     }
     this._status = AgentStatus.Cancelled;
     logger.info(`Agent ${this.specification.id} unmounted`);
+  }
+
+  /**
+   * Capture the current workspace list so later {@link getNewWorkspacePaths}
+   * only returns workspaces created after this snapshot.
+   */
+  snapshotWorkspaces(manager: WorkspaceManager): void {
+    this.preExistingWorkspacePaths = new Set(manager.list().map((h) => h.path));
+  }
+
+  /**
+   * Return workspace paths that were NOT present when {@link snapshotWorkspaces}
+   * was last called.
+   *
+   * If a snapshot was never taken, returns all current workspace paths
+   * (degenerate safety fallback).
+   */
+  getNewWorkspacePaths(manager: WorkspaceManager): string[] {
+    const currentPaths = new Set(manager.list().map((h) => h.path));
+    return [...currentPaths].filter((p) => !this.preExistingWorkspacePaths.has(p));
   }
 
   /**

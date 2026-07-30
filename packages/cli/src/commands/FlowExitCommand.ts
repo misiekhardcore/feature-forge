@@ -24,7 +24,7 @@ export class FlowExitCommand extends Command {
 
     if (mountedAgents.length === 0) {
       ctx.ui.notify("Flow exited. No active flow to exit.", "info");
-      // Don't return early — still clean up workspaces below.
+      // No agents to unmount and no workspaces were created — nothing to clean up.
     } else {
       for (const agent of mountedAgents) {
         agent.unmount();
@@ -44,14 +44,16 @@ export class FlowExitCommand extends Command {
       ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
     }
 
-    // Clean up workspaces after agents are stopped.
+    // Clean up only workspaces created after each agent's snapshot.
     if (this.workspaceManager) {
-      const handles = this.workspaceManager.list();
-      for (const handle of handles) {
-        try {
-          await this.workspaceManager.destroy(handle.path);
-        } catch (error) {
-          logger.error(`Failed to destroy workspace "${handle.path}" during flow exit`, { error });
+      for (const agent of mountedAgents) {
+        const paths = agent.getNewWorkspacePaths(this.workspaceManager);
+        for (const path of paths) {
+          try {
+            await this.workspaceManager.destroy(path);
+          } catch (error) {
+            logger.error(`Failed to destroy workspace "${path}" during flow exit`, { error });
+          }
         }
       }
     }

@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import type { AgentSupervisor } from "../agents";
-import type { InSessionAgent } from "../agents/agents/InSessionAgent";
+import { SessionAgent } from "../agents/agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
@@ -36,7 +36,7 @@ export class OrchestratorCommand extends Command {
   private readonly flow: FlowDefinition;
   // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
-  private agent: InSessionAgent | undefined;
+  private agent: SessionAgent | undefined;
 
   constructor(
     supervisor: AgentSupervisor,
@@ -70,7 +70,11 @@ export class OrchestratorCommand extends Command {
     }
 
     if (!this.agent) {
-      this.agent = await this.supervisor.mountInSession(this.spec);
+      this.agent = (await this.supervisor.mountInSession(this.spec)) as SessionAgent;
+    }
+
+    if (this.workspaceManager) {
+      this.agent.snapshotWorkspaces(this.workspaceManager);
     }
 
     this.agent.mount(this.pi, this.resolveTask(userTask));
