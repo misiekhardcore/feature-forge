@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { ForgeConfig, logger } from "@feature-forge/shared";
@@ -194,6 +194,33 @@ export class GitWorktreeProvider extends WorkspaceProvider {
       }
 
       const target = resolve(worktreePath, symlink);
+
+      // When the target already exists (e.g. directory tracked in git and
+      // materialised by git worktree add), skip instead of failing with EEXIST.
+      if (existsSync(target)) {
+        try {
+          const stat = lstatSync(target);
+          if (stat.isSymbolicLink()) {
+            const existingLink = readlinkSync(target);
+            const expectedLink = relative(dirname(target), source);
+            if (existingLink === expectedLink) {
+              continue;
+            }
+            logger.warn("Symlink target exists but points elsewhere", {
+              symlink,
+              target,
+              existingLink,
+              expectedLink,
+            });
+          } else {
+            logger.debug("Symlink target already exists, skipping", { symlink, target });
+          }
+        } catch {
+          logger.debug("Could not stat existing symlink target, skipping", { symlink, target });
+        }
+        continue;
+      }
+
       const targetParent = dirname(target);
       if (!existsSync(targetParent)) {
         mkdirSync(targetParent, { recursive: true });

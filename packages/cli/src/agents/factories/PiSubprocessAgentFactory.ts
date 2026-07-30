@@ -47,6 +47,22 @@ export class PiSubprocessAgentFactory extends AgentFactory {
   private buildRpcClient(specification: AgentSpecification): RpcClient {
     const resolvedModel = resolveModel(specification.model, this.models);
 
+    // When the spec model is a preset name not found in the models map and no
+    // presets are configured, don't force the unknown string onto pi — let pi
+    // use its own default model instead.
+    let effectiveModel = resolvedModel?.model;
+    if (
+      effectiveModel &&
+      specification.model &&
+      !(specification.model in this.models) &&
+      Object.keys(this.models).length === 0
+    ) {
+      logger.warn("Model preset not configured, using pi default model", {
+        specModel: specification.model,
+      });
+      effectiveModel = undefined;
+    }
+
     // If the resolved model preset has a thinkingLevel and the spec doesn't
     // already have one, clone the spec with the preset's thinkingLevel applied.
     const effectiveSpec =
@@ -62,7 +78,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
     return new RpcClient({
       cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),
       cwd: effectiveSpec.cwd ?? this.options.cwd ?? process.cwd(),
-      model: resolvedModel?.model ?? this.options.model,
+      model: effectiveModel ?? this.options.model,
       provider: resolvedModel?.provider ?? this.options.provider,
       args,
       env: {
