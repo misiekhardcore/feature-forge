@@ -21,7 +21,7 @@ class FakeProvider extends WorkspaceProvider {
     return `/fake/${this.label}`;
   }
 
-  override async destroyWorkspace(_path: string): Promise<void> {
+  override async destroyWorkspace(_path: string, _branch?: string): Promise<void> {
     // no-op
   }
 }

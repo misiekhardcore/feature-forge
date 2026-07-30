@@ -8,7 +8,7 @@ import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
-import type { WorkspaceManager } from "../workspace";
+import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
 /**
  * Command abstraction that follows pi's CommandDefinition shape exactly.
@@ -21,6 +21,7 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
     protected readonly toolRegistry: ToolRegistry,
     protected readonly workspaceManager?: WorkspaceManager,
     protected readonly commandRegistry?: CommandRegistry,
+    protected readonly worktreeRegistry?: WorktreeRegistry,
   ) {}
   abstract readonly name: string;
   abstract readonly description?: string;

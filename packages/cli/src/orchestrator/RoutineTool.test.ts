@@ -372,7 +372,7 @@ describe("RoutineTool", () => {
         ): Promise<string> {
           return "/tmp/ws";
         }
-        override async destroyWorkspace(_path: string): Promise<void> {
+        override async destroyWorkspace(_path: string, _branch?: string): Promise<void> {
           // no-op
         }
       }

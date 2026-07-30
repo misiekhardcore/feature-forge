@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 
 import { SessionAgent } from "../agents/agents/SessionAgent";
 import { Command } from "./Command";
@@ -21,8 +22,20 @@ export class FlowExitCommand extends Command {
       (agent): agent is SessionAgent => agent instanceof SessionAgent && agent.isMounted,
     );
 
+    // Clean up workspaces before unmounting agents (best-effort).
+    if (this.workspaceManager) {
+      const handles = this.workspaceManager.list();
+      for (const handle of handles) {
+        try {
+          await this.workspaceManager.destroy(handle.path);
+        } catch (error) {
+          logger.error(`Failed to destroy workspace "${handle.path}" during flow exit`, { error });
+        }
+      }
+    }
+
     if (mountedAgents.length === 0) {
-      ctx.ui.notify("No active flow to exit.", "info");
+      ctx.ui.notify("Flow exited. No active flow to exit.", "info");
       return;
     }
 

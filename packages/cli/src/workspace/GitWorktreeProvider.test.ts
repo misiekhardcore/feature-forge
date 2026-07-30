@@ -376,6 +376,55 @@ describe("GitWorktreeProvider", () => {
 
       await expect(provider.destroyWorkspace(worktreePath)).resolves.toBeUndefined();
     });
+
+    describe("branch deletion", () => {
+      it("deletes the branch after worktree removal", async () => {
+        mocks.addExistingPath(worktreePath);
+        mocks.willSucceed("git", ["worktree", "remove", worktreePath, "--force"], "removed");
+        mocks.willSucceed("git", ["worktree", "prune"], "");
+        mocks.willSucceed("git", ["branch", "-D", branchName], "Deleted branch forge/task-1.");
+
+        await provider.destroyWorkspace(worktreePath, branchName);
+
+        expect(mocks.execFile).toHaveBeenCalledWith(
+          "git",
+          ["branch", "-D", branchName],
+          expect.any(Object),
+          expect.any(Function),
+        );
+      });
+
+      it("logs warning and continues when branch deletion fails", async () => {
+        mocks.addExistingPath(worktreePath);
+        mocks.willSucceed("git", ["worktree", "remove", worktreePath, "--force"], "removed");
+        mocks.willSucceed("git", ["worktree", "prune"], "");
+        mocks.willFail("git", ["branch", "-D", branchName], "branch not found");
+
+        await expect(provider.destroyWorkspace(worktreePath, branchName)).resolves.toBeUndefined();
+      });
+
+      it("skips branch deletion when branch is not provided", async () => {
+        mocks.addExistingPath(worktreePath);
+        mocks.willSucceed("git", ["worktree", "remove", worktreePath, "--force"], "removed");
+        mocks.willSucceed("git", ["worktree", "prune"], "");
+
+        await provider.destroyWorkspace(worktreePath);
+
+        // branch -D should not have been called
+        const allCalls = mocks.execFile.mock.calls.map(
+          (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+        );
+        expect(allCalls).not.toContain(`git::${JSON.stringify(["branch", "-D", branchName])}`);
+      });
+
+      it("returns early without branch deletion when path does not exist", async () => {
+        // path does not exist (not added to existsSync)
+        await provider.destroyWorkspace(worktreePath, branchName);
+
+        // No git commands should be called at all
+        expect(mocks.execFile).not.toHaveBeenCalled();
+      });
+    });
   });
 
   // ── Symbolic links ──────────────────────────────────────────────────

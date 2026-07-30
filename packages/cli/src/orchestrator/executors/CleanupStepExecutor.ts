@@ -115,7 +115,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       const provider = registry.get(providerName);
       if (!provider) continue;
       try {
-        await provider.destroyWorkspace(path);
+        await provider.destroyWorkspace(path, undefined);
       } catch (error) {
         errors.push(error instanceof Error ? error : new Error(String(error)));
       }

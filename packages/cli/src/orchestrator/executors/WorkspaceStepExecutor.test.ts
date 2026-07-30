@@ -39,7 +39,7 @@ class CountingProvider extends WorkspaceProvider {
     return path;
   }
 
-  override async destroyWorkspace(path: string): Promise<void> {
+  override async destroyWorkspace(path: string, _branch?: string): Promise<void> {
     this.destroyed.push(path);
   }
 }
