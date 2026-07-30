@@ -33,7 +33,7 @@
   },
   "pi": {
     "extensions": [
-      "./packages/cli/src/index.ts"
+      "./packages/cli/dist/index.js"
     ]
   },
   "devDependencies": {

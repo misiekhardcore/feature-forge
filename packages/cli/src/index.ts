@@ -193,6 +193,35 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   await flowRegistrar.registerAll();
 
   registerDevTestCommands(pi, toolRegistry);
+
+  pi.registerCommand("forge:init", {
+    description: "Initialize Feature Forge project scaffolding",
+    handler: async (_args, ctx) => {
+      const setupScript = path.join(__dirname, "..", "scripts", "forge-setup.sh");
+
+      const scaffoldConfig = await ctx.ui.confirm(
+        "Forge: Init",
+        "Scaffold forge.config.json with defaults?",
+      );
+      const updateGitignore = await ctx.ui.confirm(
+        "Forge: Init",
+        "Add forge entries to .gitignore?",
+      );
+
+      const args = ["bash", setupScript];
+      if (!scaffoldConfig) args.push("--no-config");
+      if (!updateGitignore) args.push("--no-gitignore");
+      args.push("--yes", "--cwd", process.cwd());
+
+      try {
+        await pi.exec(args[0], args.slice(1));
+        ctx.ui.notify("Feature Forge initialized successfully", "info");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        ctx.ui.notify(`Setup failed: ${message}`, "error");
+      }
+    },
+  });
 };
 
 export default featureForgeExtension;

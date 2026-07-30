@@ -1,0 +1,6 @@
+{
+  "logLevel": "info",
+  "workspaceProvider": "git-worktree",
+  "worktreeSymlinks": ["node_modules", ".env"],
+  "specDirectories": { "flows": [], "agents": [] }
+}
