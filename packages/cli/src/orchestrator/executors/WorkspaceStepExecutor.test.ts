@@ -3,11 +3,11 @@ import { createAccumulatedState, DisplayContributionRegistry } from "@feature-fo
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
-import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
 import type { RoutineProgressEvent } from "../RoutineProgress";
@@ -50,7 +50,10 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
-function stubWorkspaceManager(provider: WorkspaceProvider, registry: WorktreeRegistry): WorkspaceManager {
+function stubWorkspaceManager(
+  provider: WorkspaceProvider,
+  registry: WorktreeRegistry,
+): WorkspaceManager {
   return new WorkspaceManager(provider, registry);
 }
 
