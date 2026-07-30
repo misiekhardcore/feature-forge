@@ -5,7 +5,7 @@ import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { Command } from "../commands";
 import { ToolRegistry } from "../registry/ToolRegistry";
-import type { WorkspaceManager } from "../workspace";
+import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
 /**
  * Constructor shape for commands registered via {@link CommandRegistry}.
@@ -19,6 +19,7 @@ type CommandConstructor = new (
   toolRegistry: ToolRegistry,
   workspaceManager?: WorkspaceManager,
   commandRegistry?: CommandRegistry,
+  worktreeRegistry?: WorktreeRegistry,
 ) => Command;
 
 export class CommandRegistry extends Registry<Command> {
@@ -28,6 +29,7 @@ export class CommandRegistry extends Registry<Command> {
     private readonly specManager: SpecManager,
     private readonly toolRegistry: ToolRegistry,
     private readonly workspaceManager?: WorkspaceManager,
+    private readonly worktreeRegistry?: WorktreeRegistry,
   ) {
     super();
   }
@@ -40,6 +42,7 @@ export class CommandRegistry extends Registry<Command> {
       this.toolRegistry,
       this.workspaceManager,
       this,
+      this.worktreeRegistry,
     );
     if (this.items.has(command.name)) {
       throw new Error(`Command already registered: ${command.name}`);

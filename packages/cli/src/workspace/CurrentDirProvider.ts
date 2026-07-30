@@ -15,7 +15,7 @@ export class CurrentDirProvider extends WorkspaceProvider {
     return process.cwd();
   }
 
-  public override async destroyWorkspace(_path: string): Promise<void> {
+  public override async destroyWorkspace(_path: string, _branch?: string): Promise<void> {
     // No-op: current directory is not owned by any single task.
   }
 }

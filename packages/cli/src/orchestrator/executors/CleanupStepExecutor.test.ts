@@ -22,7 +22,7 @@ class TrackingProvider extends WorkspaceProvider {
     return `/fake/${id}`;
   }
 
-  override async destroyWorkspace(path: string): Promise<void> {
+  override async destroyWorkspace(path: string, _branch?: string): Promise<void> {
     this.destroyedPaths.push(path);
   }
 }
@@ -134,7 +134,7 @@ describe("CleanupStepExecutor", () => {
         ): Promise<string> {
           return "/fail";
         }
-        override async destroyWorkspace(_path: string): Promise<void> {
+        override async destroyWorkspace(_path: string, _branch?: string): Promise<void> {
           throw new Error("destroy failed");
         }
       })();

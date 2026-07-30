@@ -48,6 +48,7 @@ export abstract class WorkspaceProvider {
    * Safe to call multiple times — subsequent calls should be no-ops.
    *
    * @param path — The absolute path returned by {@link createWorkspace}.
+   * @param branch — Optional branch name to delete after worktree removal.
    */
-  abstract destroyWorkspace(path: string): Promise<void>;
+  abstract destroyWorkspace(path: string, branch?: string): Promise<void>;
 }

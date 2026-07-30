@@ -18,6 +18,7 @@ import {
   ResearchCommand,
   WorktreeDestroyCommand,
   WorktreeListCommand,
+  WorktreePruneCommand,
 } from "./commands";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
@@ -43,6 +44,7 @@ import {
   WorkspaceProviderRegistry,
   WorktreeRegistry,
 } from "./workspace";
+import { registerSignalHandlers } from "./workspace/registerSignalHandlers";
 
 /**
  * Feature Forge — autonomous software engineering platform.
@@ -125,7 +127,14 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const worktreeProvider = new GitWorktreeProvider(repoRoot);
   const worktreeRegistry = new WorktreeRegistry();
   await worktreeRegistry.load();
+  await worktreeRegistry.reconcileAndLog(repoRoot);
   const workspaceManager = new WorkspaceManager(worktreeProvider, worktreeRegistry);
+
+  // ── Signal handlers ────────────────────────────────────────────────
+  // Best-effort workspace cleanup on termination signals.
+  // Uses process.once() to prevent listener leaks since handlers
+  // always call process.exit().
+  registerSignalHandlers(workspaceManager);
 
   const toolRegistry = new ToolRegistry(client, pi);
   toolRegistry.registerAll(
@@ -142,6 +151,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     specManager,
     toolRegistry,
     workspaceManager,
+    worktreeRegistry,
   );
   cmdRegistry.registerAll(
     AgentListCommand,
@@ -151,6 +161,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ResearchCommand,
     WorktreeListCommand,
     WorktreeDestroyCommand,
+    WorktreePruneCommand,
   );
 
   const workspaceProviderRegistry = new WorkspaceProviderRegistry()

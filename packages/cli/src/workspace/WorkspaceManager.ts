@@ -44,7 +44,7 @@ export class WorkspaceManager {
     if (!handle) {
       throw new WorkspaceError(`No workspace found with id "${workspaceId}"`);
     }
-    await this.provider.destroyWorkspace(handle.path);
+    await this.provider.destroyWorkspace(handle.path, handle.branch);
     await this.registry.remove(workspaceId);
   }
 

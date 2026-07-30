@@ -120,8 +120,11 @@ export class GitWorktreeProvider extends WorkspaceProvider {
    *
    * Safe to call multiple times — subsequent calls are no-ops if the
    * path no longer exists.
+   *
+   * @param branch — Optional branch name to delete after worktree removal.
+   * Best-effort: failure is logged but never thrown.
    */
-  public override async destroyWorkspace(path: string): Promise<void> {
+  public override async destroyWorkspace(path: string, branch?: string): Promise<void> {
     if (!existsSync(path)) {
       return;
     }
@@ -141,6 +144,14 @@ export class GitWorktreeProvider extends WorkspaceProvider {
       await this.execCommand("git", ["worktree", "prune"]);
     } catch (error) {
       logger.warn("Prune failed", { error });
+    }
+
+    if (branch) {
+      try {
+        await this.execCommand("git", ["branch", "-D", branch]);
+      } catch (error) {
+        logger.warn("Branch deletion failed", { branch, error });
+      }
     }
   }
 

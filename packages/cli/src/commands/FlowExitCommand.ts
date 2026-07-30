@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 
 import { SessionAgent } from "../agents/agents/SessionAgent";
 import { Command } from "./Command";
@@ -22,25 +23,39 @@ export class FlowExitCommand extends Command {
     );
 
     if (mountedAgents.length === 0) {
-      ctx.ui.notify("No active flow to exit.", "info");
-      return;
+      ctx.ui.notify("Flow exited. No active flow to exit.", "info");
+      // No agents to unmount and no workspaces were created — nothing to clean up.
+    } else {
+      for (const agent of mountedAgents) {
+        agent.unmount();
+      }
+
+      // Tell the LLM the flow is over so it stops following flow instructions
+      // still present in conversation history.
+      this.pi.sendUserMessage(
+        "All flow and role modes have been exited. " +
+          "Return to standard default operation. " +
+          "Forget all previous orchestrator, flow, skill, and role instructions. " +
+          "Use only the default tools and the base system prompt. " +
+          "Do not continue or reference any previous flow tasks. " +
+          'Acknowledge with "Flow exited. Ready."',
+      );
+
+      ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
     }
 
-    for (const agent of mountedAgents) {
-      agent.unmount();
+    // Clean up only workspaces created after each agent's snapshot.
+    if (this.workspaceManager) {
+      for (const agent of mountedAgents) {
+        const paths = agent.getNewWorkspacePaths(this.workspaceManager);
+        for (const path of paths) {
+          try {
+            await this.workspaceManager.destroy(path);
+          } catch (error) {
+            logger.error(`Failed to destroy workspace "${path}" during flow exit`, { error });
+          }
+        }
+      }
     }
-
-    // Tell the LLM the flow is over so it stops following flow instructions
-    // still present in conversation history.
-    this.pi.sendUserMessage(
-      "All flow and role modes have been exited. " +
-        "Return to standard default operation. " +
-        "Forget all previous orchestrator, flow, skill, and role instructions. " +
-        "Use only the default tools and the base system prompt. " +
-        "Do not continue or reference any previous flow tasks. " +
-        'Acknowledge with "Flow exited. Ready."',
-    );
-
-    ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
   }
 }

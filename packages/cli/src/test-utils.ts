@@ -242,7 +242,7 @@ export class MockWorkspaceProvider extends WorkspaceProvider {
     return path;
   }
 
-  override async destroyWorkspace(path: string): Promise<void> {
+  override async destroyWorkspace(path: string, _branch?: string): Promise<void> {
     if (this.shouldFailDestruction) {
       throw new Error(this.failureMessage);
     }
