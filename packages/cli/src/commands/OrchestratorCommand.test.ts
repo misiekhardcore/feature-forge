@@ -30,15 +30,31 @@ const hoisted = vi.hoisted(() => {
     get tools() {
       return [];
     },
-  } as AgentSpecification;
+  } as unknown as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),
+  };
+  const forgeConfigMock = {
+    getConfig: vi.fn(),
   };
   return {
     spec,
     agentMock,
+    forgeConfigMock,
     reset() {
       agentMock.mount = vi.fn();
+      forgeConfigMock.getConfig = vi.fn();
+    },
+  };
+});
+
+vi.mock("@feature-forge/shared", async () => {
+  const actual =
+    await vi.importActual<typeof import("@feature-forge/shared")>("@feature-forge/shared");
+  return {
+    ...actual,
+    ForgeConfig: {
+      getInstance: vi.fn(() => hoisted.forgeConfigMock),
     },
   };
 });
@@ -50,6 +66,8 @@ beforeEach(() => {
   pi = makeMockPi();
   vi.clearAllMocks();
   hoisted.reset();
+  (pi as unknown as Record<string, unknown>).setModel = vi.fn().mockResolvedValue(true);
+  (pi as unknown as Record<string, unknown>).setThinkingLevel = vi.fn();
   specManager = {
     resolve: vi.fn().mockReturnValue(hoisted.spec),
   } as unknown as SpecManager;
@@ -159,5 +177,104 @@ describe("OrchestratorCommand", () => {
     expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(1, pi, "first");
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(2, pi, "second");
+  });
+
+  // ── Model / thinkingLevel resolution ──────────────────────────
+
+  const mockModel = {
+    id: "claude-sonnet-4-5",
+    provider: "anthropic",
+    name: "Claude Sonnet 4.5",
+  };
+
+  it("applies resolved model and thinkingLevel from spec", async () => {
+    const specWithModel: AgentSpecification = {
+      ...hoisted.spec,
+      model: "smart",
+      thinkingLevel: "high",
+    } as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithModel);
+
+    hoisted.forgeConfigMock.getConfig.mockReturnValue({
+      models: {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
+      },
+    });
+
+    const ctx = makeMockCtx();
+    (ctx as unknown as Record<string, unknown>).modelRegistry = {
+      getAvailable: vi.fn().mockReturnValue([mockModel]),
+    };
+
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+    await cmd.handler("task", ctx);
+
+    // spec thinkingLevel wins over preset
+    expect(pi.setThinkingLevel).toHaveBeenCalledWith("high");
+    expect(pi.setModel).toHaveBeenCalledWith(mockModel);
+  });
+
+  it("applies thinkingLevel from preset when spec has no thinkingLevel", async () => {
+    const specWithModel: AgentSpecification = {
+      ...hoisted.spec,
+      model: "smart",
+    } as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithModel);
+
+    hoisted.forgeConfigMock.getConfig.mockReturnValue({
+      models: {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
+      },
+    });
+
+    const ctx = makeMockCtx();
+    (ctx as unknown as Record<string, unknown>).modelRegistry = {
+      getAvailable: vi.fn().mockReturnValue([mockModel]),
+    };
+
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+    await cmd.handler("task", ctx);
+
+    // thinkingLevel comes from preset since spec has none
+    expect(pi.setThinkingLevel).toHaveBeenCalledWith("xhigh");
+    expect(pi.setModel).toHaveBeenCalledWith(mockModel);
+  });
+
+  it("does not call setModel when spec has no model field", async () => {
+    // hoisted.spec has no model or thinkingLevel — resolution block is skipped
+    const ctx = makeMockCtx();
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+    await cmd.handler("task", ctx);
+
+    expect(pi.setModel).not.toHaveBeenCalled();
+    expect(pi.setThinkingLevel).not.toHaveBeenCalled();
+  });
+
+  it("does not call setModel when model not found in registry", async () => {
+    const specWithModel: AgentSpecification = {
+      ...hoisted.spec,
+      model: "unknown-model",
+    } as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithModel);
+
+    // resolveModel returns passthrough { model: "unknown-model" } — no thinkingLevel
+    hoisted.forgeConfigMock.getConfig.mockReturnValue({
+      models: {},
+    });
+
+    const ctx = makeMockCtx();
+    (ctx as unknown as Record<string, unknown>).modelRegistry = {
+      getAvailable: vi.fn().mockReturnValue([]),
+    };
+
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+    await cmd.handler("task", ctx);
+
+    expect(pi.setModel).not.toHaveBeenCalled();
+    expect(pi.setThinkingLevel).not.toHaveBeenCalled();
   });
 });

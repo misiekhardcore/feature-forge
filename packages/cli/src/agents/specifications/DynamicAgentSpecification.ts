@@ -38,24 +38,7 @@ export class DynamicAgentSpecification extends AgentSpecification {
    * spec to child subprocesses via `FORGE_SPEC`.
    */
   toJSON(): AgentSpecificationParams {
-    return {
-      id: this.id,
-      role: this.role,
-      systemPrompt: this.systemPrompt,
-      excludedTools: this.excludedTools,
-      toolRestrictions: this.toolRestrictions,
-      skills: this.skills,
-      excludedSkills: this.excludedSkills,
-      model: this.model,
-      thinkingLevel: this.thinkingLevel,
-      disableBuiltinTools: this.disableBuiltinTools,
-      disableExtensions: this.disableExtensions,
-      disableSkills: this.disableSkills,
-      disablePromptTemplates: this.disablePromptTemplates,
-      disableContextFiles: this.disableContextFiles,
-      ephemeral: this.ephemeral,
-      cwd: this.cwd,
-    };
+    return super.toJSON();
   }
 
   static generateId(params: Pick<AgentSpecificationParams, "role">): string {

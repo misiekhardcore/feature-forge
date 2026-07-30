@@ -224,6 +224,145 @@ describe("ForgeConfigSchema", () => {
     expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
   });
 
+  describe("models section", () => {
+    it("validates a complete forge config with models section", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "claude-sonnet-4-5" },
+          medium: { model: "gpt-4o" },
+          dumb: { model: "claude-haiku-4-5" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("validates config with models and defaultModel", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "claude-sonnet-4-5" },
+        },
+        defaultModel: "smart",
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("validates config with empty models map", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {},
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("validates config without models field (optional)", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("validates config without defaultModel field (optional)", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: { smart: { model: "claude-sonnet-4-5" } },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("rejects models with a non-object value", () => {
+      const invalid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: "not-an-object",
+      };
+      expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    });
+
+    it("rejects a model preset without model field", () => {
+      const invalid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { provider: "anthropic" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    });
+
+    it("rejects a model preset with non-string model", () => {
+      const invalid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: 42 },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    });
+
+    it("validates a model preset with thinkingLevel", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "claude-sonnet-4-5", thinkingLevel: "high" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("validates a model preset without thinkingLevel (optional)", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "claude-sonnet-4-5" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("rejects a model preset with empty thinkingLevel", () => {
+      const invalid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        models: {
+          smart: { model: "gpt-4o", thinkingLevel: "" },
+        },
+      };
+      expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    });
+  });
+
   it("rejects agents with invalid values", () => {
     const invalid = {
       logLevel: "info",

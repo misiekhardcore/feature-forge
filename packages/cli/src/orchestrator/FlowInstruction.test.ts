@@ -178,6 +178,60 @@ describe("AgentInstructionSchema", () => {
     const invalid = { type: "agent", id: "a1", systemPrompt: "", prompt: "do it" };
     expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
   });
+
+  it("validates agent instruction with model field", () => {
+    const valid = {
+      type: "agent",
+      id: "a1",
+      systemPrompt: "build",
+      prompt: "do it",
+      model: "claude-sonnet-4-5",
+    };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("accepts agent instruction without model field (optional)", () => {
+    const valid = { type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty model string", () => {
+    const invalid = {
+      type: "agent",
+      id: "a1",
+      systemPrompt: "build",
+      prompt: "do it",
+      model: "",
+    };
+    expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
+
+  it("validates agent instruction with thinkingLevel", () => {
+    const valid = {
+      type: "agent",
+      id: "a1",
+      systemPrompt: "build",
+      prompt: "do it",
+      thinkingLevel: "high",
+    };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("accepts agent instruction without thinkingLevel (optional)", () => {
+    const valid = { type: "agent", id: "a1", systemPrompt: "build", prompt: "do it" };
+    expect(Value.Check(AgentInstructionSchema, valid)).toBe(true);
+  });
+
+  it("rejects empty thinkingLevel string", () => {
+    const invalid = {
+      type: "agent",
+      id: "a1",
+      systemPrompt: "build",
+      prompt: "do it",
+      thinkingLevel: "",
+    };
+    expect(Value.Check(AgentInstructionSchema, invalid)).toBe(false);
+  });
 });
 
 describe("ParallelInstructionSchema", () => {
@@ -774,6 +828,31 @@ describe("FlowDefinitionSchema", () => {
       ],
     };
     expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
+  });
+
+  it("validates an agent step with model field", () => {
+    const flow = {
+      $schema: FLOW_SCHEMA_URL,
+      name: "test",
+      command: "/test",
+      orchestrator: { systemPrompt: "t" },
+      routines: [
+        {
+          id: "main",
+          params: [],
+          steps: [
+            {
+              type: "agent" as const,
+              id: "a1",
+              systemPrompt: "build",
+              prompt: "do it",
+              model: "smart",
+            },
+          ],
+        },
+      ],
+    };
+    expect(Value.Check(FlowDefinitionSchema, flow)).toBe(true);
   });
 
   it("accepts a flow with the correct $schema value", () => {

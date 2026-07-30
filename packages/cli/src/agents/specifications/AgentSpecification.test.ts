@@ -2,6 +2,7 @@ import { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { describe, expect, it } from "vitest";
 
 import { AgentSpecification } from "./AgentSpecification";
+import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 
 class TestSpecification extends AgentSpecification {
   constructor(overrides: Partial<ConstructorParameters<typeof AgentSpecification>[0]> = {}) {
@@ -110,6 +111,35 @@ describe("AgentSpecification", () => {
       expect(spec.disablePromptTemplates).toBe(true);
       expect(spec.disableContextFiles).toBe(true);
       expect(spec.ephemeral).toBe(true);
+    });
+  });
+
+  describe("toJSON", () => {
+    it("serializes all fields to a plain object", () => {
+      const spec = new TestSpecification({
+        model: "claude-sonnet-4-5",
+        thinkingLevel: "high" as ThinkingLevel,
+        toolRestrictions: { read: [] },
+        cwd: "/tmp",
+      });
+      const json = spec.toJSON();
+      expect(json.id).toBe("test");
+      expect(json.role).toBe("tester");
+      expect(json.systemPrompt).toBe("You are a test agent.");
+      expect(json.model).toBe("claude-sonnet-4-5");
+      expect(json.thinkingLevel).toBe("high");
+      expect(json.cwd).toBe("/tmp");
+    });
+
+    it("roundtrips through DynamicAgentSpecification", () => {
+      const original = new TestSpecification({
+        model: "gpt-4o",
+        thinkingLevel: "low" as ThinkingLevel,
+      });
+      const cloned = new DynamicAgentSpecification(original.toJSON());
+      expect(cloned.id).toBe(original.id);
+      expect(cloned.model).toBe(original.model);
+      expect(cloned.thinkingLevel).toBe(original.thinkingLevel);
     });
   });
 });

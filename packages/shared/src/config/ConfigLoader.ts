@@ -410,6 +410,8 @@ export class ConfigLoader {
       worktreeSymlinks: decoded.worktreeSymlinks,
       taskTimeoutMs: decoded.taskTimeoutMs,
       specDirectories: decoded.specDirectories,
+      models: decoded.models,
+      defaultModel: decoded.defaultModel,
       display: decoded.display,
       dev: decoded.dev,
     });

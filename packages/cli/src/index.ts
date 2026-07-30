@@ -90,10 +90,13 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     }
   }
 
-  const factory = new PiSubprocessAgentFactory({
-    env: childEnv,
-    cwd: process.cwd(),
-  });
+  const factory = new PiSubprocessAgentFactory(
+    {
+      env: childEnv,
+      cwd: process.cwd(),
+    },
+    forgeConfig.getConfig().models,
+  );
   const supervisor = new InMemoryAgentSupervisor(factory);
   const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
   const socketPath = await ipcServer.start();

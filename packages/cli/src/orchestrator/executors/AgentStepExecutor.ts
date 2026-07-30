@@ -5,7 +5,6 @@ import { logger } from "@feature-forge/shared";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
-import type { AgentSpecification } from "../../agents/specifications";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import type { TypedEventBus } from "../eventBus";
@@ -67,7 +66,18 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     // instruction. The flow loader has already validated that any
     // `{ workspace }` reference names a workspace declared earlier in
     // the same routine; here we resolve it at runtime to a concrete path.
-    const effectiveSpecification = this.applyWorkingDir(specification, instruction, context);
+    const cwd = this.resolveCwd(instruction, context);
+
+    // Apply all overrides (cwd, model, thinkingLevel) in a single createDynamic call.
+    const overrides: Record<string, unknown> = {};
+    if (cwd !== undefined) overrides.cwd = cwd;
+    if (instruction.model) overrides.model = instruction.model;
+    if (instruction.thinkingLevel) overrides.thinkingLevel = instruction.thinkingLevel;
+
+    const effectiveSpecification =
+      Object.keys(overrides).length > 0
+        ? this.specManager.createDynamic({ ...specification, ...overrides })
+        : specification;
 
     logger.info("Spawning agent", {
       instructionId,
@@ -215,35 +225,21 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   }
 
   /**
-   * Resolve `instruction.workingDir` (if present) to a concrete path and
-   * return a specification carrying that path as `cwd`.
+   * Resolve `instruction.workingDir` (if present) to a concrete path.
    *
    * - `{ workspace: <name> }`: the name is template-resolved via the context
    *   and looked up through `context.getWorkspacePath`. Throws
    *   {@link AgentInstructionWorkingDirMissing} when the workspace is not
    *   available at runtime.
    * - `{ path: <p> }`: `<p>` is template-resolved and used verbatim.
-   * - absent: the original specification is returned unchanged.
-   *
-   * The cwd is applied by reconstructing the specification as a
-   * {@link DynamicAgentSpecification}, copying the resolved spec's public
-   * fields and overriding `cwd`. This is the existing supported mechanism —
-   * `AgentSpecification.cwd` is the field the agent factory reads when
-   * spawning the subprocess — so no supervisor or factory changes are
-   * required.
+   * - absent: returns `undefined`.
    */
-  private applyWorkingDir(
-    specification: AgentSpecification,
-    instruction: AgentInstruction,
-    context: FlowContext,
-  ): AgentSpecification {
+  private resolveCwd(instruction: AgentInstruction, context: FlowContext): string | undefined {
     const workingDir = instruction.workingDir;
     if (workingDir === undefined) {
-      return specification;
+      return undefined;
     }
-
-    const cwd = this.resolveWorkingDirPath(workingDir, context, instruction.id);
-    return this.specManager.createDynamic({ ...specification, cwd });
+    return this.resolveWorkingDirPath(workingDir, context, instruction.id);
   }
 
   /**

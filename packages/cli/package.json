@@ -24,7 +24,7 @@
     "typecheck:watch": "tsc --noEmit --watch",
     "test:watch": "vitest --watch",
     "test:e2e": "vitest run --project cli-e2e",
-    "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts",
+    "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts && npx prettier --write src/flows/flow-schema.json",
     "flow:validate": "npx tsx scripts/validate-flow.ts",
     "flow:validate-json": "npx tsx scripts/validate-flow-json.ts",
     "changelog": "git-cliff -o CHANGELOG.md"

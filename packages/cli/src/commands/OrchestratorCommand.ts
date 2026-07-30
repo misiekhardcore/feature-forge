@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { ForgeConfig, resolveModel } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../agents";
 import type { InSessionAgent } from "../agents/agents/InSessionAgent";
@@ -67,6 +68,39 @@ export class OrchestratorCommand extends Command {
       this.spec = this.specManager.resolve({
         spec: this.flow.orchestrator.systemPrompt,
       });
+    }
+
+    // Apply orchestrator model and thinking level to the main pi session.
+    // The spec's model field (from frontmatter) is resolved against forge config
+    // presets; the resolved model is looked up in pi's runtime registry.
+    if (this.spec.model || this.spec.thinkingLevel) {
+      try {
+        const forgeConfig = ForgeConfig.getInstance();
+        const resolvedModel = resolveModel(this.spec.model, forgeConfig.getConfig().models);
+
+        // Apply thinkingLevel: explicit spec value wins over preset value
+        if (this.spec.thinkingLevel) {
+          this.pi.setThinkingLevel(this.spec.thinkingLevel);
+        } else if (resolvedModel?.thinkingLevel) {
+          this.pi.setThinkingLevel(resolvedModel.thinkingLevel);
+        }
+
+        // Apply model: find matching model in pi's runtime registry
+        if (resolvedModel) {
+          const availableModels = ctx.modelRegistry.getAvailable();
+          const match = availableModels.find((m) => {
+            const idMatch = m.id === resolvedModel.model;
+            const providerMatch = !resolvedModel.provider || m.provider === resolvedModel.provider;
+            return idMatch && providerMatch;
+          });
+          if (match) {
+            await this.pi.setModel(match);
+          }
+        }
+      } catch {
+        // ForgeConfig might not be initialized (e.g. in tests without config).
+        // Swallow — model/thinkingLevel resolution is best-effort.
+      }
     }
 
     if (!this.agent) {

@@ -122,4 +122,30 @@ export abstract class AgentSpecification {
     this.excludedSkills = params.excludedSkills ?? [];
     this.cwd = params.cwd;
   }
+
+  /**
+   * Serialize this specification to a plain object matching
+   * {@link AgentSpecificationParams}. Enables cloning and modifying a spec
+   * (e.g. adding thinkingLevel from a model preset).
+   */
+  toJSON(): AgentSpecificationParams {
+    return {
+      id: this.id,
+      role: this.role,
+      systemPrompt: this.systemPrompt,
+      excludedTools: this.excludedTools,
+      toolRestrictions: this.toolRestrictions,
+      skills: this.skills,
+      excludedSkills: this.excludedSkills,
+      model: this.model,
+      thinkingLevel: this.thinkingLevel,
+      disableBuiltinTools: this.disableBuiltinTools,
+      disableExtensions: this.disableExtensions,
+      disableSkills: this.disableSkills,
+      disablePromptTemplates: this.disablePromptTemplates,
+      disableContextFiles: this.disableContextFiles,
+      ephemeral: this.ephemeral,
+      cwd: this.cwd,
+    };
+  }
 }

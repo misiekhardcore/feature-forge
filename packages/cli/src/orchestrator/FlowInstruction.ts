@@ -67,6 +67,17 @@ export const AgentInstructionSchema = defineInstruction("agent", {
   ),
   parseJson: Type.Optional(Type.Boolean()),
   promptParams: Type.Optional(Type.Record(Type.String(), Type.String())),
+  model: Type.Optional(Type.String({ minLength: 1 })),
+  thinkingLevel: Type.Optional(
+    Type.Union([
+      Type.Literal("off"),
+      Type.Literal("minimal"),
+      Type.Literal("low"),
+      Type.Literal("medium"),
+      Type.Literal("high"),
+      Type.Literal("xhigh"),
+    ]),
+  ),
 });
 
 export const CleanupInstructionSchema = defineInstruction("cleanup", {

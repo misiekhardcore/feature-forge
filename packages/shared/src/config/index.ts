@@ -23,3 +23,4 @@ export {
   SpecDirectoriesSchema,
   WorkspaceProviderKind,
 } from "./ForgeConfigSchema";
+export { resolveModel } from "./ModelResolver";

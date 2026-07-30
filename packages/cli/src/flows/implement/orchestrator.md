@@ -1,6 +1,7 @@
 ---
 id: "implement-orchestrator"
 role: "orchestrator"
+model: "smart"
 tools:
   - set_flow_param
   - create_workspace

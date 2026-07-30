@@ -176,6 +176,41 @@ describe("resolveConfig", () => {
     expect(config.logLevel).toBe(LogLevel.WARN);
   });
 
+  describe("models defaults", () => {
+    it("has default empty models map", () => {
+      expect(DEFAULT_FORGE_CONFIG.models).toEqual({});
+    });
+
+    it("has default undefined defaultModel", () => {
+      expect(DEFAULT_FORGE_CONFIG.defaultModel).toBeUndefined();
+    });
+
+    it("resolveConfig overrides models map", () => {
+      const config = resolveConfig({
+        models: {
+          smart: { model: "claude-sonnet-4-5" },
+        },
+      });
+      expect(config.models).toEqual({
+        smart: { model: "claude-sonnet-4-5" },
+      });
+    });
+
+    it("resolveConfig overrides defaultModel", () => {
+      const config = resolveConfig({ defaultModel: "smart" });
+      expect(config.defaultModel).toBe("smart");
+    });
+
+    it("resolveConfig shallow-clones models to prevent shared mutation", () => {
+      const models = {
+        smart: { model: "claude-sonnet-4-5" },
+      };
+      const config = resolveConfig({ models });
+      models.smart = { model: "hacked" };
+      expect(config.models.smart?.model).toBe("claude-sonnet-4-5");
+    });
+  });
+
   it("keeps default INFO level when dev mode is disabled", () => {
     const config = resolveConfig({ dev: { enabled: false } });
     expect(config.logLevel).toBe(LogLevel.INFO);

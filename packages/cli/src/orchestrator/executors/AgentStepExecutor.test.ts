@@ -16,8 +16,10 @@ import { AgentStepExecutor } from "./AgentStepExecutor";
 // ── Helpers ──────────────────────────────────────────────────
 
 function makeMockSpecManager(): SpecManager {
+  const createDynamicSpy = vi.fn().mockImplementation((spec: AgentSpecification) => spec);
+  // Expose the spy on the returned object so tests can assert on it.
   return {
-    createDynamic: vi.fn().mockImplementation((spec: AgentSpecification) => spec),
+    createDynamic: createDynamicSpy,
     resolve: vi.fn().mockReturnValue({
       id: "test-agent",
       role: "test",
@@ -27,7 +29,9 @@ function makeMockSpecManager(): SpecManager {
         return [];
       },
     }),
-  } as unknown as SpecManager;
+    // Attach spy reference so tests can inspect captured args.
+    _createDynamicSpy: createDynamicSpy,
+  } as unknown as SpecManager & { _createDynamicSpy: ReturnType<typeof vi.fn> };
 }
 
 function makeMockAgent(result: string): SubprocessAgent {
@@ -198,6 +202,164 @@ describe("AgentStepExecutor", () => {
 
       const resolveCall = (specManager.resolve as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(resolveCall.spec).toBe("build");
+    });
+
+    it("overrides model in the specification via createDynamic when instruction.model is set", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build it",
+        model: "claude-sonnet-4-5",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      // Verify createDynamic was called with the model field
+      const createDynamicSpy = (
+        specManager as unknown as { _createDynamicSpy: ReturnType<typeof vi.fn> }
+      )._createDynamicSpy;
+      expect(createDynamicSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "claude-sonnet-4-5" }),
+      );
+
+      // Verify spawnGuest received the spec with model override
+      const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnedSpec.model).toBe("claude-sonnet-4-5");
+    });
+
+    it("passes both cwd and model when workingDir and model are set", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build it",
+        workingDir: { path: "/tmp/custom-path" },
+        model: "claude-sonnet-4-5",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      // Both cwd and model overrides are merged into a single createDynamic call.
+      const createDynamicSpy = (
+        specManager as unknown as { _createDynamicSpy: ReturnType<typeof vi.fn> }
+      )._createDynamicSpy;
+      expect(createDynamicSpy).toHaveBeenCalledTimes(1);
+      expect(createDynamicSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ cwd: "/tmp/custom-path", model: "claude-sonnet-4-5" }),
+      );
+
+      // The final spec passed to spawnGuest carries both cwd and model.
+      const spawnedSpec = (supervisor.spawnGuest as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(spawnedSpec.cwd).toBe("/tmp/custom-path");
+      expect(spawnedSpec.model).toBe("claude-sonnet-4-5");
+    });
+
+    it("overrides thinkingLevel in the specification via createDynamic when instruction.thinkingLevel is set", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build it",
+        thinkingLevel: "high",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      const createDynamicSpy = (
+        specManager as unknown as { _createDynamicSpy: ReturnType<typeof vi.fn> }
+      )._createDynamicSpy;
+      expect(createDynamicSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ thinkingLevel: "high" }),
+      );
+    });
+
+    it("passes both cwd, model, and thinkingLevel overrides together via a single createDynamic call", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build it",
+        workingDir: { path: "/tmp/custom-path" },
+        model: "claude-sonnet-4-5",
+        thinkingLevel: "high",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      const createDynamicSpy = (
+        specManager as unknown as { _createDynamicSpy: ReturnType<typeof vi.fn> }
+      )._createDynamicSpy;
+      expect(createDynamicSpy).toHaveBeenCalledTimes(1);
+      expect(createDynamicSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cwd: "/tmp/custom-path",
+          model: "claude-sonnet-4-5",
+          thinkingLevel: "high",
+        }),
+      );
+    });
+
+    it("does not call createDynamic when instruction.model and workingDir are not set", async () => {
+      const agent = makeMockAgent("done");
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build it",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      // Neither model nor workingDir is set, so createDynamic should not be called.
+      const createDynamicSpy = (
+        specManager as unknown as { _createDynamicSpy: ReturnType<typeof vi.fn> }
+      )._createDynamicSpy;
+      expect(createDynamicSpy).not.toHaveBeenCalled();
     });
 
     it("handles gracefully when parseJson is true but JSON is malformed", async () => {

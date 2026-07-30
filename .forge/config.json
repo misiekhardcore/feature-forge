@@ -1,0 +1,37 @@
+{
+
+  "logLevel": "info",
+  "logPrefix": "forge",
+  "workspaceProvider": "git-worktree",
+  "logDir": ".forge/logs",
+  "taskTimeoutMs": 3600000,
+  "worktreeSymlinks": [],
+
+  "agents": {},
+  "defaultAgent": {
+    "maxToolCalls": 40,
+    "maxTurns": 100
+  },
+
+  "models": {
+    "smart": { "model": "deepseek-v4-pro", "thinkingLevel": "xhigh" },
+    "medium": { "model": "deepseek-v4-flash", "thinkingLevel": "high" },
+    "dumb": { "model": "deepseek-v4-flash", "thinkingLevel": "medium" }
+  },
+  "defaultModel": "medium",
+
+  "specDirectories": {
+    "flows": [],
+    "agents": []
+  },
+
+  "display": {
+    "maxAgentEvents": 200,
+    "maxPreconnectBuffer": 2000,
+    "maxOverlayHeight": "85%"
+  },
+
+  "dev": {
+    "enabled": false
+  }
+}
