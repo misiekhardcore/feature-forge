@@ -88,14 +88,12 @@ describe("WorkspaceManager", () => {
       expect(manager.list()).toEqual([]);
     });
   });
-});
-
   describe("session path tracking", () => {
     let manager: WorkspaceManager;
 
     beforeEach(async () => {
       provider = new MockWorkspaceProvider();
-      const registry = new WorktreeRegistry();
+      const registry = new MockWorktreeRegistry();
       await registry.load();
       manager = new WorkspaceManager(provider, registry);
     });
@@ -148,3 +146,4 @@ describe("WorkspaceManager", () => {
       expect(manager.listSessionPaths()).not.toContain(path);
     });
   });
+});

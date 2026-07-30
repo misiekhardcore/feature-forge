@@ -29,7 +29,9 @@ import {
   makeMockToolRegistry,
   makeMockTypedEventBus,
 } from "../src/test-utils";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
 import { WorkspaceProviderRegistry, WorktreeRegistry } from "../src/workspace";
+import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -347,6 +349,7 @@ function setupExecutor(parentFlow: FlowDefinition, childFlows: FlowDefinition[])
     supervisor,
     makeMockSpecManager(),
     worktreeRegistry,
+    new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
   );
 
   const flowMap = new Map<string, FlowDefinition>();

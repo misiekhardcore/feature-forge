@@ -23,6 +23,8 @@ import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
+import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 
@@ -128,6 +130,7 @@ describe("Flow model override (e2e)", () => {
       supervisor,
       specManager,
       worktreeRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
 
     const flow = makeModelOverrideFlow();
@@ -186,6 +189,7 @@ describe("Flow model override (e2e)", () => {
       supervisor,
       specManager,
       worktreeRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
 
     const flow: FlowDefinition = {

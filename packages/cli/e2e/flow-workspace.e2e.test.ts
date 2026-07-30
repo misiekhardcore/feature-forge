@@ -20,7 +20,9 @@ import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
+import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 
@@ -97,6 +99,7 @@ describe("Flow workspace lifecycle (e2e)", () => {
       null as never, // supervisor — not used for workspace/cleanup steps
       null as never, // specManager — not used for workspace/cleanup steps
       worktreeRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
 
     executor = new RoutineExecutor(

@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
-import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
@@ -35,7 +35,10 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
-function stubWorkspaceManager(provider: WorkspaceProvider, registry: WorktreeRegistry): WorkspaceManager {
+function stubWorkspaceManager(
+  provider: WorkspaceProvider,
+  registry: WorktreeRegistry,
+): WorkspaceManager {
   return new WorkspaceManager(provider, registry);
 }
 
@@ -238,7 +241,7 @@ describe("CleanupStepExecutor", () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
-      const wm = stubWorkspaceManager(provider, wtRegistry);
+        const wm = stubWorkspaceManager(provider, wtRegistry);
         const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
         const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
@@ -279,7 +282,7 @@ describe("CleanupStepExecutor", () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
-      const wm = stubWorkspaceManager(provider, wtRegistry);
+        const wm = stubWorkspaceManager(provider, wtRegistry);
         const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
         const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());

@@ -1,4 +1,6 @@
 import * as path from "node:path";
+// ESM polyfill: __dirname is not available in ESM
+import { fileURLToPath } from "node:url";
 
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
@@ -45,6 +47,7 @@ import {
   WorktreeRegistry,
 } from "./workspace";
 import { registerSignalHandlers } from "./workspace/registerSignalHandlers";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Feature Forge — autonomous software engineering platform.
@@ -173,6 +176,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     supervisor,
     specManager,
     worktreeRegistry,
+    workspaceManager,
   );
 
   // ── Flow-based orchestration commands ────────────────────────────

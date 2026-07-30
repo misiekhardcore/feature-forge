@@ -3,11 +3,11 @@ import { createAccumulatedState, DisplayContributionRegistry } from "@feature-fo
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
-import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
 import type { RoutineProgressEvent } from "../RoutineProgress";
@@ -50,7 +50,10 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
-function stubWorkspaceManager(provider: WorkspaceProvider, registry: WorktreeRegistry): WorkspaceManager {
+function stubWorkspaceManager(
+  provider: WorkspaceProvider,
+  registry: WorktreeRegistry,
+): WorkspaceManager {
   return new WorkspaceManager(provider, registry);
 }
 
@@ -241,9 +244,14 @@ describe("WorkspaceStepExecutor", () => {
 
   describe("getDisplayContribution", () => {
     it("returns contribution with workspace path and branch from workspace-ready event", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        stubWorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        wm,
       );
 
       const event = {
@@ -266,9 +274,14 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("returns undefined for non-workspace-ready events", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        stubWorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        wm,
       );
 
       const event = {
@@ -281,9 +294,14 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("returns undefined when path is not a string", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        stubWorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        wm,
       );
 
       const event = {
@@ -399,9 +417,14 @@ describe("WorkspaceStepExecutor", () => {
 
   describe("registerDisplayHandler", () => {
     it("registers a workspace handler that updates workspace and branch", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        new WorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         new WorktreeRegistry(),
+        wm,
       );
       const registry = new DisplayContributionRegistry();
       executor.registerDisplayHandler(registry);
@@ -422,9 +445,14 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("does not set branch when contribution has no branch field", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        new WorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         new WorktreeRegistry(),
+        wm,
       );
       const registry = new DisplayContributionRegistry();
       executor.registerDisplayHandler(registry);

@@ -23,6 +23,8 @@ import type { AgentInstruction, FlowDefinition } from "../src/orchestrator/FlowI
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
 import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
+import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
 import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 
@@ -130,6 +132,7 @@ describe("Flow thinkingLevel override (e2e)", () => {
       supervisor,
       specManager,
       worktreeRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
 
     const flow = makeThinkingLevelFlow("high");
@@ -188,6 +191,7 @@ describe("Flow thinkingLevel override (e2e)", () => {
       supervisor,
       specManager,
       worktreeRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
 
     const flow: FlowDefinition = {
@@ -263,6 +267,7 @@ describe("Flow thinkingLevel override (e2e)", () => {
       supervisor,
       specManager,
       worktreeRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
 
     const flow: FlowDefinition = {

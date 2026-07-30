@@ -31,7 +31,9 @@ import {
   makeMockToolRegistry,
   makeMockTypedEventBus,
 } from "../src/test-utils";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
 import { GitWorktreeProvider, WorkspaceProviderRegistry, WorktreeRegistry } from "../src/workspace";
+import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
 
 function createTempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "forge-e2e-progress-"));
@@ -99,6 +101,7 @@ describe("routine progress display (e2e)", () => {
       supervisor,
       makeMockSpecManager(),
       wtRegistry,
+      new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
     );
     const executor = new RoutineExecutor(
       flow,

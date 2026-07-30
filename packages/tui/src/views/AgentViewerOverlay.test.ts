@@ -1710,7 +1710,12 @@ describe("AgentViewerOverlay", () => {
       return {
         getAgent: vi.fn((agentId: string) => agents.find((a) => a.id === agentId)),
         getAllAgents: vi.fn(() => agents),
-      } as unknown as AgentSupervisor;
+        spawnGuest: vi.fn(),
+        mountInSession: vi.fn(),
+        runAgent: vi.fn(),
+        destroyAgent: vi.fn(),
+        destroyAll: vi.fn(),
+      };
     }
 
     it("propagates passed: true from agent-done event to the entry", () => {
