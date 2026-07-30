@@ -6,6 +6,7 @@ import type {
 import { AgentStatus } from "@feature-forge/shared";
 import { logger } from "@feature-forge/shared";
 
+import { activateToolRestrictions } from "../../extensions/tool-restrictions";
 import type { WorkspaceManager } from "../../workspace";
 import type { AgentSpecification } from "../specifications";
 import { InSessionAgent } from "./InSessionAgent";
@@ -92,6 +93,8 @@ export class SessionAgent extends InSessionAgent {
     if (this.specification.tools.length > 0) {
       pi.setActiveTools([...this.specification.tools]);
     }
+
+    activateToolRestrictions(pi, this.specification.toolRestrictions);
   }
 
   /**

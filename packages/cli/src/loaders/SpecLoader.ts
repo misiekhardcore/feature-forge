@@ -72,9 +72,10 @@ export class SpecLoader {
     const toolRestrictions = this.resolveToolRestrictions(frontmatter, absolutePath);
     const id = frontmatter.id ?? DynamicAgentSpecification.generateId(frontmatter);
 
+    const { toolRestrictions: _fmToolRestrictions, ...specParams } = frontmatter;
     const factory: SpecFactory = () => {
       return new DynamicAgentSpecification({
-        ...frontmatter,
+        ...specParams,
         id,
         systemPrompt: body.trim(),
         toolRestrictions,
@@ -122,9 +123,21 @@ export class SpecLoader {
   }
 
   private toolListToRestrictions(tools: string[]): Record<string, readonly string[]> {
-    const restrictions: Record<string, readonly string[]> = {};
-    for (const tool of tools) {
-      restrictions[tool] = [];
+    const restrictions: Record<string, string[]> = {};
+    for (const entry of tools) {
+      const colonIndex = entry.indexOf(":");
+      if (colonIndex === -1) {
+        if (!(entry in restrictions)) {
+          restrictions[entry] = [];
+        }
+      } else {
+        const tool = entry.slice(0, colonIndex);
+        const pattern = entry.slice(colonIndex + 1);
+        if (!restrictions[tool]) {
+          restrictions[tool] = [];
+        }
+        restrictions[tool].push(pattern);
+      }
     }
     return restrictions;
   }

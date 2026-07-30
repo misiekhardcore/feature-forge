@@ -98,6 +98,31 @@ describe("SessionAgent", () => {
 
       expect(pi.setActiveTools).not.toHaveBeenCalled();
     });
+
+    it("registers tool_call handler when restrictions have patterns", () => {
+      const restrictedSpec = makeSpec("restricted", {
+        role: "orchestrator",
+        systemPrompt: "# Restricted",
+        toolRestrictions: { read: ["src/**"] },
+      });
+      const agent = new SessionAgent(restrictedSpec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+
+      expect(pi.on).toHaveBeenCalledWith("tool_call", expect.any(Function));
+    });
+
+    it("does not register tool_call handler when all restrictions are empty", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+
+      // Find all calls to pi.on and ensure none are for "tool_call"
+      const toolCallCalls = (pi.on as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (call: unknown[]) => call[0] === "tool_call",
+      );
+      expect(toolCallCalls).toHaveLength(0);
+    });
   });
 
   describe("unmount", () => {
