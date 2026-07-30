@@ -2,6 +2,7 @@ import { logger } from "@feature-forge/shared";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { TypedEventBus } from "../eventBus";
@@ -20,7 +21,8 @@ import { StepExecutor } from "../StepExecutor";
  *
  * Best-effort: individual workspace destruction failures are logged but
  * do not stop the routine. Successfully destroyed workspaces are also
- * removed from the persistent {@link WorktreeRegistry}.
+ * removed from the persistent {@link WorktreeRegistry} and untracked
+ * from the session-scoped path set.
  */
 export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   readonly type = "cleanup";
@@ -28,6 +30,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
   constructor(
     private readonly providerRegistry: WorkspaceProviderRegistry,
     private readonly worktreeRegistry: WorktreeRegistry,
+    private readonly workspaceManager: WorkspaceManager,
   ) {
     super();
   }
@@ -68,6 +71,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       const branch = handle?.branch ?? this.findHandleByPath(path, context.workspaces)?.branch;
       await this.destroyPath(path, branch, this.providerRegistry);
       await this.worktreeRegistry.remove(path);
+      this.workspaceManager.untrackPath(path);
       cleaned.push(targetName);
     } else {
       logger.info("Cleanup step — destroying all workspaces", {
@@ -79,6 +83,7 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
         try {
           await this.destroyPath(handle.path, handle.branch, this.providerRegistry);
           await this.worktreeRegistry.remove(handle.path);
+          this.workspaceManager.untrackPath(handle.path);
           cleaned.push(name);
         } catch (error) {
           logger.error("Workspace destruction failed", {

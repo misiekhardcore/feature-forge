@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { TypedEventBus } from "../eventBus";
@@ -19,6 +20,9 @@ import { StepExecutor } from "../StepExecutor";
  * so downstream instructions can resolve its path via `{{workspace.<name>}}`
  * and also registered in the persistent {@link WorktreeRegistry} so
  * commands like `/worktree:list` can surface it.
+ *
+ * The path is also tracked in {@link WorkspaceManager} for session-scoped
+ * signal-handler cleanup.
  */
 export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
   readonly type = "workspace";
@@ -26,6 +30,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
   constructor(
     private readonly providerRegistry: WorkspaceProviderRegistry,
     private readonly worktreeRegistry: WorktreeRegistry,
+    private readonly workspaceManager: WorkspaceManager,
   ) {
     super();
   }
@@ -77,6 +82,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
     const handle = new WorkspaceHandle(path, new Date(), branch);
 
     await this.worktreeRegistry.register(handle);
+    this.workspaceManager.trackPath(path);
 
     eventBus.emit("feature-forge:workspace-ready", {
       phase: "workspace-ready",

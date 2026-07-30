@@ -10,13 +10,18 @@ import { WorktreeRegistry } from "./WorktreeRegistry";
  * - **`create(id)`** — creates the workspace via the provider, then registers
  *   a new {@link WorkspaceHandle} so it's tracked and persisted.
  * - **`destroy(id)`** — looks up the handle, destroys via the provider, then
- *   removes the registry entry.
+ *   removes the registry entry and untracks from the session set.
  * - **`get(id)` / `list()`** — delegate to the registry.
  *
- * Outside code never needs to touch the provider or registry directly —
- * they always go through the manager.
+ * Also maintains a session-scoped path set ({@link listSessionPaths})
+ * so signal handlers only destroy workspaces belonging to this process,
+ * not workspaces loaded from the shared file-backed registry that were
+ * created by other processes.
  */
 export class WorkspaceManager {
+  /** Paths created during this process's lifetime. Scoped for signal cleanup. */
+  private readonly sessionPaths = new Set<string>();
+
   constructor(
     private readonly provider: WorkspaceProvider,
     private readonly registry: WorktreeRegistry,
@@ -31,11 +36,13 @@ export class WorkspaceManager {
     const path = await this.provider.createWorkspace(workspaceId);
     const handle = new WorkspaceHandle(path, new Date());
     await this.registry.register(handle);
+    this.sessionPaths.add(path);
     return handle;
   }
 
   /**
-   * Destroy a workspace and remove its registry entry.
+   * Destroy a workspace, remove its registry entry, and untrack
+   * from the session set.
    *
    * Throws if the workspace id is not tracked.
    */
@@ -46,6 +53,41 @@ export class WorkspaceManager {
     }
     await this.provider.destroyWorkspace(handle.path, handle.branch);
     await this.registry.remove(workspaceId);
+    this.sessionPaths.delete(workspaceId);
+  }
+
+  /**
+   * Track a path in the current session set.
+   *
+   * Callers that create workspaces without going through {@link create}
+   * (e.g. {@link WorkspaceStepExecutor}) must call this to ensure the
+   * path is scoped for signal-handler cleanup.
+   */
+  trackPath(path: string): void {
+    this.sessionPaths.add(path);
+  }
+
+  /**
+   * Remove a path from the current session set.
+   *
+   * {@link destroy} calls this automatically. Callers that destroy
+   * workspaces outside the manager (e.g. {@link CleanupStepExecutor})
+   * should call this explicitly after a successful destroy.
+   */
+  untrackPath(path: string): void {
+    this.sessionPaths.delete(path);
+  }
+
+  /**
+   * Return workspace paths created during this process's lifetime.
+   *
+   * Unlike {@link list} (which returns all entries from the shared
+   * file-backed registry), this only returns paths explicitly tracked
+   * via {@link trackPath} or {@link create}. Signal handlers use this
+   * to avoid destroying workspaces belonging to other processes.
+   */
+  listSessionPaths(): string[] {
+    return [...this.sessionPaths];
   }
 
   /**
@@ -56,7 +98,7 @@ export class WorkspaceManager {
   }
 
   /**
-   * Return all tracked workspace handles.
+   * Return all tracked workspace handles from the shared registry.
    */
   list(): WorkspaceHandle[] {
     return [...this.registry.getAll()];

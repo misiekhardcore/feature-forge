@@ -127,7 +127,6 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const worktreeProvider = new GitWorktreeProvider(repoRoot);
   const worktreeRegistry = new WorktreeRegistry();
   await worktreeRegistry.load();
-  await worktreeRegistry.reconcileAndLog(repoRoot);
   const workspaceManager = new WorkspaceManager(worktreeProvider, worktreeRegistry);
 
   // ── Signal handlers ────────────────────────────────────────────────

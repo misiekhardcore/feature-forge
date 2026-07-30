@@ -7,6 +7,7 @@ import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { FlowContext } from "../FlowContext";
 import type { WorkspaceInstruction } from "../FlowInstruction";
 import type { RoutineProgressEvent } from "../RoutineProgress";
@@ -49,6 +50,10 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
+function stubWorkspaceManager(provider: WorkspaceProvider, registry: WorktreeRegistry): WorkspaceManager {
+  return new WorkspaceManager(provider, registry);
+}
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("WorkspaceStepExecutor", () => {
@@ -56,7 +61,8 @@ describe("WorkspaceStepExecutor", () => {
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
-    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+    const wm = stubWorkspaceManager(provider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -76,7 +82,8 @@ describe("WorkspaceStepExecutor", () => {
   it("throws for an unregistered provider", async () => {
     const provRegistry = new WorkspaceProviderRegistry();
     const wtRegistry = stubWorktreeRegistry();
-    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+    const wm = stubWorkspaceManager(undefined as unknown as WorkspaceProvider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -94,7 +101,8 @@ describe("WorkspaceStepExecutor", () => {
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
-    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+    const wm = stubWorkspaceManager(provider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -112,7 +120,8 @@ describe("WorkspaceStepExecutor", () => {
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
-    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+    const wm = stubWorkspaceManager(provider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -135,7 +144,8 @@ describe("WorkspaceStepExecutor", () => {
 
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
-    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+    const wm = stubWorkspaceManager(provider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -158,7 +168,8 @@ describe("WorkspaceStepExecutor", () => {
 
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
-    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+    const wm = stubWorkspaceManager(provider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
     const instruction: WorkspaceInstruction = {
       type: "workspace",
@@ -182,7 +193,8 @@ describe("WorkspaceStepExecutor", () => {
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
       const instruction: WorkspaceInstruction = {
         type: "workspace",
@@ -211,7 +223,8 @@ describe("WorkspaceStepExecutor", () => {
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
       const instruction: WorkspaceInstruction = {
         type: "workspace",
@@ -288,7 +301,8 @@ describe("WorkspaceStepExecutor", () => {
       const provider = new CountingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
       const instruction: WorkspaceInstruction = {
         type: "workspace",
@@ -307,7 +321,8 @@ describe("WorkspaceStepExecutor", () => {
       const createSpy = vi.spyOn(provider, "createWorkspace");
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
       const instruction: WorkspaceInstruction = {
         type: "workspace",
@@ -331,7 +346,8 @@ describe("WorkspaceStepExecutor", () => {
       const createSpy = vi.spyOn(provider, "createWorkspace");
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
       const instruction: WorkspaceInstruction = {
         type: "workspace",
@@ -358,7 +374,8 @@ describe("WorkspaceStepExecutor", () => {
       const createSpy = vi.spyOn(provider, "createWorkspace");
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
 
       const instruction: WorkspaceInstruction = {
         type: "workspace",

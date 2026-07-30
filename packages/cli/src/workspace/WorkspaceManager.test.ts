@@ -89,3 +89,62 @@ describe("WorkspaceManager", () => {
     });
   });
 });
+
+  describe("session path tracking", () => {
+    let manager: WorkspaceManager;
+
+    beforeEach(async () => {
+      provider = new MockWorkspaceProvider();
+      const registry = new WorktreeRegistry();
+      await registry.load();
+      manager = new WorkspaceManager(provider, registry);
+    });
+
+    it("trackPath adds to listSessionPaths", () => {
+      manager.trackPath("/tmp/ws-1");
+      manager.trackPath("/tmp/ws-2");
+
+      expect(manager.listSessionPaths()).toEqual(["/tmp/ws-1", "/tmp/ws-2"]);
+    });
+
+    it("untrackPath removes from listSessionPaths", () => {
+      manager.trackPath("/tmp/ws-1");
+      manager.trackPath("/tmp/ws-2");
+      manager.untrackPath("/tmp/ws-1");
+
+      expect(manager.listSessionPaths()).toEqual(["/tmp/ws-2"]);
+    });
+
+    it("untrackPath is a no-op for unknown paths", () => {
+      manager.trackPath("/tmp/ws-1");
+      manager.untrackPath("/tmp/nonexistent");
+
+      expect(manager.listSessionPaths()).toEqual(["/tmp/ws-1"]);
+    });
+
+    it("listSessionPaths returns empty when nothing tracked", () => {
+      expect(manager.listSessionPaths()).toEqual([]);
+    });
+
+    it("list returns all registry entries (not just session paths)", async () => {
+      // list() returns registry entries, listSessionPaths() returns tracked only
+      await manager.create("ws-1");
+      await manager.create("ws-2");
+
+      const allPaths = manager.list().map((h) => h.path);
+      expect(allPaths.length).toBe(2);
+      // Session paths are auto-tracked by create()
+      expect(manager.listSessionPaths().length).toBe(2);
+    });
+
+    it("destroy removes from session paths", async () => {
+      const handle = await manager.create("ws-1");
+      const path = handle.path;
+
+      expect(manager.listSessionPaths()).toContain(path);
+
+      await manager.destroy(path);
+
+      expect(manager.listSessionPaths()).not.toContain(path);
+    });
+  });

@@ -7,6 +7,7 @@ import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
+import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import { FlowContext } from "../FlowContext";
 import type { CleanupInstruction } from "../FlowInstruction";
@@ -34,6 +35,10 @@ function stubWorktreeRegistry(): WorktreeRegistry {
   return registry;
 }
 
+function stubWorkspaceManager(provider: WorkspaceProvider, registry: WorktreeRegistry): WorkspaceManager {
+  return new WorkspaceManager(provider, registry);
+}
+
 // ── Tests ────────────────────────────────────────────────────
 
 describe("CleanupStepExecutor", () => {
@@ -42,7 +47,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
       const context = new FlowContext({
@@ -67,7 +73,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
       const context = new FlowContext({
@@ -87,7 +94,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const handle = new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-abc");
       const context = new FlowContext({
@@ -107,7 +115,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
       const context = new FlowContext({
@@ -128,7 +137,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const context = new FlowContext({
         results: new Map(),
@@ -151,7 +161,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const context = new FlowContext({
         results: new Map(),
@@ -188,7 +199,8 @@ describe("CleanupStepExecutor", () => {
         .register("failing", failingProvider);
 
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(goodProvider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const context = new FlowContext({
         results: new Map(),
@@ -207,7 +219,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const context = new FlowContext({
         results: new Map(),
@@ -225,7 +238,8 @@ describe("CleanupStepExecutor", () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
-        const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+        const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
         const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
         const context = new FlowContext({
@@ -265,7 +279,8 @@ describe("CleanupStepExecutor", () => {
         const provider = new TrackingProvider();
         const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
         const wtRegistry = stubWorktreeRegistry();
-        const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+        const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
         const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
         const context = new FlowContext({
@@ -291,7 +306,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const context = new FlowContext({
         results: new Map(),
@@ -310,7 +326,8 @@ describe("CleanupStepExecutor", () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(provider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const handle = new WorkspaceHandle("/fake/ws-def", new Date(), "forge/ws-def");
       const context = new FlowContext({
@@ -330,7 +347,8 @@ describe("CleanupStepExecutor", () => {
       const goodProvider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", goodProvider);
       const wtRegistry = stubWorktreeRegistry();
-      const executor = new CleanupStepExecutor(provRegistry, wtRegistry);
+      const wm = stubWorkspaceManager(goodProvider, wtRegistry);
+      const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
       const context = new FlowContext({
         results: new Map(),
@@ -351,6 +369,7 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        undefined as unknown as WorkspaceManager,
       );
 
       const event = {
@@ -372,6 +391,7 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        undefined as unknown as WorkspaceManager,
       );
 
       const event = {
@@ -393,6 +413,7 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        undefined as unknown as WorkspaceManager,
       );
 
       const event: RoutineProgressEvent = {
@@ -408,6 +429,7 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        undefined as unknown as WorkspaceManager,
       );
 
       const event = {
@@ -425,6 +447,7 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        undefined as unknown as WorkspaceManager,
       );
       const registry = new DisplayContributionRegistry();
       executor.registerDisplayHandler(registry);
@@ -441,6 +464,7 @@ describe("CleanupStepExecutor", () => {
       const executor = new CleanupStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        undefined as unknown as WorkspaceManager,
       );
       const registry = new DisplayContributionRegistry();
       executor.registerDisplayHandler(registry);
