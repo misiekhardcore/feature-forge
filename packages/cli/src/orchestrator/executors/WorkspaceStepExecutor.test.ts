@@ -244,9 +244,14 @@ describe("WorkspaceStepExecutor", () => {
 
   describe("getDisplayContribution", () => {
     it("returns contribution with workspace path and branch from workspace-ready event", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        stubWorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        wm,
       );
 
       const event = {
@@ -269,9 +274,14 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("returns undefined for non-workspace-ready events", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        stubWorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        wm,
       );
 
       const event = {
@@ -284,9 +294,14 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("returns undefined when path is not a string", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        stubWorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         stubWorktreeRegistry(),
+        wm,
       );
 
       const event = {
@@ -402,9 +417,14 @@ describe("WorkspaceStepExecutor", () => {
 
   describe("registerDisplayHandler", () => {
     it("registers a workspace handler that updates workspace and branch", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        new WorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         new WorktreeRegistry(),
+        wm,
       );
       const registry = new DisplayContributionRegistry();
       executor.registerDisplayHandler(registry);
@@ -425,9 +445,14 @@ describe("WorkspaceStepExecutor", () => {
     });
 
     it("does not set branch when contribution has no branch field", () => {
+      const wm = stubWorkspaceManager(
+        undefined as unknown as WorkspaceProvider,
+        new WorktreeRegistry(),
+      );
       const executor = new WorkspaceStepExecutor(
         new WorkspaceProviderRegistry(),
         new WorktreeRegistry(),
+        wm,
       );
       const registry = new DisplayContributionRegistry();
       executor.registerDisplayHandler(registry);

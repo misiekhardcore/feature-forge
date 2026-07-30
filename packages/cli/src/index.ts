@@ -176,6 +176,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     supervisor,
     specManager,
     worktreeRegistry,
+    workspaceManager,
   );
 
   // ── Flow-based orchestration commands ────────────────────────────

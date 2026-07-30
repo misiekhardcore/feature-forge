@@ -1,3 +1,5 @@
+import { cp } from "node:fs/promises";
+
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -17,4 +19,11 @@ export default defineConfig({
     "@earendil-works/pi-tui",
     "typebox",
   ],
+  async onSuccess() {
+    await cp("src/agents/declarative-specs", "dist/agents/declarative-specs", { recursive: true });
+    await cp("src/flows", "dist/flows", {
+      recursive: true,
+      filter: (src) => !src.endsWith(".test.ts"),
+    });
+  },
 });

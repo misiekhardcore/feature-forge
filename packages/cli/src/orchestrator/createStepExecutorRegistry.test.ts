@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
 import { MockWorkspaceProvider } from "../test-utils";
-import { WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
+import { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
 import { createStepExecutorRegistry } from "./createStepExecutorRegistry";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -17,19 +17,28 @@ function setup() {
   const supervisor = new InMemoryAgentSupervisor(mockFactory as never);
   const specManager = { resolve: () => ({}) } as never;
 
-  return { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry };
+  const workspaceManager = new WorkspaceManager(new MockWorkspaceProvider(), worktreeRegistry);
+
+  return { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry, workspaceManager };
 }
 
 // ── Tests ────────────────────────────────────────────────────
 
 describe("createStepExecutorRegistry", () => {
   it("returns a StepExecutorRegistry", () => {
-    const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
+    const {
+      workspaceProviderRegistry,
+      supervisor,
+      specManager,
+      worktreeRegistry,
+      workspaceManager,
+    } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
       supervisor,
       specManager,
       worktreeRegistry,
+      workspaceManager,
     );
 
     expect(registry).toBeDefined();
@@ -37,24 +46,38 @@ describe("createStepExecutorRegistry", () => {
   });
 
   it("registers all 7 built-in executors", () => {
-    const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
+    const {
+      workspaceProviderRegistry,
+      supervisor,
+      specManager,
+      worktreeRegistry,
+      workspaceManager,
+    } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
       supervisor,
       specManager,
       worktreeRegistry,
+      workspaceManager,
     );
 
     expect(registry.types().size).toBe(9);
   });
 
   it("registers leaf executors with correct types", () => {
-    const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
+    const {
+      workspaceProviderRegistry,
+      supervisor,
+      specManager,
+      worktreeRegistry,
+      workspaceManager,
+    } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
       supervisor,
       specManager,
       worktreeRegistry,
+      workspaceManager,
     );
 
     expect(registry.has("workspace")).toBe(true);
@@ -65,12 +88,19 @@ describe("createStepExecutorRegistry", () => {
   });
 
   it("registers container executors with correct types", () => {
-    const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
+    const {
+      workspaceProviderRegistry,
+      supervisor,
+      specManager,
+      worktreeRegistry,
+      workspaceManager,
+    } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
       supervisor,
       specManager,
       worktreeRegistry,
+      workspaceManager,
     );
 
     expect(registry.has("parallel")).toBe(true);
@@ -78,12 +108,19 @@ describe("createStepExecutorRegistry", () => {
   });
 
   it("makes all executors retrievable by type", () => {
-    const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
+    const {
+      workspaceProviderRegistry,
+      supervisor,
+      specManager,
+      worktreeRegistry,
+      workspaceManager,
+    } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
       supervisor,
       specManager,
       worktreeRegistry,
+      workspaceManager,
     );
 
     for (const type of registry.types()) {
@@ -92,12 +129,19 @@ describe("createStepExecutorRegistry", () => {
   });
 
   it("registers container executors after leaf executors", () => {
-    const { workspaceProviderRegistry, supervisor, specManager, worktreeRegistry } = setup();
+    const {
+      workspaceProviderRegistry,
+      supervisor,
+      specManager,
+      worktreeRegistry,
+      workspaceManager,
+    } = setup();
     const registry = createStepExecutorRegistry(
       workspaceProviderRegistry,
       supervisor,
       specManager,
       worktreeRegistry,
+      workspaceManager,
     );
 
     // All leaf types must be present when container executors are used
