@@ -27,12 +27,13 @@ npm run typecheck
 npm run test
 ```
 
-If you modified any files under `packages/cli/src/flows/` or `packages/cli/src/orchestrator/`,
-also run:
+If you modified files that have auto-generated artefacts, regenerate them and run:
 
 ```bash
-npm run flow:generate-schema && git diff --exit-code
+git diff --exit-code
 ```
+
+to verify no unintended drift.
 
 These scripts wrap the project's vitest, eslint, prettier, and tsc configurations with all necessary flags.
 
@@ -47,13 +48,13 @@ Your final JSON block must follow this structure:
 ```json
 {
   "passed": true|false,
-  "summary": "## Validation\n\n### npm run fix\n<verbatim output>\n\n### npm run lint\n<verbatim output>\n\n### npm run typecheck\n<verbatim output>\n\n### npm run test\n<verbatim output>\n\n## Changes\n<description of what was built>"
+  "summary": "## Validation\n\n### Formatter\n<verbatim output>\n\n### Linter\n<verbatim output>\n\n### Type checker\n<verbatim output>\n\n### Test suite\n<verbatim output>\n\n## Changes\n<description of what was built>"
 }
 ```
 
 - Never report `passed: true` if any validation command produced errors or non-zero exit codes.
 - If a validation command has no output (e.g. `npm run fix` with no fixes needed), note that explicitly: `(no output — clean)`.
-- If you modified flow-related files, include the `flow:generate-schema` output as well.
+- If you modified files with auto-generated artefacts, include the regeneration output as well.
 
 ## Commit Rules
 

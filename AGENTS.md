@@ -55,11 +55,11 @@ Specs are resolved by frontmatter `id`, not filename:
 
 Before reporting `passed: true` in your JSON output block, you MUST:
 
-1. Run the full validation loop (`npm run fix`, `npm run lint`, `npm run typecheck`, `npm run test`).
+1. Run the project's full validation loop (formatter, linter, type checker, test suite).
 2. Capture the verbatim stdout/stderr output of each validation command.
 3. Include this output in the `summary` field of your JSON block — the verify agent cross-checks it.
 4. Never report `passed: true` if any validation command fails (non-zero exit code).
-5. If you modified flow-related files (`packages/cli/src/flows/`, `packages/cli/src/orchestrator/`), also run `npm run flow:generate-schema && git diff --exit-code` and include its output.
+5. If you modified files that have auto-generated artefacts (schemas, generated types, codegen output), regenerate them and run `git diff --exit-code` to verify no unintended drift — include the output.
 
 ## Reference
 

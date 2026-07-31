@@ -1,14 +1,5 @@
 import { execFile } from "node:child_process";
-import {
-  appendFileSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  rmSync,
-  symlinkSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { ForgeConfig, logger } from "@feature-forge/shared";
@@ -126,7 +117,6 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     }
 
     this.resolveSymlinks(worktreePath, options?.symlinks);
-    this.excludeFromGit();
 
     return worktreePath;
   }
@@ -172,45 +162,6 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────
-
-  /**
-   * Ensure the platform's own symlinks (e.g. `.pi`) never appear as untracked
-   * dirt in `git status` — otherwise a clean-tree check like `open_pr`'s
-   * `check-clean` step would false-positive on every run.
-   *
-   * Linked worktrees have no writable local exclude file (`.git` is a pointer
-   * file, so `<worktree>/.git/info/exclude` is ignored by git), therefore the
-   * entries are appended to the shared `<repoRoot>/.git/info/exclude`.
-   * Idempotent: entries already present under the marker are not re-added.
-   */
-  private excludeFromGit(): void {
-    const excludePath = join(this.repoRoot, ".git", "info", "exclude");
-    const marker = "# forge worktree symlinks";
-
-    let content = "";
-    try {
-      content = readFileSync(excludePath, "utf-8");
-    } catch {
-      // Missing exclude file (uninitialized repo) — start fresh.
-    }
-
-    const lines = content.split("\n");
-    const existing = new Set(lines.filter((l) => l.trim().length > 0 && !l.trim().startsWith("#")));
-    const toAdd = [...new Set(PLATFORM_SYMLINKS)].filter(
-      (entry) => !existing.has(entry) && !existing.has(entry + "/"),
-    );
-    if (toAdd.length === 0) {
-      return;
-    }
-
-    const block = `${marker}\n${toAdd.join("\n")}`;
-    const prefix = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
-    try {
-      appendFileSync(excludePath, `${prefix}${block}\n`, "utf-8");
-    } catch (error) {
-      logger.warn("Could not append to git exclude file", { excludePath, error });
-    }
-  }
 
   private getWorktreePath(workspaceId: string): string {
     return resolve(join(this.repoRoot, ".forge", "worktrees", workspaceId));
