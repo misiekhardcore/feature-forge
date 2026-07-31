@@ -67,6 +67,13 @@
           "accumulateFrom": ["call_review", "call_verify"],
           "steps": [
             {
+              "type": "shell",
+              "id": "sync",
+              "command": "git fetch origin {{session.base}} 2>&1",
+              "cwd": "{{workspace}}",
+              "failFast": false
+            },
+            {
               "type": "agent",
               "id": "builder",
               "systemPrompt": "build",
@@ -145,6 +152,13 @@
           "type": "shell",
           "id": "rebase",
           "command": "git rebase origin/{{session.base}}",
+          "cwd": "{{workspace}}",
+          "failFast": true
+        },
+        {
+          "type": "shell",
+          "id": "check-clean",
+          "command": "test -z \"$(git status --porcelain --untracked-files=all)\"",
           "cwd": "{{workspace}}",
           "failFast": true
         },

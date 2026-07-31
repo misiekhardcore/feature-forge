@@ -11,6 +11,17 @@ const mocks = vi.hoisted(() => {
   const mkdirSync = vi.fn();
   const lstatSync = vi.fn();
   const readlinkSync = vi.fn();
+  /** Content of the shared git exclude file (undefined = file does not exist yet). */
+  let excludeContents: string | undefined;
+  const readFileSync = vi.fn((_path: string) => {
+    if (excludeContents === undefined) {
+      throw new Error("ENOENT: no such file or directory");
+    }
+    return excludeContents;
+  });
+  const appendFileSync = vi.fn((_path: string, data: string) => {
+    excludeContents = (excludeContents ?? "") + data;
+  });
   /** Maps "cmd::JSON.stringify(args)" → { stdout } | { error, stderr } */
   const execResults = new Map<
     string,
@@ -28,6 +39,18 @@ const mocks = vi.hoisted(() => {
     mkdirSync.mockReset();
     lstatSync.mockReset();
     readlinkSync.mockReset();
+    excludeContents = undefined;
+    readFileSync.mockReset();
+    appendFileSync.mockReset();
+    readFileSync.mockImplementation((_path: string) => {
+      if (excludeContents === undefined) {
+        throw new Error("ENOENT: no such file or directory");
+      }
+      return excludeContents;
+    });
+    appendFileSync.mockImplementation((_path: string, data: string) => {
+      excludeContents = (excludeContents ?? "") + data;
+    });
 
     execFile.mockImplementation(
       (
@@ -53,6 +76,10 @@ const mocks = vi.hoisted(() => {
 
   function addExistingPath(path: string) {
     existsSyncPaths.add(path.replace(/\/$/, ""));
+  }
+
+  function setExcludeContents(content: string) {
+    excludeContents = content;
   }
 
   function willSucceed(cmd: string, args: string[], stdout = "") {
@@ -88,8 +115,15 @@ const mocks = vi.hoisted(() => {
     get readlinkSync() {
       return readlinkSync;
     },
+    get readFileSync() {
+      return readFileSync;
+    },
+    get appendFileSync() {
+      return appendFileSync;
+    },
     reset,
     addExistingPath,
+    setExcludeContents,
     willSucceed,
     willFail,
   };
@@ -109,6 +143,8 @@ vi.mock("node:fs", async () => {
     mkdirSync: mocks.mkdirSync,
     lstatSync: mocks.lstatSync,
     readlinkSync: mocks.readlinkSync,
+    readFileSync: mocks.readFileSync,
+    appendFileSync: mocks.appendFileSync,
   };
 });
 
@@ -711,6 +747,60 @@ describe("GitWorktreeProvider", () => {
       expect(docsCall).toBeDefined();
       // Directory entries keep the trailing slash on the relative link target
       expect(docsCall![0]).toBe("../../../docs/");
+    });
+  });
+
+  describe("createWorkspace — git exclude", () => {
+    it("appends platform symlinks to the shared git exclude file", async () => {
+      mocks.addExistingPath(`${repoRoot}/.pi`);
+      mocks.addExistingPath(`${repoRoot}/.forge/logs`);
+      mocks.addExistingPath(`${repoRoot}/.forge/worktrees.json`);
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      expect(mocks.appendFileSync).toHaveBeenCalledWith(
+        `${repoRoot}/.git/info/exclude`,
+        expect.stringContaining("# forge worktree symlinks"),
+        "utf-8",
+      );
+      const write = mocks.appendFileSync.mock.calls[0]?.[1];
+      expect(write).toContain(".pi");
+      expect(write).toContain(".forge/logs");
+      expect(write).toContain(".forge/worktrees.json");
+    });
+
+    it("does not re-append entries that already exist in the exclude file", async () => {
+      mocks.setExcludeContents(
+        "# forge worktree symlinks\n.pi\n.forge/logs\n.forge/worktrees.json\n",
+      );
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      expect(mocks.appendFileSync).not.toHaveBeenCalled();
+    });
+
+    it("tolerates a missing .git/info/exclude file", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      // readFileSync throws ENOENT — excludeFromGit must not break workspace creation.
+      await expect(provider.createWorkspace("task-1")).resolves.toBe(worktreePath);
     });
   });
 

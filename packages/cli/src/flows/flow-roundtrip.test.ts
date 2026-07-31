@@ -273,7 +273,7 @@ describe("flow round-trip", () => {
 
     // ── 6. open_pr step positions ─────────────────────────
 
-    it("open_pr has fetch, rebase, revalidate between commit and branch (push)", () => {
+    it("open_pr has fetch, rebase, check-clean between commit and branch (push)", () => {
       const openPr = flow.routines.find((r) => r.id === "open_pr");
       expect(openPr).toBeDefined();
 
@@ -283,12 +283,43 @@ describe("flow round-trip", () => {
       const commitIdx = ids.indexOf("commit");
       const fetchIdx = ids.indexOf("fetch");
       const rebaseIdx = ids.indexOf("rebase");
+      const checkCleanIdx = ids.indexOf("check-clean");
       const branchIdx = ids.indexOf("branch");
 
       expect(commitIdx).toBeGreaterThanOrEqual(0);
       expect(fetchIdx).toBe(commitIdx + 1);
-      expect(rebaseIdx).toBe(commitIdx + 2);
-      expect(branchIdx).toBe(commitIdx + 3);
+      expect(rebaseIdx).toBe(fetchIdx + 1);
+      expect(checkCleanIdx).toBe(rebaseIdx + 1);
+      expect(branchIdx).toBe(rebaseIdx + 2);
+    });
+
+    // ── 6b. build_loop step positions ─────────────────────
+
+    it("build_loop starts with a non-blocking sync step before builder and inspect", () => {
+      const runBuildLoop = flow.routines.find((r) => r.id === "run_build_loop");
+      expect(runBuildLoop).toBeDefined();
+
+      const loop = (runBuildLoop?.steps as FlowInstruction[]).find(
+        (s): s is LoopInstruction => s.type === "loop",
+      );
+      expect(loop).toBeDefined();
+      expect(loop?.maxIterations).toBe(5);
+      expect(loop?.accumulateFrom).toEqual(["call_review", "call_verify"]);
+
+      const bodyIds = loop?.steps.map((s) => s.id) ?? [];
+      const syncIdx = bodyIds.indexOf("sync");
+      const builderIdx = bodyIds.indexOf("builder");
+      const inspectIdx = bodyIds.indexOf("inspect");
+
+      // sync must be the first child of build_loop, ordered sync → builder → inspect.
+      expect(syncIdx).toBe(0);
+      expect(builderIdx).toBe(syncIdx + 1);
+      expect(inspectIdx).toBe(builderIdx + 1);
+
+      // sync is a best-effort fetch — it must never fail the loop or the routine.
+      const sync = loop?.steps[syncIdx];
+      expect(sync?.type).toBe("shell");
+      expect((sync as { failFast?: boolean })?.failFast).toBe(false);
     });
 
     // ── 7. RoutineTool name alignment with tools ──────────

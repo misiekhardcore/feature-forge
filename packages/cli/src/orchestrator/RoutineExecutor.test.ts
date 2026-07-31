@@ -48,6 +48,40 @@ class FailingExecutor extends StepExecutor {
   }
 }
 
+/** Runs each body step once, mimicking the real LoopStepExecutor's result surface. */
+class LoopStepExecutorStub extends StepExecutor {
+  readonly type = "loop";
+
+  async execute(
+    instruction: FlowInstruction,
+    context: FlowContext,
+    executeStep: (instruction: FlowInstruction, context: FlowContext) => Promise<FlowContext>,
+    _eventBus: EventBus,
+  ): Promise<FlowContext> {
+    const steps = (instruction as { steps: FlowInstruction[] }).steps;
+    let current = context;
+    for (const step of steps) {
+      current = await executeStep(step, current);
+    }
+    return current.withResult(instruction.id, {
+      raw: "loop done",
+      parsed: { passed: true, summary: "loop completed" },
+    });
+  }
+}
+
+/** Shell executor that always soft-fails (returns passed:false instead of throwing). */
+class SoftFailingShellExecutor extends StepExecutor {
+  readonly type = "shell";
+
+  async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+    return context.withResult(instruction.id, {
+      raw: "command failed",
+      parsed: { passed: false, summary: `shell failed: ${instruction.id}` },
+    });
+  }
+}
+
 function makeTestFlow(overrides: Partial<FlowDefinition["routines"][number]> = {}): FlowDefinition {
   return {
     $schema: FLOW_SCHEMA_URL,
@@ -321,6 +355,93 @@ describe("RoutineExecutor", () => {
       expect(result.passed).toBe(false);
       expect(result.summary).toContain("step result(s) not passed");
       expect(result.results["a1"].parsed?.passed).toBe(false);
+    });
+
+    it("does not fail the routine when a failFast:false loop-body step reports passed:false", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new LoopStepExecutorStub());
+      registry.register(() => new SoftFailingShellExecutor());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "sync-flow",
+        command: "/sync",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [
+              {
+                type: "loop",
+                id: "build_loop",
+                maxIterations: 1,
+                steps: [
+                  {
+                    type: "shell",
+                    id: "sync",
+                    command: "git fetch origin main 2>&1",
+                    cwd: "/tmp",
+                    failFast: false,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      // The non-blocking sync step failed, but the routine must still pass —
+      // the failure is informational only (continueWhile gates the loop).
+      expect(result.results["sync"].parsed?.passed).toBe(false);
+      expect(result.passed).toBe(true);
+    });
+
+    it("fails the routine when a loop-body step without failFast:false reports passed:false", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new LoopStepExecutorStub());
+      registry.register(() => new SoftFailingShellExecutor());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "sync-flow",
+        command: "/sync",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [
+              {
+                type: "loop",
+                id: "build_loop",
+                maxIterations: 1,
+                steps: [
+                  {
+                    type: "shell",
+                    id: "sync",
+                    command: "git fetch origin main",
+                    cwd: "/tmp",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.results["sync"].parsed?.passed).toBe(false);
+      expect(result.passed).toBe(false);
     });
 
     it("throws for an unknown routine name", async () => {
