@@ -235,17 +235,17 @@ describe("ForgeConfig", () => {
           workspaceProvider: "git-worktree",
           agents: {},
           defaultAgent: { model: { model: "gpt-4" } },
-          logDir: "/custom/logs",
+          logDir: "/custom/logs/",
         }),
       );
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getLogDir()).toBe("/custom/logs");
+      expect(instance.getLogDir()).toBe("/custom/logs/");
     });
 
     it("falls back to .forge/logs when logDir not configured", async () => {
       const instance = await ForgeConfig.create({ cwd: tempDir });
-      expect(instance.getLogDir()).toBe(".forge/logs");
+      expect(instance.getLogDir()).toBe(".forge/logs/");
     });
 
     it("returns the configured worktree symlinks", async () => {

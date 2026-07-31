@@ -34,8 +34,8 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     expect(DEFAULT_FORGE_CONFIG.agents.size).toBe(0);
   });
 
-  it("has default logDir .forge/logs", () => {
-    expect(DEFAULT_FORGE_CONFIG.logDir).toBe(".forge/logs");
+  it("has default logDir .forge/logs/", () => {
+    expect(DEFAULT_FORGE_CONFIG.logDir).toBe(".forge/logs/");
   });
 
   it("has default empty worktreeSymlinks", () => {

@@ -35,20 +35,66 @@ skill guidance, collect findings, and produce a single unified verdict.
 
 2. **Apply dimension guidance** — for each relevant dimension, load the full
    methodology via `read(".forge/skills/review/<dimension>/SKILL.md")` and
-   run through its checklist, producing findings in the format defined by
-   `docs/review/findings-format.md`.
+   run through its checklist, producing findings in the format defined in the
+   **Output** section below.
 
 3. **Merge results** — aggregate findings from all dimensions using the merge
    rules defined in `docs/review/merge-rules.md`.
 
 4. **Produce final verdict** — output a single JSON block per the format
-   in `docs/review/findings-format.md`, containing the deduplicated, sorted union
-   of all dimension findings.
+   defined in the **Output** section below, containing the deduplicated, sorted
+   union of all dimension findings.
+
+## Output
+
+You MUST end your response with a single JSON block in this exact schema:
+
+```json
+{
+  "passed": true,
+  "findings": [
+    {
+      "file": "packages/cli/src/foo.ts",
+      "line": 42,
+      "issue": "Unhandled null case in parseConfig",
+      "severity": "P2",
+      "confidence": 0.95
+    }
+  ]
+}
+```
+
+### Field Descriptions
+
+| Field                   | Type    | Description                                  |
+| ----------------------- | ------- | -------------------------------------------- |
+| `passed`                | boolean | `true` only if zero P0 and P1 findings       |
+| `findings`              | Array   | List of individual findings                  |
+| `findings[].file`       | string  | Relative path from workspace root            |
+| `findings[].line`       | number  | Line number (1-indexed), or 0 for file-level |
+| `findings[].issue`      | string  | Human-readable description of the issue      |
+| `findings[].severity`   | string  | Severity level: `P0`, `P1`, `P2`, or `P3`    |
+| `findings[].confidence` | number  | 0.0 (guessing) to 1.0 (certain)              |
+
+### Severity Levels
+
+| Level  | Meaning                         | Action                                                                        |
+| ------ | ------------------------------- | ----------------------------------------------------------------------------- |
+| **P0** | Blocker - must fix before merge | Hard correctness bug, security vulnerability, data loss                       |
+| **P1** | Major - should fix before merge | Significant architecture violation, type safety issue, missing error handling |
+| **P2** | Minor - consider fixing         | Convention violation, missing JSDoc, moderate optimisation gap                |
+| **P3** | Suggestion - optional           | Nitpick, style preference, future optimisation idea                           |
+
+`passed` is `true` **only** if zero P0 and zero P1 findings exist. Any P0 or P1
+finding in the `findings` array requires `passed` to be `false`.
+
+The TOON-style inline prose format for terminal display (used by dimension
+skills) is intentionally not part of this verdict schema.
 
 ## Shared Docs
 
-- `docs/review/findings-format.md` — canonical findings output format
-- `docs/review/merge-rules.md` — deduplication and pass/fail rules
+- `docs/review/findings-format.md` - supplementary reference for the per-skill findings format
+- `docs/review/merge-rules.md` - deduplication and pass/fail rules
 
 ## Rules
 

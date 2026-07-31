@@ -267,6 +267,15 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     }
 
     const parsed = extractJson(raw);
+    if (!parsed) {
+      return {
+        raw,
+        parsed: {
+          passed: false,
+          summary: "Agent did not produce valid JSON output",
+        },
+      };
+    }
     return { raw, parsed };
   }
 }

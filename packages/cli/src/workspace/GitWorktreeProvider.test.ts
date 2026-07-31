@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const execFile = vi.fn();
   let existsSyncPaths = new Set<string>();
-  const existsSync = vi.fn((path: string) => existsSyncPaths.has(path));
+  const existsSync = vi.fn((path: string) => existsSyncPaths.has(path.replace(/\/$/, "")));
   const rmSync = vi.fn();
   const symlinkSync = vi.fn();
   const mkdirSync = vi.fn();
@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
     execResults.clear();
     existsSyncPaths = new Set<string>();
     existsSync.mockReset();
-    existsSync.mockImplementation((path: string) => existsSyncPaths.has(path));
+    existsSync.mockImplementation((path: string) => existsSyncPaths.has(path.replace(/\/$/, "")));
     rmSync.mockReset();
     symlinkSync.mockReset();
     mkdirSync.mockReset();
@@ -52,7 +52,7 @@ const mocks = vi.hoisted(() => {
   }
 
   function addExistingPath(path: string) {
-    existsSyncPaths.add(path);
+    existsSyncPaths.add(path.replace(/\/$/, ""));
   }
 
   function willSucceed(cmd: string, args: string[], stdout = "") {
@@ -444,9 +444,10 @@ describe("GitWorktreeProvider", () => {
   describe("createWorkspace symlinks", () => {
     beforeEach(() => {
       // Add platform symlink sources as existing paths
-      mocks.addExistingPath(`${repoRoot}/.pi`);
-      mocks.addExistingPath(`${repoRoot}/.forge/logs`);
+      mocks.addExistingPath(`${repoRoot}/.pi/`);
+      mocks.addExistingPath(`${repoRoot}/.forge/logs/`);
       mocks.addExistingPath(`${repoRoot}/.forge/worktrees.json`);
+      mocks.addExistingPath(`${repoRoot}/.env`);
     });
 
     it("creates platform symlinks after worktree creation", async () => {
@@ -460,7 +461,7 @@ describe("GitWorktreeProvider", () => {
       await provider.createWorkspace("task-1");
 
       // Platform symlinks should have been created
-      expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(4);
 
       // .pi lives at the root of the worktree, so parent dir exists
       expect(mocks.symlinkSync).toHaveBeenCalledWith(
@@ -470,7 +471,7 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("merges all three sources with dedup", async () => {
-      mocks.addExistingPath(`${repoRoot}/.pi`);
+      mocks.addExistingPath(`${repoRoot}/.pi/`);
 
       branchCheckPasses();
       mocks.willSucceed(
@@ -479,16 +480,17 @@ describe("GitWorktreeProvider", () => {
         "worktree created",
       );
 
-      await provider.createWorkspace("task-1", { symlinks: [".pi", ".forge/logs"] });
+      await provider.createWorkspace("task-1", { symlinks: [".pi/", ".forge/logs"] });
 
       // Dedup: .pi appears in all three sources but should only be created once
       // .forge/logs appears in platform and stepSymlinks — once
       // .forge/worktrees.json only in platform — once
-      expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
+      // .env only in platform — once
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(4);
     });
 
     it("uses relative symlink paths", async () => {
-      mocks.addExistingPath(`${repoRoot}/.pi`);
+      mocks.addExistingPath(`${repoRoot}/.pi/`);
 
       branchCheckPasses();
       mocks.willSucceed(
@@ -525,8 +527,8 @@ describe("GitWorktreeProvider", () => {
 
       await provider.createWorkspace("task-1");
 
-      // 3 platform + 0 env (nonexistent-dir is skipped)
-      expect(mocks.symlinkSync).toHaveBeenCalledTimes(3);
+      // 4 platform symlinks (nonexistent-dir is skipped)
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(4);
 
       // Verify the nonexistent env symlink was NOT created
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
@@ -565,6 +567,24 @@ describe("GitWorktreeProvider", () => {
       expect(mkdirCalls).toContain(`${worktreePath}/.forge`);
     });
 
+    it("creates .env platform symlink as a file entry", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      const envCall = mocks.symlinkSync.mock.calls.find(
+        (call: unknown[]) => (call[1] as string) === `${worktreePath}/.env`,
+      );
+      expect(envCall).toBeDefined();
+      // File entries get a relative link without a trailing slash
+      expect(envCall![0]).toBe("../../../.env");
+    });
+
     it("passes step-level symlinks from options", async () => {
       mocks.addExistingPath(`${repoRoot}/custom-config`);
 
@@ -577,8 +597,8 @@ describe("GitWorktreeProvider", () => {
 
       await provider.createWorkspace("task-1", { symlinks: ["custom-config"] });
 
-      // 3 platform + 1 step-level
-      expect(mocks.symlinkSync).toHaveBeenCalledTimes(4);
+      // 4 platform + 1 step-level
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(5);
 
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
       expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
@@ -613,7 +633,7 @@ describe("GitWorktreeProvider", () => {
         isSymbolicLink: () => true,
       });
       // readlinkSync returns the expected relative path
-      mocks.readlinkSync.mockReturnValueOnce("../../../.pi");
+      mocks.readlinkSync.mockReturnValueOnce("../../../.pi/");
 
       branchCheckPasses();
       mocks.willSucceed(
@@ -671,6 +691,26 @@ describe("GitWorktreeProvider", () => {
         (call[1] as string).endsWith(".pi"),
       );
       expect(piSymlinkCalls).toHaveLength(0);
+    });
+
+    it("preserves trailing slash for directory symlink entries", async () => {
+      mocks.addExistingPath(`${repoRoot}/docs`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1", { symlinks: ["docs/"] });
+
+      const docsCall = mocks.symlinkSync.mock.calls.find(
+        (call: unknown[]) => (call[1] as string) === `${worktreePath}/docs`,
+      );
+      expect(docsCall).toBeDefined();
+      // Directory entries keep the trailing slash on the relative link target
+      expect(docsCall![0]).toBe("../../../docs/");
     });
   });
 

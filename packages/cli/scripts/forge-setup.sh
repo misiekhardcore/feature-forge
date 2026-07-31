@@ -62,15 +62,16 @@ check_prereqs() {
   return "$failures"
 }
 
-# ── Scaffold forge.config.json ─────────────────────────────────────────
+# ── Scaffold .forge/config.json ───────────────────────────────────────
 scaffold_config() {
-  local target="$CWD/forge.config.json"
+  local target="$CWD/.forge/config.json"
   if [[ -f "$target" ]]; then
-    log_warn "forge.config.json already exists — skipping"
+    log_warn ".forge/config.json already exists — skipping"
     return 0
   fi
+  mkdir -p "$CWD/.forge"
   cp "$DEFAULTS_DIR/forge.config.json" "$target"
-  log_info "created forge.config.json"
+  log_info "created .forge/config.json"
 }
 
 # ── Create runtime directories ─────────────────────────────────────────
@@ -94,6 +95,7 @@ append_gitignore() {
     echo ""
     echo "$sentinel"
     echo ".forge/*"
+    echo "!.forge/config.json"
     echo "!.forge/skills/"
     echo "!.forge/skills/**"
     echo "coverage-single/"

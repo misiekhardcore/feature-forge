@@ -204,7 +204,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
       const scaffoldConfig = await ctx.ui.confirm(
         "Forge: Init",
-        "Scaffold forge.config.json with defaults?",
+        "Scaffold .forge/config.json with defaults?",
       );
       const updateGitignore = await ctx.ui.confirm(
         "Forge: Init",

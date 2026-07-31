@@ -18,7 +18,13 @@ import { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
  * Branch name: `forge/<workspaceId>`
  */
 /** Platform-level symlinks created in every worktree. */
-const PLATFORM_SYMLINKS = [".pi", ".forge/logs", ".forge/worktrees.json"];
+const PLATFORM_SYMLINKS = [
+  ".pi/",
+  ".forge/logs/",
+  ".forge/skills/",
+  ".forge/worktrees.json",
+  ".env",
+];
 
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
@@ -178,7 +184,9 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
     const allSymlinks = [...PLATFORM_SYMLINKS, ...configSymlinks, ...(stepSymlinks ?? [])];
 
-    const unique = [...new Set(allSymlinks)];
+    const unique = [
+      ...new Map(allSymlinks.map((s): [string, string] => [s.replace(/\/$/, ""), s])).values(),
+    ];
 
     for (const symlink of unique) {
       // Guard: never symlink into .forge/worktrees/ directory (prevents recursive nesting).
@@ -202,7 +210,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
           const stat = lstatSync(target);
           if (stat.isSymbolicLink()) {
             const existingLink = readlinkSync(target);
-            const expectedLink = relative(dirname(target), source);
+            const expectedLink = this.relativeLinkTarget(dirname(target), source, symlink);
             if (existingLink === expectedLink) {
               continue;
             }
@@ -226,8 +234,18 @@ export class GitWorktreeProvider extends WorkspaceProvider {
         mkdirSync(targetParent, { recursive: true });
       }
 
-      symlinkSync(relative(dirname(target), source), target);
+      symlinkSync(this.relativeLinkTarget(dirname(target), source, symlink), target);
     }
+  }
+
+  /**
+   * Compute the relative symlink target for a worktree entry. Entries ending
+   * in `/` denote directories; the trailing slash is preserved so the created
+   * symlink resolves as a directory link.
+   */
+  private relativeLinkTarget(linkDir: string, source: string, entry: string): string {
+    const link = relative(linkDir, source);
+    return entry.endsWith("/") ? `${link}/` : link;
   }
 
   private async branchExists(branchName: string): Promise<boolean> {
