@@ -31,7 +31,7 @@ export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
   workspaceProvider: WorkspaceProviderKind.GitWorktree,
   agents: new Map<string, AgentConfig>(),
   defaultAgent: DEFAULT_AGENT_CONFIG,
-  logDir: ".forge/logs",
+  logDir: ".forge/logs/",
   worktreeSymlinks: [],
   taskTimeoutMs: 60 * 60 * 1000,
   specDirectories: { flows: [], agents: [] },

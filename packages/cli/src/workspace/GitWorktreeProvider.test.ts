@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const execFile = vi.fn();
   let existsSyncPaths = new Set<string>();
-  const existsSync = vi.fn((path: string) => existsSyncPaths.has(path));
+  const existsSync = vi.fn((path: string) => existsSyncPaths.has(path.replace(/\/$/, "")));
   const rmSync = vi.fn();
   const symlinkSync = vi.fn();
   const mkdirSync = vi.fn();
@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
     execResults.clear();
     existsSyncPaths = new Set<string>();
     existsSync.mockReset();
-    existsSync.mockImplementation((path: string) => existsSyncPaths.has(path));
+    existsSync.mockImplementation((path: string) => existsSyncPaths.has(path.replace(/\/$/, "")));
     rmSync.mockReset();
     symlinkSync.mockReset();
     mkdirSync.mockReset();
@@ -52,7 +52,7 @@ const mocks = vi.hoisted(() => {
   }
 
   function addExistingPath(path: string) {
-    existsSyncPaths.add(path);
+    existsSyncPaths.add(path.replace(/\/$/, ""));
   }
 
   function willSucceed(cmd: string, args: string[], stdout = "") {
@@ -444,8 +444,8 @@ describe("GitWorktreeProvider", () => {
   describe("createWorkspace symlinks", () => {
     beforeEach(() => {
       // Add platform symlink sources as existing paths
-      mocks.addExistingPath(`${repoRoot}/.pi`);
-      mocks.addExistingPath(`${repoRoot}/.forge/logs`);
+      mocks.addExistingPath(`${repoRoot}/.pi/`);
+      mocks.addExistingPath(`${repoRoot}/.forge/logs/`);
       mocks.addExistingPath(`${repoRoot}/.forge/worktrees.json`);
       mocks.addExistingPath(`${repoRoot}/.env`);
     });
@@ -471,7 +471,7 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("merges all three sources with dedup", async () => {
-      mocks.addExistingPath(`${repoRoot}/.pi`);
+      mocks.addExistingPath(`${repoRoot}/.pi/`);
 
       branchCheckPasses();
       mocks.willSucceed(
@@ -480,7 +480,7 @@ describe("GitWorktreeProvider", () => {
         "worktree created",
       );
 
-      await provider.createWorkspace("task-1", { symlinks: [".pi", ".forge/logs"] });
+      await provider.createWorkspace("task-1", { symlinks: [".pi/", ".forge/logs"] });
 
       // Dedup: .pi appears in all three sources but should only be created once
       // .forge/logs appears in platform and stepSymlinks — once
@@ -490,7 +490,7 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("uses relative symlink paths", async () => {
-      mocks.addExistingPath(`${repoRoot}/.pi`);
+      mocks.addExistingPath(`${repoRoot}/.pi/`);
 
       branchCheckPasses();
       mocks.willSucceed(
@@ -633,7 +633,7 @@ describe("GitWorktreeProvider", () => {
         isSymbolicLink: () => true,
       });
       // readlinkSync returns the expected relative path
-      mocks.readlinkSync.mockReturnValueOnce("../../../.pi");
+      mocks.readlinkSync.mockReturnValueOnce("../../../.pi/");
 
       branchCheckPasses();
       mocks.willSucceed(

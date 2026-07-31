@@ -3,7 +3,7 @@
   "logLevel": "debug",
   "logPrefix": "forge",
   "workspaceProvider": "git-worktree",
-  "logDir": ".forge/logs",
+  "logDir": ".forge/logs/",
   "taskTimeoutMs": 3600000,
   "worktreeSymlinks": [],
 

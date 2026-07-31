@@ -18,7 +18,13 @@ import { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
  * Branch name: `forge/<workspaceId>`
  */
 /** Platform-level symlinks created in every worktree. */
-const PLATFORM_SYMLINKS = [".pi", ".forge/logs", ".forge/worktrees.json", ".env"];
+const PLATFORM_SYMLINKS = [
+  ".pi/",
+  ".forge/logs/",
+  ".forge/skills/",
+  ".forge/worktrees.json",
+  ".env",
+];
 
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
@@ -178,7 +184,9 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
     const allSymlinks = [...PLATFORM_SYMLINKS, ...configSymlinks, ...(stepSymlinks ?? [])];
 
-    const unique = [...new Set(allSymlinks)];
+    const unique = [
+      ...new Map(allSymlinks.map((s): [string, string] => [s.replace(/\/$/, ""), s])).values(),
+    ];
 
     for (const symlink of unique) {
       // Guard: never symlink into .forge/worktrees/ directory (prevents recursive nesting).
