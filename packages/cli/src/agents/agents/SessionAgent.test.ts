@@ -55,7 +55,7 @@ describe("SessionAgent", () => {
       expect(agent.isMounted).toBe(true);
     });
 
-    it("registers a before_agent_start hook appending the persona system prompt", () => {
+    it("registers a before_agent_start hook prepending the persona system prompt", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
       agent.mount(pi, "task");
@@ -67,8 +67,24 @@ describe("SessionAgent", () => {
 
       const result = handler({ systemPrompt: "base prompt" });
       expect(result!.systemPrompt).toBe(
-        "base prompt\n\n---\n\n## Custom system prompt\n\n# You are the orchestrator.",
+        "## Custom system prompt\n\n# You are the orchestrator.\n\n---\n\nbase prompt",
       );
+    });
+
+    it("prepends the persona system prompt (not appends)", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+
+      const handler = (pi.on as ReturnType<typeof vi.fn>).mock.calls[0][1] as (event: {
+        systemPrompt: string;
+      }) => { systemPrompt: string } | undefined;
+
+      const result = handler({ systemPrompt: "base prompt" })!;
+      const personaIndex = result.systemPrompt.indexOf("# You are the orchestrator.");
+      const baseIndex = result.systemPrompt.indexOf("base prompt");
+      expect(personaIndex).toBeGreaterThanOrEqual(0);
+      expect(baseIndex).toBeGreaterThan(personaIndex);
     });
 
     it("sends the resolved task as a user message", () => {
@@ -97,6 +113,64 @@ describe("SessionAgent", () => {
       agent.mount(pi, "task");
 
       expect(pi.setActiveTools).not.toHaveBeenCalled();
+    });
+
+    it("filters default tools by full exclusions when the spec declares no tools", () => {
+      const excludedSpec = makeSpec("excluded", {
+        systemPrompt: "persona",
+        excludedTools: ["bash", "write"],
+      });
+      const agent = new SessionAgent(excludedSpec);
+      const pi = makeMockPi();
+      vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash", "edit", "write"]);
+      agent.mount(pi, "task");
+
+      expect(pi.setActiveTools).toHaveBeenCalledWith(["read", "edit"]);
+    });
+
+    it("keeps default tools when excludedTools only has partial restrictions", () => {
+      const partialSpec = makeSpec("partial-only", {
+        systemPrompt: "persona",
+        excludedTools: ["bash:rm *"],
+      });
+      const agent = new SessionAgent(partialSpec);
+      const pi = makeMockPi();
+      vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash", "edit"]);
+      agent.mount(pi, "task");
+
+      // bash is only restricted, not removed — defaults stay untouched.
+      expect(pi.setActiveTools).not.toHaveBeenCalled();
+    });
+
+    it("merges partial restriction patterns from excludedTools into toolRestrictions", () => {
+      const restrictedSpec = makeSpec("partial", {
+        systemPrompt: "persona",
+        toolRestrictions: { bash: ["git *"] },
+        excludedTools: ["bash:rm *"],
+      });
+      const agent = new SessionAgent(restrictedSpec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+
+      expect(pi.on).toHaveBeenCalledWith("tool_call", expect.any(Function));
+      const toolCallHandler = (pi.on as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call: unknown[]) => call[0] === "tool_call",
+      )![1] as (event: {
+        toolName: string;
+        input: { command: string };
+      }) => { block: boolean; reason: string } | undefined;
+
+      // Spec pattern allows git status.
+      expect(
+        toolCallHandler({ toolName: "bash", input: { command: "git status" } }),
+      ).toBeUndefined();
+      // excludedTools partial pattern allows rm commands.
+      expect(toolCallHandler({ toolName: "bash", input: { command: "rm -rf /" } })).toBeUndefined();
+      // Commands matching neither pattern are blocked.
+      expect(toolCallHandler({ toolName: "bash", input: { command: "npm install" } })).toEqual({
+        block: true,
+        reason: expect.stringContaining("npm install"),
+      });
     });
 
     it("registers tool_call handler when restrictions have patterns", () => {

@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { AgentSpecification } from "../agents/specifications/AgentSpecification";
 import { DynamicAgentSpecification } from "../agents/specifications/DynamicAgentSpecification";
 import { activateToolRestrictions } from "./tool-restrictions";
 
@@ -27,24 +28,30 @@ export function activateSpecResolution(pi: ExtensionAPI): void {
 
     try {
       const spec = DynamicAgentSpecification.fromJSON(forgeSpecRaw);
+      const { fullExclusions, partialRestrictions } = AgentSpecification.parseExcludedTools(
+        spec.excludedTools,
+      );
 
       if (spec.tools.length > 0) {
-        const effectiveTools =
-          spec.excludedTools.length > 0
-            ? spec.tools.filter((tool) => !spec.excludedTools.includes(tool))
-            : [...spec.tools];
-        pi.setActiveTools(effectiveTools);
-      } else if (spec.excludedTools.length > 0) {
+        pi.setActiveTools(spec.tools.filter((tool) => !fullExclusions.has(tool)));
+      } else if (fullExclusions.size > 0) {
         const defaultTools = pi.getActiveTools();
-        const effectiveTools = defaultTools.filter((tool) => !spec.excludedTools.includes(tool));
-        pi.setActiveTools(effectiveTools);
+        pi.setActiveTools(defaultTools.filter((tool) => !fullExclusions.has(tool)));
       }
 
       if (spec.thinkingLevel !== undefined) {
         pi.setThinkingLevel(spec.thinkingLevel);
       }
 
-      activateToolRestrictions(pi, spec.toolRestrictions);
+      // Partial restrictions ("tool:pattern") keep the tool active but add
+      // pattern limits — merge them with the spec's own toolRestrictions.
+      const mergedRestrictions: Record<string, readonly string[]> = {
+        ...spec.toolRestrictions,
+      };
+      for (const [tool, patterns] of Object.entries(partialRestrictions)) {
+        mergedRestrictions[tool] = [...(mergedRestrictions[tool] ?? []), ...patterns];
+      }
+      activateToolRestrictions(pi, mergedRestrictions);
 
       childSpec = spec;
     } catch (error) {

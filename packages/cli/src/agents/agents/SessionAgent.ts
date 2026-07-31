@@ -8,7 +8,7 @@ import { logger } from "@feature-forge/shared";
 
 import { activateToolRestrictions } from "../../extensions/tool-restrictions";
 import type { WorkspaceManager } from "../../workspace";
-import type { AgentSpecification } from "../specifications";
+import { AgentSpecification } from "../specifications";
 import { InSessionAgent } from "./InSessionAgent";
 
 /** The `before_agent_start` handler shape registered on mount. */
@@ -58,7 +58,7 @@ export class SessionAgent extends InSessionAgent {
   /**
    * Inject the persona + resolved task into the current session.
    *
-   * 1. Register a `before_agent_start` hook that appends the persona as a
+   * 1. Register a `before_agent_start` hook that prepends the persona as a
    *    custom system prompt.
    * 2. Send the resolved task as a user message to trigger a turn.
    * 3. Apply the declared active tools (when any are specified).
@@ -81,20 +81,38 @@ export class SessionAgent extends InSessionAgent {
       if (this.unmounted) return {};
       return {
         systemPrompt:
-          event.systemPrompt +
-          "\n\n---\n\n## Custom system prompt\n\n" +
-          this.specification.systemPrompt,
+          "## Custom system prompt\n\n" +
+          this.specification.systemPrompt +
+          "\n\n---\n\n" +
+          event.systemPrompt,
       };
     };
     pi.on("before_agent_start", this.handler);
 
     pi.sendUserMessage(task);
 
-    if (this.specification.tools.length > 0) {
-      pi.setActiveTools([...this.specification.tools]);
-    }
+    const { fullExclusions, partialRestrictions } = AgentSpecification.parseExcludedTools(
+      this.specification.excludedTools,
+    );
 
-    activateToolRestrictions(pi, this.specification.toolRestrictions);
+    if (this.specification.tools.length > 0) {
+      // Mode 1: explicit allowlist, minus full exclusions.
+      pi.setActiveTools(this.specification.tools.filter((tool) => !fullExclusions.has(tool)));
+    } else if (fullExclusions.size > 0) {
+      // Mode 2: no allowlist — filter the default tools by full exclusions.
+      pi.setActiveTools(this.defaultTools.filter((tool) => !fullExclusions.has(tool)));
+    }
+    // Mode 3: neither allowlist nor full exclusions — leave defaults unchanged.
+
+    // Partial restrictions ("tool:pattern") keep the tool active but add
+    // pattern limits — merge them with the spec's own toolRestrictions.
+    const mergedRestrictions: Record<string, readonly string[]> = {
+      ...this.specification.toolRestrictions,
+    };
+    for (const [tool, patterns] of Object.entries(partialRestrictions)) {
+      mergedRestrictions[tool] = [...(mergedRestrictions[tool] ?? []), ...patterns];
+    }
+    activateToolRestrictions(pi, mergedRestrictions);
   }
 
   /**

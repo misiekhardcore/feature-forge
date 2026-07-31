@@ -59,6 +59,7 @@ export function makeSpec(
     role: string;
     systemPrompt: string;
     toolRestrictions: Record<string, readonly string[]>;
+    excludedTools: readonly string[];
     model: string;
     thinkingLevel: ThinkingLevel;
     ephemeral: boolean;
@@ -72,6 +73,7 @@ export function makeSpec(
         role: overrides.role ?? "test",
         systemPrompt: overrides.systemPrompt ?? "You are a test agent.",
         toolRestrictions: overrides.toolRestrictions,
+        excludedTools: overrides.excludedTools,
         model: overrides.model,
         thinkingLevel: overrides.thinkingLevel,
         ephemeral: overrides.ephemeral,
