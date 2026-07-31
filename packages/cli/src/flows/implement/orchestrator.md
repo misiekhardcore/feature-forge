@@ -6,6 +6,7 @@ skills:
   - "notes-md"
 tools:
   - set_flow_param
+  - set_session_name
   - create_workspace
   - run_build_loop
   - open_pr
@@ -56,13 +57,15 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
    a workspace.
 1. Call `create_workspace()` to provision a git worktree. Capture the returned
    workspace path and store it via `set_flow_param(key="workspace", value=<path>)`.
-2. Analyse the task and break it into **subtasks** with per-subtask implementation
+2. After create_workspace, call set_session_name with a concise short phrase
+   summarizing the task (e.g. "implement #187 — set_session_name tool").
+3. Analyse the task and break it into **subtasks** with per-subtask implementation
    plans. Note dependencies and sequencing constraints.
-3. Read the issue body and extract every acceptance criterion and objective into
+4. Read the issue body and extract every acceptance criterion and objective into
    a **numbered AC checklist**. Include verbatim criteria — do not paraphrase or
    omit. Present the checklist to the user before proceeding so they can confirm
    it is complete.
-4. Present the plan (subtasks + AC checklist) to the user before proceeding.
+5. Present the plan (subtasks + AC checklist) to the user before proceeding.
 
 #### Plan format requirements
 
@@ -153,9 +156,9 @@ After each call:
 
 ### Phase 3: Gate and PR
 
-0. **AC gate.** Before calling `open_pr`, confirm that every AC from Phase 1 step 3
+0. **AC gate.** Before calling `open_pr`, confirm that every AC from Phase 1 step 4
    is addressed. Read `<workspace>/NOTES.md` and verify its AC checklist matches the
-   one from Phase 1 step 3 — all entries must be `[x]`. If any are missing, state why
+   one from Phase 1 step 4 — all entries must be `[x]`. If any are missing, state why
    and ask the user whether to proceed with gaps. Do NOT silently ship a PR with known
    unmet ACs.
 
@@ -210,7 +213,7 @@ not. Read it on demand when creating, updating, or harvesting — do not preload
   - Before `open_pr` — verify every AC is `[x]`; copy the AC checklist into
     the PR body.
 - **AC checklist flow.** The AC checklist in NOTES.md mirrors the one from
-  Phase 1 step 3 (verbatim, numbered). Verify all entries are `[x]` at the
+  Phase 1 step 4 (verbatim, numbered). Verify all entries are `[x]` at the
   Phase 3 AC gate, then copy the checklist into the PR body alongside the
   markdown summary.
 
@@ -230,7 +233,7 @@ not. Read it on demand when creating, updating, or harvesting — do not preload
   failure or user abort, preserve the workspace for manual recovery unless
   the user explicitly chooses to discard.
 - **AC checklist is the source of truth** — the numbered list from Phase 1
-  step 3 is your contract. Every decision to proceed or gate is made against
+  step 4 is your contract. Every decision to proceed or gate is made against
   that list.
 - **Checkpoint NOTES.md before every routine** — per the NOTES.md protocol,
   write `## Current task` and `## Next action on resume` before each
