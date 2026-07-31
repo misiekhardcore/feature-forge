@@ -5,6 +5,7 @@ import type { TypedEventBus } from "./eventBus";
 import type { InstructionResult } from "./FlowContext";
 import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
+import { isContainerInstruction } from "./FlowInstruction";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
 import type { RoutineResult } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
@@ -66,6 +67,13 @@ export class RoutineExecutor {
           `Available: ${this.flow.routines.map((r) => r.id).join(", ")}`,
       );
     }
+
+    // Steps declared `failFast: false` are non-blocking by contract (ADR 0008):
+    // their failure is surfaced as a soft `passed:false` result but must never
+    // fail the routine. This matters for loop-body steps like `sync` — a failed
+    // git fetch on the final iteration would otherwise flip the whole routine
+    // to `passed:false` despite builder/review/verify all passing.
+    const nonBlockingIds = RoutineExecutor.collectNonBlockingIds(routine.steps);
 
     logger.info("Starting routine", {
       flow: this.flow.name,
@@ -133,11 +141,32 @@ export class RoutineExecutor {
           type: step.type,
           error: err,
         });
-        return this.buildFailureResult(routineName, context, err);
+        return this.buildFailureResult(routineName, context, err, nonBlockingIds);
       }
     }
 
-    return this.buildResult(routineName, context, true);
+    return this.buildResult(routineName, context, true, undefined, nonBlockingIds);
+  }
+
+  /**
+   * Collect the ids of every step declared `failFast: false`, walking into
+   * container instructions (loop, parallel) recursively. Results for these
+   * ids are excluded from the routine-level failure check in
+   * {@link buildResult}.
+   */
+  private static collectNonBlockingIds(
+    steps: FlowInstruction[],
+    acc: Set<string> = new Set(),
+  ): Set<string> {
+    for (const step of steps) {
+      if (step.type === "shell" && step.failFast === false) {
+        acc.add(step.id);
+      }
+      if (isContainerInstruction(step)) {
+        RoutineExecutor.collectNonBlockingIds(step.steps, acc);
+      }
+    }
+    return acc;
   }
 
   private buildResult(
@@ -145,6 +174,7 @@ export class RoutineExecutor {
     context: FlowContext,
     passed: boolean,
     error?: Error,
+    nonBlockingIds: ReadonlySet<string> = new Set(),
   ): RoutineResult {
     const results: Record<string, InstructionResult> = {};
     for (const [key, value] of context.results) {
@@ -157,9 +187,14 @@ export class RoutineExecutor {
     const workspaceEntry = [...context.workspaces.entries()][0];
     const workspace = workspaceEntry ? workspaceEntry[1].path : undefined;
 
-    // Check if any step result explicitly failed — overrides the exception-only signal.
+    // Check if any step result explicitly failed — overrides the exception-only
+    // signal. Results from `failFast: false` steps are skipped: those steps are
+    // non-blocking by design and their soft failure is informational only.
     if (passed) {
-      for (const result of Object.values(results)) {
+      for (const [id, result] of Object.entries(results)) {
+        if (nonBlockingIds.has(id)) {
+          continue;
+        }
         if (result.parsed?.passed === false) {
           passed = false;
           break;
@@ -184,8 +219,9 @@ export class RoutineExecutor {
     routineName: string,
     context: FlowContext,
     error: Error,
+    nonBlockingIds: ReadonlySet<string> = new Set(),
   ): RoutineResult {
-    return this.buildResult(routineName, context, false, error);
+    return this.buildResult(routineName, context, false, error, nonBlockingIds);
   }
 
   private static buildResultSummary(

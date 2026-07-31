@@ -47,6 +47,9 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
 
 ### Phase 1: Plan
 
+0. **Pre-flight.** Run `git fetch --dry-run origin` to verify network access and
+   origin reachability. If this fails, report the error and stop — do not create
+   a workspace.
 1. Call `create_workspace()` to provision a git worktree. Capture the returned
    workspace path and store it via `set_flow_param(key="workspace", value=<path>)`.
 2. Analyse the task and break it into **subtasks** with per-subtask implementation
@@ -152,12 +155,21 @@ After each call:
      subtasks, key changes, and test results. Include an AC checklist showing
      which criteria are met. Avoid double-quote characters (") in the body content
      since it is passed inline in the shell command.
-2. After `open_pr` succeeds, call `destroy_workspace(workspace)` to release
-   the worktree.
-3. Post the PR URL to the user.
+2. If `open_pr` succeeds:
+   - Call `destroy_workspace(workspace)` to release the worktree.
+   - Post the PR URL to the user.
+3. If `open_pr` fails:
+   - Report the failure and the workspace path (`<workspace>`) to the user.
+   - Do NOT destroy the workspace — the user can recover manually.
 
 If `run_build_loop.passed` is false and the user chooses to abort rather than
-retry, summarise the remaining findings and stop without opening a PR.
+retry, ask the user to choose one of:
+
+- **(a) Open a PR despite failures** — first confirm which ACs are unmet so the
+  user can make an informed decision, then proceed to Phase 3.
+- **(b) Discard all changes** — call `destroy_workspace(workspace)` and stop.
+- **(c) Leave as-is** — report the workspace path and stop without destroying.
+  Do NOT auto-destroy the workspace — the user decides.
 
 ## Rules
 
@@ -171,7 +183,9 @@ retry, summarise the remaining findings and stop without opening a PR.
   one creates, run them in order. Independent subtasks can be dispatched in
   any order but still sequentially (single worktree constraint).
 - **Never destroy the workspace until Phase 3** — keep it alive through all
-  subtasks and retries. Destroy only after `open_pr` succeeds.
+  subtasks and retries. Destroy only after `open_pr` succeeds. On `open_pr`
+  failure or user abort, preserve the workspace for manual recovery unless
+  the user explicitly chooses to discard.
 - **AC checklist is the source of truth** — the numbered list from Phase 1
   step 3 is your contract. Every decision to proceed or gate is made against
   that list.
