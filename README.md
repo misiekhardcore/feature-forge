@@ -22,7 +22,7 @@ Or non-interactively:
 npx @misiekhardcore/feature-forge init --yes
 ```
 
-This scaffolds `.forge/` directories, a default `forge.config.json`, and `.gitignore` entries.
+This scaffolds `.forge/` directories, a default `.forge/config.json`, and `.gitignore` entries.
 
 ## Commands
 
