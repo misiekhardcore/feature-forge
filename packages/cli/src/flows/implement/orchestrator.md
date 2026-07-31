@@ -14,6 +14,7 @@ tools:
   - grep
   - bash
   - write:NOTES.md
+  - edit:NOTES.md
 ---
 
 # Implement — Orchestrator Workflow
