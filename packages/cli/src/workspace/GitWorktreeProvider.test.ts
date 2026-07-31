@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
   const mkdirSync = vi.fn();
   const lstatSync = vi.fn();
   const readlinkSync = vi.fn();
+  const appendFileSync = vi.fn();
   /** Maps "cmd::JSON.stringify(args)" → { stdout } | { error, stderr } */
   const execResults = new Map<
     string,
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => {
     mkdirSync.mockReset();
     lstatSync.mockReset();
     readlinkSync.mockReset();
+    appendFileSync.mockReset();
 
     execFile.mockImplementation(
       (
@@ -88,6 +90,9 @@ const mocks = vi.hoisted(() => {
     get readlinkSync() {
       return readlinkSync;
     },
+    get appendFileSync() {
+      return appendFileSync;
+    },
     reset,
     addExistingPath,
     willSucceed,
@@ -109,6 +114,7 @@ vi.mock("node:fs", async () => {
     mkdirSync: mocks.mkdirSync,
     lstatSync: mocks.lstatSync,
     readlinkSync: mocks.readlinkSync,
+    appendFileSync: mocks.appendFileSync,
   };
 });
 
@@ -671,6 +677,72 @@ describe("GitWorktreeProvider", () => {
         (call[1] as string).endsWith(".pi"),
       );
       expect(piSymlinkCalls).toHaveLength(0);
+    });
+
+    it("preserves trailing slash for directory symlink entries", async () => {
+      mocks.addExistingPath(`${repoRoot}/docs`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1", { symlinks: ["docs/"] });
+
+      const docsCall = mocks.symlinkSync.mock.calls.find(
+        (call: unknown[]) => (call[1] as string) === `${worktreePath}/docs`,
+      );
+      expect(docsCall).toBeDefined();
+      // Directory entries keep the trailing slash on the relative link target
+      expect(docsCall![0]).toBe("../../../docs/");
+    });
+
+    it("appends symlink paths to the git exclude file", async () => {
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      const excludePath = `${repoRoot}/.git/info/exclude`;
+      expect(mocks.mkdirSync).toHaveBeenCalledWith(expect.stringContaining(".git/info"), {
+        recursive: true,
+      });
+      expect(mocks.appendFileSync).toHaveBeenCalledWith(
+        excludePath,
+        expect.stringContaining("# forge worktree symlinks"),
+      );
+    });
+
+    it("writes each unique symlink path to the exclude file", async () => {
+      mocks.addExistingPath(`${repoRoot}/docs`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1", { symlinks: ["docs/", ".pi"] });
+
+      const excludePath = `${repoRoot}/.git/info/exclude`;
+      const excludeCall = mocks.appendFileSync.mock.calls.find(
+        (call: unknown[]) => (call[0] as string) === excludePath,
+      );
+      expect(excludeCall).toBeDefined();
+      const content = excludeCall![1] as string;
+      expect(content).toContain(".pi");
+      expect(content).toContain(".forge/logs");
+      expect(content).toContain(".forge/worktrees.json");
+      // Trailing slashes are stripped from exclude entries
+      expect(content).toContain("docs\n");
+      expect(content).not.toContain("docs/");
     });
   });
 

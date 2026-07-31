@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { ForgeConfig, logger } from "@feature-forge/shared";
@@ -202,7 +210,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
           const stat = lstatSync(target);
           if (stat.isSymbolicLink()) {
             const existingLink = readlinkSync(target);
-            const expectedLink = relative(dirname(target), source);
+            const expectedLink = this.relativeLinkTarget(dirname(target), source, symlink);
             if (existingLink === expectedLink) {
               continue;
             }
@@ -226,7 +234,44 @@ export class GitWorktreeProvider extends WorkspaceProvider {
         mkdirSync(targetParent, { recursive: true });
       }
 
-      symlinkSync(relative(dirname(target), source), target);
+      symlinkSync(this.relativeLinkTarget(dirname(target), source, symlink), target);
+    }
+
+    this.excludeFromGit(unique);
+  }
+
+  /**
+   * Compute the relative symlink target for a worktree entry. Entries ending
+   * in `/` denote directories; the trailing slash is preserved so the created
+   * symlink resolves as a directory link.
+   */
+  private relativeLinkTarget(linkDir: string, source: string, entry: string): string {
+    const link = relative(linkDir, source);
+    return entry.endsWith("/") ? `${link}/` : link;
+  }
+
+  /**
+   * Append created symlink paths to the repository's git exclude file so
+   * worktree symlinks are never tracked.
+   *
+   * Linked worktrees share the repository-level `info/exclude` — the
+   * per-worktree gitdir has no `info/` directory — so the file is written at
+   * `<repoRoot>/.git/info/exclude` rather than `<worktreePath>/.git` (which is
+   * a gitdir pointer file in worktrees).
+   */
+  private excludeFromGit(symlinks: readonly string[]): void {
+    if (symlinks.length === 0) {
+      return;
+    }
+
+    const excludePath = join(this.repoRoot, ".git", "info", "exclude");
+    const entries = symlinks.map((s) => `${s.replace(/\/$/, "")}\n`).join("");
+
+    try {
+      mkdirSync(dirname(excludePath), { recursive: true });
+      appendFileSync(excludePath, `\n# forge worktree symlinks\n${entries}`);
+    } catch (error) {
+      logger.debug("Could not write git exclude file", { excludePath, error });
     }
   }
 
