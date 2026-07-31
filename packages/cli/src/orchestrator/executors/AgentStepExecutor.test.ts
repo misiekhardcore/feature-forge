@@ -383,7 +383,10 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(result.results.get("builder")!.raw).toBe("not json at all");
-      expect(result.results.get("builder")!.parsed).toBeUndefined();
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(result.results.get("builder")!.parsed!.summary).toBe(
+        "Agent did not produce valid JSON output",
+      );
     });
 
     it("parses review-style JSON with findings", async () => {
@@ -460,9 +463,12 @@ describe("AgentStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-      // Raw preserved, parsed is undefined because no JSON found
+      // Raw preserved, parsed is a failure result because no JSON found
       expect(result.results.get("builder")!.raw).toBe("just plain text, no json at all");
-      expect(result.results.get("builder")!.parsed).toBeUndefined();
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(result.results.get("builder")!.parsed!.summary).toBe(
+        "Agent did not produce valid JSON output",
+      );
     });
 
     it("throws AbortError when signal is aborted before spawn", async () => {
@@ -745,6 +751,40 @@ describe("AgentStepExecutor", () => {
               agentId: "test-agent",
               passed: false,
               summary: `Agent "builder" failed: build failed`,
+            }),
+          }),
+        );
+      });
+
+      it("emits agent-done with passed: false when parseJson output is invalid", async () => {
+        const agent = makeMockAgent("no json here");
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
+
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "build",
+          parseJson: true,
+        };
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+        });
+
+        const eventBus = makeMockTypedEventBus();
+        await executor.execute(instruction, context, vi.fn(), eventBus);
+
+        expect(eventBus.raw.emit).toHaveBeenCalledWith(
+          "feature-forge:agent-done",
+          expect.objectContaining({
+            phase: "agent-done",
+            details: expect.objectContaining({
+              agentId: "test-agent",
+              passed: false,
+              summary: "Agent did not produce valid JSON output",
             }),
           }),
         );
