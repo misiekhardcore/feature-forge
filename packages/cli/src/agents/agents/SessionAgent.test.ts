@@ -55,6 +55,13 @@ describe("SessionAgent", () => {
       expect(agent.isMounted).toBe(true);
     });
 
+    it("sets a fallback session name on mount", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.mount(pi, "build the feature");
+      expect(pi.setSessionName).toHaveBeenCalledWith("implement");
+    });
+
     it("registers a before_agent_start hook prepending the persona system prompt", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
