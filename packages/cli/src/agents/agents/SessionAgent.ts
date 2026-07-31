@@ -5,9 +5,9 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/shared";
 import { logger } from "@feature-forge/shared";
-import { Type } from "typebox";
 
 import { activateToolRestrictions } from "../../extensions/tool-restrictions";
+import { SetSessionNameTool } from "../../tools";
 import type { WorkspaceManager } from "../../workspace";
 import { AgentSpecification } from "../specifications";
 import { InSessionAgent } from "./InSessionAgent";
@@ -76,23 +76,7 @@ export class SessionAgent extends InSessionAgent {
     pi.setSessionName("implement");
 
     // Register set_session_name tool for orchestrator refinement
-    pi.registerTool({
-      name: "set_session_name",
-      label: "Set Session Name",
-      description:
-        'Set a human-readable name for this session (e.g. "implement #172 — validation gates")',
-      parameters: Type.Object({
-        name: Type.String({ description: "Display name for the session" }),
-      }),
-      async execute(_toolCallId, params) {
-        pi.setSessionName(params.name);
-        return {
-          content: [{ type: "text", text: `Session named: ${params.name}` }],
-          details: undefined,
-        };
-      },
-      renderShell: "self",
-    });
+    pi.registerTool(new SetSessionNameTool(pi));
 
     // Save default tools before the flow overrides them.
     this.defaultTools = [...pi.getActiveTools()];

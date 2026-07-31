@@ -2,6 +2,7 @@ import { AgentStatus } from "@feature-forge/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockPi, makeSpec } from "../../test-utils";
+import { SetSessionNameTool } from "../../tools";
 import type { AgentSpecification } from "../specifications";
 import { SessionAgent } from "./SessionAgent";
 
