@@ -18,9 +18,9 @@ coverage-single/
 !.forge/skills/
 !.forge/skills/**
 !.forge/config.json
-coverage-single/
 
 # pi coding agent runtime
+.pi
 .pi/
 
 # Environment overrides
