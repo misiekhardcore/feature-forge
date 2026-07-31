@@ -1,13 +1,5 @@
 import { execFile } from "node:child_process";
-import {
-  appendFileSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readlinkSync,
-  rmSync,
-  symlinkSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { ForgeConfig, logger } from "@feature-forge/shared";
@@ -236,8 +228,6 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
       symlinkSync(this.relativeLinkTarget(dirname(target), source, symlink), target);
     }
-
-    this.excludeFromGit(unique);
   }
 
   /**
@@ -248,31 +238,6 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   private relativeLinkTarget(linkDir: string, source: string, entry: string): string {
     const link = relative(linkDir, source);
     return entry.endsWith("/") ? `${link}/` : link;
-  }
-
-  /**
-   * Append created symlink paths to the repository's git exclude file so
-   * worktree symlinks are never tracked.
-   *
-   * Linked worktrees share the repository-level `info/exclude` — the
-   * per-worktree gitdir has no `info/` directory — so the file is written at
-   * `<repoRoot>/.git/info/exclude` rather than `<worktreePath>/.git` (which is
-   * a gitdir pointer file in worktrees).
-   */
-  private excludeFromGit(symlinks: readonly string[]): void {
-    if (symlinks.length === 0) {
-      return;
-    }
-
-    const excludePath = join(this.repoRoot, ".git", "info", "exclude");
-    const entries = symlinks.map((s) => `${s.replace(/\/$/, "")}\n`).join("");
-
-    try {
-      mkdirSync(dirname(excludePath), { recursive: true });
-      appendFileSync(excludePath, `\n# forge worktree symlinks\n${entries}`);
-    } catch (error) {
-      logger.debug("Could not write git exclude file", { excludePath, error });
-    }
   }
 
   private async branchExists(branchName: string): Promise<boolean> {
