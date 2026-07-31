@@ -26,7 +26,7 @@ import { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
  * Branch name: `forge/<workspaceId>`
  */
 /** Platform-level symlinks created in every worktree. */
-const PLATFORM_SYMLINKS = [".pi", ".forge/logs", ".forge/worktrees.json"];
+const PLATFORM_SYMLINKS = [".pi", ".forge/logs", ".forge/worktrees.json", ".env"];
 
 /**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
