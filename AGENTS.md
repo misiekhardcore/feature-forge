@@ -38,6 +38,7 @@ Specs are resolved by frontmatter `id`, not filename:
 - **Concurrency**: ❌ Avoid assuming shared in-memory state $\to$ ✅ Use explicit interfaces and serializable data for inter-process communication.
 - **Consistency**: ❌ Avoid divergent styles $\to$ ✅ Follow existing naming and TypeScript conventions of the surrounding package.
 - **TUI rendering**: ❌ Never use raw `.length` or `.slice()` to measure or truncate strings that may contain ANSI escape codes, OSC hyperlinks, or multi-byte characters $\to$ ✅ Always use `visibleWidth()` to measure and `truncateToWidth()` / `wrapTextWithAnsi()` from `@earendil-works/pi-tui` to truncate. Measure twice, cut once — raw string length is not display width.
+- **Validation evidence**: ❌ Avoid self-reporting `passed: true` without proof $\to$ ✅ Always include verbatim validation command output in the JSON summary field so the verify agent can cross-check.
 
 ## Procedural Workflows
 
@@ -49,6 +50,16 @@ Specs are resolved by frontmatter `id`, not filename:
 4. `npm run typecheck` — Ensure type safety.
 5. `npm run test` — Verify functional correctness.
 6. `npm test -- --coverage` — Check coverage impact.
+
+## Deterministic Gate
+
+Before reporting `passed: true` in your JSON output block, you MUST:
+
+1. Run the full validation loop (`npm run fix`, `npm run lint`, `npm run typecheck`, `npm run test`).
+2. Capture the verbatim stdout/stderr output of each validation command.
+3. Include this output in the `summary` field of your JSON block — the verify agent cross-checks it.
+4. Never report `passed: true` if any validation command fails (non-zero exit code).
+5. If you modified flow-related files (`packages/cli/src/flows/`, `packages/cli/src/orchestrator/`), also run `npm run flow:generate-schema && git diff --exit-code` and include its output.
 
 ## Reference
 
