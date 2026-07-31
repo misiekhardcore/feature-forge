@@ -2,6 +2,8 @@
 id: "implement-orchestrator"
 role: "orchestrator"
 model: "smart"
+skills:
+  - "notes-md"
 tools:
   - set_flow_param
   - create_workspace
@@ -11,6 +13,8 @@ tools:
   - read
   - grep
   - bash
+  - write:NOTES.md
+  - edit:NOTES.md
 ---
 
 # Implement — Orchestrator Workflow
@@ -107,6 +111,13 @@ For each subtask in sequence, call `run_build_loop(workspace, task, plan)` where
 `workspace` is the path from Phase 1. This routine runs up to 5 rounds of
 build → review + verify and returns the results.
 
+**NOTES.md checkpoints.** Before and after each `run_build_loop` call, follow
+the NOTES.md checkpoint protocol: before the call, update `## Current task`
+and `## Next action on resume` in `<workspace>/NOTES.md`; after the call
+returns, read NOTES.md and integrate the results — flip checkboxes for
+completed ACs and subtasks, log decisions with rationale. See the
+`## NOTES.md` section below for the full checkpoint list.
+
 ```
 run_build_loop(workspace, task, plan)
 ```
@@ -143,8 +154,10 @@ After each call:
 ### Phase 3: Gate and PR
 
 0. **AC gate.** Before calling `open_pr`, confirm that every AC from Phase 1 step 3
-   is addressed. If any are missing, state why and ask the user whether to proceed with
-   gaps. Do NOT silently ship a PR with known unmet ACs.
+   is addressed. Read `<workspace>/NOTES.md` and verify its AC checklist matches the
+   one from Phase 1 step 3 — all entries must be `[x]`. If any are missing, state why
+   and ask the user whether to proceed with gaps. Do NOT silently ship a PR with known
+   unmet ACs.
 
 1. When all ACs are addressed (or the user explicitly accepts remaining gaps),
    call `open_pr(workspace, title, commit_message, body)` to commit, push, and
@@ -153,8 +166,10 @@ After each call:
      (e.g., `feat: description`, `fix: description`).
    - Derive `body` as a concise markdown summary of what was built across all
      subtasks, key changes, and test results. Include an AC checklist showing
-     which criteria are met. Avoid double-quote characters (") in the body content
-     since it is passed inline in the shell command.
+     which criteria are met. Copy the AC checklist from `NOTES.md` (all entries
+     `[x]`) into the body alongside the markdown summary. Avoid double-quote
+     characters (") in the body content since it is passed inline in the shell
+     command.
 2. If `open_pr` succeeds:
    - Call `destroy_workspace(workspace)` to release the worktree.
    - Post the PR URL to the user.
@@ -170,6 +185,34 @@ retry, ask the user to choose one of:
 - **(b) Discard all changes** — call `destroy_workspace(workspace)` and stop.
 - **(c) Leave as-is** — report the workspace path and stop without destroying.
   Do NOT auto-destroy the workspace — the user decides.
+
+## NOTES.md
+
+`<workspace>/NOTES.md` is the in-phase progress ledger for this flow. It
+survives LLM turn boundaries: in-context recall rot-degrades, the file does
+not. Read it on demand when creating, updating, or harvesting — do not preload.
+
+- **Location.** `<workspace>/NOTES.md` at the worktree root. Created after
+  Phase 1 and committed with the work; `destroy_workspace` removes it together
+  with the worktree.
+- **Protocol.** Read `.forge/skills/notes-md/SKILL.md` for the full NOTES.md
+  lifecycle protocol (create, update, checkpoint, resume, harvest). The skill
+  is loaded via the `skills` frontmatter above.
+- **Checkpoint points** (WHEN, not HOW — the HOW is in the skill):
+  - After Phase 1 (plan complete) — create NOTES.md with the AC checklist,
+    the subtask plan, and the next action on resume.
+  - Before each `run_build_loop` call — update `## Current task` and
+    `## Next action on resume`. If the session dies mid-routine, this
+    checkpoint is the sole resume source.
+  - After each `run_build_loop` returns — read NOTES.md, integrate the
+    results, flip checkboxes for completed ACs and subtasks, log decisions
+    with rationale, update `## Current task` and `## Next action on resume`.
+  - Before `open_pr` — verify every AC is `[x]`; copy the AC checklist into
+    the PR body.
+- **AC checklist flow.** The AC checklist in NOTES.md mirrors the one from
+  Phase 1 step 3 (verbatim, numbered). Verify all entries are `[x]` at the
+  Phase 3 AC gate, then copy the checklist into the PR body alongside the
+  markdown summary.
 
 ## Rules
 
@@ -189,3 +232,6 @@ retry, ask the user to choose one of:
 - **AC checklist is the source of truth** — the numbered list from Phase 1
   step 3 is your contract. Every decision to proceed or gate is made against
   that list.
+- **Checkpoint NOTES.md before every routine** — per the NOTES.md protocol,
+  write `## Current task` and `## Next action on resume` before each
+  `run_build_loop` call.
