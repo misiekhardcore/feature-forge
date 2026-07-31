@@ -48,9 +48,9 @@ vi.mock("@feature-forge/shared", async (importOriginal) => {
       if (m === undefined) return undefined;
       if (m in models) {
         const preset = models[m] as Record<string, unknown>;
-        return { ...preset };
+        return { ...preset, resolved: true };
       }
-      return { model: m };
+      return { model: m, resolved: false };
     }),
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   };

@@ -12,6 +12,7 @@ export type {
   AgentConfig,
   AgentModelConfig,
   DevConfig,
+  ResolvedModelConfig,
   SpecDirectories,
 } from "./ForgeConfigSchema";
 export {

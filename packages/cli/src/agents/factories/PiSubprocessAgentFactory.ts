@@ -51,12 +51,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
     // presets are configured, don't force the unknown string onto pi — let pi
     // use its own default model instead.
     let effectiveModel = resolvedModel?.model;
-    if (
-      effectiveModel &&
-      specification.model &&
-      !(specification.model in this.models) &&
-      Object.keys(this.models).length === 0
-    ) {
+    if (effectiveModel && !resolvedModel!.resolved && Object.keys(this.models).length === 0) {
       logger.warn("Model preset not configured, using pi default model", {
         specModel: specification.model,
       });

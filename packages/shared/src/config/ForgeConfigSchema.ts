@@ -193,6 +193,15 @@ export const ForgeConfigSchema = Type.Object({
 /** TypeScript type derived from {@link AgentModelConfigSchema}. */
 export type AgentModelConfig = Type.Static<typeof AgentModelConfigSchema>;
 
+/**
+ * Resolved model configuration returned by {@link resolveModel}.
+ * Extends {@link AgentModelConfig} with a `resolved` flag indicating
+ * whether the model was found as a preset in the models map.
+ */
+export type ResolvedModelConfig = AgentModelConfig & {
+  resolved: boolean;
+};
+
 /** TypeScript type derived from {@link ModelsMapSchema}. */
 export type ModelsMap = Type.Static<typeof ModelsMapSchema>;
 
