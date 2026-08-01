@@ -1,7 +1,9 @@
 import { AgentStatus } from "@feature-forge/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToolRegistry } from "../../registry";
 import { makeMockPi, makeSpec } from "../../test-utils";
+import { SetSessionNameTool } from "../../tools";
 import type { AgentSpecification } from "../specifications";
 import { SessionAgent } from "./SessionAgent";
 
@@ -203,6 +205,35 @@ describe("SessionAgent", () => {
         (call: unknown[]) => call[0] === "tool_call",
       );
       expect(toolCallCalls).toHaveLength(0);
+    });
+  });
+
+  describe("integration: set_session_name at registration site", () => {
+    it("mounts with fallback name and the registered tool renames the session end-to-end", async () => {
+      const pi = makeMockPi();
+
+      // AC1: mount sets the fallback session name.
+      const agent = new SessionAgent(spec);
+      agent.mount(pi, "build the feature");
+      expect(pi.setSessionName).toHaveBeenCalledWith("implement");
+
+      // Registration site (index.ts): registerInstance wires the tool to pi.
+      const tool = new SetSessionNameTool(pi);
+      const registry = new ToolRegistry(null, pi);
+      registry.registerInstance(tool);
+
+      expect(pi.registerTool).toHaveBeenCalledWith(tool);
+      expect(tool.name).toBe("set_session_name");
+      expect(tool.renderShell).toBe("self");
+
+      // AC2: the registry-held tool can rename the session end-to-end.
+      expect(registry.get("set_session_name")).toBe(tool);
+
+      const result = await tool.execute("call-1", { name: "implement #172" }, undefined);
+      expect(pi.setSessionName).toHaveBeenCalledWith("implement #172");
+      expect(result).toEqual({
+        content: [{ type: "text", text: "Session named: implement #172" }],
+      });
     });
   });
 
