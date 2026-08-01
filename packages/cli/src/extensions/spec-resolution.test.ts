@@ -246,6 +246,38 @@ describe("activateSpecResolution", () => {
 
       expect(pi.getActiveTools()).toEqual([]);
     });
+
+    it("keeps partially restricted tools active and merges patterns into restrictions", () => {
+      const pi = makeMockPiWithHandlers(["read", "grep", "ls", "bash"]);
+      activateSpecResolution(pi);
+
+      process.env.FORGE_SPEC = makeSpecJSON({
+        toolRestrictions: {},
+        excludedTools: ["bash:git *", "bash:!git push"],
+      });
+
+      const sessionStartHandler = pi.getHandler("session_start");
+      sessionStartHandler!();
+
+      // bash is only partially restricted — it stays in the active set.
+      expect(pi.getActiveTools()).toEqual(["read", "grep", "ls", "bash"]);
+
+      const toolCallHandler = pi.getHandler("tool_call");
+      expect(toolCallHandler).toBeDefined();
+
+      // Allowed pattern passes.
+      expect(toolCallHandler!(makeBashToolCallEvent("git status"))).toBeUndefined();
+      // Negation pattern blocks.
+      expect(toolCallHandler!(makeBashToolCallEvent("git push"))).toEqual({
+        block: true,
+        reason: expect.stringContaining("git push"),
+      });
+      // Non-matching command is blocked.
+      expect(toolCallHandler!(makeBashToolCallEvent("rm -rf /"))).toEqual({
+        block: true,
+        reason: expect.stringContaining("rm -rf /"),
+      });
+    });
   });
 
   describe("thinkingLevel", () => {

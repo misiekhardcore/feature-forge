@@ -1,0 +1,126 @@
+# ADR 0013: Session Agent Context Contract
+
+**Date:** 2026-07-31
+**Status:** Accepted
+
+## Context
+
+When an in-session agent (`SessionAgent`) mounts into the main pi session via
+`mount(pi, task)`, it mutates global session state: it registers a
+`before_agent_start` handler, sends a user message, recomputes the active tool
+set, and installs a `tool_call` interceptor. Unlike a `PiSubprocessAgent`
+(which gets its own process and RPC channel), the in-session agent shares the
+host session — its mutations are visible to every subsequent turn and, unless
+undone, to the session after it unmounts.
+
+This ADR documents what is preserved, what is mutated, and what agents can
+assume about their execution context. It is the contract for consumers (the
+`OrchestratorCommand` mount path via `mountInSession`) and for future
+in-session personas that reuse the same `SessionAgent` class.
+
+## Decision
+
+### Preserved context
+
+- The base system prompt survives intact: pi instructions, AGENTS.md/CLAUDE.md
+  context files, self-learning memory instructions, and skill descriptions all
+  remain present in `event.systemPrompt` on every turn.
+- The orchestrator persona is **prepended** (not appended): the handler returns
+  `"## Custom system prompt\n\n" + specification.systemPrompt + "\n\n---\n\n" +
+  event.systemPrompt`. The base directives therefore retain the recency
+  advantage (later text in the system prompt is weighted more heavily by most
+  models), so pi's safety/memory/tool directives are not diluted by persona
+  text.
+- Extension-registered commands and keyboard shortcuts are unaffected:
+  `mount()` never touches `pi.onCommand` registrations or keyboard bindings.
+- Message history, persisted session state, and the workspace registry are
+  untouched by mounting.
+
+### Mutated context
+
+- **Tools**: the active tool set is recomputed per the three-mode layering
+  contract below (via `pi.setActiveTools`).
+- **`before_agent_start` handler**: `SessionAgent.mount` registers a
+  `before_agent_start` hook that prepends the persona system prompt on every
+  future agent start while mounted. Separately, `activateSpecResolution`
+  registers a module-level hook for the subprocess `FORGE_SPEC` path — it is
+  always active but only injects a system prompt when a child spec has been
+  deserialized by `session_start`.
+- **System prompt**: prepended persona (see Preserved context).
+- **Tool restrictions**: `activateToolRestrictions(pi, merged)` registers a
+  `tool_call` interceptor that enforces per-tool glob patterns.
+
+### Tool layering contract
+
+`SessionAgent.mount` captures the pre-mount tool set
+(`pi.getActiveTools()`) as `defaultTools`, then applies exactly one of three
+modes:
+
+1. **Explicit allowlist** — when `specification.tools.length > 0`: the active
+   set is the allowlist minus full exclusions:
+   `pi.setActiveTools(specification.tools.filter((tool) => !fullExclusions.has(tool)))`.
+2. **Default-filtered** — when there is no allowlist but `fullExclusions` is
+   non-empty: the active set is the default tools minus full exclusions:
+   `pi.setActiveTools(defaultTools.filter((tool) => !fullExclusions.has(tool)))`.
+3. **Passthrough** — neither an allowlist nor full exclusions: the default
+   tool set is left unchanged (no `setActiveTools` call).
+
+`AgentSpecification.parseExcludedTools` splits each `excludedTools` entry at
+the first `:`:
+
+- Entry **without** `:` (e.g. `"bash"`) → **full exclusion**: the tool is
+  removed from the active tool set entirely.
+- Entry **with** `:` (e.g. `"bash:rm *"`) → **partial restriction**: the tool
+  stays active, but the pattern limits its inputs.
+
+Partial restrictions are merged with the spec's own `toolRestrictions` (spec
+patterns first, then `excludedTools` patterns appended per tool) and passed to
+`activateToolRestrictions`, which registers the `tool_call` interceptor:
+
+- A tool call passes when its input value matches at least one positive glob
+  pattern and no negation (`!`) pattern.
+- Tools whose entry has an empty pattern array are unrestricted.
+- Tools listed in the map but without an input-field mapping in
+  `TOOL_INPUT_FIELDS` (`bash` → `command`; `write`, `grep`, `read`, `edit`,
+  `find`, `ls` → `path`) are always blocked with a
+  "cannot be restricted" reason.
+- The interceptor is only registered when at least one pattern list is
+  non-empty.
+
+### Restoration
+
+`unmount()` flips the internal `unmounted` flag and calls
+`pi.setActiveTools(defaultTools)`, restoring the tool set captured at mount
+time. Status transitions `Running → Cancelled`.
+
+## Consequences
+
+#### Known limitations
+
+- **No `pi.off()`**: the pi SDK does not support removing an event handler.
+  The `before_agent_start` handler registered on mount cannot be
+  deregistered; it lives for the remainder of the session.
+- **Tool-prompt mismatch**: `setActiveTools` changes which tools are
+  *callable*, but the tool descriptions baked into the session's system prompt
+  are generated by the host and may still describe filtered-out tools. The
+  model can attempt a tool that is no longer active or restricted; the
+  `tool_call` interceptor is the backstop that blocks such calls.
+- **Recency dynamics**: because the persona is prepended, persona directives
+  sit furthest from the end of the system prompt. pi's safety/memory/tool
+  directives retain the recency advantage, but a long persona pushes base
+  instructions earlier and is itself weighted less than appended text.
+
+#### Workarounds
+
+- **`unmounted` flag**: since the handler cannot be removed, `unmount()`
+  flips an internal `unmounted` flag; the handler then returns `{}` (a no-op
+  result), suppressing persona injection without deregistering. `isMounted`
+  exposes the same flag for consumers.
+
+## References
+
+- ADR 0007 — Agent hierarchy: subprocess vs in-session
+- Source: `packages/cli/src/agents/agents/SessionAgent.ts`,
+  `packages/cli/src/extensions/spec-resolution.ts`,
+  `packages/cli/src/agents/specifications/AgentSpecification.ts`,
+  `packages/cli/src/extensions/tool-restrictions.ts`

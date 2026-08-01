@@ -114,6 +114,32 @@ describe("AgentSpecification", () => {
     });
   });
 
+  describe("parseExcludedTools", () => {
+    it("returns empty result for an empty array", () => {
+      const parsed = AgentSpecification.parseExcludedTools([]);
+      expect(parsed.fullExclusions.size).toBe(0);
+      expect(parsed.partialRestrictions).toEqual({});
+    });
+
+    it("treats entries without a colon as full exclusions", () => {
+      const parsed = AgentSpecification.parseExcludedTools(["write", "edit"]);
+      expect(parsed.fullExclusions).toEqual(new Set(["write", "edit"]));
+      expect(parsed.partialRestrictions).toEqual({});
+    });
+
+    it("treats entries with a colon as partial restrictions", () => {
+      const parsed = AgentSpecification.parseExcludedTools(["bash:rm *", "bash:npm *"]);
+      expect(parsed.fullExclusions.size).toBe(0);
+      expect(parsed.partialRestrictions).toEqual({ bash: ["rm *", "npm *"] });
+    });
+
+    it("handles a mix of full exclusions and partial restrictions", () => {
+      const parsed = AgentSpecification.parseExcludedTools(["write", "bash:rm *"]);
+      expect(parsed.fullExclusions).toEqual(new Set(["write"]));
+      expect(parsed.partialRestrictions).toEqual({ bash: ["rm *"] });
+    });
+  });
+
   describe("toJSON", () => {
     it("serializes all fields to a plain object", () => {
       const spec = new TestSpecification({

@@ -101,6 +101,35 @@ export abstract class AgentSpecification {
     return Object.keys(this.toolRestrictions);
   }
 
+  /**
+   * Parse `excludedTools` entries into full exclusions and partial
+   * restrictions.
+   *
+   * - Entry without `:` (e.g. `"bash"`) → full exclusion: the tool is
+   *   removed from the active tool set entirely.
+   * - Entry with `:` (e.g. `"bash:rm *"`) → partial restriction: the
+   *   tool stays active but the pattern limits its inputs.
+   */
+  static parseExcludedTools(excludedTools: readonly string[]): {
+    fullExclusions: Set<string>;
+    partialRestrictions: Record<string, string[]>;
+  } {
+    const fullExclusions = new Set<string>();
+    const partialRestrictions: Record<string, string[]> = {};
+    for (const entry of excludedTools) {
+      const colonIndex = entry.indexOf(":");
+      if (colonIndex === -1) {
+        fullExclusions.add(entry);
+      } else {
+        const tool = entry.slice(0, colonIndex);
+        const pattern = entry.slice(colonIndex + 1);
+        if (!partialRestrictions[tool]) partialRestrictions[tool] = [];
+        partialRestrictions[tool].push(pattern);
+      }
+    }
+    return { fullExclusions, partialRestrictions };
+  }
+
   constructor(params: AgentSpecificationParams) {
     if (!params.id || params.id.trim().length === 0) {
       throw new Error("AgentSpecification id must not be empty");
