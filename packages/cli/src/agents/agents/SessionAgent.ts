@@ -71,6 +71,9 @@ export class SessionAgent extends InSessionAgent {
     this._status = AgentStatus.Running;
     this.unmounted = false;
 
+    // Fallback session name until orchestrator refines it
+    pi.setSessionName("implement");
+
     // Save default tools before the flow overrides them.
     this.defaultTools = [...pi.getActiveTools()];
 

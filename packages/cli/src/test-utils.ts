@@ -169,6 +169,7 @@ export function makeMockPi(): ExtensionAPI {
     getActiveTools: vi.fn().mockReturnValue([]),
     registerCommand: vi.fn(),
     registerTool: vi.fn(),
+    setSessionName: vi.fn(),
     on: vi.fn(),
     events: makeMockEventBus(),
   } as unknown as ExtensionAPI;
