@@ -37,6 +37,7 @@ import {
   GetAgentResultTool,
   ListAgentsTool,
   SendTaskTool,
+  SetSessionNameTool,
   SpawnAgentTool,
 } from "./tools";
 import {
@@ -146,6 +147,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ListAgentsTool,
     DestroyAgentTool,
   );
+  toolRegistry.registerInstance(new SetSessionNameTool(pi));
 
   const cmdRegistry = new CommandRegistry(
     supervisor,

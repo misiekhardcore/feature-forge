@@ -7,7 +7,6 @@ import { AgentStatus } from "@feature-forge/shared";
 import { logger } from "@feature-forge/shared";
 
 import { activateToolRestrictions } from "../../extensions/tool-restrictions";
-import { SetSessionNameTool } from "../../tools";
 import type { WorkspaceManager } from "../../workspace";
 import { AgentSpecification } from "../specifications";
 import { InSessionAgent } from "./InSessionAgent";
@@ -74,9 +73,6 @@ export class SessionAgent extends InSessionAgent {
 
     // Fallback session name until orchestrator refines it
     pi.setSessionName("implement");
-
-    // Register set_session_name tool for orchestrator refinement
-    pi.registerTool(new SetSessionNameTool(pi));
 
     // Save default tools before the flow overrides them.
     this.defaultTools = [...pi.getActiveTools()];
