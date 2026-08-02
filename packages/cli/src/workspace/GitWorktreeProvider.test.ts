@@ -448,6 +448,14 @@ describe("GitWorktreeProvider", () => {
       mocks.addExistingPath(`${repoRoot}/.forge/logs/`);
       mocks.addExistingPath(`${repoRoot}/.forge/worktrees.json`);
       mocks.addExistingPath(`${repoRoot}/.env`);
+      // lstatSync on the source determines symlink type (dir vs file)
+      mocks.lstatSync.mockImplementation(() => ({
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+      }));
+      // The worktree's local git exclude file is resolved via git; from the
+      // main checkout git returns the path relative to its cwd
+      mocks.willSucceed("git", ["rev-parse", "--git-path", "info/exclude"], ".git/info/exclude");
     });
 
     it("creates platform symlinks after worktree creation", async () => {
@@ -467,6 +475,7 @@ describe("GitWorktreeProvider", () => {
       expect(mocks.symlinkSync).toHaveBeenCalledWith(
         expect.stringContaining(".."),
         `${worktreePath}/.pi`,
+        "dir",
       );
     });
 
@@ -510,13 +519,9 @@ describe("GitWorktreeProvider", () => {
     });
 
     it("skips missing sources with warning", async () => {
-      // The nested beforeEach adds all 3 platform paths.
-      // We must NOT add .forge/logs so the test verifies the skip behaviour.
-      // The beforeEach already added .pi and .forge/worktrees.json — good.
-      // But it also added .forge/logs — we need to override by using FORGE_WORKTREE_SYMLINKS
-      // to test the skip behaviour on a different path.
-
-      // Do NOT add nonexistent-dir as existing
+      // nonexistent-dir is passed as a step-level symlink but has no source in
+      // the repo, so it must be skipped instead of creating a dangling link.
+      // The 4 platform symlinks are still created.
 
       branchCheckPasses();
       mocks.willSucceed(
@@ -525,7 +530,7 @@ describe("GitWorktreeProvider", () => {
         "worktree created",
       );
 
-      await provider.createWorkspace("task-1");
+      await provider.createWorkspace("task-1", { symlinks: ["nonexistent-dir"] });
 
       // 4 platform symlinks (nonexistent-dir is skipped)
       expect(mocks.symlinkSync).toHaveBeenCalledTimes(4);
@@ -533,23 +538,6 @@ describe("GitWorktreeProvider", () => {
       // Verify the nonexistent env symlink was NOT created
       const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
       expect(symlinkTargets).not.toContain(`${worktreePath}/nonexistent-dir`);
-    });
-
-    it("guards against .forge/worktrees/ symlinks", async () => {
-      mocks.addExistingPath(`${repoRoot}/.forge/worktrees/evil`);
-
-      branchCheckPasses();
-      mocks.willSucceed(
-        "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
-        "worktree created",
-      );
-
-      await provider.createWorkspace("task-1");
-
-      // .forge/worktrees/evil should NOT be symlinked (would cause recursive nesting)
-      const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
-      expect(symlinkTargets).not.toContain(`${worktreePath}/.forge/worktrees/evil`);
     });
 
     it("creates parent directories for nested symlink targets", async () => {

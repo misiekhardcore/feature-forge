@@ -116,7 +116,7 @@ export class GitWorktreeProvider extends WorkspaceProvider {
       ]);
     }
 
-    this.resolveSymlinks(worktreePath, options?.symlinks);
+    await this.resolveSymlinks(worktreePath, options?.symlinks);
 
     return worktreePath;
   }
@@ -177,7 +177,10 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     }
   }
 
-  private resolveSymlinks(worktreePath: string, stepSymlinks?: readonly string[]): void {
+  private async resolveSymlinks(
+    worktreePath: string,
+    stepSymlinks?: readonly string[],
+  ): Promise<void> {
     // Read configured worktree symlinks from ForgeConfig if available,
     const config = ForgeConfig.getInstance();
     const configSymlinks = config ? config.getWorktreeSymlinks() : [];
@@ -234,7 +237,11 @@ export class GitWorktreeProvider extends WorkspaceProvider {
         mkdirSync(targetParent, { recursive: true });
       }
 
-      symlinkSync(this.relativeLinkTarget(dirname(target), source, symlink), target);
+      symlinkSync(
+        this.relativeLinkTarget(dirname(target), source, symlink),
+        target,
+        lstatSync(source).isDirectory() ? "dir" : "file",
+      );
     }
   }
 
