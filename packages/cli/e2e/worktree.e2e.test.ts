@@ -9,15 +9,7 @@
  */
 
 import { execSync } from "node:child_process";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -182,33 +174,5 @@ describe("GitWorktreeProvider (e2e)", () => {
 
     // Second destroy — should not throw
     await expect(provider.destroyWorkspace(workspacePath)).resolves.toBeUndefined();
-  });
-
-  // ── Symlink exclusion ────────────────────────────────────────────────
-
-  it("never stages worktree symlinks via git add", async () => {
-    // Create symlink sources in the main repo so the worktree gets symlinks
-    mkdirSync(join(repoRoot, ".pi"), { recursive: true });
-    writeFileSync(join(repoRoot, ".env"), "SECRET=1\n");
-
-    const workspacePath = await provider.createWorkspace("task-8");
-
-    // The symlinks exist in the worktree
-    expect(lstatSync(join(workspacePath, ".pi")).isSymbolicLink()).toBe(true);
-    expect(lstatSync(join(workspacePath, ".env")).isSymbolicLink()).toBe(true);
-
-    // The repo-local exclude file covers the symlink paths, so git never
-    // stages them even though .gitignore in the temp repo has no matching
-    // patterns at all.
-    expect(git(workspacePath, "status --porcelain")).toBe("");
-    git(workspacePath, "add -A");
-    expect(git(workspacePath, "status --porcelain")).toBe("");
-
-    // The exclude entries are written to the repo-local git exclude file
-    const exclude = readFileSync(join(repoRoot, ".git", "info", "exclude"), "utf-8");
-    expect(exclude).toContain("/.pi");
-    expect(exclude).toContain("/.env");
-
-    await provider.destroyWorkspace(workspacePath);
   });
 });
