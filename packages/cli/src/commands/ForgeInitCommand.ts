@@ -17,7 +17,7 @@ export class ForgeInitCommand extends Command {
   readonly description = "Initialize Feature Forge project scaffolding";
 
   handler = async (_args: string, ctx: ExtensionCommandContext) => {
-    const setupScript = path.join(__dirname, "..", "scripts", "forge-setup.sh");
+    const setupScript = path.join(__dirname, "scripts", "forge-setup.js");
 
     const scaffoldConfig = await ctx.ui.confirm(
       "Forge: Init",
@@ -25,13 +25,13 @@ export class ForgeInitCommand extends Command {
     );
     const updateGitignore = await ctx.ui.confirm("Forge: Init", "Add forge entries to .gitignore?");
 
-    const args = ["bash", setupScript];
+    const args = [setupScript];
     if (!scaffoldConfig) args.push("--no-config");
     if (!updateGitignore) args.push("--no-gitignore");
     args.push("--yes", "--cwd", process.cwd());
 
     try {
-      await execFileAsync(args[0], args.slice(1));
+      await execFileAsync("node", args);
       ctx.ui.notify("Feature Forge initialized successfully", "info");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";

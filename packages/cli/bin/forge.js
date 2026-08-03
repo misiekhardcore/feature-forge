@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const scriptPath = join(__dirname, "..", "scripts", "forge-setup.sh");
+const scriptPath = join(__dirname, "..", "dist", "scripts", "forge-setup.js");
 
 const args = process.argv.slice(2);
 if (args[0] !== "init") {
@@ -12,9 +12,9 @@ if (args[0] !== "init") {
   process.exit(args[0] === "--help" || args[0] === "-h" ? 0 : 1);
 }
 
-const child = spawn("bash", [scriptPath, ...args.slice(1)], { stdio: "inherit" });
+const child = spawn("node", [scriptPath, ...args.slice(1)], { stdio: "inherit" });
 child.on("error", (err) => {
-  console.error("Failed to run forge-setup.sh:", err.message);
+  console.error("Failed to run forge-setup.js:", err.message);
   process.exit(1);
 });
 child.on("close", (code) => {
