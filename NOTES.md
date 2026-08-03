@@ -18,6 +18,12 @@
 - Dropped flow.json prompt changes — prompt-only fix is a nudge, not a guarantee (user decision)
 - Re-prompt mechanism is the programmatic guard: agent.retry() sends correction prompt, waits for corrected response, max 2 attempts
 
+## Update — iteration 5 (final re-validation)
+- Full validation loop re-run on current branch tip: `npm run fix` exit 0 (no changes needed), `npm run lint` exit 0 (6 tasks), `npm run typecheck` exit 0 (10 tasks), `npm run test` exit 0 (103 files / 1942 tests), e2e 9 files / 60 tests exit 0.
+- Coverage gate exit 1 re-verified as PRE-EXISTING baseline debt with an apples-to-apples fresh-worktree comparison (clean npm ci at 3500e7b0): origin/main branches 86.39% (1676/1940) vs this branch 86.42% (1687/1952) in the same environment — no regression, marginally better. The ws's lower 84.45% is a workspace artifact: empty ws node_modules makes `@feature-forge/tui`/`@feature-forge/shared` resolve up to the main repo, under-instrumenting tui views.
+- Modified-file per-file coverage (clean env): PiSubprocessAgent.ts 97.93% stmts / 94.87% branches; AgentStepExecutor.ts 98.78% / 95.74%.
+- No uncommitted source changes; branch ahead of origin/main by 3 commits (df5bc82c, abdbdf1c, 45c71f9e).
+
 ## Next action on resume
 - DONE — build loop complete, all ACs green
 - Validation (2026-08-04): fix/lint/typecheck exit 0; test 103 files / 1941 tests passed (incl. retry tests in AgentStepExecutor.test.ts + PiSubprocessAgent.test.ts). Coverage gate exit 1 is pre-existing baseline debt (no regression vs origin/main).
