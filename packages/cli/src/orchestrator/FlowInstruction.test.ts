@@ -1005,6 +1005,18 @@ describe("makeLoopInstruction", () => {
     expect(instr.accumulateFrom).toEqual(["review", "verify"]);
   });
 
+  it("creates a loop instruction with while", () => {
+    const instr = makeLoopInstruction(
+      "l1",
+      3,
+      [],
+      undefined,
+      undefined,
+      "results.gate?.parsed?.passed",
+    );
+    expect(instr.while).toBe("results.gate?.parsed?.passed");
+  });
+
   it("creates a full loop instruction", () => {
     const instr = makeLoopInstruction(
       "l1",

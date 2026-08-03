@@ -7,7 +7,7 @@ import { FlowContext } from "./FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
 import { isContainerInstruction } from "./FlowInstruction";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
-import type { RoutineResult } from "./RoutineResult";
+import type { RoutineResult, RoutineStatus } from "./RoutineResult";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
@@ -202,17 +202,48 @@ export class RoutineExecutor {
       }
     }
 
+    // Derive the three-state status. "failed" wins over "skipped": a routine
+    // that both skipped a step and failed a step reports "failed".
+    let status: RoutineStatus = "success";
+    let reason: string | undefined;
+    if (!passed) {
+      status = "failed";
+    } else {
+      const skippedIds = RoutineExecutor.collectSkippedIds(results);
+      if (skippedIds.length > 0) {
+        status = "skipped";
+        reason = `Skipped step(s): ${skippedIds.join(", ")}`;
+      }
+    }
+
     const summary = RoutineExecutor.buildResultSummary(routineName, passed, error, results);
 
     return {
       routine: routineName,
       passed,
+      status,
+      reason,
       session: context.store.toObject(),
       rounds: context.iteration,
       workspace,
       results,
       summary,
     };
+  }
+
+  /**
+   * Collect the ids of every step whose raw output carries the skipped
+   * indicator (`"skipped":true` in the raw JSON, e.g. a loop skipped by its
+   * while-guard). These drive the "skipped" routine status.
+   */
+  private static collectSkippedIds(results: Record<string, InstructionResult>): string[] {
+    const skipped: string[] = [];
+    for (const [id, result] of Object.entries(results)) {
+      if (result.raw.includes('"skipped":true')) {
+        skipped.push(id);
+      }
+    }
+    return skipped;
   }
 
   private buildFailureResult(

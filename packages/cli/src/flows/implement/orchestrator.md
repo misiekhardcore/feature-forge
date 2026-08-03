@@ -162,7 +162,11 @@ After each call:
    and ask the user whether to proceed with gaps. Do NOT silently ship a PR with known
    unmet ACs.
 
-1. When all ACs are addressed (or the user explicitly accepts remaining gaps),
+1. **Delete NOTES.md.** After the AC gate, delete `<workspace>/NOTES.md` so it is
+   not committed to the PR. NOTES.md is a phase-local ledger — it belongs in the
+   worktree, not in the repository history.
+
+2. When all ACs are addressed (or the user explicitly accepts remaining gaps),
    call `open_pr(workspace, title, commit_message, body)` to commit, push, and
    create the PR.
    - Derive `commit_message` from the build results in conventional commits format
@@ -170,13 +174,13 @@ After each call:
    - Derive `body` as a concise markdown summary of what was built across all
      subtasks, key changes, and test results. Include an AC checklist showing
      which criteria are met. Copy the AC checklist from `NOTES.md` (all entries
-     `[x]`) into the body alongside the markdown summary. Avoid double-quote
-     characters (") in the body content since it is passed inline in the shell
-     command.
-2. If `open_pr` succeeds:
+     `[x]`, harvested before deletion in step 1) into the body alongside the
+     markdown summary. Use `--body-file` with a temp file instead of inline
+     `--body` to avoid shell quoting issues with backticks and special characters.
+3. If `open_pr` succeeds:
    - Call `destroy_workspace(workspace)` to release the worktree.
    - Post the PR URL to the user.
-3. If `open_pr` fails:
+4. If `open_pr` fails:
    - Report the failure and the workspace path (`<workspace>`) to the user.
    - Do NOT destroy the workspace — the user can recover manually.
 
@@ -196,8 +200,9 @@ survives LLM turn boundaries: in-context recall rot-degrades, the file does
 not. Read it on demand when creating, updating, or harvesting — do not preload.
 
 - **Location.** `<workspace>/NOTES.md` at the worktree root. Created after
-  Phase 1 and committed with the work; `destroy_workspace` removes it together
-  with the worktree.
+  Phase 1 and deleted before `open_pr` (Phase 3 step 1); it must never appear
+  in a PR. On abnormal exit, `destroy_workspace` removes it together with
+  the worktree.
 - **Protocol.** Read `.forge/skills/notes-md/SKILL.md` for the full NOTES.md
   lifecycle protocol (create, update, checkpoint, resume, harvest). The skill
   is loaded via the `skills` frontmatter above.
@@ -210,8 +215,8 @@ not. Read it on demand when creating, updating, or harvesting — do not preload
   - After each `run_build_loop` returns — read NOTES.md, integrate the
     results, flip checkboxes for completed ACs and subtasks, log decisions
     with rationale, update `## Current task` and `## Next action on resume`.
-  - Before `open_pr` — verify every AC is `[x]`; copy the AC checklist into
-    the PR body.
+  - Before `open_pr` — verify every AC is `[x]`; harvest the AC checklist
+    into the PR body; then delete NOTES.md.
 - **AC checklist flow.** The AC checklist in NOTES.md mirrors the one from
   Phase 1 step 4 (verbatim, numbered). Verify all entries are `[x]` at the
   Phase 3 AC gate, then copy the checklist into the PR body alongside the

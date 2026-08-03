@@ -9,8 +9,8 @@ export class ExpressionEvaluator {
    * Parse an expression string into an AST.
    * Throws ParseError with position info if the syntax is invalid.
    *
-   * Used at flow-load time to validate `continueWhile` expressions
-   * before the flow is executed.
+   * Used at flow-load time to validate `while` and `continueWhile`
+   * expressions before the flow is executed.
    */
   static parseExpression(expr: string): Expr {
     const parser = new ExpressionParser(expr);

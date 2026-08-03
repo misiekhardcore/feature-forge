@@ -398,6 +398,102 @@ describe("validateSemantics", () => {
     });
   });
 
+  // ── while expressions ──────────────────────────────────
+
+  describe("while", () => {
+    it("accepts a valid expression", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: [
+            {
+              id: "main",
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 5,
+                  while: "results.gate?.parsed?.passed",
+                  steps: [],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("rejects a syntactically invalid expression", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: [
+            {
+              id: "main",
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 5,
+                  while: "true + false",
+                  steps: [],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain("Invalid while expression");
+    });
+
+    it("includes the loop path in the error", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: [
+            {
+              id: "main",
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "bad_loop",
+                  maxIterations: 3,
+                  while: "@@@",
+                  steps: [],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(errors[0]).toContain("bad_loop");
+    });
+
+    it("accepts a loop without while", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({
+          routines: [
+            {
+              id: "main",
+              params: [],
+              steps: [
+                {
+                  type: "loop",
+                  id: "l",
+                  maxIterations: 3,
+                  steps: [],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      expect(errors).toEqual([]);
+    });
+  });
+
   // ── accumulateFrom ──────────────────────────────────────
 
   describe("accumulateFrom", () => {

@@ -280,11 +280,23 @@ export class FlowLoader {
     }
   }
 
+  /**
+   * Validate that `while` and `continueWhile` expressions in a loop
+   * instruction parse with the ExpressionEvaluator grammar.
+   */
   private static checkLoopExpression(
     loop: FlowInstruction & { type: "loop" },
     path: string[],
     errors: string[],
   ): void {
+    if (loop.while) {
+      try {
+        ExpressionEvaluator.parseExpression(loop.while);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        errors.push(`Invalid while expression in loop "${path.join(" → ")}": ${message}`);
+      }
+    }
     if (!loop.continueWhile) return;
     try {
       ExpressionEvaluator.parseExpression(loop.continueWhile);

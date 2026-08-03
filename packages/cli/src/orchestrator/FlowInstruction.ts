@@ -121,12 +121,17 @@ export const ParallelInstructionSchema = defineInstruction("parallel", {
 /**
  * Loop instruction schema.
  *
- * **Do-while semantics**: the loop body (`steps`) always executes at least
- * once. The `continueWhile` condition is evaluated **after** each iteration,
- * so the body runs before the first check. When `continueWhile` is omitted
- * the loop runs exactly `maxIterations` times.
+ * **While-guard semantics**: when `while` is present, it is evaluated
+ * **before** the first iteration. If it evaluates to false the loop is
+ * skipped entirely and records `{ iterations: 0, skipped: true }`.
  *
- * ### `continueWhile` expression grammar
+ * **Do-while semantics**: without a `while` guard (or when it evaluates to
+ * true), the loop body (`steps`) always executes at least once. The
+ * `continueWhile` condition is evaluated **after** each iteration, so the
+ * body runs before the first check. When `continueWhile` is omitted the
+ * loop runs exactly `maxIterations` times.
+ *
+ * ### Expression grammar (shared by `while` and `continueWhile`)
  *
  * The expression string supports the following syntax:
  *
@@ -140,6 +145,7 @@ export const ParallelInstructionSchema = defineInstruction("parallel", {
  */
 export const LoopInstructionSchema = defineInstruction("loop", {
   maxIterations: Type.Integer({ minimum: 1 }),
+  while: Type.Optional(Type.String()),
   continueWhile: Type.Optional(Type.String()),
   accumulateFrom: Type.Optional(Type.Array(Type.String())),
 });
@@ -314,9 +320,11 @@ export function makeLoopInstruction(
   steps: FlowInstruction[],
   continueWhile?: string,
   accumulateFrom?: string[],
+  whileExpr?: string,
 ): LoopInstruction {
   const base: LoopInstruction = { type: "loop", id, maxIterations, steps };
   if (continueWhile !== undefined) base.continueWhile = continueWhile;
   if (accumulateFrom !== undefined) base.accumulateFrom = accumulateFrom;
+  if (whileExpr !== undefined) base.while = whileExpr;
   return base;
 }
