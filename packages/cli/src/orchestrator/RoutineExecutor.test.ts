@@ -412,6 +412,9 @@ describe("RoutineExecutor", () => {
       // the failure is informational only (continueWhile gates the loop).
       expect(result.results["sync"].parsed?.passed).toBe(false);
       expect(result.passed).toBe(true);
+      // A non-blocking soft failure must not leak into the status derivation.
+      expect(result.status).toBe("success");
+      expect(result.reason).toBeUndefined();
     });
 
     it("fails the routine when a loop-body step without failFast:false reports passed:false", async () => {
@@ -803,6 +806,46 @@ describe("RoutineExecutor", () => {
       expect(result.passed).toBe(true);
       expect(result.status).toBe("skipped");
       expect(result.reason).toBe("Skipped step(s): build_loop");
+    });
+
+    it("joins multiple skipped step ids in the reason", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new SkippedLoopExecutorStub());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "multi-skip-flow",
+        command: "/multi-skip",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [
+              {
+                type: "loop",
+                id: "build_loop",
+                maxIterations: 3,
+                steps: [{ type: "shell", id: "inner", command: "echo hi", cwd: "/tmp" }],
+              },
+              {
+                type: "loop",
+                id: "test_loop",
+                maxIterations: 3,
+                steps: [{ type: "shell", id: "inner2", command: "echo hi", cwd: "/tmp" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.status).toBe("skipped");
+      expect(result.reason).toBe("Skipped step(s): build_loop, test_loop");
     });
 
     it('reports "failed" when a step reports passed:false, even if another step was skipped', async () => {
