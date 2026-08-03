@@ -50,7 +50,7 @@ describe("SessionAgent", () => {
       // Default tools are captured internally and restored on unmount.
     });
 
-    it("does not overwrite defaultTools on double mount", () => {
+    it("does not overwrite savedTools on double mount", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
       vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash"]);
