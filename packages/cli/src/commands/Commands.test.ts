@@ -204,13 +204,16 @@ describe("FlowExitCommand", () => {
       expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited. No active flow to exit.", "info");
     });
 
-    it("unmounts agents and sends exit message when a session agent is mounted", async () => {
+    it("destroys agents via supervisor and sends exit message when a session agent is mounted", async () => {
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
       const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
       agent.mount(pi, "start task");
 
+      const destroySpy = vi.spyOn(supervisor, "destroyAgent");
+
       await cmd.handler("", ctx);
 
+      expect(destroySpy).toHaveBeenCalledWith(agent.id);
       expect(agent.isMounted).toBe(false);
       expect(pi.sendUserMessage).toHaveBeenCalledWith(
         expect.stringContaining("Flow exited. Ready."),
@@ -219,6 +222,46 @@ describe("FlowExitCommand", () => {
         "Flow exited. Default system prompt and tools restored.",
         "info",
       );
+    });
+
+    it("notifies error and skips exit message when some agents fail to destroy", async () => {
+      const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
+      const agent1 = (await supervisor.mountInSession(spec1)) as SessionAgent;
+      agent1.mount(pi, "start task 1");
+
+      const spec2 = makeSpec("orchestrator-2", { role: "orchestrator" });
+      const agent2 = (await supervisor.mountInSession(spec2)) as SessionAgent;
+      agent2.mount(pi, "start task 2");
+
+      // First agent's destroy fails, second one succeeds (call-through).
+      const origDestroy = supervisor.destroyAgent.bind(supervisor);
+      const destroySpy = vi
+        .spyOn(supervisor, "destroyAgent")
+        .mockImplementation(async (id: string) => {
+          if (id === agent1.id) {
+            throw new Error("cleanup failure");
+          }
+          return origDestroy(id);
+        });
+
+      // Clear accumulated spy state so assertions cover handler calls only.
+      vi.mocked(pi.sendUserMessage).mockClear();
+
+      await cmd.handler("", ctx);
+
+      // Both agents were destroyed (attempted) — the second succeeded.
+      expect(destroySpy).toHaveBeenCalledTimes(2);
+      expect(destroySpy).toHaveBeenCalledWith(agent1.id);
+      expect(destroySpy).toHaveBeenCalledWith(agent2.id);
+      expect(agent1.isMounted).toBe(true);
+      expect(agent2.isMounted).toBe(false);
+      // Error notification with count; no success notification, no LLM exit message.
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited with 1 error(s).", "error");
+      expect(ctx.ui.notify).not.toHaveBeenCalledWith(
+        "Flow exited. Default system prompt and tools restored.",
+        "info",
+      );
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
     });
   });
 
