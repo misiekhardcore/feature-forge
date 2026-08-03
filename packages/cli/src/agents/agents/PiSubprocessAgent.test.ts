@@ -53,7 +53,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   ExtensionContext: class {},
 }));
 
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, ForgeConfig } from "@feature-forge/shared";
 
 import { makeMessageEvent, makeSpec } from "../../test-utils";
 import { PiSubprocessAgent } from "./PiSubprocessAgent";
@@ -300,6 +300,8 @@ describe("PiSubprocessAgent", () => {
           "boom",
         );
         expect(getRpcMock().onEvent).toHaveBeenCalledTimes(2);
+        // No leaked subscriptions remain after the failure.
+        expect(onEventCallbacks.length).toBe(0);
       });
 
       it("unsubscribes when prompt rejects with onEvent listeners already active", async () => {
@@ -311,6 +313,8 @@ describe("PiSubprocessAgent", () => {
         );
         expect(agent.status).toBe(AgentStatus.Failed);
         expect(getRpcMock().onEvent).toHaveBeenCalledTimes(2);
+        // The unsub loop runs even when prompt() itself rejects.
+        expect(onEventCallbacks.length).toBe(0);
       });
 
       it("onEvent is subscribed before prompt is sent", async () => {
@@ -368,6 +372,36 @@ describe("PiSubprocessAgent", () => {
       // Status and result are untouched - the agent stays Completed.
       expect(agent.status).toBe(AgentStatus.Completed);
       expect(agent.getResult()).toBe("Original result.");
+      // Subscriptions from the failed retry are cleaned up.
+      expect(onEventCallbacks.length).toBe(0);
+    });
+
+    it("bounds a hanging retry with the configured task timeout", async () => {
+      vi.useFakeTimers();
+      try {
+        await agent.start();
+        const taskPromise = agent.executeTask("initial task");
+        fireEvent(makeMessageEvent("Original result."));
+        fireEvent({ type: "agent_end" });
+        await taskPromise;
+
+        const retryPromise = agent.retry("fix it");
+        // No agent_end fires - the retry must time out instead of hanging.
+        const timeoutMs = ForgeConfig.getInstance().getTaskTimeoutMs();
+        // Attach the rejection handler before the timer fires so the
+        // rejection is never observed as unhandled.
+        const settled = retryPromise.catch((error: unknown) => error);
+        await vi.advanceTimersByTimeAsync(timeoutMs);
+        const rejection = await settled;
+        expect((rejection as Error).message).toBe(`Task timed out after ${timeoutMs}ms`);
+
+        // Retry failure leaves the agent Completed with the prior result.
+        expect(agent.status).toBe(AgentStatus.Completed);
+        expect(agent.getResult()).toBe("Original result.");
+        expect(onEventCallbacks.length).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

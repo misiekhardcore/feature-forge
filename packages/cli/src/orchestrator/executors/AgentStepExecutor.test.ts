@@ -535,6 +535,71 @@ describe("AgentStepExecutor", () => {
       );
     });
 
+    it("stops retrying on transport errors and falls back to the original output", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("rpc down"));
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      // The transport error breaks the loop after the first attempt; the raw
+      // output is used for the failure result.
+      expect(agent.retry).toHaveBeenCalledTimes(1);
+      expect(result.results.get("builder")!.raw).toBe("no json here");
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(result.results.get("builder")!.parsed!.summary).toBe(
+        "Agent did not produce valid JSON output",
+      );
+    });
+
+    it("forwards the abort signal to retry so the retry loop can be cancelled", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue(
+        '```json\n{"passed": true, "summary": "all good"}\n```',
+      );
+      (agent.getResult as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce("no json here")
+        .mockReturnValue('```json\n{"passed": true, "summary": "all good"}\n```');
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+      const controller = new AbortController();
+
+      await executor.execute(
+        instruction,
+        context,
+        vi.fn(),
+        makeMockTypedEventBus(),
+        controller.signal,
+      );
+
+      expect(agent.retry).toHaveBeenCalledWith(
+        expect.stringContaining("JSON"),
+        expect.objectContaining({ signal: controller.signal }),
+      );
+    });
+
     it("does not retry when parseJson is false even if output lacks JSON", async () => {
       const agent = makeMockAgent("no json here");
       (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("ignored");

@@ -116,8 +116,12 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
     options?.signal?.throwIfAborted();
 
+    // Bound the retry with the same task timeout used by executeTask so a
+    // hung retry cannot block the routine indefinitely.
+    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+
     try {
-      const result = await this._collectResponse(prompt, options);
+      const result = await this._collectResponse(prompt, options, timeout);
       this.result = result; // Update so getResult() returns the corrected output
       return result;
     } catch (error) {
@@ -199,16 +203,18 @@ export class PiSubprocessAgent extends SubprocessAgent {
     });
 
     try {
-      await this.rpcClient.prompt(prompt, options?.images);
-    } catch (error) {
-      cancelResultPromise?.();
-      rejectResultPromise?.(error);
-      throw error;
-    }
+      try {
+        await this.rpcClient.prompt(prompt, options?.images);
+      } catch (error) {
+        cancelResultPromise?.();
+        rejectResultPromise?.(error);
+        throw error;
+      }
 
-    try {
       return await resultPromise;
     } finally {
+      // Unsubscribe in every exit path (prompt rejection, result rejection,
+      // timeout, or normal completion) so event listeners never leak.
       for (const unsub of unsubs) {
         unsub();
       }

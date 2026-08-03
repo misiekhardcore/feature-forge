@@ -130,7 +130,9 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
 
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            await agent.retry(correctionPrompt);
+            // Forward the abort signal so retries stay cancellable, matching
+            // the initial task execution.
+            await agent.retry(correctionPrompt, { signal });
           } catch {
             break; // Don't keep retrying on transport errors
           }
