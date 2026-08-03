@@ -17,7 +17,13 @@ const { MockRpcClient, getRpcMock, resetRpcMock } = vi.hoisted(() => {
     onEventCallbacks.length = 0;
     const fakeOnEvent = vi.fn().mockImplementation((cb: (event: unknown) => void) => {
       onEventCallbacks.push(cb);
-      return vi.fn(); // unsubscribe function
+      // Real unsubscribe: removes this callback so fireEvent only reaches
+      // the currently-subscribed handlers (e.g. after executeTask unsubscribes
+      // before a retry subscribes a fresh handler).
+      return () => {
+        const idx = onEventCallbacks.indexOf(cb);
+        if (idx !== -1) onEventCallbacks.splice(idx, 1);
+      };
     });
     instance = {
       start: vi.fn().mockResolvedValue(undefined),
@@ -318,6 +324,50 @@ describe("PiSubprocessAgent", () => {
         const promptCallIndex = promptSpy.mock.invocationCallOrder[0];
         expect(onEventCallIndex).toBeLessThan(promptCallIndex);
       });
+    });
+  });
+
+  describe("retry", () => {
+    it("sends a correction prompt and updates the result when Completed", async () => {
+      await agent.start();
+      const taskPromise = agent.executeTask("initial task");
+      fireEvent(makeMessageEvent("Initial output without JSON."));
+      fireEvent({ type: "agent_end" });
+      await taskPromise;
+      expect(agent.status).toBe(AgentStatus.Completed);
+
+      const retryPromise = agent.retry("Append the JSON block now.");
+      fireEvent(makeMessageEvent('```json\n{"passed": true, "summary": "fixed"}\n```'));
+      fireEvent({ type: "agent_end" });
+      const corrected = await retryPromise;
+
+      expect(corrected).toBe('```json\n{"passed": true, "summary": "fixed"}\n```');
+      expect(agent.getResult()).toBe('```json\n{"passed": true, "summary": "fixed"}\n```');
+      expect(agent.status).toBe(AgentStatus.Completed);
+      expect(getRpcMock().prompt).toHaveBeenLastCalledWith("Append the JSON block now.", undefined);
+    });
+
+    it("throws when called outside Completed state", async () => {
+      await agent.start();
+      await expect(agent.retry("fix it")).rejects.toThrow(
+        'Cannot retry on agent "test-agent" in state "Running". Expected Completed.',
+      );
+      expect(getRpcMock().prompt).not.toHaveBeenCalled();
+    });
+
+    it("keeps Completed status and prior result when the transport fails", async () => {
+      await agent.start();
+      const taskPromise = agent.executeTask("initial task");
+      fireEvent(makeMessageEvent("Original result."));
+      fireEvent({ type: "agent_end" });
+      await taskPromise;
+
+      getRpcMock().prompt.mockRejectedValueOnce(new Error("rpc down"));
+      await expect(agent.retry("fix it")).rejects.toThrow("rpc down");
+
+      // Status and result are untouched - the agent stays Completed.
+      expect(agent.status).toBe(AgentStatus.Completed);
+      expect(agent.getResult()).toBe("Original result.");
     });
   });
 

@@ -56,6 +56,7 @@ export function createMockAgent(specification?: AgentSpecification): SubprocessA
     destroy: vi.fn().mockResolvedValue(undefined),
     getResult: vi.fn().mockReturnValue("e2e task result"),
     getError: vi.fn().mockReturnValue(undefined),
+    retry: vi.fn().mockResolvedValue("e2e retry result"),
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     start: vi.fn(),

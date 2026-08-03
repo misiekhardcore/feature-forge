@@ -54,6 +54,7 @@ function makeMockAgent(result: string): SubprocessAgent {
         },
       ),
     getResult: vi.fn().mockReturnValue(result),
+    retry: vi.fn().mockRejectedValue(new Error("retry not configured")),
     destroy: vi.fn().mockResolvedValue(undefined),
   } as unknown as SubprocessAgent;
 }
@@ -445,6 +446,9 @@ describe("AgentStepExecutor", () => {
 
     it("handles no JSON block when parseJson is true", async () => {
       const agent = makeMockAgent("just plain text, no json at all");
+      // Both retries return non-JSON content, so the executor exhausts its attempts.
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("still no json");
+      (agent.getResult as ReturnType<typeof vi.fn>).mockReturnValue("still no json");
       const supervisor = makeMockSupervisor(agent);
       const specManager = makeMockSpecManager();
       const executor = new AgentStepExecutor(supervisor, specManager);
@@ -464,11 +468,94 @@ describe("AgentStepExecutor", () => {
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       // Raw preserved, parsed is a failure result because no JSON found
-      expect(result.results.get("builder")!.raw).toBe("just plain text, no json at all");
+      expect(result.results.get("builder")!.raw).toBe("still no json");
+      expect(agent.retry).toHaveBeenCalledTimes(2);
       expect(result.results.get("builder")!.parsed!.passed).toBe(false);
       expect(result.results.get("builder")!.parsed!.summary).toBe(
         "Agent did not produce valid JSON output",
       );
+    });
+
+    it("retries when parseJson is true and initial response has no JSON block", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue(
+        'Here is the corrected output.\n\n```json\n{"passed": true, "summary": "all good"}\n```',
+      );
+      (agent.getResult as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce("no json here")
+        .mockReturnValue(
+          'Here is the corrected output.\n\n```json\n{"passed": true, "summary": "all good"}\n```',
+        );
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      expect(agent.retry).toHaveBeenCalledTimes(1);
+      expect(result.results.get("builder")!.parsed!.passed).toBe(true);
+      expect(result.results.get("builder")!.parsed!.summary).toBe("all good");
+    });
+
+    it("falls back to failure after max retries when JSON still missing", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("still no json");
+      (agent.getResult as ReturnType<typeof vi.fn>).mockReturnValue("still no json");
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      // 2 retry attempts, both failed
+      expect(agent.retry).toHaveBeenCalledTimes(2);
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(result.results.get("builder")!.parsed!.summary).toBe(
+        "Agent did not produce valid JSON output",
+      );
+    });
+
+    it("does not retry when parseJson is false even if output lacks JSON", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("ignored");
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: false,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      expect(agent.retry).not.toHaveBeenCalled();
+      expect(result.results.get("builder")!.parsed).toBeUndefined();
     });
 
     it("throws AbortError when signal is aborted before spawn", async () => {

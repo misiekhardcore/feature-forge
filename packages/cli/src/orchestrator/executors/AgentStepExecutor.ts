@@ -115,7 +115,32 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const raw = agent.getResult();
       logger.info("Agent completed", { instructionId, resultLength: raw.length });
 
-      const result = this.buildResult(raw, instruction.parseJson);
+      // When JSON is required but missing, give the agent a chance to correct
+      // itself before giving up. retry() re-uses the existing transport session
+      // and updates the agent's result, so getResult() is re-read after each
+      // attempt. Transport errors stop the loop early - the raw output stands.
+      if (instruction.parseJson && !extractJson(raw)) {
+        const correctionPrompt = [
+          "Your last response was missing the required JSON outcome block. Append it now:",
+          "",
+          "```json",
+          '{"passed": true|false, "summary": "Brief summary of your findings"}',
+          "```",
+        ].join("\n");
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await agent.retry(correctionPrompt);
+          } catch {
+            break; // Don't keep retrying on transport errors
+          }
+          if (extractJson(agent.getResult())) {
+            break; // Got valid JSON, stop retrying
+          }
+        }
+      }
+
+      const result = this.buildResult(agent.getResult(), instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
 
       const agentPassed = result.parsed?.passed;

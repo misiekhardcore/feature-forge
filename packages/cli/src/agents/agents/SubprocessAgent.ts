@@ -41,6 +41,18 @@ export abstract class SubprocessAgent extends Agent {
   /** The error that caused the agent to fail, if applicable. */
   public abstract getError(): Error | undefined;
 
+  /**
+   * Send a correction prompt without changing lifecycle state.
+   *
+   * Used after the initial task completes but the response is invalid
+   * (e.g. missing required JSON). The agent stays in Completed state;
+   * this only produces a replacement result for {@link getResult}.
+   *
+   * Implementations re-use the existing transport session - no new
+   * process is spawned.
+   */
+  public abstract retry(prompt: string, options?: ExecuteTaskOptions): Promise<string>;
+
   /** Deliver a successful result to the parent session via `pi.sendMessage()`. */
   public abstract deliverResult(prompt: string, result: string, pi: ExtensionAPI): void;
 

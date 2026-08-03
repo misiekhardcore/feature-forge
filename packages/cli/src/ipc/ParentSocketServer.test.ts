@@ -29,6 +29,7 @@ function createMockAgent(): SubprocessAgent {
     destroy: vi.fn().mockResolvedValue(undefined),
     getResult: vi.fn().mockReturnValue("task result"),
     getError: vi.fn().mockReturnValue(undefined),
+    retry: vi.fn().mockResolvedValue("retry result"),
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     start: vi.fn(),
