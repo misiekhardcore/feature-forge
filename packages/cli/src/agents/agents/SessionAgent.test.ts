@@ -50,6 +50,23 @@ describe("SessionAgent", () => {
       // Default tools are captured internally and restored on unmount.
     });
 
+    it("does not overwrite savedTools on double mount", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      vi.mocked(pi.getActiveTools).mockReturnValue(["read", "bash"]);
+      agent.mount(pi, "task1");
+
+      // Re-entrant mount: flow tools are now active.
+      vi.mocked(pi.getActiveTools).mockReturnValue(["flow-tool"]);
+      agent.mount(pi, "task2");
+
+      agent.unmount();
+
+      // The original pre-flow tools are restored, never the flow tools.
+      expect(pi.setActiveTools).toHaveBeenLastCalledWith(["read", "bash"]);
+      expect(pi.setActiveTools).not.toHaveBeenCalledWith(["flow-tool"]);
+    });
+
     it("isMounted returns true after mount", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
@@ -267,6 +284,22 @@ describe("SessionAgent", () => {
 
       // unmount should restore what getActiveTools returned at mount time
       expect(pi.setActiveTools).toHaveBeenLastCalledWith(["read", "bash", "edit", "write"]);
+    });
+
+    it("does not call setActiveTools when unmount is called without mount", () => {
+      const agent = new SessionAgent(spec);
+      const pi = makeMockPi();
+      agent.unmount();
+      expect(pi.setActiveTools).not.toHaveBeenCalled();
+    });
+
+    it("does not restore tools when the saved defaults are empty", () => {
+      const noToolsSpec = makeSpec("no-tools", { systemPrompt: "persona" });
+      const agent = new SessionAgent(noToolsSpec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+      agent.unmount();
+      expect(pi.setActiveTools).not.toHaveBeenCalled();
     });
 
     it("handler returns empty object after unmount, suppressing the persona", () => {

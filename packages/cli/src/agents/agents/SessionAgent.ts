@@ -9,7 +9,7 @@ import { logger } from "@feature-forge/shared";
 import { activateToolRestrictions } from "../../extensions/tool-restrictions";
 import type { WorkspaceManager } from "../../workspace";
 import { AgentSpecification } from "../specifications";
-import { InSessionAgent } from "./InSessionAgent";
+import { Agent } from "./Agent";
 
 /** The `before_agent_start` handler shape registered on mount. */
 type BeforeAgentStartHandler = (event: BeforeAgentStartEvent) => BeforeAgentStartEventResult;
@@ -29,7 +29,7 @@ type BeforeAgentStartHandler = (event: BeforeAgentStartEvent) => BeforeAgentStar
  *
  * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
-export class SessionAgent extends InSessionAgent {
+export class SessionAgent extends Agent {
   public readonly id: string;
   public readonly specification: AgentSpecification;
 
@@ -37,7 +37,7 @@ export class SessionAgent extends InSessionAgent {
   private pi: ExtensionAPI | undefined;
   private handler: BeforeAgentStartHandler | undefined;
   private unmounted = true;
-  private defaultTools: string[] = [];
+  private savedTools: string[] = [];
   private preExistingWorkspacePaths: Set<string> = new Set();
 
   constructor(specification: AgentSpecification) {
@@ -66,7 +66,7 @@ export class SessionAgent extends InSessionAgent {
    * Transitions {@link status} from {@link AgentStatus.Spawned} to
    * {@link AgentStatus.Running}.
    */
-  public override mount(pi: ExtensionAPI, task: string): void {
+  public mount(pi: ExtensionAPI, task: string): void {
     this.pi = pi;
     this._status = AgentStatus.Running;
     this.unmounted = false;
@@ -74,8 +74,11 @@ export class SessionAgent extends InSessionAgent {
     // Fallback session name until orchestrator refines it
     pi.setSessionName("implement");
 
-    // Save default tools before the flow overrides them.
-    this.defaultTools = [...pi.getActiveTools()];
+    // Save default tools before the flow overrides them (only once — a
+    // re-entrant mount must not overwrite the pre-flow tools with flow tools).
+    if (this.savedTools.length === 0) {
+      this.savedTools = [...pi.getActiveTools()];
+    }
 
     // pi SDK has no pi.off() — the handler cannot be removed once registered.
     // Instead we use an internal flag so the handler returns undefined (no-op)
@@ -103,7 +106,7 @@ export class SessionAgent extends InSessionAgent {
       pi.setActiveTools(this.specification.tools.filter((tool) => !fullExclusions.has(tool)));
     } else if (fullExclusions.size > 0) {
       // Mode 2: no allowlist — filter the default tools by full exclusions.
-      pi.setActiveTools(this.defaultTools.filter((tool) => !fullExclusions.has(tool)));
+      pi.setActiveTools(this.savedTools.filter((tool) => !fullExclusions.has(tool)));
     }
     // Mode 3: neither allowlist nor full exclusions — leave defaults unchanged.
 
@@ -131,8 +134,8 @@ export class SessionAgent extends InSessionAgent {
    */
   public unmount(): void {
     this.unmounted = true;
-    if (this.pi) {
-      this.pi.setActiveTools(this.defaultTools);
+    if (this.pi && this.savedTools.length > 0) {
+      this.pi.setActiveTools(this.savedTools);
     }
     this._status = AgentStatus.Cancelled;
     logger.info(`Agent ${this.specification.id} unmounted`);

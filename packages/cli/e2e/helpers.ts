@@ -10,7 +10,7 @@ import { AgentStatus } from "@feature-forge/shared";
 import { expect, vi } from "vitest";
 
 import type { Agent } from "../src/agents/agents";
-import type { InSessionAgent } from "../src/agents/agents/InSessionAgent";
+import { SessionAgent } from "../src/agents/agents/SessionAgent";
 import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
 import type { AgentSpecification, AgentSpecificationParams } from "../src/agents/specifications";
 import { DynamicAgentSpecification } from "../src/agents/specifications/DynamicAgentSpecification";
@@ -63,17 +63,16 @@ export function createMockAgent(specification?: AgentSpecification): SubprocessA
 }
 
 /**
- * Create a mock {@link InSessionAgent}.
+ * Create a mock {@link SessionAgent}.
+ *
+ * Constructs a real instance (pure construction, no session side effects)
+ * and replaces the interaction surface with mocks.
  */
-function createMockInSessionAgent(specification: AgentSpecification): InSessionAgent {
-  return {
-    id: specification.id,
-    specification,
-    status: AgentStatus.Running,
-    createdAt: new Date(),
-    mount: vi.fn(),
-    destroy: vi.fn().mockResolvedValue(undefined),
-  };
+function createMockInSessionAgent(specification: AgentSpecification): SessionAgent {
+  const agent = new SessionAgent(specification);
+  agent.mount = vi.fn();
+  agent.destroy = vi.fn().mockResolvedValue(undefined);
+  return agent;
 }
 
 /**

@@ -203,14 +203,7 @@ export class FlowRegistrar {
       // Headless flow (no orchestrator) — register a command that parses
       // key=value params from the slash-command args and runs routines
       // directly, with no LLM intermediary.
-      const headlessCommand = new HeadlessFlowCommand(
-        flow,
-        routineExecutor,
-        supervisor,
-        pi,
-        specManager,
-        toolRegistry,
-      );
+      const headlessCommand = new HeadlessFlowCommand(flow, routineExecutor, supervisor, pi);
       try {
         cmdRegistry.registerInstance(headlessCommand);
       } catch (error) {

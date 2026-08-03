@@ -1,6 +1,5 @@
 export {
   Agent,
-  InSessionAgent,
   isSubprocessAgent,
   PiSubprocessAgent,
   SessionAgent,

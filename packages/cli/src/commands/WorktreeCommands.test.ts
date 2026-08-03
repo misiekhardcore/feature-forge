@@ -103,12 +103,7 @@ describe("WorktreeDestroyCommand", () => {
 
   describe("without workspace manager", () => {
     beforeEach(() => {
-      cmd = new WorktreeDestroyCommand(
-        supervisor,
-        pi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-      );
+      cmd = new WorktreeDestroyCommand(supervisor, pi);
     });
 
     it("notifies error when workspace infrastructure is not configured", async () => {
@@ -125,8 +120,8 @@ describe("WorktreeDestroyCommand", () => {
       cmd = new WorktreeDestroyCommand(
         supervisor,
         pi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
+        undefined,
+        undefined,
         makeWorkspaceManager(),
       );
     });
@@ -152,13 +147,7 @@ describe("WorktreeDestroyCommand", () => {
     it("destroys an existing worktree and sends a message", async () => {
       const manager = makeWorkspaceManager();
       const handle = await manager.create("task-1");
-      cmd = new WorktreeDestroyCommand(
-        supervisor,
-        pi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-        manager,
-      );
+      cmd = new WorktreeDestroyCommand(supervisor, pi, undefined, undefined, manager);
 
       await cmd.handler(handle.path, ctx);
 
@@ -174,13 +163,7 @@ describe("WorktreeDestroyCommand", () => {
         if (id === handle.path) throw new Error("cleanup failure");
         return originalDestroy(id);
       };
-      cmd = new WorktreeDestroyCommand(
-        supervisor,
-        pi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-        manager,
-      );
+      cmd = new WorktreeDestroyCommand(supervisor, pi, undefined, undefined, manager);
 
       await cmd.handler(handle.path, ctx);
 

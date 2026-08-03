@@ -17,6 +17,12 @@ export class AgentListCommand extends Command {
   readonly description = "Open the agent viewer overlay with all tracked agents.";
 
   handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
+    const toolRegistry = this.toolRegistry;
+    if (!toolRegistry) {
+      ctx.ui.notify("Tool registry not available — agent viewer cannot open.", "error");
+      return;
+    }
+
     if (ctx.hasUI) {
       let overlayCleanup: (() => void) | undefined;
       let viewerDismiss: (() => void) | undefined;
@@ -32,7 +38,7 @@ export class AgentListCommand extends Command {
               eventBus: typedBus,
               agentQuery: this.supervisor,
               config: ForgeConfig.getInstance(),
-              toolRegistry: this.toolRegistry,
+              toolRegistry,
             });
 
             const viewer = new AgentViewerOverlay({
@@ -45,7 +51,7 @@ export class AgentListCommand extends Command {
               },
               markdownTheme: getMarkdownTheme(),
               cwd: ctx.cwd,
-              toolRegistry: this.toolRegistry,
+              toolRegistry,
               config: ForgeConfig.getInstance(),
             });
 

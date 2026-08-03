@@ -1,7 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionAgent } from "../agents/agents/SessionAgent";
 import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
 import { TOOL_PRESETS } from "../agents/specifications/constants";
 import { SpecManager } from "../agents/SpecManager";
@@ -130,7 +129,7 @@ describe("AgentDestroyCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+    cmd = new AgentDestroyCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 
@@ -158,7 +157,7 @@ describe("AgentDestroyAllCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyAllCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+    cmd = new AgentDestroyAllCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 
@@ -192,7 +191,7 @@ describe("FlowExitCommand", () => {
     let cmd: FlowExitCommand;
 
     beforeEach(() => {
-      cmd = new FlowExitCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+      cmd = new FlowExitCommand(supervisor, pi);
     });
 
     it("has name 'flow:exit'", () => {
@@ -204,13 +203,16 @@ describe("FlowExitCommand", () => {
       expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited. No active flow to exit.", "info");
     });
 
-    it("unmounts agents and sends exit message when a session agent is mounted", async () => {
+    it("destroys agents via supervisor and sends exit message when a session agent is mounted", async () => {
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
+
+      const destroySpy = vi.spyOn(supervisor, "destroyAgent");
 
       await cmd.handler("", ctx);
 
+      expect(destroySpy).toHaveBeenCalledWith(agent.id);
       expect(agent.isMounted).toBe(false);
       expect(pi.sendUserMessage).toHaveBeenCalledWith(
         expect.stringContaining("Flow exited. Ready."),
@@ -220,6 +222,97 @@ describe("FlowExitCommand", () => {
         "info",
       );
     });
+
+    it("notifies error and skips exit message when some agents fail to destroy", async () => {
+      const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
+      const agent1 = await supervisor.mountInSession(spec1);
+      agent1.mount(pi, "start task 1");
+
+      const spec2 = makeSpec("orchestrator-2", { role: "orchestrator" });
+      const agent2 = await supervisor.mountInSession(spec2);
+      agent2.mount(pi, "start task 2");
+
+      // First agent's destroy fails, second one succeeds (call-through).
+      const origDestroy = supervisor.destroyAgent.bind(supervisor);
+      const destroySpy = vi
+        .spyOn(supervisor, "destroyAgent")
+        .mockImplementation(async (id: string) => {
+          if (id === agent1.id) {
+            throw new Error("cleanup failure");
+          }
+          return origDestroy(id);
+        });
+
+      // Clear accumulated spy state so assertions cover handler calls only.
+      vi.mocked(pi.sendUserMessage).mockClear();
+
+      await cmd.handler("", ctx);
+
+      // Both agents were destroyed (attempted) — the second succeeded.
+      expect(destroySpy).toHaveBeenCalledTimes(2);
+      expect(destroySpy).toHaveBeenCalledWith(agent1.id);
+      expect(destroySpy).toHaveBeenCalledWith(agent2.id);
+      expect(agent1.isMounted).toBe(true);
+      expect(agent2.isMounted).toBe(false);
+      // Error notification with count; no success notification, no LLM exit message.
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited with 1 error(s).", "error");
+      expect(ctx.ui.notify).not.toHaveBeenCalledWith(
+        "Flow exited. Default system prompt and tools restored.",
+        "info",
+      );
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("notifies error and skips exit message when all agents fail to destroy", async () => {
+      const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
+      const agent1 = await supervisor.mountInSession(spec1);
+      agent1.mount(pi, "start task 1");
+
+      const spec2 = makeSpec("orchestrator-2", { role: "orchestrator" });
+      const agent2 = await supervisor.mountInSession(spec2);
+      agent2.mount(pi, "start task 2");
+
+      const destroySpy = vi
+        .spyOn(supervisor, "destroyAgent")
+        .mockRejectedValue(new Error("cleanup failure"));
+
+      vi.mocked(pi.sendUserMessage).mockClear();
+
+      await cmd.handler("", ctx);
+
+      // Both destroy attempts happened and both failed — agents stay mounted.
+      expect(destroySpy).toHaveBeenCalledTimes(2);
+      expect(destroySpy).toHaveBeenCalledWith(agent1.id);
+      expect(destroySpy).toHaveBeenCalledWith(agent2.id);
+      expect(agent1.isMounted).toBe(true);
+      expect(agent2.isMounted).toBe(true);
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited with 2 error(s).", "error");
+      expect(ctx.ui.notify).not.toHaveBeenCalledWith(
+        "Flow exited. Default system prompt and tools restored.",
+        "info",
+      );
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("normalizes non-Error throws during destroy", async () => {
+      const spec = makeSpec("orchestrator", { role: "orchestrator" });
+      const agent = await supervisor.mountInSession(spec);
+      agent.mount(pi, "start task");
+
+      const destroySpy = vi.spyOn(supervisor, "destroyAgent").mockRejectedValue("boom");
+
+      vi.mocked(pi.sendUserMessage).mockClear();
+
+      await cmd.handler("", ctx);
+
+      expect(destroySpy).toHaveBeenCalledWith(agent.id);
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited with 1 error(s).", "error");
+      expect(ctx.ui.notify).not.toHaveBeenCalledWith(
+        "Flow exited. Default system prompt and tools restored.",
+        "info",
+      );
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe("with workspace manager", () => {
@@ -228,13 +321,7 @@ describe("FlowExitCommand", () => {
 
     beforeEach(() => {
       workspaceManager = makeWorkspaceManager();
-      cmd = new FlowExitCommand(
-        supervisor,
-        pi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-        workspaceManager,
-      );
+      cmd = new FlowExitCommand(supervisor, pi, undefined, undefined, workspaceManager);
     });
 
     it("destroys active workspaces after unmounting agents", async () => {
@@ -242,7 +329,7 @@ describe("FlowExitCommand", () => {
       const destroySpy = vi.spyOn(workspaceManager, "destroy");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       await cmd.handler("", ctx);
@@ -259,7 +346,7 @@ describe("FlowExitCommand", () => {
       const destroySpy = vi.spyOn(workspaceManager, "destroy");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       await cmd.handler("", ctx);
@@ -282,7 +369,7 @@ describe("FlowExitCommand", () => {
       };
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       await cmd.handler("", ctx);
@@ -302,7 +389,7 @@ describe("FlowExitCommand", () => {
       const preExisting = await workspaceManager.create("preexisting");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
 
       // Snapshot captures only the pre-existing workspace
       agent.snapshotWorkspaces(workspaceManager);
@@ -329,7 +416,7 @@ describe("FlowExitCommand", () => {
       const ws2 = await workspaceManager.create("task-2");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       // No snapshotWorkspaces call — simulates non-orchestrator agent
       agent.mount(pi, "start task");
 

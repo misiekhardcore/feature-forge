@@ -10,7 +10,7 @@ Agents are separated by identity (Base) and interaction model (Subprocess vs In-
 
 - **Base `Agent`**: Identity and lifecycle (`id`, `specification`, `status`, `destroy`).
 - **`SubprocessAgent`**: Separate process / RPC transport (`executeTask`, `getResult`).
-- **`InSessionAgent`**: Runs inside current pi session (`mount`).
+- **`SessionAgent`**: Runs inside the current pi session (`mount`).
 - **Concretes**: `PiSubprocessAgent` and `SessionAgent`.
 - **Details**: See `docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md`.
 

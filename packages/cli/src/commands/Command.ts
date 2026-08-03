@@ -17,8 +17,8 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
   constructor(
     protected readonly supervisor: AgentSupervisor,
     protected readonly pi: ExtensionAPI,
-    protected readonly specManager: SpecManager,
-    protected readonly toolRegistry: ToolRegistry,
+    protected readonly specManager?: SpecManager | undefined,
+    protected readonly toolRegistry?: ToolRegistry | undefined,
     protected readonly workspaceManager?: WorkspaceManager,
     protected readonly commandRegistry?: CommandRegistry,
     protected readonly worktreeRegistry?: WorktreeRegistry,
