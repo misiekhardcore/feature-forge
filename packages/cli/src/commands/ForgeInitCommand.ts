@@ -1,10 +1,14 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 import { Command } from "./Command";
+
+// ESM polyfill: __dirname is not available in ESM
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const execFileAsync = promisify(execFile);
 
