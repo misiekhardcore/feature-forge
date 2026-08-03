@@ -1,7 +1,7 @@
 # NOTES — loop-while-guard
 
 ## Current task
-- ADR creation (next task after build)
+- Opening PR
 
 ## Task list / AC checklist
 - [x] AC1: `while` false on entry → body runs 0 times; loop records "skipped" InstructionResult; routine continues
@@ -10,23 +10,19 @@
 - [x] AC4: Skipped loop's result visible to subsequent steps via `results.<loopId>`
 - [x] AC5: RoutineResult carries status/reason for skipped vs completed vs failed
 - [x] AC6: ExpressionParser unchanged
-- [x] AC7: `npm run check` + `npm run typecheck` + `npm test -- --coverage` clean (subtask 2)
-- [ ] AC8: ADR created
+- [x] AC7: `npm run check` + `npm run typecheck` + `npm test -- --coverage` clean (1926 tests, branch threshold pre-existing)
+- [x] AC8: ADR created
 
 ## Subtask plan
-- [x] Subtask 1: while guard core (FlowInstruction.ts, LoopStepExecutor.ts, FlowLoader.ts, tests) — DONE
-- [x] Subtask 2: RoutineResult status enrichment (RoutineResult.ts, RoutineExecutor.ts, tests) — DONE (2 rounds; review passed in round 2)
-- [ ] ADR: docs/adr/0014-loop-while-guard.md
+- [x] Subtask 1: while guard core — DONE (1 round)
+- [x] Subtask 2: RoutineResult status enrichment — DONE (4 rounds)
+- [x] ADR: docs/adr/0014-loop-while-guard.md — DONE
 
 ## Decisions made this session
-- Subtask 1 passed in 1 round; 12 tests added, full suite green (reason: clean implementation)
-- Verify agent warned about stale flow-schema.json; regenerating before Subtask 2 (reason: schema drift from new `while` field)
-- Status precedence: "failed" wins over "skipped" — a routine that both skips and fails reports "failed" (reason: failure is the actionable signal for the orchestrator)
-- Skipped detection scans raw result JSON for `"skipped":true`, the exact producer format emitted by LoopStepExecutor via JSON.stringify (reason: producer-consumer contract verified; no parser change needed)
-- Global branch coverage threshold (90%) is unmet at 84.35% — pre-existing on clean main, vitest.config.ts untouched (reason: documented in memory, not a regression)
-- RoutineTool threads `status` into routine-tool details additively (reason: LLM needs the three-state signal; consumer change is backwards-compatible)
+- Subtask 1 passed in 1 round (reason: clean implementation)
+- Flow schema regenerated between subtasks (reason: verify agent flagged stale flow-schema.json)
+- Subtask 2 took 4 rounds; P1 finding was fragile string-based skip detection — resolved by builder adding structured check
+- ADR documents the design choice (loop-guard over terminate) and complementary RoutineResult status
 
 ## Next action on resume
-- Create ADR `docs/adr/0014-loop-while-guard.md` covering: while-guard entry gate, continueWhile continuation gate, skipped-result contract (`{iterations:0, skipped:true}`), RoutineResult status/reason model
-
-
+- (none — ready for PR)
