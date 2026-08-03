@@ -9,7 +9,7 @@ import { logger } from "@feature-forge/shared";
 import { activateToolRestrictions } from "../../extensions/tool-restrictions";
 import type { WorkspaceManager } from "../../workspace";
 import { AgentSpecification } from "../specifications";
-import { InSessionAgent } from "./InSessionAgent";
+import { Agent } from "./Agent";
 
 /** The `before_agent_start` handler shape registered on mount. */
 type BeforeAgentStartHandler = (event: BeforeAgentStartEvent) => BeforeAgentStartEventResult;
@@ -29,7 +29,7 @@ type BeforeAgentStartHandler = (event: BeforeAgentStartEvent) => BeforeAgentStar
  *
  * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
-export class SessionAgent extends InSessionAgent {
+export class SessionAgent extends Agent {
   public readonly id: string;
   public readonly specification: AgentSpecification;
 
@@ -66,7 +66,7 @@ export class SessionAgent extends InSessionAgent {
    * Transitions {@link status} from {@link AgentStatus.Spawned} to
    * {@link AgentStatus.Running}.
    */
-  public override mount(pi: ExtensionAPI, task: string): void {
+  public mount(pi: ExtensionAPI, task: string): void {
     this.pi = pi;
     this._status = AgentStatus.Running;
     this.unmounted = false;

@@ -1,7 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionAgent } from "../agents/agents/SessionAgent";
 import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
 import { TOOL_PRESETS } from "../agents/specifications/constants";
 import { SpecManager } from "../agents/SpecManager";
@@ -206,7 +205,7 @@ describe("FlowExitCommand", () => {
 
     it("destroys agents via supervisor and sends exit message when a session agent is mounted", async () => {
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       const destroySpy = vi.spyOn(supervisor, "destroyAgent");
@@ -226,11 +225,11 @@ describe("FlowExitCommand", () => {
 
     it("notifies error and skips exit message when some agents fail to destroy", async () => {
       const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
-      const agent1 = (await supervisor.mountInSession(spec1)) as SessionAgent;
+      const agent1 = await supervisor.mountInSession(spec1);
       agent1.mount(pi, "start task 1");
 
       const spec2 = makeSpec("orchestrator-2", { role: "orchestrator" });
-      const agent2 = (await supervisor.mountInSession(spec2)) as SessionAgent;
+      const agent2 = await supervisor.mountInSession(spec2);
       agent2.mount(pi, "start task 2");
 
       // First agent's destroy fails, second one succeeds (call-through).
@@ -266,11 +265,11 @@ describe("FlowExitCommand", () => {
 
     it("notifies error and skips exit message when all agents fail to destroy", async () => {
       const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
-      const agent1 = (await supervisor.mountInSession(spec1)) as SessionAgent;
+      const agent1 = await supervisor.mountInSession(spec1);
       agent1.mount(pi, "start task 1");
 
       const spec2 = makeSpec("orchestrator-2", { role: "orchestrator" });
-      const agent2 = (await supervisor.mountInSession(spec2)) as SessionAgent;
+      const agent2 = await supervisor.mountInSession(spec2);
       agent2.mount(pi, "start task 2");
 
       const destroySpy = vi
@@ -297,7 +296,7 @@ describe("FlowExitCommand", () => {
 
     it("normalizes non-Error throws during destroy", async () => {
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       const destroySpy = vi.spyOn(supervisor, "destroyAgent").mockRejectedValue("boom");
@@ -330,7 +329,7 @@ describe("FlowExitCommand", () => {
       const destroySpy = vi.spyOn(workspaceManager, "destroy");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       await cmd.handler("", ctx);
@@ -347,7 +346,7 @@ describe("FlowExitCommand", () => {
       const destroySpy = vi.spyOn(workspaceManager, "destroy");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       await cmd.handler("", ctx);
@@ -370,7 +369,7 @@ describe("FlowExitCommand", () => {
       };
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
 
       await cmd.handler("", ctx);
@@ -390,7 +389,7 @@ describe("FlowExitCommand", () => {
       const preExisting = await workspaceManager.create("preexisting");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
 
       // Snapshot captures only the pre-existing workspace
       agent.snapshotWorkspaces(workspaceManager);
@@ -417,7 +416,7 @@ describe("FlowExitCommand", () => {
       const ws2 = await workspaceManager.create("task-2");
 
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
-      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      const agent = await supervisor.mountInSession(spec);
       // No snapshotWorkspaces call — simulates non-orchestrator agent
       agent.mount(pi, "start task");
 

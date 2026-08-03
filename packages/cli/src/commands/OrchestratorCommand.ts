@@ -24,7 +24,7 @@ import { Command } from "./Command";
  * 2. resolves `flow.orchestrator.prompt` against the user's slash-command args
  *    (trivial `{{prompt}}` substitution, plus `promptParams`) into a final
  *    `task` string;
- * 3. registers an in-session {@link InSessionAgent} via
+ * 3. registers an in-session {@link SessionAgent} via
  *    `supervisor.mountInSession(spec)`; then
  * 4. `agent.mount(pi, task)` drives the live session.
  *
@@ -109,7 +109,7 @@ export class OrchestratorCommand extends Command {
     }
 
     if (!this.agent) {
-      this.agent = (await this.supervisor.mountInSession(this.spec)) as SessionAgent;
+      this.agent = await this.supervisor.mountInSession(this.spec);
     }
 
     if (this.workspaceManager) {

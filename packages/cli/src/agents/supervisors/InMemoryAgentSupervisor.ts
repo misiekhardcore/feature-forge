@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/shared";
 
-import { Agent, InSessionAgent, SessionAgent, SubprocessAgent } from "../agents";
+import { Agent, SessionAgent, SubprocessAgent } from "../agents";
 import { AgentFactory } from "../factories";
 import { AgentSpecification } from "../specifications";
 import { AgentSupervisor } from "./AgentSupervisor";
@@ -32,7 +32,7 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
   /**
    * Construct and register an in-session {@link SessionAgent}.
    */
-  public override async mountInSession(specification: AgentSpecification): Promise<InSessionAgent> {
+  public override async mountInSession(specification: AgentSpecification): Promise<SessionAgent> {
     const agent = new SessionAgent(specification);
     this.agents.set(agent.id, agent);
     return agent;

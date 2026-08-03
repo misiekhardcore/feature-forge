@@ -7,10 +7,10 @@ import { AgentSpecification } from "../specifications";
  * interaction model.
  *
  * Both families — {@link SubprocessAgent} (discrete RPC result) and
- * {@link InSessionAgent} (drives the live session) — share identity, origin,
+ * {@link SessionAgent} (drives the live session) — share identity, origin,
  * creation time, lifecycle status, and environment-scoped teardown. The
  * *interaction* contracts (e.g. `executeTask` / `mount`) live on the
- * respective abstract intermediates so the base never forces a no-op onto
+ * respective family types so the base never forces a no-op onto
  * either family. The {@link specification} is common to both — every concrete
  * agent is constructed from an {@link AgentSpecification} (ADR 0007 §G) —
  * so it stays on the base for uniform access (fleet listing, IPC, guards).

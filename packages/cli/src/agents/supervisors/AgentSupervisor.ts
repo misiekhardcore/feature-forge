@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { Agent, InSessionAgent, SubprocessAgent } from "../agents";
+import { Agent, SessionAgent, SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";
 
 /**
@@ -25,11 +25,11 @@ export abstract class AgentSupervisor {
   /**
    * Construct and register an in-session agent from its specification.
    *
-   * Does not call `mount` — the caller receives the {@link InSessionAgent}
+   * Does not call `mount` — the caller receives the {@link SessionAgent}
    * and drives it (`agent.mount(pi, task)`) so it controls the resolved task
    * string and the live session.
    */
-  public abstract mountInSession(specification: AgentSpecification): Promise<InSessionAgent>;
+  public abstract mountInSession(specification: AgentSpecification): Promise<SessionAgent>;
 
   /**
    * Spawn, execute a task, deliver results via agent-owned formatting, then destroy.

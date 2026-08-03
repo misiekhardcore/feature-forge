@@ -3,6 +3,27 @@
 **Date:** 2026-07-02
 **Status:** Accepted
 
+## Amendment 2026-08-03 — remove the `InSessionAgent` intermediate
+
+The abstract `InSessionAgent` intermediate was removed. `SessionAgent` now
+`extends Agent` directly, and `mount(pi, task)` is a public method on the
+concrete `SessionAgent` rather than an abstract contract on an intermediate.
+`AgentSupervisor.mountInSession(spec)` returns `Promise<SessionAgent>`.
+
+Rationale: the intermediate existed to host the in-session interaction
+contract (`mount`) and to mark the extension point for future in-session
+concretes. After the refactor it has exactly one consumer — `SessionAgent`
+itself. Keeping an abstract class with a single concrete subclass added a
+file, an indirection, and a barrel export without a second implementer to
+justify it. The interaction contract is preserved exactly where it is used:
+`mount` on the concrete `SessionAgent`.
+
+The Interface Segregation argument from the original decision still holds:
+`mount` is **not** promoted to the base `Agent` (which would force a no-op
+contract onto `SubprocessAgent`); it stays on the in-session family, which now
+has a single concrete member. The original decision record below is left
+intact as history.
+
 ## Context
 
 Before this change there was no structural relationship between `Agent` and
