@@ -74,8 +74,11 @@ export class SessionAgent extends InSessionAgent {
     // Fallback session name until orchestrator refines it
     pi.setSessionName("implement");
 
-    // Save default tools before the flow overrides them.
-    this.defaultTools = [...pi.getActiveTools()];
+    // Save default tools before the flow overrides them (only once — a
+    // re-entrant mount must not overwrite the pre-flow tools with flow tools).
+    if (this.defaultTools.length === 0) {
+      this.defaultTools = [...pi.getActiveTools()];
+    }
 
     // pi SDK has no pi.off() — the handler cannot be removed once registered.
     // Instead we use an internal flag so the handler returns undefined (no-op)
@@ -131,7 +134,7 @@ export class SessionAgent extends InSessionAgent {
    */
   public unmount(): void {
     this.unmounted = true;
-    if (this.pi) {
+    if (this.pi && this.defaultTools.length > 0) {
       this.pi.setActiveTools(this.defaultTools);
     }
     this._status = AgentStatus.Cancelled;
