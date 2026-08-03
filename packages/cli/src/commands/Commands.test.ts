@@ -263,6 +263,57 @@ describe("FlowExitCommand", () => {
       );
       expect(pi.sendUserMessage).not.toHaveBeenCalled();
     });
+
+    it("notifies error and skips exit message when all agents fail to destroy", async () => {
+      const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
+      const agent1 = (await supervisor.mountInSession(spec1)) as SessionAgent;
+      agent1.mount(pi, "start task 1");
+
+      const spec2 = makeSpec("orchestrator-2", { role: "orchestrator" });
+      const agent2 = (await supervisor.mountInSession(spec2)) as SessionAgent;
+      agent2.mount(pi, "start task 2");
+
+      const destroySpy = vi
+        .spyOn(supervisor, "destroyAgent")
+        .mockRejectedValue(new Error("cleanup failure"));
+
+      vi.mocked(pi.sendUserMessage).mockClear();
+
+      await cmd.handler("", ctx);
+
+      // Both destroy attempts happened and both failed — agents stay mounted.
+      expect(destroySpy).toHaveBeenCalledTimes(2);
+      expect(destroySpy).toHaveBeenCalledWith(agent1.id);
+      expect(destroySpy).toHaveBeenCalledWith(agent2.id);
+      expect(agent1.isMounted).toBe(true);
+      expect(agent2.isMounted).toBe(true);
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited with 2 error(s).", "error");
+      expect(ctx.ui.notify).not.toHaveBeenCalledWith(
+        "Flow exited. Default system prompt and tools restored.",
+        "info",
+      );
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("normalizes non-Error throws during destroy", async () => {
+      const spec = makeSpec("orchestrator", { role: "orchestrator" });
+      const agent = (await supervisor.mountInSession(spec)) as SessionAgent;
+      agent.mount(pi, "start task");
+
+      const destroySpy = vi.spyOn(supervisor, "destroyAgent").mockRejectedValue("boom");
+
+      vi.mocked(pi.sendUserMessage).mockClear();
+
+      await cmd.handler("", ctx);
+
+      expect(destroySpy).toHaveBeenCalledWith(agent.id);
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited with 1 error(s).", "error");
+      expect(ctx.ui.notify).not.toHaveBeenCalledWith(
+        "Flow exited. Default system prompt and tools restored.",
+        "info",
+      );
+      expect(pi.sendUserMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe("with workspace manager", () => {

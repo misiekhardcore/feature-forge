@@ -29,6 +29,7 @@
 - Sub 1: unmount() guard combined `this.pi && this.defaultTools.length > 0` — covers both never-mounted and empty-saved cases (why: single condition, clear intent)
 - Sub 2: destroyAgent spy uses call-through (`vi.spyOn` without mock impl) so real destroy → unmount runs and `isMounted` assertions stay meaningful (why: integration-style tests already use real supervisor + real SessionAgent)
 - Sub 2: partial-failure test clears shared `pi.sendUserMessage` mock before handler to avoid cross-test call leakage (why: module-level mock accumulates calls across describe blocks)
+- Sub 2: added all-failures test (both destroy attempts reject, count 2 in error notification) and non-Error throw test (string rejection exercises `error instanceof Error` else-branch) to close review-flagged test gaps (why: error-count path >1 and normalization branch were untested)
 
 ## Next action on resume
 - Run build loop for Subtask 3: Rename defaultTools → savedTools
