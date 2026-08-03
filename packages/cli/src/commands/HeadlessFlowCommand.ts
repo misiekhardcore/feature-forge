@@ -2,10 +2,9 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-import type { AgentSupervisor, SpecManager } from "../agents";
+import type { AgentSupervisor } from "../agents";
 import type { FlowDefinition, RoutineDefinition } from "../orchestrator/FlowInstruction";
 import type { RoutineExecutor } from "../orchestrator/RoutineExecutor";
-import { ToolRegistry } from "../registry/ToolRegistry";
 import { Command } from "./Command";
 
 /**
@@ -29,10 +28,8 @@ export class HeadlessFlowCommand extends Command {
     private readonly routineExecutor: RoutineExecutor,
     supervisor: AgentSupervisor,
     pi: ExtensionAPI,
-    specManager: SpecManager,
-    toolRegistry: ToolRegistry,
   ) {
-    super(supervisor, pi, specManager, toolRegistry);
+    super(supervisor, pi);
     this.name = flow.command.replace(/^\//, "");
     this.description = `Run the ${flow.name} workflow`;
   }

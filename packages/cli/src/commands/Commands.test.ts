@@ -130,7 +130,7 @@ describe("AgentDestroyCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+    cmd = new AgentDestroyCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 
@@ -158,7 +158,7 @@ describe("AgentDestroyAllCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyAllCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+    cmd = new AgentDestroyAllCommand(supervisor, pi);
     ctx = makeMockCtx();
   });
 
@@ -192,7 +192,7 @@ describe("FlowExitCommand", () => {
     let cmd: FlowExitCommand;
 
     beforeEach(() => {
-      cmd = new FlowExitCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+      cmd = new FlowExitCommand(supervisor, pi);
     });
 
     it("has name 'flow:exit'", () => {
@@ -322,13 +322,7 @@ describe("FlowExitCommand", () => {
 
     beforeEach(() => {
       workspaceManager = makeWorkspaceManager();
-      cmd = new FlowExitCommand(
-        supervisor,
-        pi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-        workspaceManager,
-      );
+      cmd = new FlowExitCommand(supervisor, pi, undefined, undefined, workspaceManager);
     });
 
     it("destroys active workspaces after unmounting agents", async () => {

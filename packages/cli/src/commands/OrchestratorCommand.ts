@@ -64,6 +64,11 @@ export class OrchestratorCommand extends Command {
       return;
     }
 
+    if (!this.specManager) {
+      ctx.ui.notify("SpecManager not available — orchestrator spec cannot be resolved.", "error");
+      return;
+    }
+
     if (!this.spec) {
       this.spec = this.specManager.resolve({
         spec: this.flow.orchestrator.systemPrompt,
