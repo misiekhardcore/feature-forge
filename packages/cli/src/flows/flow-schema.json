@@ -305,6 +305,9 @@
           "type": "integer",
           "minimum": 1
         },
+        "while": {
+          "type": "string"
+        },
         "continueWhile": {
           "type": "string"
         },

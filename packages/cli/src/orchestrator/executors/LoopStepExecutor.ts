@@ -14,6 +14,10 @@ import { collectAllIds } from "./helpers";
  * evaluating {@link LoopInstruction.continueWhile} after each iteration,
  * and respecting {@link LoopInstruction.maxIterations}.
  *
+ * When {@link LoopInstruction.while} is present it is evaluated **before**
+ * the first iteration; a false result skips the loop entirely and records
+ * `{ iterations: 0, skipped: true }`.
+ *
  * After each iteration, results from steps listed in
  * {@link LoopInstruction.accumulateFrom} are concatenated into
  * {@link FlowContext.feedback} for the next round.
@@ -33,17 +37,41 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     signal?: AbortSignal,
   ): Promise<FlowContext> {
     const maxIterations = instruction.maxIterations;
+    const whileExpr = instruction.while;
     const continueWhileExpr = instruction.continueWhile;
     const accumulateFrom = instruction.accumulateFrom ?? [];
 
     logger.info("Starting loop", {
       id: instruction.id,
       maxIterations,
+      hasWhile: !!whileExpr,
       hasContinueWhile: !!continueWhileExpr,
       accumulateFrom,
     });
 
     let current = context;
+
+    // Evaluate the while-guard before running any iteration. A false result
+    // skips the loop entirely, preserving prior results untouched.
+    if (whileExpr) {
+      const shouldRun = ExpressionEvaluator.evaluateExpression(current.resolve(whileExpr), current);
+      logger.debug("Loop while-guard evaluated", {
+        id: instruction.id,
+        expression: whileExpr,
+        shouldRun,
+      });
+      if (!shouldRun) {
+        logger.info("Loop skipped by while-guard", {
+          id: instruction.id,
+          expression: whileExpr,
+        });
+        const skippedResult: InstructionResult = {
+          raw: JSON.stringify({ iterations: 0, maxIterations, skipped: true }),
+          parsed: { passed: true, summary: "Loop skipped by while-guard" },
+        };
+        return current.withResult(instruction.id, skippedResult);
+      }
+    }
 
     // Track all result ids produced across iterations so we can clear
     // stale results between rounds.

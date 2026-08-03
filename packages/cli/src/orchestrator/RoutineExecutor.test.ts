@@ -82,6 +82,18 @@ class SoftFailingShellExecutor extends StepExecutor {
   }
 }
 
+/** Loop executor that mimics the LoopStepExecutor's skipped-by-while-guard result surface. */
+class SkippedLoopExecutorStub extends StepExecutor {
+  readonly type = "loop";
+
+  async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+    return context.withResult(instruction.id, {
+      raw: JSON.stringify({ iterations: 0, maxIterations: 3, skipped: true }),
+      parsed: { passed: true, summary: "Loop skipped by while-guard" },
+    });
+  }
+}
+
 function makeTestFlow(overrides: Partial<FlowDefinition["routines"][number]> = {}): FlowDefinition {
   return {
     $schema: FLOW_SCHEMA_URL,
@@ -737,6 +749,124 @@ describe("RoutineExecutor", () => {
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       await expect(executor.run("gamma", {}, "task")).rejects.toThrow("alpha, beta");
+    });
+  });
+
+  describe("status derivation", () => {
+    it('reports "success" for an all-passing routine', async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const flow = makeTestFlow();
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(true);
+      expect(result.status).toBe("success");
+      expect(result.reason).toBeUndefined();
+    });
+
+    it('reports "skipped" with the skipped step id when a loop is skipped', async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new SkippedLoopExecutorStub());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "skip-flow",
+        command: "/skip",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [
+              {
+                type: "loop",
+                id: "build_loop",
+                maxIterations: 3,
+                steps: [{ type: "shell", id: "inner", command: "echo hi", cwd: "/tmp" }],
+              },
+            ],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      // Skipped steps still count as passed for backwards compatibility.
+      expect(result.passed).toBe(true);
+      expect(result.status).toBe("skipped");
+      expect(result.reason).toBe("Skipped step(s): build_loop");
+    });
+
+    it('reports "failed" when a step reports passed:false, even if another step was skipped', async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new SkippedLoopExecutorStub());
+      registry.register(() => new SoftFailingShellExecutor());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "skip-fail-flow",
+        command: "/skip-fail",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [
+              {
+                type: "loop",
+                id: "build_loop",
+                maxIterations: 3,
+                steps: [{ type: "shell", id: "inner", command: "echo hi", cwd: "/tmp" }],
+              },
+              { type: "shell", id: "sync", command: "git fetch", cwd: "/tmp" },
+            ],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(false);
+      expect(result.status).toBe("failed");
+      expect(result.reason).toBeUndefined();
+    });
+
+    it('reports "failed" when a step throws', async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new FailingExecutor());
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "fail-flow",
+        command: "/fail",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [{ type: "fail", id: "f1" } as unknown as FlowInstruction],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      expect(result.passed).toBe(false);
+      expect(result.status).toBe("failed");
     });
   });
 });

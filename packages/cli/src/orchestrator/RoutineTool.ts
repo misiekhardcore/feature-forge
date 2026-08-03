@@ -282,6 +282,7 @@ export class RoutineTool
           details: {
             routine: resultDetails.routine ?? this._routineName,
             passed: resultDetails.passed ?? false,
+            status: resultDetails.status ?? "success",
             rounds: resultDetails.rounds ?? acc.iteration + 1,
             workspace: resultDetails.workspace,
             results: {},
