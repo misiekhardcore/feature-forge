@@ -133,8 +133,14 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
             // Forward the abort signal so retries stay cancellable, matching
             // the initial task execution.
             await agent.retry(correctionPrompt, { signal });
-          } catch {
-            break; // Don't keep retrying on transport errors
+          } catch (error) {
+            // Transport errors stop the retry loop early - the raw output
+            // stands - but log the reason so failures stay diagnosable.
+            logger.warn("Agent retry failed, falling back to original output", {
+              instructionId,
+              error,
+            });
+            break;
           }
           if (extractJson(agent.getResult())) {
             break; // Got valid JSON, stop retrying

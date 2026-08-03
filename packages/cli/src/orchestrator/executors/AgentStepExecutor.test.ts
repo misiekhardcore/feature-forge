@@ -1,3 +1,4 @@
+import { logger } from "@feature-forge/shared";
 import type { AgentContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
@@ -536,31 +537,46 @@ describe("AgentStepExecutor", () => {
     });
 
     it("stops retrying on transport errors and falls back to the original output", async () => {
-      const agent = makeMockAgent("no json here");
-      (agent.retry as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("rpc down"));
-      const supervisor = makeMockSupervisor(agent);
-      const specManager = makeMockSpecManager();
-      const executor = new AgentStepExecutor(supervisor, specManager);
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const agent = makeMockAgent("no json here");
+        (agent.retry as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("rpc down"));
+        const supervisor = makeMockSupervisor(agent);
+        const specManager = makeMockSpecManager();
+        const executor = new AgentStepExecutor(supervisor, specManager);
 
-      const instruction: AgentInstruction = {
-        type: "agent",
-        id: "builder",
-        systemPrompt: "build",
-        prompt: "build",
-        parseJson: true,
-      };
-      const context = new FlowContext({ results: new Map(), prompt: "task" });
+        const instruction: AgentInstruction = {
+          type: "agent",
+          id: "builder",
+          systemPrompt: "build",
+          prompt: "build",
+          parseJson: true,
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
 
-      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+        const result = await executor.execute(
+          instruction,
+          context,
+          vi.fn(),
+          makeMockTypedEventBus(),
+        );
 
-      // The transport error breaks the loop after the first attempt; the raw
-      // output is used for the failure result.
-      expect(agent.retry).toHaveBeenCalledTimes(1);
-      expect(result.results.get("builder")!.raw).toBe("no json here");
-      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
-      expect(result.results.get("builder")!.parsed!.summary).toBe(
-        "Agent did not produce valid JSON output",
-      );
+        // The transport error breaks the loop after the first attempt; the raw
+        // output is used for the failure result.
+        expect(agent.retry).toHaveBeenCalledTimes(1);
+        expect(result.results.get("builder")!.raw).toBe("no json here");
+        expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+        expect(result.results.get("builder")!.parsed!.summary).toBe(
+          "Agent did not produce valid JSON output",
+        );
+        // The transport failure is logged, not silently swallowed.
+        expect(warnSpy).toHaveBeenCalledWith(
+          "Agent retry failed, falling back to original output",
+          expect.objectContaining({ instructionId: "builder" }),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("forwards the abort signal to retry so the retry loop can be cancelled", async () => {

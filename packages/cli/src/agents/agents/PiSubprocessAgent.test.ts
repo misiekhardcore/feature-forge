@@ -403,6 +403,26 @@ describe("PiSubprocessAgent", () => {
         vi.useRealTimers();
       }
     });
+
+    it("calls rpcClient.abort when signal fires mid-retry", async () => {
+      await agent.start();
+      const taskPromise = agent.executeTask("initial task");
+      fireEvent(makeMessageEvent("Original result."));
+      fireEvent({ type: "agent_end" });
+      await taskPromise;
+
+      const controller = new AbortController();
+      const retryPromise = agent.retry("fix it", { signal: controller.signal });
+      controller.abort();
+      // Resolve the pending retry so the test completes cleanly.
+      fireEvent(makeMessageEvent("Corrected output."));
+      fireEvent({ type: "agent_end" });
+      await retryPromise;
+
+      expect(getRpcMock().abort).toHaveBeenCalledTimes(1);
+      // The abort listener is removed once the retry settles.
+      expect(onEventCallbacks.length).toBe(0);
+    });
   });
 
   describe("destroy", () => {

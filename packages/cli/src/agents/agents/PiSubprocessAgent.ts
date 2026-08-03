@@ -116,6 +116,18 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
     options?.signal?.throwIfAborted();
 
+    // Mirror executeTask: abort the underlying RPC process when the signal
+    // fires mid-retry so cancellation never leaves the transport hanging.
+    const onAbort = (): void => {
+      void this.rpcClient.abort().catch((error) => {
+        logger.warn("RPC abort failed during signal abort", {
+          agentId: this.id,
+          error,
+        });
+      });
+    };
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
+
     // Bound the retry with the same task timeout used by executeTask so a
     // hung retry cannot block the routine indefinitely.
     const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
@@ -127,6 +139,8 @@ export class PiSubprocessAgent extends SubprocessAgent {
     } catch (error) {
       logger.error("Retry failed", { agentId: this.id, error });
       throw error; // Don't change status on retry failure - agent stays Completed
+    } finally {
+      options?.signal?.removeEventListener("abort", onAbort);
     }
   }
 
@@ -143,7 +157,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     options?: ExecuteTaskOptions,
     timeout?: number,
   ): Promise<string> {
-    const unsubs: (() => void)[] = [];
+    const unsubscribeHandlers: (() => void)[] = [];
 
     // Promise that resolves when agent_end is received, rejecting on timeout.
     let cancelResultPromise: (() => void) | undefined;
@@ -188,10 +202,10 @@ export class PiSubprocessAgent extends SubprocessAgent {
         }
       };
 
-      unsubs.push(this.rpcClient.onEvent(internalOnEvent));
+      unsubscribeHandlers.push(this.rpcClient.onEvent(internalOnEvent));
 
       if (options?.onEvent) {
-        unsubs.push(this.rpcClient.onEvent(options.onEvent));
+        unsubscribeHandlers.push(this.rpcClient.onEvent(options.onEvent));
       }
     });
 
@@ -215,8 +229,8 @@ export class PiSubprocessAgent extends SubprocessAgent {
     } finally {
       // Unsubscribe in every exit path (prompt rejection, result rejection,
       // timeout, or normal completion) so event listeners never leak.
-      for (const unsub of unsubs) {
-        unsub();
+      for (const unsubscribe of unsubscribeHandlers) {
+        unsubscribe();
       }
     }
   }
