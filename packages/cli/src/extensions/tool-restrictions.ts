@@ -90,11 +90,11 @@ function isValueAllowed(value: string, patterns: readonly string[]): boolean {
   for (const pattern of patterns) {
     try {
       if (pattern.startsWith("!")) {
-        if (minimatch(value, pattern.slice(1))) {
+        if (matchAny(value, pattern.slice(1))) {
           return false;
         }
       } else {
-        if (minimatch(value, pattern)) {
+        if (matchAny(value, pattern)) {
           allowed = true;
         }
       }
@@ -105,4 +105,18 @@ function isValueAllowed(value: string, patterns: readonly string[]): boolean {
     }
   }
   return allowed;
+}
+
+/**
+ * Check whether a value matches a single glob pattern, trying both the
+ * pattern as-is and a double-star-prefixed variant for relative patterns
+ * so they also match absolute paths. For example, a relative pattern
+ * scoped to a worktrees directory matches an absolute path into it.
+ */
+function matchAny(value: string, pattern: string): boolean {
+  if (minimatch(value, pattern, { dot: true })) return true;
+  if (!pattern.startsWith("/") && !pattern.startsWith("**")) {
+    return minimatch(value, "**/" + pattern, { dot: true });
+  }
+  return false;
 }

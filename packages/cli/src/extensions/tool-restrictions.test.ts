@@ -146,6 +146,68 @@ describe("activateToolRestrictions", () => {
         reason: 'write tool call missing "path" in input',
       });
     });
+
+    describe("absolute path matching", () => {
+      it("allows write when pattern is directory-scoped and value is absolute", () => {
+        const pi = makeMockPiWithHandlers();
+        activateToolRestrictions(pi, { write: [".forge/worktrees/**/NOTES.md"] });
+        const handler = pi.getHandler("tool_call")!;
+        expect(
+          handler(
+            makeToolCallEvent("write", {
+              path: "/home/user/proj/.forge/worktrees/ws-abc/NOTES.md",
+            }),
+          ),
+        ).toBeUndefined();
+      });
+
+      it("blocks write when absolute path does not match the glob", () => {
+        const pi = makeMockPiWithHandlers();
+        activateToolRestrictions(pi, { write: [".forge/worktrees/**/NOTES.md"] });
+        const handler = pi.getHandler("tool_call")!;
+        expect(
+          handler(
+            makeToolCallEvent("write", {
+              path: "/home/user/proj/src/secrets.ts",
+            }),
+          ),
+        ).toEqual({
+          block: true,
+          reason: expect.stringContaining("secrets.ts"),
+        });
+      });
+
+      it("allows write with basename-only pattern against absolute path", () => {
+        const pi = makeMockPiWithHandlers();
+        activateToolRestrictions(pi, { write: ["NOTES.md"] });
+        const handler = pi.getHandler("tool_call")!;
+        expect(
+          handler(
+            makeToolCallEvent("write", {
+              path: "/home/user/proj/.forge/worktrees/ws-abc/NOTES.md",
+            }),
+          ),
+        ).toBeUndefined();
+      });
+
+      it("negation blocks absolute path matched via **/ fallback", () => {
+        const pi = makeMockPiWithHandlers();
+        activateToolRestrictions(pi, {
+          write: [".forge/worktrees/**/NOTES.md", "!.forge/worktrees/**/BAD-NOTES.md"],
+        });
+        const handler = pi.getHandler("tool_call")!;
+        expect(
+          handler(
+            makeToolCallEvent("write", {
+              path: "/home/user/proj/.forge/worktrees/ws-abc/BAD-NOTES.md",
+            }),
+          ),
+        ).toEqual({
+          block: true,
+          reason: expect.stringContaining("BAD-NOTES.md"),
+        });
+      });
+    });
   });
 
   describe("grep restrictions", () => {
