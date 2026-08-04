@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { logger } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
@@ -125,7 +125,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
           "Review the output format instructions in your system prompt and " +
           "append the JSON block as specified there.";
 
-        const maxRetries = instruction.maxJsonRetries ?? 2;
+        const maxRetries = instruction.maxJsonRetries ?? ForgeConfig.getInstance().getJsonRetryMaxAttempts();
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             // Forward the abort signal so retries stay cancellable, matching

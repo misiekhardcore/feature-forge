@@ -166,6 +166,16 @@ export class ForgeConfig {
   }
 
   /**
+   * Return the maximum number of retry attempts when an agent's
+   * `parseJson` output is missing a valid JSON block.
+   *
+   * Defaults to 2. Set to 0 to disable retries entirely.
+   */
+  getJsonRetryMaxAttempts(): number {
+    return this.getConfig().jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts;
+  }
+
+  /**
    * Return the configured spec directories (additional paths for flows
    * and agent specs).
    *
