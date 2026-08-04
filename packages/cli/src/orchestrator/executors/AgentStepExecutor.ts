@@ -125,7 +125,8 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
           "Review the output format instructions in your system prompt and " +
           "append the JSON block as specified there.";
 
-        const maxRetries = instruction.maxJsonRetries ?? ForgeConfig.getInstance().getJsonRetryMaxAttempts();
+        const maxRetries =
+          instruction.maxJsonRetries ?? ForgeConfig.getInstance().getJsonRetryMaxAttempts();
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             // Forward the abort signal so retries stay cancellable, matching
