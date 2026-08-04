@@ -118,7 +118,7 @@ export class SessionAgent extends Agent {
     for (const [tool, patterns] of Object.entries(partialRestrictions)) {
       mergedRestrictions[tool] = [...(mergedRestrictions[tool] ?? []), ...patterns];
     }
-    activateToolRestrictions(pi, mergedRestrictions);
+    activateToolRestrictions(pi, mergedRestrictions, process.cwd());
   }
 
   /**

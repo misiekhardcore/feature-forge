@@ -26,10 +26,17 @@ const TOOL_INPUT_FIELDS: Record<string, string> = {
  * through unchanged.
  *
  * Does nothing when `restrictions` is empty.
+ *
+ * `projectRoot` is the absolute directory that relative glob patterns
+ * for path-based tools (write/edit/read/grep/find/ls) are resolved
+ * against, so the patterns match the absolute path values those tools
+ * receive. Bash command patterns are never resolved — they are matched
+ * verbatim.
  */
 export function activateToolRestrictions(
   pi: ExtensionAPI,
   restrictions: Record<string, readonly string[]>,
+  projectRoot: string,
 ): void {
   // Only register the interceptor when there are actual restriction
   // patterns to enforce (non-empty arrays).
@@ -67,7 +74,15 @@ export function activateToolRestrictions(
       };
     }
 
-    const allowed = isValueAllowed(value, patterns);
+    // Path-based tools receive absolute paths, so resolve relative glob
+    // patterns against the project root before matching. Bash command
+    // patterns are matched verbatim.
+    const isPathTool = inputField === "path";
+    const resolvedPatterns = isPathTool
+      ? patterns.map((p) => resolvePattern(p, projectRoot))
+      : patterns;
+
+    const allowed = isValueAllowed(value, resolvedPatterns);
 
     if (!allowed) {
       return {
@@ -76,6 +91,20 @@ export function activateToolRestrictions(
       };
     }
   });
+}
+
+/**
+ * Resolve a relative glob pattern against the project root so it matches
+ * the absolute path values path-based tools receive. Absolute patterns
+ * (leading `/`) are returned unchanged; a leading `!` negation prefix is
+ * preserved.
+ */
+function resolvePattern(pattern: string, projectRoot: string): string {
+  const negated = pattern.startsWith("!");
+  const core = negated ? pattern.slice(1) : pattern;
+  if (core.startsWith("/")) return pattern;
+  const resolved = projectRoot + "/" + core;
+  return negated ? "!" + resolved : resolved;
 }
 
 /**
@@ -90,11 +119,11 @@ function isValueAllowed(value: string, patterns: readonly string[]): boolean {
   for (const pattern of patterns) {
     try {
       if (pattern.startsWith("!")) {
-        if (matchAny(value, pattern.slice(1))) {
+        if (minimatch(value, pattern.slice(1), { dot: true })) {
           return false;
         }
       } else {
-        if (matchAny(value, pattern)) {
+        if (minimatch(value, pattern, { dot: true })) {
           allowed = true;
         }
       }
@@ -105,18 +134,4 @@ function isValueAllowed(value: string, patterns: readonly string[]): boolean {
     }
   }
   return allowed;
-}
-
-/**
- * Check whether a value matches a single glob pattern, trying both the
- * pattern as-is and a double-star-prefixed variant for relative patterns
- * so they also match absolute paths. For example, a relative pattern
- * scoped to a worktrees directory matches an absolute path into it.
- */
-function matchAny(value: string, pattern: string): boolean {
-  if (minimatch(value, pattern, { dot: true })) return true;
-  if (!pattern.startsWith("/") && !pattern.startsWith("**")) {
-    return minimatch(value, "**/" + pattern, { dot: true });
-  }
-  return false;
 }
