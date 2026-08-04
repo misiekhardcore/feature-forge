@@ -14,8 +14,8 @@ tools:
   - read
   - grep
   - bash
-  - write:NOTES.md
-  - edit:NOTES.md
+  - write:.forge/worktrees/**/NOTES.md
+  - edit:.forge/worktrees/**/NOTES.md
 ---
 
 # Implement — Orchestrator Workflow

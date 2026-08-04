@@ -51,7 +51,7 @@ export function activateSpecResolution(pi: ExtensionAPI): void {
       for (const [tool, patterns] of Object.entries(partialRestrictions)) {
         mergedRestrictions[tool] = [...(mergedRestrictions[tool] ?? []), ...patterns];
       }
-      activateToolRestrictions(pi, mergedRestrictions);
+      activateToolRestrictions(pi, mergedRestrictions, process.cwd());
 
       childSpec = spec;
     } catch (error) {
