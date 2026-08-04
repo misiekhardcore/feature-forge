@@ -120,13 +120,10 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       // and updates the agent's result, so getResult() is re-read after each
       // attempt. Transport errors stop the loop early - the raw output stands.
       if (instruction.parseJson && !extractJson(raw)) {
-        const correctionPrompt = [
-          "Your last response was missing the required JSON outcome block. Append it now:",
-          "",
-          "```json",
-          '{"passed": true|false, "summary": "Brief summary of your findings"}',
-          "```",
-        ].join("\n");
+        const correctionPrompt =
+          "Your last response was missing the required JSON outcome block. " +
+          "Review the output format instructions in your system prompt and " +
+          "append the JSON block as specified there.";
 
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
