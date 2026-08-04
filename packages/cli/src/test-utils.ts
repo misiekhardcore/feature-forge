@@ -117,6 +117,12 @@ export class MockAgent extends SubprocessAgent {
     return this._result;
   }
 
+  override async retry(prompt: string, _options?: ExecuteTaskOptions): Promise<string> {
+    this.lastPrompt = prompt;
+    this._result = `retry result for: ${prompt}`;
+    return this._result;
+  }
+
   async destroy(): Promise<void> {
     this.status = AgentStatus.Cancelled;
   }

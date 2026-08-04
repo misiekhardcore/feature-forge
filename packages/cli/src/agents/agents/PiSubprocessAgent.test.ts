@@ -17,7 +17,13 @@ const { MockRpcClient, getRpcMock, resetRpcMock } = vi.hoisted(() => {
     onEventCallbacks.length = 0;
     const fakeOnEvent = vi.fn().mockImplementation((cb: (event: unknown) => void) => {
       onEventCallbacks.push(cb);
-      return vi.fn(); // unsubscribe function
+      // Real unsubscribe: removes this callback so fireEvent only reaches
+      // the currently-subscribed handlers (e.g. after executeTask unsubscribes
+      // before a retry subscribes a fresh handler).
+      return () => {
+        const idx = onEventCallbacks.indexOf(cb);
+        if (idx !== -1) onEventCallbacks.splice(idx, 1);
+      };
     });
     instance = {
       start: vi.fn().mockResolvedValue(undefined),
@@ -47,7 +53,7 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   ExtensionContext: class {},
 }));
 
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, ForgeConfig } from "@feature-forge/shared";
 
 import { makeMessageEvent, makeSpec } from "../../test-utils";
 import { PiSubprocessAgent } from "./PiSubprocessAgent";
@@ -294,6 +300,8 @@ describe("PiSubprocessAgent", () => {
           "boom",
         );
         expect(getRpcMock().onEvent).toHaveBeenCalledTimes(2);
+        // No leaked subscriptions remain after the failure.
+        expect(onEventCallbacks.length).toBe(0);
       });
 
       it("unsubscribes when prompt rejects with onEvent listeners already active", async () => {
@@ -305,6 +313,8 @@ describe("PiSubprocessAgent", () => {
         );
         expect(agent.status).toBe(AgentStatus.Failed);
         expect(getRpcMock().onEvent).toHaveBeenCalledTimes(2);
+        // The unsub loop runs even when prompt() itself rejects.
+        expect(onEventCallbacks.length).toBe(0);
       });
 
       it("onEvent is subscribed before prompt is sent", async () => {
@@ -318,6 +328,100 @@ describe("PiSubprocessAgent", () => {
         const promptCallIndex = promptSpy.mock.invocationCallOrder[0];
         expect(onEventCallIndex).toBeLessThan(promptCallIndex);
       });
+    });
+  });
+
+  describe("retry", () => {
+    it("sends a correction prompt and updates the result when Completed", async () => {
+      await agent.start();
+      const taskPromise = agent.executeTask("initial task");
+      fireEvent(makeMessageEvent("Initial output without JSON."));
+      fireEvent({ type: "agent_end" });
+      await taskPromise;
+      expect(agent.status).toBe(AgentStatus.Completed);
+
+      const retryPromise = agent.retry("Append the JSON block now.");
+      fireEvent(makeMessageEvent('```json\n{"passed": true, "summary": "fixed"}\n```'));
+      fireEvent({ type: "agent_end" });
+      const corrected = await retryPromise;
+
+      expect(corrected).toBe('```json\n{"passed": true, "summary": "fixed"}\n```');
+      expect(agent.getResult()).toBe('```json\n{"passed": true, "summary": "fixed"}\n```');
+      expect(agent.status).toBe(AgentStatus.Completed);
+      expect(getRpcMock().prompt).toHaveBeenLastCalledWith("Append the JSON block now.", undefined);
+    });
+
+    it("throws when called outside Completed state", async () => {
+      await agent.start();
+      await expect(agent.retry("fix it")).rejects.toThrow(
+        'Cannot retry on agent "test-agent" in state "Running". Expected Completed.',
+      );
+      expect(getRpcMock().prompt).not.toHaveBeenCalled();
+    });
+
+    it("keeps Completed status and prior result when the transport fails", async () => {
+      await agent.start();
+      const taskPromise = agent.executeTask("initial task");
+      fireEvent(makeMessageEvent("Original result."));
+      fireEvent({ type: "agent_end" });
+      await taskPromise;
+
+      getRpcMock().prompt.mockRejectedValueOnce(new Error("rpc down"));
+      await expect(agent.retry("fix it")).rejects.toThrow("rpc down");
+
+      // Status and result are untouched - the agent stays Completed.
+      expect(agent.status).toBe(AgentStatus.Completed);
+      expect(agent.getResult()).toBe("Original result.");
+      // Subscriptions from the failed retry are cleaned up.
+      expect(onEventCallbacks.length).toBe(0);
+    });
+
+    it("bounds a hanging retry with the configured task timeout", async () => {
+      vi.useFakeTimers();
+      try {
+        await agent.start();
+        const taskPromise = agent.executeTask("initial task");
+        fireEvent(makeMessageEvent("Original result."));
+        fireEvent({ type: "agent_end" });
+        await taskPromise;
+
+        const retryPromise = agent.retry("fix it");
+        // No agent_end fires - the retry must time out instead of hanging.
+        const timeoutMs = ForgeConfig.getInstance().getTaskTimeoutMs();
+        // Attach the rejection handler before the timer fires so the
+        // rejection is never observed as unhandled.
+        const settled = retryPromise.catch((error: unknown) => error);
+        await vi.advanceTimersByTimeAsync(timeoutMs);
+        const rejection = await settled;
+        expect((rejection as Error).message).toBe(`Task timed out after ${timeoutMs}ms`);
+
+        // Retry failure leaves the agent Completed with the prior result.
+        expect(agent.status).toBe(AgentStatus.Completed);
+        expect(agent.getResult()).toBe("Original result.");
+        expect(onEventCallbacks.length).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("calls rpcClient.abort when signal fires mid-retry", async () => {
+      await agent.start();
+      const taskPromise = agent.executeTask("initial task");
+      fireEvent(makeMessageEvent("Original result."));
+      fireEvent({ type: "agent_end" });
+      await taskPromise;
+
+      const controller = new AbortController();
+      const retryPromise = agent.retry("fix it", { signal: controller.signal });
+      controller.abort();
+      // Resolve the pending retry so the test completes cleanly.
+      fireEvent(makeMessageEvent("Corrected output."));
+      fireEvent({ type: "agent_end" });
+      await retryPromise;
+
+      expect(getRpcMock().abort).toHaveBeenCalledTimes(1);
+      // The abort listener is removed once the retry settles.
+      expect(onEventCallbacks.length).toBe(0);
     });
   });
 

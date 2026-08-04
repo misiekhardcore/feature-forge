@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { logger } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
@@ -115,7 +115,39 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       const raw = agent.getResult();
       logger.info("Agent completed", { instructionId, resultLength: raw.length });
 
-      const result = this.buildResult(raw, instruction.parseJson);
+      // When JSON is required but missing, give the agent a chance to correct
+      // itself before giving up. retry() re-uses the existing transport session
+      // and updates the agent's result, so getResult() is re-read after each
+      // attempt. Transport errors stop the loop early - the raw output stands.
+      if (instruction.parseJson && !extractJson(raw)) {
+        const correctionPrompt =
+          "Your last response was missing the required JSON outcome block. " +
+          "Review the output format instructions in your system prompt and " +
+          "append the JSON block as specified there.";
+
+        const maxRetries =
+          instruction.maxJsonRetries ?? ForgeConfig.getInstance().getJsonRetryMaxAttempts();
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            // Forward the abort signal so retries stay cancellable, matching
+            // the initial task execution.
+            await agent.retry(correctionPrompt, { signal });
+          } catch (error) {
+            // Transport errors stop the retry loop early - the raw output
+            // stands - but log the reason so failures stay diagnosable.
+            logger.warn("Agent retry failed, falling back to original output", {
+              instructionId,
+              error,
+            });
+            break;
+          }
+          if (extractJson(agent.getResult())) {
+            break; // Got valid JSON, stop retrying
+          }
+        }
+      }
+
+      const result = this.buildResult(agent.getResult(), instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
 
       const agentPassed = result.parsed?.passed;

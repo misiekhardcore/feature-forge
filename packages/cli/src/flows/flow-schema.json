@@ -211,6 +211,11 @@
         "parseJson": {
           "type": "boolean"
         },
+        "maxJsonRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
         "promptParams": {
           "type": "object",
           "patternProperties": {

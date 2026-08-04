@@ -78,7 +78,86 @@ export class PiSubprocessAgent extends SubprocessAgent {
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
     const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
-    const unsubs: (() => void)[] = [];
+
+    try {
+      this.result = await this._collectResponse(prompt, options, timeout);
+      this._status = AgentStatus.Completed;
+      logger.info("Agent task completed", {
+        agentId: this.id,
+        promptLength: prompt.length,
+        resultLength: this.result.length,
+      });
+      return this.result;
+    } catch (error) {
+      logger.error("Task execution failed", { agentId: this.id, prompt, error });
+      this._status = AgentStatus.Failed;
+      this.error = error instanceof Error ? error : new Error(String(error));
+      throw this.error;
+    } finally {
+      options?.signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
+  /**
+   * Send a correction prompt without changing lifecycle state.
+   *
+   * Used after the initial task completes but the response is invalid
+   * (e.g. missing required JSON). The agent stays in Completed state;
+   * this only produces a replacement result for {@link getResult}.
+   *
+   * Re-uses the existing RPC transport session - no new process is spawned.
+   */
+  public override async retry(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
+    if (this._status !== AgentStatus.Completed) {
+      throw new Error(
+        `Cannot retry on agent "${this.id}" in state "${this._status}". Expected Completed.`,
+      );
+    }
+
+    options?.signal?.throwIfAborted();
+
+    // Mirror executeTask: abort the underlying RPC process when the signal
+    // fires mid-retry so cancellation never leaves the transport hanging.
+    const onAbort = (): void => {
+      void this.rpcClient.abort().catch((error) => {
+        logger.warn("RPC abort failed during signal abort", {
+          agentId: this.id,
+          error,
+        });
+      });
+    };
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
+
+    // Bound the retry with the same task timeout used by executeTask so a
+    // hung retry cannot block the routine indefinitely.
+    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+
+    try {
+      const result = await this._collectResponse(prompt, options, timeout);
+      this.result = result; // Update so getResult() returns the corrected output
+      return result;
+    } catch (error) {
+      logger.error("Retry failed", { agentId: this.id, error });
+      throw error; // Don't change status on retry failure - agent stays Completed
+    } finally {
+      options?.signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
+  /**
+   * Shared transport concern between {@link executeTask} and {@link retry}:
+   * subscribe to agent events, send the prompt via the RPC client, and resolve
+   * when the `agent_end` event arrives with the concatenated assistant text.
+   *
+   * Does not touch lifecycle state; {@link executeTask} owns the timeout,
+   * abort-signal wiring, and Running -> Completed/Failed transitions.
+   */
+  private async _collectResponse(
+    prompt: string,
+    options?: ExecuteTaskOptions,
+    timeout?: number,
+  ): Promise<string> {
+    const unsubscribeHandlers: (() => void)[] = [];
 
     // Promise that resolves when agent_end is received, rejecting on timeout.
     let cancelResultPromise: (() => void) | undefined;
@@ -87,13 +166,14 @@ export class PiSubprocessAgent extends SubprocessAgent {
     const resultPromise = new Promise<string>((resolve, reject) => {
       rejectResultPromise = reject;
 
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Task timed out after ${timeout}ms`));
-      }, timeout);
-
-      cancelResultPromise = () => {
-        clearTimeout(timeoutId);
-      };
+      if (timeout !== undefined) {
+        const timeoutId = setTimeout(() => {
+          reject(new Error(`Task timed out after ${timeout}ms`));
+        }, timeout);
+        cancelResultPromise = () => {
+          clearTimeout(timeoutId);
+        };
+      }
 
       let assistantText = "";
 
@@ -117,46 +197,40 @@ export class PiSubprocessAgent extends SubprocessAgent {
         }
 
         if (event.type === "agent_end") {
-          clearTimeout(timeoutId);
+          cancelResultPromise?.();
           resolve(assistantText);
         }
       };
 
-      unsubs.push(this.rpcClient.onEvent(internalOnEvent));
+      unsubscribeHandlers.push(this.rpcClient.onEvent(internalOnEvent));
 
       if (options?.onEvent) {
-        unsubs.push(this.rpcClient.onEvent(options.onEvent));
+        unsubscribeHandlers.push(this.rpcClient.onEvent(options.onEvent));
       }
     });
 
     // Safety net: if the timeout fires while prompt() is still in-flight, the
-    // rejection has no listener yet — Node would report an unhandled rejection.
+    // rejection has no listener yet - Node would report an unhandled rejection.
     // The rejection is surfaced through await resultPromise in the try block.
     resultPromise.catch(() => {
-      // Silently handled — the rejection will be re-thrown on await.
+      // Silently handled - the rejection will be re-thrown on await.
     });
 
     try {
-      await this.rpcClient.prompt(prompt, options?.images);
-      this.result = await resultPromise;
-      this._status = AgentStatus.Completed;
-      logger.info("Agent task completed", {
-        agentId: this.id,
-        promptLength: prompt.length,
-        resultLength: this.result.length,
-      });
-      return this.result;
-    } catch (error) {
-      cancelResultPromise?.();
-      rejectResultPromise?.(error);
-      logger.error("Task execution failed", { agentId: this.id, prompt, error });
-      this._status = AgentStatus.Failed;
-      this.error = error instanceof Error ? error : new Error(String(error));
-      throw this.error;
+      try {
+        await this.rpcClient.prompt(prompt, options?.images);
+      } catch (error) {
+        cancelResultPromise?.();
+        rejectResultPromise?.(error);
+        throw error;
+      }
+
+      return await resultPromise;
     } finally {
-      options?.signal?.removeEventListener("abort", onAbort);
-      for (const unsub of unsubs) {
-        unsub();
+      // Unsubscribe in every exit path (prompt rejection, result rejection,
+      // timeout, or normal completion) so event listeners never leak.
+      for (const unsubscribe of unsubscribeHandlers) {
+        unsubscribe();
       }
     }
   }

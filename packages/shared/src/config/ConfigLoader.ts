@@ -409,6 +409,7 @@ export class ConfigLoader {
       logDir: decoded.logDir,
       worktreeSymlinks: decoded.worktreeSymlinks,
       taskTimeoutMs: decoded.taskTimeoutMs,
+      jsonRetryMaxAttempts: decoded.jsonRetryMaxAttempts,
       specDirectories: decoded.specDirectories,
       models: decoded.models,
       defaultModel: decoded.defaultModel,

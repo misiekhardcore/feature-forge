@@ -290,6 +290,27 @@ describe("ForgeConfig", () => {
       expect(instance.getTaskTimeoutMs()).toBe(60 * 60 * 1000);
     });
 
+    it("returns the configured json retry max attempts", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          jsonRetryMaxAttempts: 5,
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getJsonRetryMaxAttempts()).toBe(5);
+    });
+
+    it("returns default 2 when jsonRetryMaxAttempts not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getJsonRetryMaxAttempts()).toBe(2);
+    });
+
     it("returns the configured spec directories", async () => {
       await fs.writeFile(
         join(tempDir, "forge.config.json"),

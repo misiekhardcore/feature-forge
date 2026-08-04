@@ -172,6 +172,9 @@ export const ForgeConfigSchema = Type.Object({
   /** Default timeout for agent task execution in milliseconds. Defaults to 3600000 (1 hour). */
   taskTimeoutMs: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1 }))),
 
+  /** Maximum retry attempts when an agent's parseJson output is missing a valid JSON block. Defaults to 2. Set to 0 to disable retries. */
+  jsonRetryMaxAttempts: Type.Readonly(Type.Optional(Type.Integer({ minimum: 0 }))),
+
   /** Additional directories for flows and agent specs. */
   specDirectories: Type.Readonly(Type.Optional(SpecDirectoriesSchema)),
 
