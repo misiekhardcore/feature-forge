@@ -226,6 +226,7 @@ describe("github", () => {
 
     it("omits the cause message when gh throws a non-Error value", () => {
       mockExec.mockImplementation(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberate defensive case
         throw "boom";
       });
 
