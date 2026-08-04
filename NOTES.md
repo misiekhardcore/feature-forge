@@ -1,7 +1,7 @@
 # NOTES — resolve-pr-feedback flow (#40)
 
 ## Current task
-- Subtask 1 complete: GitHub API module (`packages/cli/src/github.ts`) — next up is Subtask 2
+- Subtask 1 (GitHub API module) re-validated after review feedback: all feedback items fixed, 100% branch coverage on github.ts, e2e contract tests added — next up is Subtask 2
 
 ## Task list / AC checklist
 - [ ] `/resolve-pr-feedback` fetches unresolved PR comments from GitHub
@@ -13,7 +13,7 @@
 - [ ] All tests pass (`npm run check`)
 
 ## Subtask plan
-- [x] Subtask 1: GitHub API module (`packages/cli/src/github.ts`) — getPullRequest via `gh pr view`, getUnresolvedComments via graphql reviewThreads + REST issue comments; execFileSync runner; 100% branch coverage
+- [x] Subtask 1: GitHub API module (`packages/cli/src/github.ts`) — getPullRequest via `gh pr view` (headRepository field), getUnresolvedComments via graphql reviewThreads + REST issue comments; execFileSync runner; GitHubApiError with cause; runtime shape validation; cursor/page pagination with caps; 100% branch coverage; e2e contract tests against real gh CLI
 - [ ] Subtask 2: Cross-flow routine ref dot notation (RoutineRefStepExecutor)
 - [ ] Subtask 3: Flow definition (`flow.json`)
 - [ ] Subtask 4: Orchestrator persona (`orchestrator.md`)
@@ -26,7 +26,13 @@
 - Dot notation in RoutineRefStepExecutor: parse `flow.routine` format, inline only matching routine
 - Subtask 1: used `execFileSync` (not `execSync`) — execSync has no args-array overload (TS2554); execFileSync matches repo convention (execFile in GitWorktreeProvider)
 - Review thread resolved status fetched via graphql `reviewThreads(isResolved)`, comments flattened per thread
-- Global branch coverage 84.38% < 90% fails on origin/main baseline too (verified via stash) — pre-existing, not from this subtask
+- `gh pr view --json` uses `headRepository` not `repository` (invalid in gh 2.93.0); verified field-list contract via e2e test (gh validates fields before branch resolution)
+- GitHubApiError extends Error with name 'GitHubApiError' + cause; wraps execFileSync failure, JSON parse failure, and shape-validation failure
+- Runtime shape validation (isPrViewData/isReviewThreadsResponse/isIssueComment type guards) at the ghJson boundary — JSON.parse output narrowed before use
+- reviewThreads paginated via GraphQL cursor (first:100, after:$cursor, pageInfo); issue comments via REST page=1..N; both abort with GitHubApiError when cap exceeded (5 pages / 10 pages)
+- GraphQL guard: `data === null` + errors[] inspection before touching repository fields
+- e2e: github.e2e.test.ts validates --json field list against installed gh + round-trips both functions against a real PR (skip-if-no-gh)
+- Global branch coverage 84.38% (prev) / 86.46% (origin/main clean baseline) < 90% fails on baseline too — verified via clean worktree + npm ci; my branch improves it to 86.92% — pre-existing, not from this subtask
 
 ## Next action on resume
 - Subtask 2: extend RoutineRefStepExecutor to parse `flow.routine` dot-notation (split on '.'), inline only the matching routine
