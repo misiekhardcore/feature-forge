@@ -223,6 +223,20 @@ describe("github", () => {
       expect(error).toBeInstanceOf(GitHubApiError);
       expect((error as GitHubApiError).message).toContain("unexpected JSON shape");
     });
+
+    it("omits the cause message when gh throws a non-Error value", () => {
+      mockExec.mockImplementation(() => {
+        throw "boom";
+      });
+
+      const error = caughtError(() => getPullRequest("feat/github-module"));
+
+      expect(error).toBeInstanceOf(GitHubApiError);
+      expect((error as GitHubApiError).message).toBe(
+        `gh pr view feat/github-module --json ${PR_VIEW_JSON_FIELDS} failed`,
+      );
+      expect((error as GitHubApiError).cause).toBe("boom");
+    });
   });
 
   describe("getUnresolvedComments", () => {
@@ -343,6 +357,44 @@ describe("github", () => {
 
       expect(error).toBeInstanceOf(GitHubApiError);
       expect((error as GitHubApiError).message).toContain("Something went wrong fetching threads");
+    });
+
+    it("falls back to unknown error when the GraphQL response has no errors array", () => {
+      mockGhOnce({ data: null });
+
+      const error = caughtError(() => getUnresolvedComments(PR));
+
+      expect(error).toBeInstanceOf(GitHubApiError);
+      expect((error as GitHubApiError).message).toContain("unknown error");
+    });
+
+    it("breaks out of thread pagination when hasNextPage is true but endCursor is null", () => {
+      mockGhOnce(threadPayload([THREAD_OPEN], { hasNextPage: true, endCursor: null }));
+      mockGhOnce(ISSUE_COMMENTS_PAYLOAD);
+
+      const comments = getUnresolvedComments(PR);
+
+      expect(mockExec).toHaveBeenCalledTimes(2);
+      expect(comments.find((comment) => comment.id === "comment-2")).toBeDefined();
+      expect(comments.filter((comment) => comment.source === "issue")).toHaveLength(2);
+    });
+
+    it("throws when the parsed threads response does not match the expected shape", () => {
+      mockGhOnce({ data: { repository: {} } });
+
+      const error = caughtError(() => getUnresolvedComments(PR));
+
+      expect(error).toBeInstanceOf(GitHubApiError);
+      expect((error as GitHubApiError).message).toContain("unexpected JSON shape");
+    });
+
+    it("throws when the parsed threads payload is not an object at all", () => {
+      mockGhOnce(null);
+
+      const error = caughtError(() => getUnresolvedComments(PR));
+
+      expect(error).toBeInstanceOf(GitHubApiError);
+      expect((error as GitHubApiError).message).toContain("unexpected JSON shape");
     });
 
     it("aborts with GitHubApiError when review thread pagination exceeds the cap", () => {
