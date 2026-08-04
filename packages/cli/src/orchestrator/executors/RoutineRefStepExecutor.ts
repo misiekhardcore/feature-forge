@@ -47,8 +47,16 @@ export class RoutineRefStepExecutor
 
     // Split "flow.routine" dot notation. A bare flow name (backward
     // compatible) inlines all routines of the target flow; a dotted target
-    // inlines only the matching routine.
-    const [flowName, routineId] = instruction.target.split(".");
+    // inlines only the matching routine. Reject malformed targets instead of
+    // silently truncating extra segments or a dangling dot.
+    const parts = instruction.target.split(".");
+    if (parts.length > 2 || (parts.length === 2 && parts[1] === "")) {
+      throw new Error(
+        `Malformed routine ref target "${instruction.target}" ` +
+          `(expected "flow" or "flow.routine") referenced by routine ref "${instruction.id}"`,
+      );
+    }
+    const [flowName, routineId] = parts;
     const targetFlow = this.flowMap.get(flowName);
     if (!targetFlow) {
       throw new Error(

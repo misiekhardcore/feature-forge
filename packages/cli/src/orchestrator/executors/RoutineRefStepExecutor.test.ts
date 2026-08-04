@@ -442,6 +442,52 @@ describe("RoutineRefStepExecutor", () => {
       ).rejects.toThrow('Unknown routine "nonexistent" in flow "multi"');
     });
 
+    it("throws when flow.routine target has more than two dot-separated segments", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const targetFlow = makeTargetFlow();
+      const flowMap = new Map([[targetFlow.name, targetFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({ results: new Map(), prompt: "test" });
+
+      await expect(
+        executor.execute(
+          makeRefInstruction({ target: "review.inspect.extra" }),
+          context,
+          makeDispatch(registry, eventBus),
+          eventBus,
+        ),
+      ).rejects.toThrow('Malformed routine ref target "review.inspect.extra"');
+    });
+
+    it("throws when flow.routine target has a trailing dot", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const targetFlow = makeTargetFlow();
+      const flowMap = new Map([[targetFlow.name, targetFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({ results: new Map(), prompt: "test" });
+
+      await expect(
+        executor.execute(
+          makeRefInstruction({ target: "review." }),
+          context,
+          makeDispatch(registry, eventBus),
+          eventBus,
+        ),
+      ).rejects.toThrow('Malformed routine ref target "review."');
+    });
+
     it("merges input params into context before inlining steps", async () => {
       const capturedParams: Array<ReadonlyMap<string, string>> = [];
       class ParamCheckExecutor extends StepExecutor {
