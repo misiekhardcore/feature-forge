@@ -17,7 +17,7 @@ export class ForgeInitCommand extends Command {
   readonly description = "Initialize Feature Forge project scaffolding";
 
   handler = async (_args: string, ctx: ExtensionCommandContext) => {
-    const setupScript = path.join(__dirname, "scripts", "forge-setup.js");
+    const setupScript = path.join(__dirname, "..", "scripts", "forge-setup.js");
 
     const scaffoldConfig = await ctx.ui.confirm(
       "Forge: Init",
