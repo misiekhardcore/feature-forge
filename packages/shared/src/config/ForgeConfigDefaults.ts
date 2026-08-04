@@ -100,7 +100,8 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     logDir: overrides.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
     worktreeSymlinks: overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
-    jsonRetryMaxAttempts: overrides.jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts,
+    jsonRetryMaxAttempts:
+      overrides.jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts,
     specDirectories: overrides.specDirectories ?? DEFAULT_FORGE_CONFIG.specDirectories,
     models: overrides.models ? { ...overrides.models } : DEFAULT_FORGE_CONFIG.models,
     defaultModel: overrides.defaultModel ?? DEFAULT_FORGE_CONFIG.defaultModel,
