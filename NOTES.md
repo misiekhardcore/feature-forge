@@ -1,7 +1,7 @@
 # NOTES — resolve-pr-feedback flow (#40)
 
 ## Current task
-- Subtask 1 (GitHub API module) re-validated after review feedback: all feedback items fixed, 100% branch coverage on github.ts, e2e contract tests added — next up is Subtask 2
+- Subtask 2: Cross-flow routine ref dot notation (RoutineRefStepExecutor)
 
 ## Task list / AC checklist
 - [ ] `/resolve-pr-feedback` fetches unresolved PR comments from GitHub
@@ -35,4 +35,4 @@
 - Global branch coverage 84.38% (prev) / 86.46% (origin/main clean baseline) < 90% fails on baseline too — verified via clean worktree + npm ci; my branch improves it to 86.92% — pre-existing, not from this subtask
 
 ## Next action on resume
-- Subtask 2: extend RoutineRefStepExecutor to parse `flow.routine` dot-notation (split on '.'), inline only the matching routine
+- run_build_loop for Subtask 3: Flow definition + orchestrator persona + round-trip test

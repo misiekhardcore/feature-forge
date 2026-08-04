@@ -351,6 +351,97 @@ describe("RoutineRefStepExecutor", () => {
       expect(RecordExecutor.executed[2].id).toBe("r.multi.c");
     });
 
+    it("inlines only the matching routine for flow.routine targets", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const multiRoutineFlow: FlowDefinition = {
+        $schema: makeTargetFlow().$schema,
+        name: "multi",
+        command: "/multi",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "first",
+            params: [],
+            steps: [{ type: "record", id: "a" } as unknown as FlowInstruction],
+          },
+          {
+            id: "second",
+            params: [],
+            steps: [{ type: "record", id: "b" } as unknown as FlowInstruction],
+          },
+          {
+            id: "third",
+            params: [],
+            steps: [{ type: "record", id: "c" } as unknown as FlowInstruction],
+          },
+        ],
+      };
+      const flowMap = new Map([[multiRoutineFlow.name, multiRoutineFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({ results: new Map(), prompt: "test" });
+
+      const resultCtx = await executor.execute(
+        { type: "routine", id: "r", target: "multi.second" },
+        context,
+        makeDispatch(registry, eventBus),
+        eventBus,
+      );
+
+      expect(RecordExecutor.executed).toHaveLength(1);
+      expect(RecordExecutor.executed[0].id).toBe("r.multi.second.b");
+
+      const result = resultCtx.results.get("r");
+      expect(result!.parsed?.passed).toBe(true);
+      const raw = JSON.parse(result!.raw) as {
+        routineCount: number;
+        routines: string[];
+      };
+      expect(raw.routineCount).toBe(1);
+      expect(raw.routines).toEqual(["second"]);
+    });
+
+    it("throws when flow.routine target references an unknown routine", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const multiRoutineFlow: FlowDefinition = {
+        $schema: makeTargetFlow().$schema,
+        name: "multi",
+        command: "/multi",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "first",
+            params: [],
+            steps: [{ type: "record", id: "a" } as unknown as FlowInstruction],
+          },
+        ],
+      };
+      const flowMap = new Map([[multiRoutineFlow.name, multiRoutineFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({ results: new Map(), prompt: "test" });
+
+      await expect(
+        executor.execute(
+          { type: "routine", id: "r", target: "multi.nonexistent" },
+          context,
+          makeDispatch(registry, eventBus),
+          eventBus,
+        ),
+      ).rejects.toThrow('Unknown routine "nonexistent" in flow "multi"');
+    });
+
     it("merges input params into context before inlining steps", async () => {
       const capturedParams: Array<ReadonlyMap<string, string>> = [];
       class ParamCheckExecutor extends StepExecutor {

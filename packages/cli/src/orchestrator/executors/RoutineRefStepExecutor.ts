@@ -45,11 +45,14 @@ export class RoutineRefStepExecutor
   ): Promise<FlowContext> {
     signal?.throwIfAborted();
 
-    const targetFlow = this.flowMap.get(instruction.target);
+    // Split "flow.routine" dot notation. A bare flow name (backward
+    // compatible) inlines all routines of the target flow; a dotted target
+    // inlines only the matching routine.
+    const [flowName, routineId] = instruction.target.split(".");
+    const targetFlow = this.flowMap.get(flowName);
     if (!targetFlow) {
       throw new Error(
-        `Unknown target flow "${instruction.target}" ` +
-          `referenced by routine ref "${instruction.id}"`,
+        `Unknown target flow "${flowName}" ` + `referenced by routine ref "${instruction.id}"`,
       );
     }
 
@@ -59,7 +62,19 @@ export class RoutineRefStepExecutor
       throw new MaxDepthExceededError(newDepth, MAX_NESTING_DEPTH, instruction.target);
     }
 
-    const routineCount = targetFlow.routines.length;
+    // When the target is "flow.routine", inline only the matching routine.
+    const routinesToInline = routineId
+      ? targetFlow.routines.filter((r) => r.id === routineId)
+      : targetFlow.routines;
+
+    if (routineId && routinesToInline.length === 0) {
+      throw new Error(
+        `Unknown routine "${routineId}" in flow "${flowName}" ` +
+          `referenced by routine ref "${instruction.id}"`,
+      );
+    }
+
+    const routineCount = routinesToInline.length;
     logger.info("Inlining routine ref", {
       id: instruction.id,
       target: instruction.target,
@@ -90,7 +105,7 @@ export class RoutineRefStepExecutor
     const inlinedRoutineIds: string[] = [];
 
     try {
-      for (const routine of targetFlow.routines) {
+      for (const routine of routinesToInline) {
         const routineSteps = routine.steps as FlowInstruction[];
         for (const step of routineSteps) {
           // Namespace the step ID to prevent collision with parent steps.
@@ -130,7 +145,7 @@ export class RoutineRefStepExecutor
       }
 
       // Check if any inlined step result explicitly failed.
-      for (const routine of targetFlow.routines) {
+      for (const routine of routinesToInline) {
         const checkSteps = routine.steps as FlowInstruction[];
         for (const step of checkSteps) {
           const nsId = `${instruction.id}.${instruction.target}.${step.id}`;
@@ -178,7 +193,7 @@ export class RoutineRefStepExecutor
       raw: JSON.stringify({
         passed: allPassed,
         flow: instruction.target,
-        routineCount: targetFlow.routines.length,
+        routineCount,
         routines: inlinedRoutineIds,
       }),
       parsed: {
