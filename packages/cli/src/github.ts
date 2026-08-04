@@ -209,11 +209,7 @@ function ghJson<T>(args: string[], validate: (value: unknown) => value is T): T 
 }
 
 /** Run `gh api <endpoint>` with extra args and parse the validated JSON. */
-function ghApi<T>(
-  endpoint: string,
-  args: string[],
-  validate: (value: unknown) => value is T,
-): T {
+function ghApi<T>(endpoint: string, args: string[], validate: (value: unknown) => value is T): T {
   return ghJson<T>(["api", endpoint, ...args], validate);
 }
 

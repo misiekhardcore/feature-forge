@@ -41,9 +41,13 @@ interface OpenPr {
 /** Find any real PR in the current repo to round-trip against, if one exists. */
 function findAnyPr(): OpenPr | null {
   try {
-    const nwo = execFileSync("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], {
-      encoding: "utf8",
-    }).trim();
+    const nwo = execFileSync(
+      "gh",
+      ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+      {
+        encoding: "utf8",
+      },
+    ).trim();
     const [owner, repo] = nwo.split("/");
     const list = execFileSync(
       "gh",

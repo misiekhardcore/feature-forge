@@ -2,7 +2,12 @@ import { execFileSync } from "node:child_process";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GitHubApiError, getPullRequest, getUnresolvedComments, type PullRequestInfo } from "./github";
+import {
+  getPullRequest,
+  getUnresolvedComments,
+  GitHubApiError,
+  type PullRequestInfo,
+} from "./github";
 
 vi.mock("node:child_process", () => ({
   execFileSync: vi.fn(),
@@ -141,10 +146,10 @@ const THREAD_OPEN_FALLBACK = {
   },
 };
 
-const THREADS_PAYLOAD = threadPayload(
-  [THREAD_RESOLVED, THREAD_OPEN, THREAD_OPEN_FALLBACK],
-  { hasNextPage: false, endCursor: null },
-);
+const THREADS_PAYLOAD = threadPayload([THREAD_RESOLVED, THREAD_OPEN, THREAD_OPEN_FALLBACK], {
+  hasNextPage: false,
+  endCursor: null,
+});
 
 const ISSUE_COMMENTS_PAYLOAD = [
   {
@@ -301,12 +306,8 @@ describe("github", () => {
     });
 
     it("follows the reviewThreads cursor across pages and merges comments", () => {
-      mockGhOnce(
-        threadPayload([THREAD_OPEN], { hasNextPage: true, endCursor: "cursor-1" }),
-      );
-      mockGhOnce(
-        threadPayload([THREAD_OPEN_FALLBACK], { hasNextPage: false, endCursor: null }),
-      );
+      mockGhOnce(threadPayload([THREAD_OPEN], { hasNextPage: true, endCursor: "cursor-1" }));
+      mockGhOnce(threadPayload([THREAD_OPEN_FALLBACK], { hasNextPage: false, endCursor: null }));
       mockGhOnce(ISSUE_COMMENTS_PAYLOAD);
 
       const comments = getUnresolvedComments(PR);
@@ -341,9 +342,7 @@ describe("github", () => {
       const error = caughtError(() => getUnresolvedComments(PR));
 
       expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain(
-        "Something went wrong fetching threads",
-      );
+      expect((error as GitHubApiError).message).toContain("Something went wrong fetching threads");
     });
 
     it("aborts with GitHubApiError when review thread pagination exceeds the cap", () => {
