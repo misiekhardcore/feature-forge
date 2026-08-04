@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import defaultsJson from "./forge-config.defaults.json";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_FORGE_CONFIG, resolveConfig } from "./ForgeConfigDefaults";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
@@ -56,6 +57,23 @@ describe("DEFAULT_FORGE_CONFIG", () => {
 
   it("is frozen", () => {
     expect(Object.isFrozen(DEFAULT_FORGE_CONFIG)).toBe(true);
+  });
+
+  it("mirrors the canonical forge-config.defaults.json", () => {
+    expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(defaultsJson.logLevel as LogLevel);
+    expect(DEFAULT_FORGE_CONFIG.logPrefix).toBe(defaultsJson.logPrefix);
+    expect(DEFAULT_FORGE_CONFIG.workspaceProvider).toBe(
+      defaultsJson.workspaceProvider as WorkspaceProviderKind,
+    );
+    expect(DEFAULT_FORGE_CONFIG.logDir).toBe(defaultsJson.logDir);
+    expect(DEFAULT_FORGE_CONFIG.worktreeSymlinks).toEqual(defaultsJson.worktreeSymlinks);
+    expect(DEFAULT_FORGE_CONFIG.taskTimeoutMs).toBe(defaultsJson.taskTimeoutMs);
+    expect(DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts).toBe(defaultsJson.jsonRetryMaxAttempts);
+    expect(DEFAULT_FORGE_CONFIG.specDirectories).toEqual(defaultsJson.specDirectories);
+    expect(DEFAULT_FORGE_CONFIG.display).toEqual(defaultsJson.display);
+    expect(DEFAULT_FORGE_CONFIG.dev).toEqual(defaultsJson.dev);
+    expect(DEFAULT_AGENT_CONFIG.maxToolCalls).toBe(defaultsJson.defaultAgent.maxToolCalls);
+    expect(DEFAULT_AGENT_CONFIG.maxTurns).toBe(defaultsJson.defaultAgent.maxTurns);
   });
 });
 

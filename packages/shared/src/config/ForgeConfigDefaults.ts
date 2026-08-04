@@ -3,8 +3,13 @@
  *
  * These are used as fallbacks when the user does not provide a value
  * in their forge.config file (or when no config file is found at all).
+ *
+ * The canonical defaults live in `forge-config.defaults.json` — the
+ * same file the setup script scaffolds into `.forge/config.json`.
+ * This module maps the JSON's string enum values onto typed constants.
  */
 
+import defaultsJson from "./forge-config.defaults.json";
 import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
@@ -15,9 +20,37 @@ import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
  * is specified for a particular agent.
  */
 export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
-  maxToolCalls: 40,
-  maxTurns: 100,
+  maxToolCalls: defaultsJson.defaultAgent.maxToolCalls,
+  maxTurns: defaultsJson.defaultAgent.maxTurns,
 });
+
+/**
+ * Build the frozen default configuration from the canonical JSON file.
+ *
+ * String enum values in the JSON are cast to their typed enum members
+ * and the `agents` record is converted to a `Map` (the runtime shape
+ * of {@link ForgeConfig}).
+ */
+function createDefaultConfig(): Required<ForgeConfig> {
+  const agents = new Map<string, AgentConfig>(Object.entries(defaultsJson.agents));
+
+  return Object.freeze({
+    logLevel: defaultsJson.logLevel as LogLevel,
+    logPrefix: defaultsJson.logPrefix,
+    workspaceProvider: defaultsJson.workspaceProvider as WorkspaceProviderKind,
+    agents,
+    defaultAgent: DEFAULT_AGENT_CONFIG,
+    logDir: defaultsJson.logDir,
+    worktreeSymlinks: defaultsJson.worktreeSymlinks,
+    taskTimeoutMs: defaultsJson.taskTimeoutMs,
+    jsonRetryMaxAttempts: defaultsJson.jsonRetryMaxAttempts,
+    specDirectories: defaultsJson.specDirectories,
+    display: defaultsJson.display,
+    models: defaultsJson.models,
+    defaultModel: undefined,
+    dev: defaultsJson.dev,
+  });
+}
 
 /**
  * Frozen default configuration for the Feature Forge platform.
@@ -25,28 +58,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
  * Every consumer should treat this as immutable. Spread or clone before
  * mutating for a specific session.
  */
-export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = Object.freeze({
-  logLevel: LogLevel.INFO,
-  logPrefix: "forge",
-  workspaceProvider: WorkspaceProviderKind.GitWorktree,
-  agents: new Map<string, AgentConfig>(),
-  defaultAgent: DEFAULT_AGENT_CONFIG,
-  logDir: ".forge/logs/",
-  worktreeSymlinks: [],
-  taskTimeoutMs: 60 * 60 * 1000,
-  jsonRetryMaxAttempts: 2,
-  specDirectories: { flows: [], agents: [] },
-  display: {
-    maxAgentEvents: 200,
-    maxPreconnectBuffer: 2000,
-    maxOverlayHeight: "85%",
-  },
-  models: {},
-  defaultModel: undefined,
-  dev: {
-    enabled: false,
-  },
-});
+export const DEFAULT_FORGE_CONFIG: Required<ForgeConfig> = createDefaultConfig();
 
 /**
  * Merge a partial user-provided config with the defaults.

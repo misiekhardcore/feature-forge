@@ -28,7 +28,6 @@
   "files": [
     "dist/",
     "scripts/",
-    "defaults/",
     "bin/",
     "README.md"
   ],
