@@ -2,7 +2,7 @@
 
 ## Current task
 
-- Subtask 2 (dot notation) verify-feedback fixes: e2e coverage for flow.routine + malformed-target validation
+- Subtasks 3+4+5 COMPLETE: flow.json + orchestrator.md + round-trip test — all validation green, ready to commit
 
 ## Task list / AC checklist
 
@@ -17,10 +17,10 @@
 ## Subtask plan
 
 - [x] Subtask 1: GitHub API module (`packages/cli/src/github.ts`) — getPullRequest via `gh pr view` (headRepository field), getUnresolvedComments via graphql reviewThreads + REST issue comments; execFileSync runner; GitHubApiError with cause; runtime shape validation; cursor/page pagination with caps; 100% branch coverage; e2e contract tests against real gh CLI
-- [ ] Subtask 2: Cross-flow routine ref dot notation (RoutineRefStepExecutor)
-- [ ] Subtask 3: Flow definition (`flow.json`)
-- [ ] Subtask 4: Orchestrator persona (`orchestrator.md`)
-- [ ] Subtask 5: Round-trip test
+- [x] Subtask 2: Cross-flow routine ref dot notation (RoutineRefStepExecutor) — with malformed-target validation + e2e tests
+- [x] Subtask 3: Flow definition (`flow.json`)
+- [x] Subtask 4: Orchestrator persona (`orchestrator.md`)
+- [x] Subtask 5: Round-trip test
 
 ## Decisions made this session
 
@@ -38,7 +38,13 @@
 - GraphQL guard: `data === null` + errors[] inspection before touching repository fields
 - e2e: github.e2e.test.ts validates --json field list against installed gh + round-trips both functions against a real PR (skip-if-no-gh)
 - Global branch coverage 84.38% (prev) / 86.46% (origin/main clean baseline) < 90% fails on baseline too — verified via clean worktree + npm ci; my branch improves it to 86.92% — pre-existing, not from this subtask
+- Subtask 3+4+5: flow.json has name `resolve-pr-feedback`, command `/resolve-pr-feedback`, params `pr`, orchestrator `{systemPrompt: resolve-pr-feedback-orchestrator, prompt: {{prompt}}}`, routines `[]` (orchestrator drives bash + run_build_loop directly, per plan non-goals — no routines, no sub-agent specs)
+- orchestrator.md: frontmatter id `resolve-pr-feedback-orchestrator`, model smart, tools per plan (write:NOTES.md/edit:NOTES.md), notes-md skill; 8 phases: resolve PR identity → create_workspace(branch=headBranch) → fetch via github.ts helpers (tsx one-liner from main checkout) → LLM triage → group by file+thread → per-group run_build_loop → disposition (resolveReviewThread / addReaction / issue comment) → push + destroy_workspace
+- Round-trip test: new describe block loads flow from resolve-pr-feedback/ dir, asserts name/command/params/routines=[], orchestrator config, no placeholder survivors, and orchestrator.systemPrompt resolves to a spec loaded from the flow dir (mirrors FlowRegistrar)
+- eslint --fix collapsed two long expectations (prettier style) — re-ran full validation after fix
+- `npm run flow:validate -- --all` fails with stale-shared-dist SyntaxError (AgentConfig export) — reproduces identically in main repo, pre-existing, unrelated to this subtask; not part of the gate
+- Validation: tsc --noEmit clean; vitest --project cli 69 files / 1203 tests; full npm run test 106 files / 1986 tests; lint + fix clean
 
 ## Next action on resume
 
-- Re-validate subtask 2: npx tsc --noEmit, vitest run --project cli, vitest run --project cli-e2e, then run_build_loop for Subtask 3: Flow definition + orchestrator persona + round-trip test
+- Commit subtask 3+4+5 (implement: resolve-pr-feedback flow definition + orchestrator + round-trip test), push branch

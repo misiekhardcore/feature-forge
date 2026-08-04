@@ -349,6 +349,54 @@ describe("flow round-trip", () => {
     });
   });
 
+  describe("resolve-pr-feedback", () => {
+    const resolvePrFlowDir = path.join(__dirname, "resolve-pr-feedback");
+
+    let resolvePrFlow!: FlowDefinition;
+    let resolvePrSpecs!: SpecManager;
+
+    beforeAll(async () => {
+      // Mirror FlowRegistrar: declarative specs plus the flow's own
+      // orchestrator.md, registered under its frontmatter id.
+      resolvePrSpecs = new SpecManager(new SpecRegistry(), new SpecLoader());
+      await resolvePrSpecs.loadFromDirectory(specsDir);
+      await resolvePrSpecs.loadFromDirectory(resolvePrFlowDir);
+
+      const resolvePrLoader = new FlowLoader({
+        flowsDir: resolvePrFlowDir,
+        knownSpecs: resolvePrSpecs.specNames(),
+      });
+      resolvePrFlow = await resolvePrLoader.load("flow");
+    });
+
+    it("declares name, command, params, and an empty routine set", () => {
+      expect(resolvePrFlow.name).toBe("resolve-pr-feedback");
+      expect(resolvePrFlow.command).toBe("/resolve-pr-feedback");
+      expect(resolvePrFlow.params).toEqual([
+        { name: "pr", description: "Pull request number to resolve feedback on" },
+      ]);
+      expect(resolvePrFlow.routines).toEqual([]);
+    });
+
+    it("configures the orchestrator persona", () => {
+      expect(resolvePrFlow.orchestrator?.systemPrompt).toBe("resolve-pr-feedback-orchestrator");
+      expect(resolvePrFlow.orchestrator?.prompt).toBe("{{prompt}}");
+    });
+
+    it("resolves orchestrator.prompt with no {{...}} survivors", () => {
+      const ctx = new FlowContext({ results: new Map(), prompt: "42" });
+      const resolved = ctx.resolve(resolvePrFlow.orchestrator!.prompt ?? "");
+      expect(resolved).toBe("42");
+      expect(resolved).not.toMatch(/\{\{/);
+    });
+
+    it("orchestrator.systemPrompt resolves to a loaded spec", () => {
+      expect(resolvePrSpecs.specNames().has(resolvePrFlow.orchestrator!.systemPrompt)).toBe(true);
+      const spec = resolvePrSpecs.resolve({ spec: resolvePrFlow.orchestrator!.systemPrompt });
+      expect(spec.id).toBe("resolve-pr-feedback-orchestrator");
+    });
+  });
+
   describe("flow-schema.json", () => {
     const schemaPath = path.join(__dirname, "flow-schema.json");
 

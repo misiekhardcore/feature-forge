@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+  "name": "resolve-pr-feedback",
+  "command": "/resolve-pr-feedback",
+  "orchestrator": {
+    "systemPrompt": "resolve-pr-feedback-orchestrator",
+    "prompt": "{{prompt}}"
+  },
+  "params": [
+    {
+      "name": "pr",
+      "description": "Pull request number to resolve feedback on"
+    }
+  ],
+  "routines": []
+}
