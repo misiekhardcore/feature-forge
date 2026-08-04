@@ -639,6 +639,55 @@ describe("AgentStepExecutor", () => {
       expect(result.results.get("builder")!.parsed).toBeUndefined();
     });
 
+    it("respects maxJsonRetries when configured on the instruction", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("still no json");
+      (agent.getResult as ReturnType<typeof vi.fn>).mockReturnValue("still no json");
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+        maxJsonRetries: 1,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      expect(agent.retry).toHaveBeenCalledTimes(1);
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+    });
+
+    it("skips retries entirely when maxJsonRetries is 0", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("ignored");
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager);
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+        maxJsonRetries: 0,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      expect(agent.retry).not.toHaveBeenCalled();
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+    });
+
     it("throws AbortError when signal is aborted before spawn", async () => {
       const agent = makeMockAgent("output");
       const supervisor = makeMockSupervisor(agent);
