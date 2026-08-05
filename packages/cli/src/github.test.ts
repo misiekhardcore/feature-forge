@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getPullRequest, getUnresolvedComments, type PullRequestInfo } from "./github";
+import { GitHubService, type PullRequestInfo } from "./github";
 
 vi.mock("node:child_process", () => ({
   execFileSync: vi.fn(),
@@ -19,6 +19,8 @@ const PR_VIEW_PAYLOAD = {
   headRefName: "feat/github-module",
   headRepository: { nameWithOwner: "octocat/hello-world" },
 };
+
+const gh = new GitHubService();
 
 const PR: PullRequestInfo = {
   number: 42,
@@ -49,9 +51,9 @@ function caughtError(fn: () => unknown): unknown {
 }
 
 /**
- * Assert the caught error is a GitHubApiError by `name` (the module no
- * longer exports the class — the factory returns a plain Error) and return
- * it typed as Error.
+ * Assert the caught error is a GitHubApiError by `name`
+ * (`GitHubService.createApiError` returns a plain Error) and return it
+ * typed as Error.
  */
 function asGitHubApiError(error: unknown): Error {
   expect(error).toBeInstanceOf(Error);
@@ -184,7 +186,7 @@ describe("github", () => {
     it("calls gh pr view with the branch and parses the response", () => {
       mockGhOnce(PR_VIEW_PAYLOAD);
 
-      const pr = getPullRequest("feat/github-module");
+      const pr = gh.getPullRequest("feat/github-module");
 
       expect(mockExec).toHaveBeenCalledTimes(1);
       expect(mockExec.mock.calls[0][0]).toBe("gh");
@@ -204,7 +206,7 @@ describe("github", () => {
       );
       mockGhThrow(cause);
 
-      const error = caughtError(() => getPullRequest("feat/github-module"));
+      const error = caughtError(() => gh.getPullRequest("feat/github-module"));
       const ghError = asGitHubApiError(error);
 
       expect(ghError.cause).toBe(cause);
@@ -215,7 +217,7 @@ describe("github", () => {
     it("throws when gh returns non-JSON output", () => {
       mockExec.mockReturnValueOnce("oops, not json");
 
-      const error = caughtError(() => getPullRequest("feat/github-module"));
+      const error = caughtError(() => gh.getPullRequest("feat/github-module"));
 
       expect(asGitHubApiError(error).message).toContain("non-JSON");
     });
@@ -223,7 +225,7 @@ describe("github", () => {
     it("throws when the parsed response does not match the expected shape", () => {
       mockGhOnce({ number: "not-a-number", title: "Add github module" });
 
-      const error = caughtError(() => getPullRequest("feat/github-module"));
+      const error = caughtError(() => gh.getPullRequest("feat/github-module"));
 
       expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
@@ -234,7 +236,7 @@ describe("github", () => {
         throw "boom";
       });
 
-      const error = caughtError(() => getPullRequest("feat/github-module"));
+      const error = caughtError(() => gh.getPullRequest("feat/github-module"));
       const ghError = asGitHubApiError(error);
 
       expect(ghError.message).toBe(
@@ -250,7 +252,7 @@ describe("github", () => {
       mockGhOnce(THREADS_PAYLOAD);
       mockGhOnce(ISSUE_COMMENTS_PAYLOAD);
 
-      const comments = getUnresolvedComments(PR);
+      const comments = gh.getUnresolvedComments(PR);
 
       expect(mockExec).toHaveBeenCalledTimes(2);
 
@@ -320,7 +322,7 @@ describe("github", () => {
       mockGhOnce(threadPayload([THREAD_RESOLVED], { hasNextPage: false, endCursor: null }));
       mockGhOnce([]);
 
-      const comments = getUnresolvedComments(PR);
+      const comments = gh.getUnresolvedComments(PR);
 
       expect(comments).toHaveLength(0);
     });
@@ -330,7 +332,7 @@ describe("github", () => {
       mockGhOnce(threadPayload([THREAD_OPEN_FALLBACK], { hasNextPage: false, endCursor: null }));
       mockGhOnce(ISSUE_COMMENTS_PAYLOAD);
 
-      const comments = getUnresolvedComments(PR);
+      const comments = gh.getUnresolvedComments(PR);
 
       expect(mockExec).toHaveBeenCalledTimes(3);
       const secondPageArgs = mockExec.mock.calls[1][1] as string[];
@@ -345,7 +347,7 @@ describe("github", () => {
       mockGhOnce(makeIssueComments(100));
       mockGhOnce(makeIssueComments(2, 1000));
 
-      const comments = getUnresolvedComments(PR);
+      const comments = gh.getUnresolvedComments(PR);
 
       expect(mockExec).toHaveBeenCalledTimes(3);
       const secondIssuePage = mockExec.mock.calls[2][1] as string[];
@@ -359,7 +361,7 @@ describe("github", () => {
     it("throws GitHubApiError when the GraphQL response reports errors with null data", () => {
       mockGhOnce({ data: null, errors: [{ message: "Something went wrong fetching threads" }] });
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
 
       expect(asGitHubApiError(error).message).toContain("Something went wrong fetching threads");
     });
@@ -367,7 +369,7 @@ describe("github", () => {
     it("falls back to unknown error when the GraphQL response has no errors array", () => {
       mockGhOnce({ data: null });
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
 
       expect(asGitHubApiError(error).message).toContain("unknown error");
     });
@@ -376,7 +378,7 @@ describe("github", () => {
       mockGhOnce(threadPayload([THREAD_OPEN], { hasNextPage: true, endCursor: null }));
       mockGhOnce(ISSUE_COMMENTS_PAYLOAD);
 
-      const comments = getUnresolvedComments(PR);
+      const comments = gh.getUnresolvedComments(PR);
 
       expect(mockExec).toHaveBeenCalledTimes(2);
       expect(comments.find((comment) => comment.id === "comment-2")).toBeDefined();
@@ -386,7 +388,7 @@ describe("github", () => {
     it("throws when the parsed threads response does not match the expected shape", () => {
       mockGhOnce({ data: { repository: {} } });
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
 
       expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
@@ -394,7 +396,7 @@ describe("github", () => {
     it("throws when the parsed threads payload is not an object at all", () => {
       mockGhOnce(null);
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
 
       expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
@@ -404,7 +406,7 @@ describe("github", () => {
         JSON.stringify(threadPayload([], { hasNextPage: true, endCursor: "cursor-loop" })),
       );
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
 
       expect(asGitHubApiError(error).message).toContain("reviewThreads pagination exceeded");
       expect(mockExec).toHaveBeenCalledTimes(5);
@@ -420,7 +422,7 @@ describe("github", () => {
         return JSON.stringify(makeIssueComments(100));
       });
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
 
       expect(asGitHubApiError(error).message).toContain("issue comment pagination exceeded");
       expect(mockExec).toHaveBeenCalledTimes(11);
@@ -430,7 +432,7 @@ describe("github", () => {
       const cause = new Error("Command failed: gh api graphql\nHTTP 500");
       mockGhThrow(cause);
 
-      const error = caughtError(() => getUnresolvedComments(PR));
+      const error = caughtError(() => gh.getUnresolvedComments(PR));
       const ghError = asGitHubApiError(error);
 
       expect(ghError.cause).toBe(cause);

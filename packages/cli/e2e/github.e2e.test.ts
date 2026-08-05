@@ -15,7 +15,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
-import { getPullRequest, getUnresolvedComments } from "../src/github";
+import { GitHubService } from "../src/github";
+
+const gh = new GitHubService();
 
 // ── gh availability guard ──────────────────────────────────────────────────
 
@@ -29,7 +31,7 @@ function ghReady(): boolean {
   }
 }
 
-/** Mirrors the exact `--json` field list used by `getPullRequest`. */
+/** Mirrors the exact `--json` field list used by `GitHubService#getPullRequest`. */
 const PR_VIEW_JSON_FIELDS = "number,title,url,headRefName,headRepository";
 
 interface OpenPr {
@@ -84,7 +86,7 @@ describe.skipIf(!isGhReady || pr === null)("github e2e with real PR", () => {
   const realPr = pr as OpenPr;
 
   it("getPullRequest resolves a real PR identity", () => {
-    const resolved = getPullRequest(String(realPr.number));
+    const resolved = gh.getPullRequest(String(realPr.number));
 
     expect(resolved.number).toBe(realPr.number);
     expect(resolved.url).toMatch(/^https:\/\/github\.com\//);
@@ -94,9 +96,9 @@ describe.skipIf(!isGhReady || pr === null)("github e2e with real PR", () => {
   });
 
   it("getUnresolvedComments runs the GraphQL query and REST call against a real PR", () => {
-    const pullRequest = getPullRequest(String(realPr.number));
+    const pullRequest = gh.getPullRequest(String(realPr.number));
 
-    const comments = getUnresolvedComments(pullRequest);
+    const comments = gh.getUnresolvedComments(pullRequest);
 
     expect(Array.isArray(comments)).toBe(true);
     for (const comment of comments) {

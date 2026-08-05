@@ -116,11 +116,14 @@ expects, transform the raw `review_threads` output: flatten each thread into
 one entry per comment with `id`, `body`, `path`, `source: "review"`,
 `isResolved` (from the thread), and `threadId`. Threads with
 `isResolved: false` are the actionable inventory; resolved threads need no
-work. Fall back to the `github.ts` helpers (`getPullRequest` /
-`getUnresolvedComments` in `packages/cli/src/github.ts`) only when shaping
-needs fields the routine query does not return — `author` login, `line`,
-`createdAt`, `url`, and issue comments. Run those from the main feature-forge
-checkout, the one that has `node_modules` (find it with `git worktree list`).
+work. Fall back to the `GitHubService` class in
+`packages/cli/src/github.ts` only when shaping needs fields the routine
+query does not return — `author` login, `line`, `createdAt`, `url`, and
+issue comments. Instantiate it once
+(`import { GitHubService } from './packages/cli/src/github.ts'; const gh = new GitHubService();`)
+and use `gh.getPullRequest()` / `gh.getUnresolvedComments()`. Run those from
+the main feature-forge checkout, the one that has `node_modules` (find it
+with `git worktree list`).
 
 ### Phase 4: Triage
 
