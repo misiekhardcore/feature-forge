@@ -33,8 +33,7 @@ registered as tools by FlowRegistrar, same as the routine-backed tools in the
 tool list below.
 
 - `create_workspace(branch=<headBranch>)` — reuse the PR branch in a git worktree.
-- `run_build_loop(workspace, task, plan)` — build → review → verify loop
-  (`apply_feedback` routes to the same `implement.run_build_loop` routine).
+- `run_build_loop(workspace, task, plan)` — build → review → verify loop.
 - `bash` — gh CLI for fetching comments, posting replies/reactions, and git push.
 - `read` / `grep` — inspect workspace files while triaging ambiguous comments.
 - `set_flow_param` / `set_session_name` — session state and session naming.
@@ -94,18 +93,21 @@ result under `results.<stepId>.raw`:
    thread `id` and `isResolved`, plus `comments.nodes[]` with comment
    `id`, `body`, `path`, and `diffHunk`.
 
-Use both outputs for triage. Cross-check `pr_info` against the identity
-captured in Phase 1 and store any missing fields. For the `GitHubComment[]`
-shape triage expects, transform the raw `review_threads` output: flatten
-each thread into one entry per comment with `id`, `body`, `path`,
-`source: "review"`, `isResolved` (from the thread), and `threadId`. Threads
-with `isResolved: false` are the actionable inventory; resolved threads need
-no work. Fall back to the `github.ts` helpers (`getPullRequest` /
+Use both outputs for triage. Before transforming, validate the shape of each
+output — `results.pr_info.raw` must be the PR metadata JSON above and
+`results.review_threads.raw` must have `data.repository.pullRequest.reviewThreads.nodes[]`;
+if a step failed or returned unexpected JSON, stop and report rather than
+transforming garbage. Cross-check `pr_info` against the identity captured in
+Phase 1 and store any missing fields. For the `GitHubComment[]` shape triage
+expects, transform the raw `review_threads` output: flatten each thread into
+one entry per comment with `id`, `body`, `path`, `source: "review"`,
+`isResolved` (from the thread), and `threadId`. Threads with
+`isResolved: false` are the actionable inventory; resolved threads need no
+work. Fall back to the `github.ts` helpers (`getPullRequest` /
 `getUnresolvedComments` in `packages/cli/src/github.ts`) only when shaping
 needs fields the routine query does not return — `author` login, `line`,
-`createdAt`, `url`, and issue comments. Run those from the main
-feature-forge checkout, the one that has `node_modules` (find it with
-`git worktree list`).
+`createdAt`, `url`, and issue comments. Run those from the main feature-forge
+checkout, the one that has `node_modules` (find it with `git worktree list`).
 
 ### Phase 4: Triage
 
@@ -132,9 +134,7 @@ Group actionable comments into work items by file + thread:
 
 ### Phase 6: Build loops
 
-For each group, call `run_build_loop(workspace, task, plan)` (equivalently the
-`apply_feedback` routine, which routes to `implement.run_build_loop` via a
-routine ref):
+For each group, call `run_build_loop(workspace, task, plan)`:
 
 - `task` must quote the verbatim comment bodies, the file path and line, and
   the PR number, so the verify agent can check each comment is addressed.

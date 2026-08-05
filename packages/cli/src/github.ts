@@ -10,7 +10,7 @@ import { execFileSync } from "node:child_process";
  * `"GitHubApiError"` — check `name`, not `instanceof`, at call sites.
  */
 export function createGitHubApiError(message: string, cause?: unknown): Error {
-  const err = new Error(message, { cause: cause instanceof Error ? cause : undefined });
+  const err = new Error(message, { cause });
   err.name = "GitHubApiError";
   return err;
 }

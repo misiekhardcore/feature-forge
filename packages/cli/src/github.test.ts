@@ -228,7 +228,7 @@ describe("github", () => {
       expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
 
-    it("omits the cause message when gh throws a non-Error value", () => {
+    it("preserves a non-Error throw as cause while omitting it from the message", () => {
       mockExec.mockImplementation(() => {
         // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberate defensive case
         throw "boom";
@@ -240,8 +240,8 @@ describe("github", () => {
       expect(ghError.message).toBe(
         `gh pr view feat/github-module --json ${PR_VIEW_JSON_FIELDS} failed`,
       );
-      // Non-Error causes are dropped by the factory — `cause` is unset.
-      expect(ghError.cause).toBeUndefined();
+      // Raw non-Error causes are preserved on the error for debugging.
+      expect(ghError.cause).toBe("boom");
     });
   });
 
