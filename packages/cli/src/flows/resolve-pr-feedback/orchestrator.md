@@ -27,12 +27,31 @@ react). The `pr` slash-command argument is the PR number, e.g.
 
 ## Tooling
 
+The flow ships three routines that wrap the deterministic work:
+`fetch_pr_comments`, `apply_feedback`, and `disposition_comments`. They are
+registered as tools by FlowRegistrar, same as the routine-backed tools in the
+tool list below.
+
 - `create_workspace(branch=<headBranch>)` — reuse the PR branch in a git worktree.
-- `run_build_loop(workspace, task, plan)` — build → review → verify loop.
+- `run_build_loop(workspace, task, plan)` — build → review → verify loop
+  (`apply_feedback` routes to the same `implement.run_build_loop` routine).
 - `bash` — gh CLI for fetching comments, posting replies/reactions, and git push.
 - `read` / `grep` — inspect workspace files while triaging ambiguous comments.
 - `set_flow_param` / `set_session_name` — session state and session naming.
 - `write:NOTES.md` / `edit:NOTES.md` — the phase ledger in the workspace.
+
+## Verdicts
+
+Every triaged comment ends in exactly one verdict, following the agents-flow
+resolve-pr-feedback convention:
+
+| Verdict             | Meaning                            | Thread    |
+| ------------------- | ---------------------------------- | --------- |
+| `fixed`             | Exact implementation               | resolve   |
+| `fixed-differently` | Addressed via another approach     | resolve   |
+| `replied`           | Disagree / clarify, no code change | keep open |
+| `not-addressing`    | Intentional skip                   | resolve   |
+| `needs-human`       | Confidence too low to act          | keep open |
 
 ## Workflow
 
@@ -50,33 +69,54 @@ react). The `pr` slash-command argument is the PR number, e.g.
    The head branch must already exist on the remote; if it does not, stop and
    report — do not create a new branch.
 2. Capture the returned workspace path and store it via
-   `set_flow_param(key="workspace", value=<path>)`.
+   `set_flow_param(key="workspace", value=<path>)`. The `fetch_pr_comments` and
+   `disposition_comments` routines read `{{workspace}}` from session state.
 3. Create `<workspace>/NOTES.md` per the notes-md skill: PR identity, the
    comment inventory, and the triage ledger.
 
 ### Phase 3: Fetch unresolved comments
 
-Run from the main feature-forge checkout — the one that has `node_modules`
-(the main worktree; find it with `git worktree list`):
+Call the `fetch_pr_comments` routine — registered as a tool by FlowRegistrar
+alongside the built-ins:
 
-```bash
-PR=<pr> npx tsx -e "import { getPullRequest, getUnresolvedComments } from './packages/cli/src/github.ts'; const pr = getPullRequest(process.env.PR!); console.log(JSON.stringify({ pr: { number: pr.number, title: pr.title, url: pr.url, headBranch: pr.headBranch, owner: pr.owner, repo: pr.repo }, comments: getUnresolvedComments(pr) }, null, 2))"
+```
+fetch_pr_comments(pr=<pr>)
 ```
 
-The fetcher returns unresolved review-thread comments (flattened, one entry
-per comment) followed by issue comments. Each comment carries `id` (GraphQL
-node id for review comments, numeric string for issue comments), `author`,
-`body`, `path`, `line`, `source` (`"review"` | `"issue"`), `isResolved`,
-`threadId`, and `url`. Issue comments have `path: ""` and `threadId: null`.
+The routine executes two shell steps and returns both outputs in the routine
+result under `results.<stepId>.raw`:
+
+1. `pr_info` — `gh pr view` filtered through `--jq`, returning the PR
+   metadata JSON: `number`, `title`, `headRefName`, `state`, `owner`,
+   `repo`.
+2. `review_threads` — the `reviewThreads` GraphQL query, returning the
+   threads under `data.repository.pullRequest.reviewThreads.nodes[]`:
+   thread `id` and `isResolved`, plus `comments.nodes[]` with comment
+   `id`, `body`, `path`, and `diffHunk`.
+
+Use both outputs for triage. Cross-check `pr_info` against the identity
+captured in Phase 1 and store any missing fields. For the `GitHubComment[]`
+shape triage expects, transform the raw `review_threads` output: flatten
+each thread into one entry per comment with `id`, `body`, `path`,
+`source: "review"`, `isResolved` (from the thread), and `threadId`. Threads
+with `isResolved: false` are the actionable inventory; resolved threads need
+no work. Fall back to the `github.ts` helpers (`getPullRequest` /
+`getUnresolvedComments` in `packages/cli/src/github.ts`) only when shaping
+needs fields the routine query does not return — `author` login, `line`,
+`createdAt`, `url`, and issue comments. Run those from the main
+feature-forge checkout, the one that has `node_modules` (find it with
+`git worktree list`).
 
 ### Phase 4: Triage
 
-Classify every comment as actionable or non-actionable:
+Classify every comment as actionable or non-actionable and assign a verdict
+from the table above:
 
 - **Actionable** — requests a concrete code change (fix, refactor, test,
-  docs) that is not yet present in the PR branch.
+  docs) that is not yet present in the PR branch → `fixed`,
+  `fixed-differently`, or `needs-human` after the build loops run.
 - **Non-actionable** — questions, praise, or requests already addressed in
-  the branch.
+  the branch → `replied` or `not-addressing`.
 
 For ambiguous comments, read the relevant file in the workspace and decide.
 Record the classification of every comment in NOTES.md.
@@ -87,11 +127,14 @@ Group actionable comments into work items by file + thread:
 
 - A group is one review thread, or issue comments on the same file/topic.
 - Adjacent threads on the same file may merge when they ask for the same change.
-- Skip comments the fetcher marked `isResolved` — they need no work.
+- Skip comments whose thread the routine output marks `isResolved` — they
+  need no work.
 
 ### Phase 6: Build loops
 
-For each group, call `run_build_loop(workspace, task, plan)`:
+For each group, call `run_build_loop(workspace, task, plan)` (equivalently the
+`apply_feedback` routine, which routes to `implement.run_build_loop` via a
+routine ref):
 
 - `task` must quote the verbatim comment bodies, the file path and line, and
   the PR number, so the verify agent can check each comment is addressed.
@@ -101,23 +144,28 @@ For each group, call `run_build_loop(workspace, task, plan)`:
   (notes-md skill): update `## Current task` and `## Next action on resume`,
   then integrate results and flip checkboxes.
 - If `passed` is false after 5 rounds, do not fabricate a disposition —
-  mark the comment as not addressed and post an honest status reply.
+  assign `not-addressing` (or `needs-human`) and post an honest status reply.
 
 ### Phase 7: Disposition
 
-After all loops, for every comment:
+After all loops, for every comment pick the verdict and post the reply:
 
-- **Addressed** — reply on the thread/comment with a concise summary of the
-  change; resolve the review thread via `resolveReviewThread` when the whole
-  thread is addressed.
-- **Non-actionable** — reply with a short answer, or react 👍 when a reply
-  is unnecessary.
-- **Not addressed** — reply with an honest status: what remains and why.
+- **fixed** — reply citing the change and commit; resolve the thread.
+- **fixed-differently** — reply explaining the alternate approach; resolve the thread.
+- **replied** — reply with the disagreement or clarification; keep the thread open.
+- **not-addressing** — reply with the rationale; resolve the thread.
+- **needs-human** — reply with what was attempted and why human review is
+  needed; keep the thread open.
 
-Commands (run from the main checkout):
+The `disposition_comments` routine wraps this: it posts the reply on the
+thread and resolves it only for `fixed`, `fixed-differently`, and
+`not-addressing`. Equivalently, from the main checkout:
 
 ```bash
-# Resolve a review thread (threadId comes from the comment)
+# Reply on a review thread (threadId comes from the comment)
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $id, body: $body }) { comment { id } } }' -F id=<threadId> -f body='<reply>'
+
+# Resolve a review thread (only for fixed/fixed-differently/not-addressing)
 gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }' -F id=<threadId>
 
 # Reply to an issue comment
@@ -138,7 +186,7 @@ when the ids do not line up.
    `git add . && git commit -m "fix: address PR feedback" && git push origin <headBranch>`.
 2. Verify the push succeeded (comments now point at code that exists on the
    branch), then call `destroy_workspace(workspace)`.
-3. Summarise for the user: comments triaged, groups built, dispositions posted.
+3. Summarise for the user: comments triaged, groups built, verdicts posted.
 
 ## Rules
 
@@ -146,7 +194,7 @@ when the ids do not line up.
 - **Do NOT spawn extra agents** — `run_build_loop` handles agent spawning.
 - **Never create a new PR** — all work happens on the existing PR branch.
 - **Post honest dispositions** — no fabricated "fixed" claims; unresolved
-  comments stay unresolved with a status reply.
+  comments stay unresolved with a `replied`/`needs-human` status reply.
 - **Keep the PR branch shippable** — commit per group where possible, run the
   project validation loop before pushing, and never force-push.
 - **Checkpoint NOTES.md before every routine** — per the notes-md protocol.

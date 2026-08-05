@@ -2,12 +2,7 @@ import { execFileSync } from "node:child_process";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  getPullRequest,
-  getUnresolvedComments,
-  GitHubApiError,
-  type PullRequestInfo,
-} from "./github";
+import { getPullRequest, getUnresolvedComments, type PullRequestInfo } from "./github";
 
 vi.mock("node:child_process", () => ({
   execFileSync: vi.fn(),
@@ -51,6 +46,18 @@ function caughtError(fn: () => unknown): unknown {
   } catch (error) {
     return error;
   }
+}
+
+/**
+ * Assert the caught error is a GitHubApiError by `name` (the module no
+ * longer exports the class — the factory returns a plain Error) and return
+ * it typed as Error.
+ */
+function asGitHubApiError(error: unknown): Error {
+  expect(error).toBeInstanceOf(Error);
+  const err = error as Error;
+  expect(err.name).toBe("GitHubApiError");
+  return err;
 }
 
 /** Build `count` valid issue-comment payloads starting at `startId`. */
@@ -198,11 +205,10 @@ describe("github", () => {
       mockGhThrow(cause);
 
       const error = caughtError(() => getPullRequest("feat/github-module"));
+      const ghError = asGitHubApiError(error);
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).name).toBe("GitHubApiError");
-      expect((error as GitHubApiError).cause).toBe(cause);
-      expect((error as GitHubApiError).message).toContain("could not find pull request");
+      expect(ghError.cause).toBe(cause);
+      expect(ghError.message).toContain("could not find pull request");
       expect(mockExec).toHaveBeenCalledTimes(1);
     });
 
@@ -211,8 +217,7 @@ describe("github", () => {
 
       const error = caughtError(() => getPullRequest("feat/github-module"));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("non-JSON");
+      expect(asGitHubApiError(error).message).toContain("non-JSON");
     });
 
     it("throws when the parsed response does not match the expected shape", () => {
@@ -220,8 +225,7 @@ describe("github", () => {
 
       const error = caughtError(() => getPullRequest("feat/github-module"));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("unexpected JSON shape");
+      expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
 
     it("omits the cause message when gh throws a non-Error value", () => {
@@ -231,12 +235,13 @@ describe("github", () => {
       });
 
       const error = caughtError(() => getPullRequest("feat/github-module"));
+      const ghError = asGitHubApiError(error);
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toBe(
+      expect(ghError.message).toBe(
         `gh pr view feat/github-module --json ${PR_VIEW_JSON_FIELDS} failed`,
       );
-      expect((error as GitHubApiError).cause).toBe("boom");
+      // Non-Error causes are dropped by the factory — `cause` is unset.
+      expect(ghError.cause).toBeUndefined();
     });
   });
 
@@ -356,8 +361,7 @@ describe("github", () => {
 
       const error = caughtError(() => getUnresolvedComments(PR));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("Something went wrong fetching threads");
+      expect(asGitHubApiError(error).message).toContain("Something went wrong fetching threads");
     });
 
     it("falls back to unknown error when the GraphQL response has no errors array", () => {
@@ -365,8 +369,7 @@ describe("github", () => {
 
       const error = caughtError(() => getUnresolvedComments(PR));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("unknown error");
+      expect(asGitHubApiError(error).message).toContain("unknown error");
     });
 
     it("breaks out of thread pagination when hasNextPage is true but endCursor is null", () => {
@@ -385,8 +388,7 @@ describe("github", () => {
 
       const error = caughtError(() => getUnresolvedComments(PR));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("unexpected JSON shape");
+      expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
 
     it("throws when the parsed threads payload is not an object at all", () => {
@@ -394,8 +396,7 @@ describe("github", () => {
 
       const error = caughtError(() => getUnresolvedComments(PR));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("unexpected JSON shape");
+      expect(asGitHubApiError(error).message).toContain("unexpected JSON shape");
     });
 
     it("aborts with GitHubApiError when review thread pagination exceeds the cap", () => {
@@ -405,8 +406,7 @@ describe("github", () => {
 
       const error = caughtError(() => getUnresolvedComments(PR));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("reviewThreads pagination exceeded");
+      expect(asGitHubApiError(error).message).toContain("reviewThreads pagination exceeded");
       expect(mockExec).toHaveBeenCalledTimes(5);
     });
 
@@ -422,8 +422,7 @@ describe("github", () => {
 
       const error = caughtError(() => getUnresolvedComments(PR));
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).message).toContain("issue comment pagination exceeded");
+      expect(asGitHubApiError(error).message).toContain("issue comment pagination exceeded");
       expect(mockExec).toHaveBeenCalledTimes(11);
     });
 
@@ -432,11 +431,10 @@ describe("github", () => {
       mockGhThrow(cause);
 
       const error = caughtError(() => getUnresolvedComments(PR));
+      const ghError = asGitHubApiError(error);
 
-      expect(error).toBeInstanceOf(GitHubApiError);
-      expect((error as GitHubApiError).name).toBe("GitHubApiError");
-      expect((error as GitHubApiError).cause).toBe(cause);
-      expect((error as GitHubApiError).message).toContain("HTTP 500");
+      expect(ghError.cause).toBe(cause);
+      expect(ghError.message).toContain("HTTP 500");
     });
   });
 });

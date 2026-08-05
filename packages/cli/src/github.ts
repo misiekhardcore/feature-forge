@@ -3,17 +3,16 @@ import { execFileSync } from "node:child_process";
 // ─── Error type ────────────────────────────────────────────────────────────
 
 /**
- * Error thrown when a gh CLI call fails: non-zero exit, unparseable output,
- * or a response that does not match the expected shape. The underlying
- * failure is preserved in `cause` so callers can distinguish gh failures
- * from domain errors.
+ * Build an error for a failed gh CLI call: non-zero exit, unparseable
+ * output, or a response that does not match the expected shape. The
+ * underlying failure is preserved in `cause` so callers can distinguish
+ * gh failures from domain errors. Returns a plain `Error` named
+ * `"GitHubApiError"` — check `name`, not `instanceof`, at call sites.
  */
-export class GitHubApiError extends Error {
-  override readonly name = "GitHubApiError";
-
-  constructor(message: string, options: { cause?: unknown } = {}) {
-    super(message, options);
-  }
+export function createGitHubApiError(message: string, cause?: unknown): Error {
+  const err = new Error(message, { cause: cause instanceof Error ? cause : undefined });
+  err.name = "GitHubApiError";
+  return err;
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -183,8 +182,9 @@ const MAX_ISSUE_COMMENT_PAGES = 10;
 /**
  * Run `gh <args>` and return the parsed, shape-validated JSON output.
  *
- * @throws {@link GitHubApiError} when gh exits non-zero, the output is not
- *   JSON, or the parsed value fails `validate`.
+ * @throws An error named `"GitHubApiError"` (see {@link createGitHubApiError})
+ *   when gh exits non-zero, the output is not JSON, or the parsed value
+ *   fails `validate`.
  */
 function ghJson<T>(args: string[], validate: (value: unknown) => value is T): T {
   let output: string;
@@ -192,18 +192,18 @@ function ghJson<T>(args: string[], validate: (value: unknown) => value is T): T 
     output = execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
     const causeMessage = error instanceof Error ? `: ${error.message}` : "";
-    throw new GitHubApiError(`gh ${args.join(" ")} failed${causeMessage}`, { cause: error });
+    throw createGitHubApiError(`gh ${args.join(" ")} failed${causeMessage}`, error);
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(output);
   } catch (error) {
-    throw new GitHubApiError(`gh ${args.join(" ")} returned non-JSON output`, { cause: error });
+    throw createGitHubApiError(`gh ${args.join(" ")} returned non-JSON output`, error);
   }
 
   if (!validate(parsed)) {
-    throw new GitHubApiError(`gh ${args.join(" ")} returned an unexpected JSON shape`);
+    throw createGitHubApiError(`gh ${args.join(" ")} returned an unexpected JSON shape`);
   }
   return parsed;
 }
@@ -221,8 +221,9 @@ function ghApi<T>(endpoint: string, args: string[], validate: (value: unknown) =
  * @param branch - Branch name the PR was opened from (also accepts a PR
  *   number as a string).
  * @returns The PR number, title, URL, head branch, and `owner/repo`.
- * @throws {@link GitHubApiError} when the PR cannot be found or the gh
- *   response does not match the expected shape.
+ * @throws An error named `"GitHubApiError"` (see {@link createGitHubApiError})
+ *   when the PR cannot be found or the gh response does not match the
+ *   expected shape.
  */
 export function getPullRequest(branch: string): PullRequestInfo {
   const data = ghJson<PrViewData>(
@@ -273,7 +274,8 @@ const REVIEW_THREADS_QUERY = `
 
 /**
  * Fetch all review threads of a PR, following the GraphQL cursor until the
- * last page. Aborts with {@link GitHubApiError} if the page cap is hit.
+ * last page. Aborts with a `"GitHubApiError"` (see
+ * {@link createGitHubApiError}) if the page cap is hit.
  */
 function fetchReviewThreads(pr: PullRequestInfo): ReviewThread[] {
   const threads: ReviewThread[] = [];
@@ -282,7 +284,7 @@ function fetchReviewThreads(pr: PullRequestInfo): ReviewThread[] {
 
   while (true) {
     if (page >= MAX_REVIEW_THREAD_PAGES) {
-      throw new GitHubApiError(
+      throw createGitHubApiError(
         `reviewThreads pagination exceeded ${MAX_REVIEW_THREAD_PAGES} pages ` +
           `(${MAX_REVIEW_THREAD_PAGES * 100} threads); aborting, results would be truncated`,
       );
@@ -304,7 +306,7 @@ function fetchReviewThreads(pr: PullRequestInfo): ReviewThread[] {
     const response = ghApi<ReviewThreadsResponse>("graphql", args, isReviewThreadsResponse);
     if (response.data === null) {
       const reason = response.errors?.map((error) => error.message).join("; ") ?? "unknown error";
-      throw new GitHubApiError(`GitHub reviewThreads query failed: ${reason}`);
+      throw createGitHubApiError(`GitHub reviewThreads query failed: ${reason}`);
     }
 
     const reviewThreads = response.data.repository.pullRequest.reviewThreads;
@@ -322,7 +324,8 @@ function fetchReviewThreads(pr: PullRequestInfo): ReviewThread[] {
 
 /**
  * Fetch all issue comments of a PR, following REST `page` parameters until a
- * short page. Aborts with {@link GitHubApiError} if the page cap is hit.
+ * short page. Aborts with a `"GitHubApiError"` (see
+ * {@link createGitHubApiError}) if the page cap is hit.
  */
 function fetchIssueComments(pr: PullRequestInfo): IssueComment[] {
   const comments: IssueComment[] = [];
@@ -336,7 +339,7 @@ function fetchIssueComments(pr: PullRequestInfo): IssueComment[] {
     if (batch.length < 100) break;
   }
   if (comments.length >= MAX_ISSUE_COMMENT_PAGES * 100) {
-    throw new GitHubApiError(
+    throw createGitHubApiError(
       `issue comment pagination exceeded ${MAX_ISSUE_COMMENT_PAGES * 100} comments; ` +
         "aborting, results would be truncated",
     );
@@ -355,9 +358,9 @@ function fetchIssueComments(pr: PullRequestInfo): IssueComment[] {
  * @param pr - The pull request identity from {@link getPullRequest}.
  * @returns Unresolved review comments followed by issue comments, newest
  *   semantic order preserved per source.
- * @throws {@link GitHubApiError} when a gh call fails, the GraphQL query
- *   reports errors, the response shape is invalid, or a pagination cap is
- *   exceeded.
+ * @throws An error named `"GitHubApiError"` (see {@link createGitHubApiError})
+ *   when a gh call fails, the GraphQL query reports errors, the response
+ *   shape is invalid, or a pagination cap is exceeded.
  */
 export function getUnresolvedComments(pr: PullRequestInfo): GitHubComment[] {
   const reviewComments: GitHubComment[] = [];

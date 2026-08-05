@@ -35,6 +35,7 @@ import type {
   FlowDefinition,
   FlowInstruction,
   LoopInstruction,
+  RoutineRefInstruction,
 } from "../orchestrator/FlowInstruction";
 import {
   isContainerInstruction,
@@ -138,6 +139,22 @@ function collectFromRoutines(routines: FlowDefinition["routines"]): {
   }
 
   return { agentTasks, loops, specRefs };
+}
+
+/** Collect every shell step's `command` and `cwd` across routines (recursive). */
+function collectShellSteps(
+  instructions: FlowInstruction[],
+  steps: Array<{ command: string; cwd: string }> = [],
+): Array<{ command: string; cwd: string }> {
+  for (const instr of instructions) {
+    if (instr.type === "shell") {
+      steps.push({ command: instr.command, cwd: instr.cwd });
+    }
+    if (isContainerInstruction(instr)) {
+      collectShellSteps(instr.steps, steps);
+    }
+  }
+  return steps;
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -369,13 +386,105 @@ describe("flow round-trip", () => {
       resolvePrFlow = await resolvePrLoader.load("flow");
     });
 
-    it("declares name, command, params, and an empty routine set", () => {
+    it("declares name, command, and params", () => {
       expect(resolvePrFlow.name).toBe("resolve-pr-feedback");
       expect(resolvePrFlow.command).toBe("/resolve-pr-feedback");
       expect(resolvePrFlow.params).toEqual([
         { name: "pr", description: "Pull request number to resolve feedback on" },
       ]);
-      expect(resolvePrFlow.routines).toEqual([]);
+    });
+
+    it("declares the fetch_pr_comments, apply_feedback, and disposition_comments routines", () => {
+      expect(resolvePrFlow.routines.map((r) => r.id)).toEqual([
+        "fetch_pr_comments",
+        "apply_feedback",
+        "disposition_comments",
+      ]);
+    });
+
+    it("fetch_pr_comments runs gh pr view and reviewThreads shell steps", () => {
+      const routine = resolvePrFlow.routines.find((r) => r.id === "fetch_pr_comments");
+      expect(routine).toBeDefined();
+      expect(routine?.params).toEqual([{ name: "pr", description: "PR number" }]);
+
+      const steps = routine?.steps as FlowInstruction[];
+      expect(steps.map((s) => s.id)).toEqual(["pr_info", "review_threads"]);
+      for (const step of steps) {
+        expect(step.type).toBe("shell");
+        expect((step as { failFast?: boolean }).failFast).toBe(true);
+      }
+      expect((steps[0] as { command?: string }).command).toContain("gh pr view {{pr}}");
+      expect((steps[0] as { command?: string }).command).toContain("nameWithOwner");
+      expect((steps[1] as { command?: string }).command).toContain("reviewThreads");
+    });
+
+    it("apply_feedback routes to implement.run_build_loop via a routine ref", () => {
+      const routine = resolvePrFlow.routines.find((r) => r.id === "apply_feedback");
+      expect(routine).toBeDefined();
+      expect(routine?.params.map((p) => p.name)).toEqual(["workspace", "task", "plan"]);
+
+      const steps = routine?.steps as FlowInstruction[];
+      expect(steps).toHaveLength(1);
+      expect(steps[0].type).toBe("routine");
+      const ref = steps[0] as RoutineRefInstruction;
+      expect(ref.target).toBe("implement.run_build_loop");
+      expect(ref.output_as).toBe("build_result");
+      expect(ref.input).toEqual({
+        workspace: "{{workspace}}",
+        task: "{{task}}",
+        plan: "{{plan}}",
+      });
+    });
+
+    it("disposition_comments posts a reply and conditionally resolves the thread", () => {
+      const routine = resolvePrFlow.routines.find((r) => r.id === "disposition_comments");
+      expect(routine).toBeDefined();
+      expect(routine?.params.map((p) => p.name)).toEqual(["threadId", "verdict", "reply"]);
+      const verdictDesc = routine?.params.find((p) => p.name === "verdict")?.description;
+      expect(verdictDesc).toBe("fixed|fixed-differently|replied|not-addressing|needs-human");
+
+      const steps = routine?.steps as FlowInstruction[];
+      expect(steps.map((s) => s.id)).toEqual(["post_reply", "resolve_thread"]);
+      const postReply = steps[0] as { command?: string };
+      expect(postReply.command).toContain("addPullRequestReviewThreadReply");
+      expect((steps[0] as { failFast?: boolean }).failFast).toBe(false);
+      const resolveThread = steps[1] as { command?: string };
+      expect(resolveThread.command).toContain("resolveReviewThread");
+      expect(resolveThread.command).toContain("fixed|fixed-differently|not-addressing");
+      expect((steps[1] as { failFast?: boolean }).failFast).toBe(false);
+    });
+
+    it("resolves all shell commands and cwds with no {{...}} survivors", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "42",
+        params: new Map([
+          ["pr", "42"],
+          ["workspace", "/tmp/test-workspace"],
+          ["threadId", "PRRT_test"],
+          ["verdict", "fixed"],
+          ["reply", "Fixed in abc123."],
+        ]),
+      });
+
+      const shellSteps: Array<{ command: string; cwd: string }> = [];
+      for (const routine of resolvePrFlow.routines) {
+        collectShellSteps(routine.steps, shellSteps);
+      }
+      expect(shellSteps.length).toBeGreaterThan(0);
+
+      for (const { command, cwd } of shellSteps) {
+        const resolvedCommand = ctx.resolve(command);
+        expect(
+          resolvedCommand,
+          `unresolved placeholder in shell command: "${command.slice(0, 80)}..."`,
+        ).not.toMatch(/\{\{/);
+        const resolvedCwd = ctx.resolve(cwd);
+        expect(
+          resolvedCwd,
+          `unresolved placeholder in shell cwd: "${cwd.slice(0, 80)}..."`,
+        ).not.toMatch(/\{\{/);
+      }
     });
 
     it("configures the orchestrator persona", () => {
