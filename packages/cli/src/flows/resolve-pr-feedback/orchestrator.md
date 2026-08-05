@@ -12,9 +12,22 @@ tools:
   - destroy_workspace
   - read
   - grep
-  - bash
-  - write:NOTES.md
-  - edit:NOTES.md
+  - bash:gh *
+  - bash:git *
+  - bash:cd *
+  - bash:npx *
+  - bash:node *
+  - bash:ls *
+  - bash:pwd
+  - bash:pwd *
+  - bash:cat *
+  - bash:echo *
+  - bash:jq *
+  - bash:rm *
+  - bash:test *
+  - bash:mkdir *
+  - write:.forge/worktrees/**/NOTES.md
+  - edit:.forge/worktrees/**/NOTES.md
 ---
 
 # Resolve PR Feedback — Orchestrator Workflow
