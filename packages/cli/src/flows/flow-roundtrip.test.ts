@@ -35,7 +35,6 @@ import type {
   FlowDefinition,
   FlowInstruction,
   LoopInstruction,
-<<<<<<< HEAD
   RoutineRefInstruction,
   ShellInstruction,
 } from "../orchestrator/FlowInstruction";
