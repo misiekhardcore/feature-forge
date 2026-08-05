@@ -317,6 +317,130 @@ describe("routine ref inline flattening (e2e)", () => {
     expect(result.results.call_review).toBeDefined();
   });
 
+  it("inlines only the matching routine for flow.routine targets", async () => {
+    const multiFlow = makeChildFlow("multi", "/multi", [
+      {
+        id: "inspect",
+        params: [{ name: "changes" }, { name: "workspace" }],
+        steps: [
+          agentStep("inspect_step", "inspect", { path: "{{workspace}}" }, "Inspect: {{output}}"),
+        ],
+      },
+      {
+        id: "check",
+        params: [{ name: "changes" }, { name: "workspace" }],
+        steps: [agentStep("check_step", "check", { path: "{{workspace}}" }, "Check: {{output}}")],
+      },
+    ]);
+
+    const parentFlow = makeChildFlow("implement", "/implement", [
+      {
+        id: "run",
+        params: [],
+        steps: [
+          {
+            type: "routine",
+            id: "call_check",
+            target: "multi.check",
+            output_as: "call_check",
+            input: { changes: "n/a", workspace: "/tmp/ws" },
+          },
+        ],
+      },
+    ]);
+
+    const executor = setupExecutor(parentFlow, [multiFlow]);
+
+    const result = await executor.run("run", {}, "Dot notation test");
+
+    expect(result.passed).toBe(true);
+
+    // Only the "check" routine inlines — its step is namespaced under the
+    // routine-ref instruction id + full dotted target.
+    const namespacedKey = "call_check.multi.check.check_step";
+    expect(result.results[namespacedKey]).toBeDefined();
+
+    // The "inspect" routine must NOT be inlined.
+    expect(result.results["call_check.multi.check.inspect_step"]).toBeUndefined();
+
+    // The routine-ref result reports the filtered routineCount.
+    const refResult = result.results.call_check;
+    expect(refResult).toBeDefined();
+    const raw = JSON.parse(refResult.raw) as {
+      routineCount: number;
+      routines: string[];
+    };
+    expect(raw.routineCount).toBe(1);
+    expect(raw.routines).toEqual(["check"]);
+  });
+
+  it("returns failure result for unknown routine in flow.routine target", async () => {
+    const multiFlow = makeChildFlow("multi", "/multi", [
+      {
+        id: "inspect",
+        params: [],
+        steps: [agentStep("inspect_step", "inspect", undefined, "Inspect")],
+      },
+    ]);
+
+    const parentFlow = makeChildFlow("implement", "/implement", [
+      {
+        id: "run",
+        params: [],
+        steps: [
+          {
+            type: "routine",
+            id: "call_missing",
+            target: "multi.nonexistent",
+            output_as: "out",
+          },
+        ],
+      },
+    ]);
+
+    const executor = setupExecutor(parentFlow, [multiFlow]);
+
+    const result = await executor.run("run", {}, "Test");
+
+    // RoutineExecutor converts step-level errors to failure results,
+    // so we check the summary rather than expecting a throw.
+    expect(result.passed).toBe(false);
+    expect(result.summary).toContain('Unknown routine "nonexistent" in flow "multi"');
+  });
+
+  it("returns failure result for malformed flow.routine targets", async () => {
+    const multiFlow = makeChildFlow("multi", "/multi", [
+      {
+        id: "inspect",
+        params: [],
+        steps: [agentStep("inspect_step", "inspect", undefined, "Inspect")],
+      },
+    ]);
+
+    const parentFlow = makeChildFlow("implement", "/implement", [
+      {
+        id: "run",
+        params: [],
+        steps: [
+          {
+            type: "routine",
+            id: "call_bad",
+            target: "multi.inspect.extra",
+            output_as: "out",
+          },
+        ],
+      },
+    ]);
+
+    const executor = setupExecutor(parentFlow, [multiFlow]);
+
+    const result = await executor.run("run", {}, "Test");
+
+    // Multi-segment targets are rejected instead of silently truncated.
+    expect(result.passed).toBe(false);
+    expect(result.summary).toContain('Malformed routine ref target "multi.inspect.extra"');
+  });
+
   it("returns failure result for unknown target flow", async () => {
     const parentFlow = makeChildFlow("implement", "/implement", [
       {

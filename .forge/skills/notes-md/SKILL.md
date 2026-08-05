@@ -1,6 +1,6 @@
 ---
 name: notes-md
-description: In-phase NOTES.md lifecycle protocol — create on entry, checkpoint before routine, update on return, harvest on exit.
+description: In-phase NOTES.md lifecycle protocol — create on entry, checkpoint before and after significant work, update after decisions, leave on exit.
 ---
 
 # NOTES.md — In-Phase Progress Ledger
@@ -26,19 +26,17 @@ Two layers, two authorities:
 ## Location and lifecycle
 
 - **Path:** `<workspace>/NOTES.md` at the worktree root.
-- **Committed to git** — the file doubles as PR documentation.
-- **Created by the agent that starts the phase** — the orchestrator after
-  `create_workspace`, or a standalone skill on entry.
+- **Created by the agent that starts the session** — the orchestrator on entry,
+  or a standalone skill on entry.
 - **Ownership transfers with execution.** The running agent always owns NOTES.md.
-  The orchestrator owns it before and after each `run_build_loop` call; the build
-  agent owns it during the routine. Execution is sequential (call → wait → return),
-  so there is never a concurrent write conflict.
+  The orchestrator owns it before and after work; the worker agent owns it during
+  the work. Execution is sequential, so there is never a concurrent write conflict.
 - **Updated by the currently running agent** after each completed task, significant
-  decision, or before each further routine call (checkpoint).
+  decision, or before each further work unit (checkpoint).
 - **Read on resume** — before re-reading the issue, reconstruct state from NOTES.md.
-- **Harvested at phase end** — the orchestrator reads it before `open_pr` and flows
-  the AC checklist into the PR body.
-- **Left in place on exit** — `destroy_workspace` removes the file together with the
+- **Harvested at phase end** — the orchestrator reads it and flows in-flight state
+  (e.g. the AC checklist) into the phase handoff.
+- **Left in place on exit** — worktree cleanup removes the file together with the
   worktree. Standalone skills leave it in place too.
 - **On abnormal exit** — NOTES.md persists, preserving resume state for the next
   session; cleanup still happens with worktree removal.
@@ -78,16 +76,14 @@ the first unchecked entry is the current one.
 
 Checkpoint at these points, bullet-level only:
 
-- **On entry (after `create_workspace`)** — create NOTES.md with the AC checklist,
-  the subtask plan, and the next action on resume.
-- **Before each `run_build_loop` call** — write `## Current task` and
-  `## Next action on resume`. If the session dies mid-routine, this checkpoint is
-  the sole resume source.
-- **After each `run_build_loop` returns** — read NOTES.md, integrate the results,
-  flip checkboxes for completed ACs and subtasks, log decisions with rationale,
-  update `## Current task` and `## Next action on resume`.
-- **Before `open_pr`** — verify every AC is `[x]`; copy the AC checklist into the
-  PR body. Leave NOTES.md in place for worktree cleanup.
+- **On session start** — create NOTES.md with the AC checklist, the subtask plan,
+  and the next action on resume.
+- **Before and after significant work units** — before starting, write
+  `## Current task` and `## Next action on resume`. If the session dies
+  mid-work, this checkpoint is the sole resume source. After finishing, read
+  NOTES.md, integrate the results, flip checkboxes for completed ACs and
+  subtasks, log decisions with rationale, update `## Current task` and
+  `## Next action on resume`.
 - **After each significant decision** — one line with rationale.
 
 Don't update for trivial moves (opening a file, running a test). Checkpoint log,
@@ -95,16 +91,16 @@ not transcript.
 
 ## Rules
 
-- **Checkpoint before every `run_build_loop` call.** If the session dies
-  mid-routine, NOTES.md is the sole resume source.
+- **Checkpoint before and after significant work units.** If the session dies
+  mid-work, NOTES.md is the sole resume source.
 - **Keep under ~2k tokens.** Summarize stable decisions if the file grows.
 - **NOTES.md is authoritative for in-flight state.** Trust the file; in-context
   recall is rot-degraded.
 - **The issue is authoritative for cross-phase state.** Acceptance criteria,
   locked decisions, and handoff state live in the issue, not in the file.
 - **Ownership transfers with the running agent.** The orchestrator owns NOTES.md
-  before and after a routine; the build agent owns it during the routine.
-- **Deletion is `destroy_workspace`'s responsibility.** On abnormal exit, NOTES.md
+  before and after work; the worker agent owns it during the work.
+- **Deletion is worktree cleanup's responsibility.** On abnormal exit, NOTES.md
   preserves resume state; cleanup happens with worktree removal.
 
 ## Resume protocol
@@ -130,13 +126,10 @@ as a lightweight progress tracker:
    `## Current task` and `## Next action on resume` at each natural breakpoint.
 3. **Leave** — on exit, leave NOTES.md in place. Do not delete.
 
-No checkpoint-before-routine call is needed — standalone skills do not drive
-`run_build_loop`. The pattern is create → update → leave.
+The pattern is create → update → leave. Standalone skills do not drive an
+orchestrator, so they have no checkpoint-before-work requirement.
 
 ## On exit
 
-- **Clean exit** — leave NOTES.md in place. The orchestrator has already harvested
-  the AC checklist into the PR body; `destroy_workspace` removes the file with the
-  worktree.
-- **Abnormal exit** — NOTES.md persists, preserving resume state. The next session
-  follows the resume protocol above.
+NOTES.md is temporary. On normal exit, leave it for worktree cleanup. On abnormal
+exit, it persists for resume — the next session follows the resume protocol above.
