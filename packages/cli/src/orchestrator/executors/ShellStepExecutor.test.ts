@@ -184,6 +184,43 @@ describe("ShellStepExecutor", () => {
       expect(result.results.get("sh5")!.raw).toBe("stderr:\nECONNREFUSED");
     });
 
+    it("preserves heredoc structure and special characters in resolved commands", async () => {
+      mockExecSuccess("done");
+      const executor = new ShellStepExecutor();
+
+      // Simulate the open_pr heredoc pattern with body containing shell metacharacters
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "pr",
+        command:
+          'cat > /tmp/ff-pr-body-$$.md << \'FFEOF\'\n{{body}}\nFFEOF\ngh pr create --title "{{title}}" --body-file /tmp/ff-pr-body-$$.md --base "{{base}}"; rm -f /tmp/ff-pr-body-$$.md',
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+        params: new Map([
+          ["body", "Fix backticks: `cmd` and ${VAR}"],
+          ["title", "feat: handle special chars"],
+          ["base", "main"],
+        ]),
+      });
+      await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      const resolvedCmd: string = execFileRaw.mock.calls[0][1][1];
+
+      // Heredoc delimiter must be quoted (no shell expansion inside)
+      expect(resolvedCmd).toMatch(/<<\s*'FFEOF'/);
+      // Must use --body-file, not inline --body
+      expect(resolvedCmd).toContain("--body-file");
+      expect(resolvedCmd).not.toMatch(/--body\s/);
+      // Special characters must appear literally (not expanded/interpreted)
+      expect(resolvedCmd).toContain("`cmd`");
+      expect(resolvedCmd).toContain("${VAR}");
+      // Must clean up temp file
+      expect(resolvedCmd).toContain("rm -f /tmp/ff-pr-body-$$.md");
+    });
+
     describe("failFast", () => {
       it("throws instead of returning soft-failure when failFast is true", async () => {
         mockExecFailure("Command failed", "error output");

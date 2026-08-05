@@ -35,6 +35,7 @@ import type {
   FlowDefinition,
   FlowInstruction,
   LoopInstruction,
+  ShellInstruction,
 } from "../orchestrator/FlowInstruction";
 import {
   isContainerInstruction,
@@ -291,6 +292,31 @@ describe("flow round-trip", () => {
       expect(rebaseIdx).toBe(fetchIdx + 1);
       expect(checkCleanIdx).toBe(rebaseIdx + 1);
       expect(branchIdx).toBe(rebaseIdx + 2);
+    });
+
+    it("open_pr shell command uses heredoc and --body-file for shell-safe PR bodies", () => {
+      const openPr = flow.routines.find((r) => r.id === "open_pr");
+      expect(openPr).toBeDefined();
+
+      const prStep = (openPr?.steps as FlowInstruction[]).find(
+        (s): s is ShellInstruction => s.type === "shell" && s.id === "pr",
+      );
+      expect(prStep).toBeDefined();
+
+      const cmd = prStep!.command;
+
+      // Must not use inline --body (shell-unsafe)
+      expect(cmd).not.toMatch(/--body\s/);
+
+      // Must use --body-file with $$ process-unique temp file
+      expect(cmd).toMatch(/--body-file/);
+      expect(cmd).toMatch(/\/tmp\/ff-pr-body-\$\$\.md/);
+
+      // Must use heredoc with quoted delimiter (no shell expansion inside)
+      expect(cmd).toMatch(/<<\s*'FFEOF'/);
+
+      // Must clean up temp file after PR creation
+      expect(cmd).toMatch(/rm\s+-f\s+\/tmp\/ff-pr-body-\$\$\.md/);
     });
 
     // ── 6b. build_loop step positions ─────────────────────
