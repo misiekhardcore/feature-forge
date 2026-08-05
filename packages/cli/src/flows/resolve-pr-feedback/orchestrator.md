@@ -210,4 +210,3 @@ when the ids do not line up.
   comments stay unresolved with a `replied`/`needs-human` status reply.
 - **Keep the PR branch shippable** — commit per group where possible, run the
   project validation loop before pushing, and never force-push.
-- **Checkpoint NOTES.md before every routine** — per the notes-md protocol.

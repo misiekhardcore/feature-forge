@@ -65,7 +65,9 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
    a **numbered AC checklist**. Include verbatim criteria — do not paraphrase or
    omit. Present the checklist to the user before proceeding so they can confirm
    it is complete.
-5. Present the plan (subtasks + AC checklist) to the user before proceeding.
+5. Create `<workspace>/NOTES.md` per the notes-md skill. Write the AC checklist
+   and subtask plan into it.
+6. Present the plan (subtasks + AC checklist) to the user before proceeding.
 
 #### Plan format requirements
 
@@ -118,8 +120,8 @@ build → review + verify and returns the results.
 the NOTES.md checkpoint protocol: before the call, update `## Current task`
 and `## Next action on resume` in `<workspace>/NOTES.md`; after the call
 returns, read NOTES.md and integrate the results — flip checkboxes for
-completed ACs and subtasks, log decisions with rationale. See the
-`## NOTES.md` section below for the full checkpoint list.
+completed ACs and subtasks, log decisions with rationale. See the notes-md
+skill for the full checkpoint list.
 
 ```
 run_build_loop(workspace, task, plan)
@@ -193,35 +195,6 @@ retry, ask the user to choose one of:
 - **(c) Leave as-is** — report the workspace path and stop without destroying.
   Do NOT auto-destroy the workspace — the user decides.
 
-## NOTES.md
-
-`<workspace>/NOTES.md` is the in-phase progress ledger for this flow. It
-survives LLM turn boundaries: in-context recall rot-degrades, the file does
-not. Read it on demand when creating, updating, or harvesting — do not preload.
-
-- **Location.** `<workspace>/NOTES.md` at the worktree root. Created after
-  Phase 1 and deleted before `open_pr` (Phase 3 step 1); it must never appear
-  in a PR. On abnormal exit, `destroy_workspace` removes it together with
-  the worktree.
-- **Protocol.** Read `.forge/skills/notes-md/SKILL.md` for the full NOTES.md
-  lifecycle protocol (create, update, checkpoint, resume, harvest). The skill
-  is loaded via the `skills` frontmatter above.
-- **Checkpoint points** (WHEN, not HOW — the HOW is in the skill):
-  - After Phase 1 (plan complete) — create NOTES.md with the AC checklist,
-    the subtask plan, and the next action on resume.
-  - Before each `run_build_loop` call — update `## Current task` and
-    `## Next action on resume`. If the session dies mid-routine, this
-    checkpoint is the sole resume source.
-  - After each `run_build_loop` returns — read NOTES.md, integrate the
-    results, flip checkboxes for completed ACs and subtasks, log decisions
-    with rationale, update `## Current task` and `## Next action on resume`.
-  - Before `open_pr` — verify every AC is `[x]`; harvest the AC checklist
-    into the PR body; then delete NOTES.md.
-- **AC checklist flow.** The AC checklist in NOTES.md mirrors the one from
-  Phase 1 step 4 (verbatim, numbered). Verify all entries are `[x]` at the
-  Phase 3 AC gate, then copy the checklist into the PR body alongside the
-  markdown summary.
-
 ## Rules
 
 - **Do NOT modify code yourself** — only routines modify code.
@@ -240,6 +213,3 @@ not. Read it on demand when creating, updating, or harvesting — do not preload
 - **AC checklist is the source of truth** — the numbered list from Phase 1
   step 4 is your contract. Every decision to proceed or gate is made against
   that list.
-- **Checkpoint NOTES.md before every routine** — per the NOTES.md protocol,
-  write `## Current task` and `## Next action on resume` before each
-  `run_build_loop` call.
