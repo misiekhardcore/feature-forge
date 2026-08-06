@@ -321,6 +321,7 @@ export class RoutineTool
       viewerDismiss?.();
       overlayCleanup?.();
       unsubscribers.forEach((u) => u());
+      SharedStreamDir.cleanup();
     }
   }
 

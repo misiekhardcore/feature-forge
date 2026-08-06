@@ -75,6 +75,7 @@ export class AgentListCommand extends Command {
         .finally(() => {
           overlayCleanup?.();
           viewerDismiss?.();
+          SharedStreamDir.cleanup();
         });
     }
   };
