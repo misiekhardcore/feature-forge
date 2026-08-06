@@ -2,7 +2,7 @@
 
 ## Current task
 
-- Subtask 5: Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState
+- Subtask 6: Ship tests for retention, rotation, and exit cleanup (subtask 5 code complete)
 
 ## Task list / AC checklist
 
@@ -18,7 +18,7 @@
 - [x] 2. FileLogger retention — prune old logs on init
 - [x] 3. SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs (verify passed: review found 2 P2, all non-blocking; e2e 70/70 green)
 - [x] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true (verify feedback resolved: config read moved into the progress handler + spy-based payload-gating tests shipped; CLI tsc gate clean; full suite green)
-- [ ] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState (CURRENT)
+- [x] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState (build passed: tsc gate clean, full suite 106 files/2009 tests green, 50k-push rotation smoke test verified archive=50k lines + fresh file=1 line)
 - [ ] 6. Tests — FileLogger retention, SharedStreamDir cleanup, config schema, AgentViewerState rotation (RoutineTool payload-gating spy test shipped early in subtask 4 per review feedback)
 
 ## Decisions made this session
@@ -33,8 +33,10 @@
 - Shared-package coverage dropped lines 89.12→87.74 vs origin/main but the 90% gate already fails on main (why: new `pruneOldLogs` intentionally untested — tests deferred to subtask 6; CI doesn't enforce coverage)
 - RoutineTool debug progress entry now logs only `{ phase, message }` when `logPayloads` is false (default), full `{ ...event }` only when true (why: prevents MB-scale debug entries from agent-stream payloads — the 53GB log-growth root cause)
 - RoutineTool reads `logPayloads` lazily on the first progress event inside the handler, not at the top of `execute()` (why: review feedback — config access should only happen when a debug entry is actually written, avoiding unconditional config reads for non-logging invocations)
-- Spy-based payload-gating tests shipped in subtask 4, not deferred (why: review required the exact behaviour — full `{ ...event }` vs structural `{ phase, message }` — to be asserted against `logger.debug` before integration)
+- `AgentViewerState` now rotates `.events.jsonl` at 50k lines: renames to `.events.1.jsonl` (POSIX rename overwrites a stale archive) and starts fresh; counters live in a per-agent `eventsFileLineCounts` map, reset on rotation and cleared in `dispose()` (why: keeps current-file count session-local, matching the other per-agent maps)
+- Rotation is best-effort: `renameSync` failure logs a warning and keeps appending to the current file (why: never lose event persistence; a too-big file is acceptable over data loss)
+- `prepopulateStreamFiles` ignores `.events.1.jsonl` archives — only the current file is line-counted (why: archives are read-only; retention pruning in subtasks 2/3 cleans them)
 
 ## Next action on resume
 
-- Start subtask 5 (cap stream files): read `packages/cli/src/orchestrator/progress/AgentViewerState.ts`, add line-count-based rotation for `.events.jsonl` writes
+- Start subtask 6 (tests): add AgentViewerState rotation tests (push 50k+ events via a lowered threshold or stub, assert `.events.1.jsonl` archive + fresh current file), FileLogger retention tests for `pruneOldLogs`, SharedStreamDir cleanup/exit-hook tests, config schema tests for `logRetentionDays`/`logPayloads` (accessor tests already shipped in subtask 1)
