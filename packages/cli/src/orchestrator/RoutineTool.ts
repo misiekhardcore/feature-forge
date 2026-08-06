@@ -177,6 +177,8 @@ export class RoutineTool
       params: Object.keys(params),
     });
 
+    const logPayloads = ForgeConfig.getInstance().getLogPayloads();
+
     const prompt = params["prompt"] ?? params["_prompt"] ?? "";
     const routineParams: Record<string, string> = {};
     for (const param of this.routineDef.params) {
@@ -251,7 +253,10 @@ export class RoutineTool
 
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
-      logger.debug("RoutineTool progress", { ...event });
+      logger.debug(
+        "RoutineTool progress",
+        logPayloads ? { ...event } : { phase: event.phase, message: event.message },
+      );
 
       // Accumulate display contributions from all executors.
       // Stream-only events (agent-stream chunks with no state transition)
