@@ -21,10 +21,13 @@ import { ForgeConfig, logger } from "@feature-forge/shared";
  *
  * The directory is created under `baseDir` (typically `.forge/logs`) so
  * agent stream files persist alongside structured JSON Lines logs for
- * post-mortem debugging.
+ * post-mortem debugging. Old directories are pruned against the configured
+ * `logRetentionDays` window — never on overlay teardown.
  */
 export class SharedStreamDir {
   private static instance: string | undefined;
+  /** Whether the once-per-process sweep has already run. */
+  private static _swept = false;
 
   static get(baseDir: string): string {
     this.sweepAndPrune(baseDir);
@@ -36,32 +39,41 @@ export class SharedStreamDir {
   }
 
   /**
-   * Remove the session-persistent stream directory if one was created.
-   *
-   * Called from {@link import("../RoutineTool").RoutineTool} and
-   * {@link import("../../commands/AgentListCommand").AgentListCommand}
-   * teardown paths so stream files do not accumulate across sessions.
+   * Prune `agent-streams-*` directories older than the configured retention
+   * window. Retention-aware: directories within the window and the current
+   * singleton are kept so stream history survives overlay close/reopen
+   * cycles. No-op when `logRetentionDays` is `0` (retention disabled).
    */
   static cleanup(): void {
-    if (SharedStreamDir.instance) {
+    const baseDir = ForgeConfig.getInstance().getLogDir();
+    const retentionDays = ForgeConfig.getInstance().getLogRetentionDays();
+    if (!existsSync(baseDir) || retentionDays <= 0) return;
+    const cutoff = Date.now() - retentionDays * 86_400_000;
+    for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !entry.name.startsWith("agent-streams-")) continue;
+      const dirPath = join(baseDir, entry.name);
+      if (dirPath === SharedStreamDir.instance) continue;
+      if (statSync(dirPath).mtimeMs >= cutoff) continue;
       try {
-        rmSync(SharedStreamDir.instance, { recursive: true, force: true });
+        rmSync(dirPath, { recursive: true, force: true });
       } catch (err) {
-        logger.warn("Failed to clean up shared stream dir", {
-          dir: SharedStreamDir.instance,
+        logger.warn("Failed to prune stale shared stream dir", {
+          dir: dirPath,
           error: String(err),
         });
       }
-      SharedStreamDir.instance = undefined;
     }
   }
 
   /**
    * Sweep stale `agent-streams-*` directories left by previous sessions:
    * remove empty ones and prune ones older than the configured retention
-   * window. The current singleton directory is always skipped.
+   * window. Runs at most once per process — get() calls the sweep only on
+   * first use, so overlay open/reopen cycles do not rescan the log dir.
    */
   private static sweepAndPrune(baseDir: string): void {
+    if (SharedStreamDir._swept) return;
+    SharedStreamDir._swept = true;
     if (!existsSync(baseDir)) return;
     const retentionDays = ForgeConfig.getInstance().getLogRetentionDays();
     const cutoff = Date.now() - retentionDays * 86_400_000;

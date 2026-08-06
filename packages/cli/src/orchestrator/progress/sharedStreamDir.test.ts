@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,12 +18,18 @@ import { SharedStreamDir } from "./sharedStreamDir";
 describe("SharedStreamDir", () => {
   let baseDir: string;
 
+  /** Reset module-level state so each test starts from a clean singleton. */
+  function resetState(): void {
+    (SharedStreamDir as unknown as { instance: string | undefined }).instance = undefined;
+    (SharedStreamDir as unknown as { _swept: boolean })._swept = false;
+  }
+
   beforeEach(() => {
     baseDir = mkdtempSync(join(tmpdir(), "shared-stream-dir-test-"));
+    resetState();
   });
 
   afterEach(() => {
-    SharedStreamDir.cleanup();
     vi.restoreAllMocks();
     rmSync(baseDir, { recursive: true, force: true });
   });
@@ -30,9 +44,11 @@ describe("SharedStreamDir", () => {
     return dirPath;
   }
 
-  function mockRetentionDays(days: number): void {
+  /** Point config at the test baseDir with the given retention window. */
+  function mockConfig(retentionDays: number): void {
     vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-      getLogRetentionDays: () => days,
+      getLogDir: () => baseDir,
+      getLogRetentionDays: () => retentionDays,
     } as unknown as ForgeConfig);
   }
 
@@ -53,39 +69,62 @@ describe("SharedStreamDir", () => {
   });
 
   describe("cleanup", () => {
-    it("removes the singleton dir and resets the instance", () => {
+    it("keeps the current singleton and dirs within the retention window", () => {
+      mockConfig(7);
       const dir = SharedStreamDir.get(baseDir);
-      expect(existsSync(dir)).toBe(true);
+      const recent = makeStaleDir("agent-streams-recent", 1);
 
       SharedStreamDir.cleanup();
 
-      expect(existsSync(dir)).toBe(false);
-      // A subsequent get() must create a fresh directory.
-      const fresh = SharedStreamDir.get(baseDir);
-      expect(fresh).not.toBe(dir);
+      expect(existsSync(dir)).toBe(true);
+      expect(existsSync(recent)).toBe(true);
+    });
+
+    it("prunes agent-streams dirs older than the retention window", () => {
+      mockConfig(7);
+      SharedStreamDir.get(baseDir);
+      const stale = makeStaleDir("agent-streams-stale", 10);
+
+      SharedStreamDir.cleanup();
+
+      expect(existsSync(stale)).toBe(false);
+    });
+
+    it("retentionDays=0 disables pruning", () => {
+      mockConfig(0);
+      const stale = makeStaleDir("agent-streams-stale", 10);
+
+      SharedStreamDir.cleanup();
+
+      expect(existsSync(stale)).toBe(true);
     });
 
     it("is idempotent", () => {
+      mockConfig(7);
       SharedStreamDir.get(baseDir);
-      SharedStreamDir.cleanup();
 
-      expect(() => SharedStreamDir.cleanup()).not.toThrow();
+      expect(() => {
+        SharedStreamDir.cleanup();
+        SharedStreamDir.cleanup();
+      }).not.toThrow();
     });
 
-    it("survives rmSync failure", () => {
-      // Point the instance at a path whose parent is a regular file so
-      // rmSync fails with ENOTDIR; cleanup must swallow the error.
-      const blocker = join(baseDir, "blocker");
-      writeFileSync(blocker, "blocker", "utf-8");
-      const badPath = join(blocker, "child");
-      (SharedStreamDir as unknown as { instance: string | undefined }).instance = badPath;
-
-      expect(() => SharedStreamDir.cleanup()).not.toThrow();
+    it("swallows rmSync failure while pruning a stale dir", () => {
+      mockConfig(7);
+      const stale = makeStaleDir("agent-streams-stale", 10);
+      // Make the dir read-only so rmSync fails with EACCES.
+      chmodSync(stale, 0o555);
+      try {
+        expect(() => SharedStreamDir.cleanup()).not.toThrow();
+        expect(existsSync(stale)).toBe(true);
+      } finally {
+        chmodSync(stale, 0o755);
+      }
     });
   });
 
   describe("sweepAndPrune", () => {
-    it("removes empty agent-streams dirs on get", () => {
+    it("removes empty agent-streams dirs on first get", () => {
       const stale = join(baseDir, "agent-streams-stale");
       mkdirSync(stale);
 
@@ -97,7 +136,7 @@ describe("SharedStreamDir", () => {
 
     it("keeps non-empty agent-streams dirs within the retention window", () => {
       const stale = makeStaleDir("agent-streams-stale", 1);
-      mockRetentionDays(7);
+      mockConfig(7);
 
       SharedStreamDir.get(baseDir);
 
@@ -106,7 +145,7 @@ describe("SharedStreamDir", () => {
 
     it("prunes old non-empty agent-streams dirs", () => {
       const stale = makeStaleDir("agent-streams-stale", 10);
-      mockRetentionDays(7);
+      mockConfig(7);
 
       SharedStreamDir.get(baseDir);
 
@@ -119,7 +158,12 @@ describe("SharedStreamDir", () => {
       const old = new Date(Date.now() - 10 * 86_400_000);
       utimesSync(current, old, old);
       const stale = makeStaleDir("agent-streams-stale", 10);
-      mockRetentionDays(7);
+      mockConfig(7);
+
+      // Re-arm the once-per-process guard so the sweep runs again with the
+      // singleton already created (the sweep would otherwise have run before
+      // the first get() created it).
+      (SharedStreamDir as unknown as { _swept: boolean })._swept = false;
 
       SharedStreamDir.get(baseDir);
 
@@ -129,11 +173,26 @@ describe("SharedStreamDir", () => {
 
     it("retentionDays=0 disables pruning", () => {
       const stale = makeStaleDir("agent-streams-stale", 10);
-      mockRetentionDays(0);
+      mockConfig(0);
 
       SharedStreamDir.get(baseDir);
 
       expect(existsSync(stale)).toBe(true);
+    });
+
+    it("runs the sweep only once per process", () => {
+      const first = join(baseDir, "agent-streams-first");
+      mkdirSync(first);
+
+      SharedStreamDir.get(baseDir);
+      expect(existsSync(first)).toBe(false);
+
+      // The guard is set after the first sweep — a dir created afterwards
+      // survives subsequent get() calls.
+      const second = join(baseDir, "agent-streams-second");
+      mkdirSync(second);
+      SharedStreamDir.get(baseDir);
+      expect(existsSync(second)).toBe(true);
     });
   });
 });
