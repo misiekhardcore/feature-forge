@@ -1,7 +1,7 @@
 # NOTES — log-retention-cleanup (#203)
 
 ## Current task
-- Subtask 2: FileLogger retention — prune old logs on init
+- Subtask 3: SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs
 
 ## Task list / AC checklist
 - [ ] AC1: Add a configurable retention policy (e.g. `logRetentionDays`, default ~7) applied lazily on startup/`FileLogger` init: prune `forge-*.log`, `agent-streams-*`, and per-run logs older than the window.
@@ -12,7 +12,7 @@
 
 ## Subtask plan
 - [x] 1. Config schema — add `logRetentionDays` and `logPayloads` to schema, defaults, and typed accessors (verify passed: check routine reports 0 critical findings; coverage gate failure is pre-existing on main, CI doesn't enforce it)
-- [ ] 2. FileLogger retention — prune old logs on init
+- [x] 2. FileLogger retention — prune old logs on init
 - [ ] 3. SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs
 - [ ] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true
 - [ ] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState
@@ -24,6 +24,9 @@
 - `logPayloads` schema carries an explicit `{ default: false }` so TypeBox `Value.Default()` and `resolveConfig()` behave consistently, matching the existing schema default pattern (why: verify feedback flagged the missing annotation)
 - Tests for the new fields shipped in subtask 1 (schema validation, accessor fallbacks, defaults-JSON mirror assertions) per verify feedback — not deferred to subtask 6
 - Wired `logRetentionDays`/`logPayloads` through `ConfigLoader.toResolvedConfig()` — the loader was silently dropping them (why: config-file values must reach `resolveConfig()`, caught by the new accessor tests)
+- `pruneOldLogs(retentionDays, currentFilePath?)` takes an optional current-file path instead of tracking it statically (why: plan's skip-current-file rule needs the active logger's path; explicit param avoids hidden mutable state)
+- Prune summary `logger.info` only fires when `deleted > 0` (why: unconditional logging on every `initialize()` would create the log file during construction, breaking the lazy-creation contract in tests when the configured logDir exists — the worktree `.forge/logs` symlinks to the live main log dir)
+- Shared-package coverage dropped lines 89.12→87.74 vs origin/main but the 90% gate already fails on main (why: new `pruneOldLogs` intentionally untested — tests deferred to subtask 6; CI doesn't enforce coverage)
 
 ## Next action on resume
-- Proceed to subtask 2 (FileLogger retention): read `packages/shared/src/logging/FileLogger.ts`, prune `forge-*.log` files older than `logRetentionDays` on init
+- Start subtask 3 (SharedStreamDir cleanup): read `packages/cli/src/orchestrator/progress/sharedStreamDir.ts`, add static `cleanup()`, sweep empty dirs on `get()`, remove dirs older than retention
