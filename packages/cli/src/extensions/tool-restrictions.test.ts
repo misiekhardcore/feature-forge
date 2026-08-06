@@ -158,6 +158,27 @@ describe("activateToolRestrictions", () => {
       });
     });
 
+    it("blocks commands that do not match a more specific prefix pattern", () => {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["gh api *"] }, PROJECT_ROOT);
+
+      const handler = pi.getHandler("tool_call")!;
+
+      // Matches the prefix
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "gh api repos/owner/repo/pulls",
+          }),
+        ),
+      ).toBeUndefined();
+
+      // Does NOT match the prefix — blocked
+      expect(handler(makeToolCallEvent("bash", { command: "gh pr view 204" }))).toEqual({
+        block: true,
+        reason: expect.stringContaining("gh pr view 204"),
+      });
+    });
     it("does not resolve bash patterns against projectRoot", () => {
       const pi = makeMockPiWithHandlers();
       activateToolRestrictions(pi, { bash: ["git *"] }, PROJECT_ROOT);
