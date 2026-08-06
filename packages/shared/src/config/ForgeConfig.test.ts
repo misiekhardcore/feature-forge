@@ -311,6 +311,48 @@ describe("ForgeConfig", () => {
       expect(instance.getJsonRetryMaxAttempts()).toBe(2);
     });
 
+    it("returns the configured log retention days", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          logRetentionDays: 30,
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogRetentionDays()).toBe(30);
+    });
+
+    it("returns default 7 when logRetentionDays not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogRetentionDays()).toBe(7);
+    });
+
+    it("returns the configured log payloads flag", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          logPayloads: true,
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogPayloads()).toBe(true);
+    });
+
+    it("returns default false when logPayloads not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogPayloads()).toBe(false);
+    });
+
     it("returns the configured spec directories", async () => {
       await fs.writeFile(
         join(tempDir, "forge.config.json"),

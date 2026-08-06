@@ -249,9 +249,16 @@ export class RoutineTool
         });
     }
 
+    // Read lazily on the first progress event — the flag is only needed when
+    // a debug entry is actually written, so avoid config access otherwise.
+    let logPayloads: boolean | undefined;
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
-      logger.debug("RoutineTool progress", { ...event });
+      logPayloads ??= ForgeConfig.getInstance().getLogPayloads();
+      logger.debug(
+        "RoutineTool progress",
+        logPayloads ? { ...event } : { phase: event.phase, message: event.message },
+      );
 
       // Accumulate display contributions from all executors.
       // Stream-only events (agent-stream chunks with no state transition)

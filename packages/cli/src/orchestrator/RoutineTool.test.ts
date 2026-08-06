@@ -5,7 +5,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import { jsonParse } from "@feature-forge/shared";
+import { ForgeConfig, jsonParse, logger } from "@feature-forge/shared";
 import type { AgentContribution, DisplayContribution } from "@feature-forge/tui";
 import type { DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
@@ -48,6 +48,69 @@ function makeFlow(routineParamNames: string[] = []): FlowDefinition {
         steps: [],
       },
     ],
+  };
+}
+
+/**
+ * Agent-stream event shaped like a payload-heavy stream chunk (thinking
+ * blocks, tool calls). Used to assert the payload-gating debug behaviour.
+ */
+const STREAM_EVENT_PAYLOAD = {
+  phase: "agent-stream",
+  message: 'tool_call: read("file.ts")',
+  details: {
+    executionId: "exec-1",
+    agentId: "builder",
+    label: "builder",
+    event: { type: "message", content: "full LLM payload with thinking blocks" },
+  },
+} as const;
+
+/** Build a registry + flow whose agent step emits one agent-stream event. */
+function makeStreamEmittingSetup(): { registry: StepExecutorRegistry; flow: FlowDefinition } {
+  const registry = new StepExecutorRegistry();
+  registry.register(
+    () =>
+      new (class extends StepExecutor {
+        readonly type = "agent";
+        async execute(
+          _instruction: FlowInstruction,
+          _context: FlowContext,
+          _executeStep: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+            signal?: AbortSignal,
+          ) => Promise<FlowContext>,
+          eventBus: EventBus,
+          _signal?: AbortSignal,
+        ): Promise<FlowContext> {
+          eventBus.emit("feature-forge:agent-stream", STREAM_EVENT_PAYLOAD);
+          return _context;
+        }
+      })(),
+  );
+  return {
+    registry,
+    flow: {
+      $schema: FLOW_SCHEMA_URL,
+      name: "test-flow",
+      command: "/test",
+      orchestrator: { systemPrompt: "t" },
+      routines: [
+        {
+          id: "build",
+          params: [],
+          steps: [
+            {
+              type: "agent",
+              id: "builder",
+              systemPrompt: "build",
+              task: "do task",
+            } as unknown as FlowInstruction,
+          ],
+        },
+      ],
+    },
   };
 }
 
@@ -243,6 +306,56 @@ describe("RoutineTool", () => {
       const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
+    });
+
+    it("logs the full progress event payload when logPayloads is enabled", async () => {
+      const debugSpy = vi.spyOn(logger, "debug").mockImplementation(() => {});
+      const getInstanceSpy = vi
+        .spyOn(ForgeConfig, "getInstance")
+        .mockReturnValue({ getLogPayloads: () => true } as unknown as ForgeConfig);
+
+      try {
+        const { registry, flow } = makeStreamEmittingSetup();
+        const eventBus = makeMockTypedEventBus();
+        const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+        const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+        await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+        expect(debugSpy).toHaveBeenCalledWith("RoutineTool progress", STREAM_EVENT_PAYLOAD);
+      } finally {
+        debugSpy.mockRestore();
+        getInstanceSpy.mockRestore();
+      }
+    });
+
+    it("logs only phase and message when logPayloads is disabled", async () => {
+      const debugSpy = vi.spyOn(logger, "debug").mockImplementation(() => {});
+      const getInstanceSpy = vi
+        .spyOn(ForgeConfig, "getInstance")
+        .mockReturnValue({ getLogPayloads: () => false } as unknown as ForgeConfig);
+
+      try {
+        const { registry, flow } = makeStreamEmittingSetup();
+        const eventBus = makeMockTypedEventBus();
+        const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+        const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+        await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+        // The LLM payload (details) must not leak into the debug entry.
+        expect(debugSpy).toHaveBeenCalledWith("RoutineTool progress", {
+          phase: "agent-stream",
+          message: 'tool_call: read("file.ts")',
+        });
+        expect(debugSpy).not.toHaveBeenCalledWith(
+          "RoutineTool progress",
+          expect.objectContaining({ details: expect.anything() }),
+        );
+      } finally {
+        debugSpy.mockRestore();
+        getInstanceSpy.mockRestore();
+      }
     });
 
     it("passes resolved routine params to the executor", async () => {

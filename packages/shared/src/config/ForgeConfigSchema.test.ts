@@ -186,6 +186,72 @@ describe("ForgeConfigSchema", () => {
     expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
   });
 
+  it("accepts optional logRetentionDays field", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logRetentionDays: 7,
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("accepts logRetentionDays of 0 to disable pruning", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logRetentionDays: 0,
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("rejects negative logRetentionDays", () => {
+    const invalid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logRetentionDays: -1,
+    };
+    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+  });
+
+  it("rejects non-integer logRetentionDays", () => {
+    const invalid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logRetentionDays: 7.5,
+    };
+    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+  });
+
+  it("accepts optional logPayloads field", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logPayloads: true,
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("rejects non-boolean logPayloads", () => {
+    const invalid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logPayloads: "yes",
+    };
+    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+  });
+
   it("accepts optional specDirectories field", () => {
     const valid = {
       logLevel: "info",

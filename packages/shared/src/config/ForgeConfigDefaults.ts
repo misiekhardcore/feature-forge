@@ -41,6 +41,8 @@ function createDefaultConfig(): Required<ForgeConfig> {
     agents,
     defaultAgent: DEFAULT_AGENT_CONFIG,
     logDir: defaultsJson.logDir,
+    logRetentionDays: defaultsJson.logRetentionDays,
+    logPayloads: defaultsJson.logPayloads,
     worktreeSymlinks: defaultsJson.worktreeSymlinks,
     taskTimeoutMs: defaultsJson.taskTimeoutMs,
     jsonRetryMaxAttempts: defaultsJson.jsonRetryMaxAttempts,
@@ -110,6 +112,8 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
       };
     })(),
     logDir: overrides.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
+    logRetentionDays: overrides.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
+    logPayloads: overrides.logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads,
     worktreeSymlinks: overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
     jsonRetryMaxAttempts:

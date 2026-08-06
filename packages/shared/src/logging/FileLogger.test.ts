@@ -1,10 +1,20 @@
-import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LogLevel } from "../config";
+import { ForgeConfig, LogLevel } from "../config";
 import { jsonParse } from "../helpers";
 import { FileLogger } from "./FileLogger";
 import { Logger } from "./Logger";
@@ -282,6 +292,117 @@ describe("FileLogger", () => {
 
       const lines = readLines();
       expect(lines[0].data).toEqual({ a: null, b: 0, c: false });
+    });
+  });
+
+  describe("pruneOldLogs", () => {
+    let logDir: string;
+    let getInstanceSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      logDir = mkdtempSync(join(tmpdir(), "forge-prune-test-"));
+      // Point the config at the temp dir so pruning never touches the real
+      // log directory (the worktree's .forge/logs symlinks to shared logs).
+      getInstanceSpy = vi
+        .spyOn(ForgeConfig, "getInstance")
+        .mockReturnValue({ getLogDir: () => logDir } as unknown as ForgeConfig);
+    });
+
+    afterEach(() => {
+      getInstanceSpy.mockRestore();
+      rmSync(logDir, { recursive: true, force: true });
+    });
+
+    /** Write a `.log` file with an mtime `daysOld` days in the past. */
+    function writeLogFile(name: string, daysOld: number): string {
+      const fullPath = join(logDir, name);
+      writeFileSync(fullPath, "stale entry\n", "utf-8");
+      const old = new Date(Date.now() - daysOld * 86_400_000);
+      utimesSync(fullPath, old, old);
+      return fullPath;
+    }
+
+    it("skips pruning entirely when retentionDays <= 0", () => {
+      writeLogFile("forge-stale.log", 10);
+
+      FileLogger.pruneOldLogs(0);
+
+      expect(existsSync(join(logDir, "forge-stale.log"))).toBe(true);
+    });
+
+    it("deletes files older than the retention window", () => {
+      writeLogFile("forge-stale.log", 10);
+
+      FileLogger.pruneOldLogs(7);
+
+      expect(existsSync(join(logDir, "forge-stale.log"))).toBe(false);
+    });
+
+    it("keeps files within the retention window", () => {
+      writeLogFile("forge-recent.log", 3);
+
+      FileLogger.pruneOldLogs(7);
+
+      expect(existsSync(join(logDir, "forge-recent.log"))).toBe(true);
+    });
+
+    it("skips subdirectories", () => {
+      const subDir = join(logDir, "agent-streams-abc");
+      mkdirSync(subDir);
+      const old = new Date(Date.now() - 10 * 86_400_000);
+      utimesSync(subDir, old, old);
+
+      FileLogger.pruneOldLogs(1);
+
+      expect(existsSync(subDir)).toBe(true);
+    });
+
+    it("skips non-.log files", () => {
+      const jsonPath = join(logDir, "forge-stale.json");
+      writeFileSync(jsonPath, "{}\n", "utf-8");
+      const old = new Date(Date.now() - 10 * 86_400_000);
+      utimesSync(jsonPath, old, old);
+
+      FileLogger.pruneOldLogs(1);
+
+      expect(existsSync(jsonPath)).toBe(true);
+    });
+
+    it("skips the current file path", () => {
+      writeLogFile("forge-other.log", 10);
+      const currentPath = writeLogFile("forge-current.log", 10);
+
+      FileLogger.pruneOldLogs(1, currentPath);
+
+      expect(existsSync(join(logDir, "forge-other.log"))).toBe(false);
+      expect(existsSync(currentPath)).toBe(true);
+    });
+
+    it("survives stat failures without throwing", () => {
+      const lockedPath = join(logDir, "forge-locked.log");
+      writeFileSync(lockedPath, "locked\n", "utf-8");
+      chmodSync(lockedPath, 0o000);
+      const old = new Date(Date.now() - 10 * 86_400_000);
+      utimesSync(lockedPath, old, old);
+      // Strip write permission from the directory so the unlink also fails;
+      // pruneOldLogs must swallow per-file failures and keep going.
+      chmodSync(logDir, 0o555);
+
+      try {
+        expect(() => FileLogger.pruneOldLogs(1)).not.toThrow();
+      } finally {
+        chmodSync(logDir, 0o755);
+      }
+    });
+
+    it("handles a missing log dir gracefully", () => {
+      const missingDir = join(
+        tmpdir(),
+        `forge-missing-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      );
+      getInstanceSpy.mockReturnValue({ getLogDir: () => missingDir });
+
+      expect(() => FileLogger.pruneOldLogs(1)).not.toThrow();
     });
   });
 });

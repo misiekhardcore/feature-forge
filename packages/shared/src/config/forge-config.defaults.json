@@ -8,6 +8,8 @@
     "maxTurns": 100
   },
   "logDir": ".forge/logs/",
+  "logRetentionDays": 7,
+  "logPayloads": false,
   "worktreeSymlinks": [],
   "taskTimeoutMs": 3600000,
   "jsonRetryMaxAttempts": 2,

@@ -1,8 +1,16 @@
-import { createWriteStream, existsSync, mkdirSync, type WriteStream } from "node:fs";
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  type WriteStream,
+} from "node:fs";
 import path from "node:path";
 
 import { ForgeConfig, LogLevel } from "../config";
-import { Logger } from "./Logger";
+import { Logger, logger } from "./Logger";
 
 /** Shape of a single log entry written to the JSON Lines file. */
 interface LogEntry {
@@ -42,7 +50,64 @@ export class FileLogger extends Logger {
   static initialize(filePath?: string): FileLogger {
     const logger = new FileLogger(filePath);
     Logger.instance = logger;
+    FileLogger.pruneOldLogs(ForgeConfig.getInstance().getLogRetentionDays(), logger.filePath);
     return logger;
+  }
+
+  /**
+   * Delete log files in the configured log directory whose modification
+   * time is older than `retentionDays` days.
+   *
+   * Only files directly inside the log directory are considered —
+   * subdirectories (e.g. `agent-streams-*`) are left untouched. A
+   * `retentionDays` of 0 or less disables pruning entirely.
+   *
+   * @param retentionDays — Retention window in days (0 = never prune).
+   * @param currentFilePath — Path of the active session's log file, which
+   *   is never pruned.
+   */
+  static pruneOldLogs(retentionDays: number, currentFilePath?: string): void {
+    if (retentionDays <= 0) {
+      return;
+    }
+
+    const logDir = ForgeConfig.getInstance().getLogDir();
+    if (!existsSync(logDir)) {
+      return;
+    }
+
+    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    let considered = 0;
+    let deleted = 0;
+
+    for (const entry of readdirSync(logDir, { withFileTypes: true })) {
+      // Skip subdirectories and non-log files.
+      if (!entry.isFile() || !entry.name.endsWith(".log")) {
+        continue;
+      }
+
+      const fullPath = path.resolve(logDir, entry.name);
+      // Never prune the active session's own log file.
+      if (currentFilePath !== undefined && path.resolve(currentFilePath) === fullPath) {
+        continue;
+      }
+
+      try {
+        if (statSync(fullPath).mtimeMs < cutoff) {
+          unlinkSync(fullPath);
+          deleted += 1;
+        }
+        considered += 1;
+      } catch (error) {
+        logger.warn(`Log retention: failed to inspect or delete ${fullPath}: ${String(error)}`);
+      }
+    }
+
+    if (deleted > 0) {
+      logger.info(
+        `Log retention: pruned ${deleted} of ${considered} files older than ${retentionDays} days`,
+      );
+    }
   }
 
   static getDefaultLogFilePath(): string {
