@@ -18,6 +18,28 @@ const TOOL_INPUT_FIELDS: Record<string, string> = {
 };
 
 /**
+ * Glob-to-regex matcher for bash commands where `*` matches any
+ * characters including `/` (unlike minimatch, where `*` excludes `/`).
+ *
+ * Minimatch is a file-path globber — it treats `/` as a path separator
+ * that `*` must not cross. That makes it the wrong tool for matching
+ * arbitrary bash commands like `gh api repos/owner/repo/pulls` where
+ * slashes appear in URL paths, package names, or file arguments.
+ *
+ * This matcher does a simple glob→regex conversion: each `*` becomes
+ * `.*` (greedy, matches `/`). It does not support `?`, `[]`, `{}`,
+ * `**`, or other extended glob syntax — bash command patterns in
+ * practice only use `*` as a catch-all suffix.
+ */
+function bashGlobMatch(value: string, pattern: string): boolean {
+  // Escape regex special characters except `*`
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  // `*` matches any sequence of characters (including `/`)
+  const regex = new RegExp("^" + escaped.replace(/\*/g, ".*") + "$");
+  return regex.test(value);
+}
+
+/**
  * Activate per-tool pattern restriction for the current session.
  *
  * Registers a `tool_call` interceptor that blocks tool calls whose
@@ -76,13 +98,17 @@ export function activateToolRestrictions(
 
     // Path-based tools receive absolute paths, so resolve relative glob
     // patterns against the project root before matching. Bash command
-    // patterns are matched verbatim.
+    // patterns are matched with a `/`-permissive glob matcher instead of
+    // minimatch, which treats `/` as a path separator and would block
+    // commands like `gh api repos/owner/repo`.
     const isPathTool = inputField === "path";
+    const isBashTool = event.toolName === "bash";
     const resolvedPatterns = isPathTool
       ? patterns.map((p) => resolvePattern(p, projectRoot))
       : patterns;
 
-    const allowed = isValueAllowed(value, resolvedPatterns);
+    const matchFn = isBashTool ? bashGlobMatch : minimatchMatch;
+    const allowed = isValueAllowed(value, resolvedPatterns, matchFn);
 
     if (!allowed) {
       return {
@@ -107,29 +133,42 @@ function resolvePattern(pattern: string, projectRoot: string): string {
   return negated ? "!" + resolved : resolved;
 }
 
+/** Match a value with minimatch (for path-based tools). */
+function minimatchMatch(value: string, pattern: string): boolean {
+  return minimatch(value, pattern, { dot: true });
+}
+
 /**
  * Check if a value is allowed against a list of glob patterns.
  *
  * Patterns are processed in order. Negation patterns (prefixed with `!`)
  * override positive matches — if a negation pattern matches, the value
  * is blocked even if a positive pattern also matched.
+ *
+ * The `match` function controls how a single pattern is tested against
+ * the value. Path tools use minimatch (file-path glob, `*` excludes `/`);
+ * bash commands use {@link bashGlobMatch} (simple glob, `*` includes `/`).
  */
-function isValueAllowed(value: string, patterns: readonly string[]): boolean {
+function isValueAllowed(
+  value: string,
+  patterns: readonly string[],
+  match: (value: string, pattern: string) => boolean,
+): boolean {
   let allowed = false;
   for (const pattern of patterns) {
     try {
       if (pattern.startsWith("!")) {
-        if (minimatch(value, pattern.slice(1), { dot: true })) {
+        if (match(value, pattern.slice(1))) {
           return false;
         }
       } else {
-        if (minimatch(value, pattern, { dot: true })) {
+        if (match(value, pattern)) {
           allowed = true;
         }
       }
     } catch {
-      // Safe: minimatch only throws on malformed patterns, which are benign
-      // to ignore — the value simply will not match that pattern.
+      // Safe: malformed patterns are benign to ignore — the value simply
+      // will not match that pattern.
       console.warn("Failed to match pattern", { pattern, value });
     }
   }
