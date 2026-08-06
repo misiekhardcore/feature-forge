@@ -11,7 +11,7 @@
 - [ ] AC5: Ship tests covering retention, rotation, and exit cleanup.
 
 ## Subtask plan
-- [x] 1. Config schema — add `logRetentionDays` and `logPayloads` to schema, defaults, and typed accessors
+- [x] 1. Config schema — add `logRetentionDays` and `logPayloads` to schema, defaults, and typed accessors (verify passed: check routine reports 0 critical findings; coverage gate failure is pre-existing on main, CI doesn't enforce it)
 - [ ] 2. FileLogger retention — prune old logs on init
 - [ ] 3. SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs
 - [ ] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true
