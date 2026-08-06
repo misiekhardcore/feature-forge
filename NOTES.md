@@ -2,7 +2,7 @@
 
 ## Current task
 
-- Subtask 4: Gate payload logging — only include full event data in debug logs when `logPayloads` is true
+- Subtask 5: Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState
 
 ## Task list / AC checklist
 
@@ -17,8 +17,8 @@
 - [x] 1. Config schema — add `logRetentionDays` and `logPayloads` to schema, defaults, and typed accessors (verify passed: check routine reports 0 critical findings; coverage gate failure is pre-existing on main, CI doesn't enforce it)
 - [x] 2. FileLogger retention — prune old logs on init
 - [x] 3. SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs (verify passed: review found 2 P2, all non-blocking; e2e 70/70 green)
-- [ ] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true (CURRENT)
-- [ ] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState
+- [x] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true (verify passed: CLI tsc gate clean; full suite 106 files / 2007 tests green; committed b2bda406)
+- [ ] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState (CURRENT)
 - [ ] 6. Tests — FileLogger retention, SharedStreamDir cleanup, config schema, AgentViewerState rotation
 
 ## Decisions made this session
@@ -31,7 +31,8 @@
 - `pruneOldLogs(retentionDays, currentFilePath?)` takes an optional current-file path instead of tracking it statically (why: plan's skip-current-file rule needs the active logger's path; explicit param avoids hidden mutable state)
 - Prune summary `logger.info` only fires when `deleted > 0` (why: unconditional logging on every `initialize()` would create the log file during construction, breaking the lazy-creation contract in tests when the configured logDir exists — the worktree `.forge/logs` symlinks to the live main log dir)
 - Shared-package coverage dropped lines 89.12→87.74 vs origin/main but the 90% gate already fails on main (why: new `pruneOldLogs` intentionally untested — tests deferred to subtask 6; CI doesn't enforce coverage)
+- RoutineTool debug progress entry now logs only `{ phase, message }` when `logPayloads` is false (default), full `{ ...event }` only when true (why: prevents MB-scale debug entries from agent-stream payloads — the 53GB log-growth root cause)
 
 ## Next action on resume
 
-- After subtask 4 passes, proceed to subtask 5 (cap stream files)
+- Start subtask 5 (cap stream files): read `packages/cli/src/orchestrator/progress/AgentViewerState.ts`, add line-count-based rotation for `.events.jsonl` writes
