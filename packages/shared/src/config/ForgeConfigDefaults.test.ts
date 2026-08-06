@@ -39,6 +39,14 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     expect(DEFAULT_FORGE_CONFIG.logDir).toBe(".forge/logs/");
   });
 
+  it("has default log retention of 7 days", () => {
+    expect(DEFAULT_FORGE_CONFIG.logRetentionDays).toBe(7);
+  });
+
+  it("has payload logging disabled by default", () => {
+    expect(DEFAULT_FORGE_CONFIG.logPayloads).toBe(false);
+  });
+
   it("has default empty worktreeSymlinks", () => {
     expect(DEFAULT_FORGE_CONFIG.worktreeSymlinks).toEqual([]);
   });
@@ -66,6 +74,8 @@ describe("DEFAULT_FORGE_CONFIG", () => {
       defaultsJson.workspaceProvider as WorkspaceProviderKind,
     );
     expect(DEFAULT_FORGE_CONFIG.logDir).toBe(defaultsJson.logDir);
+    expect(DEFAULT_FORGE_CONFIG.logRetentionDays).toBe(defaultsJson.logRetentionDays);
+    expect(DEFAULT_FORGE_CONFIG.logPayloads).toBe(defaultsJson.logPayloads);
     expect(DEFAULT_FORGE_CONFIG.worktreeSymlinks).toEqual(defaultsJson.worktreeSymlinks);
     expect(DEFAULT_FORGE_CONFIG.taskTimeoutMs).toBe(defaultsJson.taskTimeoutMs);
     expect(DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts).toBe(defaultsJson.jsonRetryMaxAttempts);
@@ -146,6 +156,16 @@ describe("resolveConfig", () => {
   it("overrides logDir", () => {
     const config = resolveConfig({ logDir: "/custom/logs" });
     expect(config.logDir).toBe("/custom/logs");
+  });
+
+  it("overrides logRetentionDays", () => {
+    const config = resolveConfig({ logRetentionDays: 14 });
+    expect(config.logRetentionDays).toBe(14);
+  });
+
+  it("overrides logPayloads", () => {
+    const config = resolveConfig({ logPayloads: true });
+    expect(config.logPayloads).toBe(true);
   });
 
   it("overrides worktreeSymlinks", () => {

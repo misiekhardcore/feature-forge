@@ -20,7 +20,9 @@
 
 ## Decisions made this session
 - Config fields placed after `logDir` in schema/defaults (logging-grouped); accessors after `getJsonRetryMaxAttempts()` per plan (why: keep logging config contiguous, accessor placement per plan spec)
-- `logRetentionDays` uses `Type.Integer({ minimum: 1 })` — 0 or negative retention rejected at validation (why: pruning window must be >= 1 day)
+- `logRetentionDays` uses `Type.Integer({ minimum: 0 })` — 0 means "never prune" (keep all logs); only negatives rejected at validation (why: 0 is a legitimate retention policy; avoids a separate disable-retention code path in subtask 2)
+- `logPayloads` schema carries an explicit `{ default: false }` so TypeBox `Value.Default()` and `resolveConfig()` behave consistently, matching the existing schema default pattern (why: verify feedback flagged the missing annotation)
+- Tests for the new fields shipped in subtask 1 (schema validation, accessor fallbacks, defaults-JSON mirror assertions) per verify feedback — not deferred to subtask 6
 
 ## Next action on resume
 - Proceed to subtask 2 (FileLogger retention): read `packages/shared/src/logging/FileLogger.ts`, prune `forge-*.log` files older than `logRetentionDays` on init
