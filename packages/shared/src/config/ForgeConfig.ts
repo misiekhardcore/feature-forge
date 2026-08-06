@@ -176,6 +176,22 @@ export class ForgeConfig {
   }
 
   /**
+   * Return the configured log retention window in days.
+   * Defaults to 7.
+   */
+  getLogRetentionDays(): number {
+    return this.getConfig().logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays;
+  }
+
+  /**
+   * Return whether full payload data is included in debug log entries.
+   * Defaults to false.
+   */
+  getLogPayloads(): boolean {
+    return this.getConfig().logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads;
+  }
+
+  /**
    * Return the configured spec directories (additional paths for flows
    * and agent specs).
    *

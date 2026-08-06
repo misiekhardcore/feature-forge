@@ -166,6 +166,12 @@ export const ForgeConfigSchema = Type.Object({
   /** Directory for log files. Defaults to `.forge/logs` relative to project root. */
   logDir: Type.Readonly(Type.Optional(Type.String())),
 
+  /** Number of days to retain log files before pruning. Defaults to 7. */
+  logRetentionDays: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1 }))),
+
+  /** When true, debug-level log entries include full payload data (LLM messages, tool results). When false, only structural fields are logged. Defaults to false. */
+  logPayloads: Type.Readonly(Type.Optional(Type.Boolean())),
+
   /** Additional relative paths to symlink into every agent worktree. */
   worktreeSymlinks: Type.Readonly(Type.Optional(Type.Array(Type.String()))),
 
