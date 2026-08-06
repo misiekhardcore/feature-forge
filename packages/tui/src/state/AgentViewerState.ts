@@ -24,7 +24,7 @@ const MAX_AGENT_EVENTS = 200;
  * Maximum lines per .events.jsonl file before it is rotated to
  * .events.1.jsonl and a fresh file is started (~250MB at 5KB/event).
  */
-const MAX_EVENTS_FILE_LINES = 50_000;
+export const MAX_EVENTS_FILE_LINES = 50_000;
 
 /**
  * Pure logic class managing agent viewer state.
@@ -292,12 +292,14 @@ export class AgentViewerState {
         const archivePath = eventsPath.replace(/\.events\.jsonl$/, ".events.1.jsonl");
         try {
           renameSync(eventsPath, archivePath);
+          this.eventsFileLineCounts.set(agentId, 0);
+          // Next appendFileSync will create a fresh .events.jsonl.
         } catch {
+          // Best-effort: keep appending to the current file and fall through
+          // to the .messages.jsonl persistence below. The counter stays at
+          // the cap so the next event retries rotation harmlessly.
           logger.warn("Event file rotation failed", { agentId, eventsPath });
-          return;
         }
-        this.eventsFileLineCounts.set(agentId, 0);
-        // Next appendFileSync will create a fresh .events.jsonl.
       }
 
       // Persist finalized message to .messages.jsonl (sync, small writes).
@@ -526,6 +528,10 @@ export class AgentViewerState {
           const agentId = entry.slice(0, -".events.jsonl".length);
           this.eventsFiles.set(agentId, filePath);
           ensureStaleEntry(agentId, filePath);
+          // Seed the session line counter from the existing file so rotation
+          // triggers immediately when a pre-session file already exceeds the
+          // cap. Archives (.events.1.jsonl) are read-only and not counted.
+          loadPromises.push(this.seedEventsFileLineCount(agentId, filePath));
           continue;
         }
       }
@@ -536,6 +542,33 @@ export class AgentViewerState {
     }
 
     await Promise.allSettled(loadPromises);
+  }
+
+  /**
+   * Count the lines in an existing .events.jsonl file and seed the session
+   * line counter, so rotation triggers immediately when a pre-session file
+   * already exceeds the cap. Best-effort: on failure the counter is left
+   * unseeded and in-session counting resumes from zero.
+   */
+  private async seedEventsFileLineCount(agentId: string, filePath: string): Promise<void> {
+    try {
+      let count = 0;
+      const rl = createInterface({
+        input: createReadStream(filePath, "utf-8"),
+        crlfDelay: Infinity,
+      });
+
+      for await (const _line of rl) {
+        count++;
+      }
+
+      this.eventsFileLineCounts.set(agentId, count);
+    } catch (err) {
+      logger.warn("seedEventsFileLineCount: failed to count events file lines", {
+        agentId,
+        error: String(err),
+      });
+    }
   }
 
   /**

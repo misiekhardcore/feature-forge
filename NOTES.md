@@ -2,7 +2,7 @@
 
 ## Current task
 
-- Subtask 6: Ship tests for retention, rotation, and exit cleanup (subtask 5 code complete)
+- Subtask 5 iteration 2: apply review feedback to `.events.jsonl` rotation (fall-through on rename failure, counter reset inside try, prepopulate line-count seeding) — code + committed unit tests done, full validation pending
 
 ## Task list / AC checklist
 
@@ -18,8 +18,23 @@
 - [x] 2. FileLogger retention — prune old logs on init
 - [x] 3. SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs (verify passed: review found 2 P2, all non-blocking; e2e 70/70 green)
 - [x] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true (verify feedback resolved: config read moved into the progress handler + spy-based payload-gating tests shipped; CLI tsc gate clean; full suite green)
-- [x] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState (build passed: tsc gate clean, full suite 106 files/2009 tests green, 50k-push rotation smoke test verified archive=50k lines + fresh file=1 line)
-- [ ] 6. Tests — FileLogger retention, SharedStreamDir cleanup, config schema, AgentViewerState rotation (RoutineTool payload-gating spy test shipped early in subtask 4 per review feedback)
+- [x] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState (build passed: tsc gate clean, full suite 106 files/2009 tests green, 50k-push rotation smoke test verified archive=50k lines + fresh file=1 line; iteration 2: review feedback applied — rename failure now falls through to `.messages.jsonl` persistence instead of early-returning, counter reset moved inside try after `renameSync` succeeds, `prepopulateStreamFiles` seeds `eventsFileLineCounts` from the actual line count of an existing `.events.jsonl`; committed unit tests shipped for rotate-at-cap, archive-created, fresh-file-start, stale-archive-overwrite, rename-failure fall-through)
+- [ ] 6. Tests — FileLogger retention, SharedStreamDir cleanup, config schema, AgentViewerState rotation (RoutineTool payload-gating spy test shipped early in subtask 4 per review feedback; rotation unit tests shipped in subtask 5 iteration 2 per review feedback; dispose-cleanup + e2e rotation remain here)
+
+## AC5 test case enumeration (subtask 6 deferral contract)
+
+Shipped as committed unit tests in subtask 5 (iteration 2):
+
+- rotate-at-cap — pre-session `.events.jsonl` seeded at the cap; one push crosses it and triggers rotation
+- archive-created — `.events.1.jsonl` exists with cap + 1 lines (includes the triggering event, which is appended before rotating)
+- fresh-file-start — next append recreates `.events.jsonl` with 1 line
+- stale-archive-overwrite — POSIX rename replaces a pre-existing archive
+- rename-failure fall-through — `message_end` still persisted to `.messages.jsonl` when the archive rename fails
+
+Deferred to subtask 6:
+
+- dispose-cleanup — `eventsFileLineCounts` cleared (extend the existing dispose test)
+- e2e rotation through CLI — force rotation with a small cap via config, asserting the AC2 path end-to-end
 
 ## Decisions made this session
 
@@ -36,7 +51,11 @@
 - `AgentViewerState` now rotates `.events.jsonl` at 50k lines: renames to `.events.1.jsonl` (POSIX rename overwrites a stale archive) and starts fresh; counters live in a per-agent `eventsFileLineCounts` map, reset on rotation and cleared in `dispose()` (why: keeps current-file count session-local, matching the other per-agent maps)
 - Rotation is best-effort: `renameSync` failure logs a warning and keeps appending to the current file (why: never lose event persistence; a too-big file is acceptable over data loss)
 - `prepopulateStreamFiles` ignores `.events.1.jsonl` archives — only the current file is line-counted (why: archives are read-only; retention pruning in subtasks 2/3 cleans them)
+- Rotation rename failure no longer early-returns: it falls through to the `.messages.jsonl` persistence logic, and the counter stays at the cap for a harmless retry on the next event (why: review feedback — a failed rename must not drop a finalized `message_end` from persistent storage)
+- `eventsFileLineCounts.set(agentId, 0)` moved inside the `try` block immediately after `renameSync` succeeds (why: review feedback — the counter reset is a consequence of successful rotation, not coupled to the absence of an early return)
+- `prepopulateStreamFiles` seeds `eventsFileLineCounts` via a streaming line count of the existing `.events.jsonl` (why: review feedback — a pre-session file already over the cap must rotate on the next event, not after another 50k appends)
+- `MAX_EVENTS_FILE_LINES` exported from `AgentViewerState` (why: committed tests assert against the real cap instead of duplicating 50_000)
 
 ## Next action on resume
 
-- Start subtask 6 (tests): add AgentViewerState rotation tests (push 50k+ events via a lowered threshold or stub, assert `.events.1.jsonl` archive + fresh current file), FileLogger retention tests for `pruneOldLogs`, SharedStreamDir cleanup/exit-hook tests, config schema tests for `logRetentionDays`/`logPayloads` (accessor tests already shipped in subtask 1)
+- Finish subtask 5 iteration 2: run the full validation loop (`npm run fix`, `npm run lint`, `npm run typecheck`, `npm test` from repo root), commit the review-feedback fixes + rotation unit tests, then start subtask 6 with the AC5 enumeration above (dispose-cleanup unit test, e2e rotation via small-cap config, FileLogger retention, SharedStreamDir cleanup)

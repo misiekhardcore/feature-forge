@@ -1,11 +1,11 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AgentViewerState } from "./AgentViewerState";
+import { AgentViewerState, MAX_EVENTS_FILE_LINES } from "./AgentViewerState";
 
 function makeTempDir(): string {
   return mkdtempSync(join(tmpdir(), "agent-viewer-state-test-"));
@@ -384,6 +384,61 @@ describe("AgentViewerState", () => {
       const events = await state.loadConversationEvents("agent-x", 10);
       // Should have at least the 5 disk events
       expect(events.length).toBeGreaterThanOrEqual(5);
+    });
+
+    it("rotates .events.jsonl to .events.1.jsonl at the line cap and starts a fresh file", async () => {
+      // Pre-session .events.jsonl at exactly the cap, plus a stale archive
+      // that the POSIX rename should overwrite.
+      const eventsPath = join(tmpDir, "agent-x.events.jsonl");
+      const lines = new Array(MAX_EVENTS_FILE_LINES)
+        .fill(null)
+        .map(() => JSON.stringify({ type: "agent_start" }));
+      writeFileSync(eventsPath, lines.join("\n") + "\n", "utf-8");
+      const archivePath = join(tmpDir, "agent-x.events.1.jsonl");
+      writeFileSync(archivePath, "stale\n", "utf-8");
+
+      state.setStreamDir(tmpDir);
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // Arithmetic: seeded count 50_000. Push 1 appends the event first, so
+      // the count reaches 50_001 and the archive rotates with cap + 1 lines
+      // including the triggering event. Push 2 creates the fresh current file.
+      state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
+
+      const archiveContent = readFileSync(archivePath, "utf-8");
+      expect(archiveContent.split("\n").filter(Boolean)).toHaveLength(MAX_EVENTS_FILE_LINES + 1);
+      expect(archiveContent.split("\n")[0]).toBe(JSON.stringify({ type: "agent_start" }));
+      // The stale archive was overwritten, not appended to.
+      expect(archiveContent).not.toContain("stale");
+
+      state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
+      const currentContent = readFileSync(eventsPath, "utf-8");
+      expect(currentContent.trim()).toBe(JSON.stringify({ type: "agent_start" }));
+    });
+
+    it("falls through to .messages.jsonl persistence when rotation rename fails", async () => {
+      // Block the archive path with a directory so renameSync fails.
+      mkdirSync(join(tmpDir, "agent-x.events.1.jsonl"));
+
+      const eventsPath = join(tmpDir, "agent-x.events.jsonl");
+      const lines = new Array(MAX_EVENTS_FILE_LINES)
+        .fill(null)
+        .map(() => JSON.stringify({ type: "agent_start" }));
+      writeFileSync(eventsPath, lines.join("\n") + "\n", "utf-8");
+
+      state.setStreamDir(tmpDir);
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // Push appends first, then the rotation rename fails; the method must
+      // fall through so the finalized message is still persisted.
+      state.pushStreamEvent("agent-x", makeMessageEndEvent("survives rotation"), defaultFormat);
+
+      const messagesPath = join(tmpDir, "agent-x.messages.jsonl");
+      expect(readFileSync(messagesPath, "utf-8")).toContain("survives rotation");
+
+      // The current events file still grew past the cap (best-effort append).
+      const currentContent = readFileSync(eventsPath, "utf-8");
+      expect(currentContent.split("\n").filter(Boolean)).toHaveLength(MAX_EVENTS_FILE_LINES + 1);
     });
   });
 
