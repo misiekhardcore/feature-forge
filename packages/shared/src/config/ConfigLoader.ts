@@ -407,6 +407,8 @@ export class ConfigLoader {
       agents,
       defaultAgent: decoded.defaultAgent,
       logDir: decoded.logDir,
+      logRetentionDays: decoded.logRetentionDays,
+      logPayloads: decoded.logPayloads,
       worktreeSymlinks: decoded.worktreeSymlinks,
       taskTimeoutMs: decoded.taskTimeoutMs,
       jsonRetryMaxAttempts: decoded.jsonRetryMaxAttempts,
