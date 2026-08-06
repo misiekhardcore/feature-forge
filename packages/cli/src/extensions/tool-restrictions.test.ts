@@ -125,6 +125,39 @@ describe("activateToolRestrictions", () => {
       });
     });
 
+    it("matches gh commands with slashes in URL paths", () => {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["gh *"] }, PROJECT_ROOT);
+
+      const handler = pi.getHandler("tool_call")!;
+
+      // gh api commands use URL paths with slashes — `*` must match across `/`
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "gh api repos/misiekhardcore/feature-forge/pulls/204/comments",
+          }),
+        ),
+      ).toBeUndefined();
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command:
+              "gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id}}}' -F id=abc123",
+          }),
+        ),
+      ).toBeUndefined();
+      expect(
+        handler(makeToolCallEvent("bash", { command: "gh pr view 204 --json number,title" })),
+      ).toBeUndefined();
+
+      // Unrelated command still blocked
+      expect(handler(makeToolCallEvent("bash", { command: "rm -rf /" }))).toEqual({
+        block: true,
+        reason: expect.stringContaining("rm -rf /"),
+      });
+    });
+
     it("does not resolve bash patterns against projectRoot", () => {
       const pi = makeMockPiWithHandlers();
       activateToolRestrictions(pi, { bash: ["git *"] }, PROJECT_ROOT);
