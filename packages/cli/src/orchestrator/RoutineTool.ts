@@ -177,8 +177,6 @@ export class RoutineTool
       params: Object.keys(params),
     });
 
-    const logPayloads = ForgeConfig.getInstance().getLogPayloads();
-
     const prompt = params["prompt"] ?? params["_prompt"] ?? "";
     const routineParams: Record<string, string> = {};
     for (const param of this.routineDef.params) {
@@ -251,8 +249,12 @@ export class RoutineTool
         });
     }
 
+    // Read lazily on the first progress event — the flag is only needed when
+    // a debug entry is actually written, so avoid config access otherwise.
+    let logPayloads: boolean | undefined;
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
+      logPayloads ??= ForgeConfig.getInstance().getLogPayloads();
       logger.debug(
         "RoutineTool progress",
         logPayloads ? { ...event } : { phase: event.phase, message: event.message },
