@@ -40,6 +40,52 @@ function bashGlobMatch(value: string, pattern: string): boolean {
 }
 
 /**
+ * Split a bash command into segments on chain/pipe operators.
+ *
+ * Chained commands like `cd /proj && gh pr view | cat` don't match
+ * a single prefix pattern because each segment starts with a different
+ * command. This splits on `&&`, `||`, `;`, and `|` (with surrounding
+ * whitespace), then checks that every segment is covered by the
+ * allowlist. Pipes inside quoted strings (e.g. `echo "a|b"`) are
+ * preserved because there is no whitespace around them.
+ */
+function splitCommand(command: string): string[] {
+  return command
+    .split(/\s*(?:&&|\|\||;)\s*|\s+\|\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * Check a chained bash command against the allowlist patterns.
+ *
+ * Every segment (split by `&&`, `||`, `;`, `|`) must match at least
+ * one positive pattern and no negation pattern. This way
+ * `cd /proj && gh pr view` passes when both `bash:cd *` and
+ * `bash:gh *` are in the allowlist.
+ */
+function isBashCommandAllowed(command: string, patterns: readonly string[]): boolean {
+  const segments = splitCommand(command);
+
+  // Separate negation and positive patterns once
+  const negations: string[] = [];
+  const positives: string[] = [];
+  for (const p of patterns) {
+    if (p.startsWith("!")) {
+      negations.push(p.slice(1));
+    } else {
+      positives.push(p);
+    }
+  }
+
+  // Every segment must pass: at least one positive match, no negation match
+  return segments.every((segment) => {
+    if (negations.some((n) => bashGlobMatch(segment, n))) return false;
+    return positives.some((p) => bashGlobMatch(segment, p));
+  });
+}
+
+/**
  * Activate per-tool pattern restriction for the current session.
  *
  * Registers a `tool_call` interceptor that blocks tool calls whose
@@ -107,8 +153,9 @@ export function activateToolRestrictions(
       ? patterns.map((p) => resolvePattern(p, projectRoot))
       : patterns;
 
-    const matchFn = isBashTool ? bashGlobMatch : minimatchMatch;
-    const allowed = isValueAllowed(value, resolvedPatterns, matchFn);
+    const allowed = isBashTool
+      ? isBashCommandAllowed(value, resolvedPatterns)
+      : isValueAllowed(value, resolvedPatterns, minimatchMatch);
 
     if (!allowed) {
       return {

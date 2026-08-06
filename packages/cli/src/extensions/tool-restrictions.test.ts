@@ -179,6 +179,100 @@ describe("activateToolRestrictions", () => {
         reason: expect.stringContaining("gh pr view 204"),
       });
     });
+    it("allows chained commands when every segment matches an allowed pattern", () => {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(
+        pi,
+        { bash: ["cd *", "gh *", "git *", "cat *", "grep *", "echo *", "npm *"] },
+        PROJECT_ROOT,
+      );
+
+      const handler = pi.getHandler("tool_call")!;
+
+      // cd with slashes + gh — each segment matches its own prefix
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "cd /home/user/proj && gh pr view 204",
+          }),
+        ),
+      ).toBeUndefined();
+
+      // Pipe chaining
+      expect(
+        handler(makeToolCallEvent("bash", { command: "cat file.txt | grep TODO" })),
+      ).toBeUndefined();
+
+      // Semicolon chaining
+      expect(
+        handler(makeToolCallEvent("bash", { command: "cd /tmp; gh pr diff 204" })),
+      ).toBeUndefined();
+
+      // Pipe inside quoted string should not cause a split
+      expect(
+        handler(makeToolCallEvent("bash", { command: 'echo "a|b" && gh pr view' })),
+      ).toBeUndefined();
+    });
+
+    it("blocks chained commands when any segment is not in the allowlist", () => {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["gh *"] }, PROJECT_ROOT);
+
+      const handler = pi.getHandler("tool_call")!;
+
+      // rm segment is not in the allowlist
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "gh pr view 204 && rm -rf /",
+          }),
+        ),
+      ).toEqual({
+        block: true,
+        reason: expect.stringContaining("gh pr view 204 && rm -rf /"),
+      });
+
+      // cd segment is not in the allowlist (only gh is)
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "cd /proj && gh pr view 204",
+          }),
+        ),
+      ).toEqual({
+        block: true,
+        reason: expect.stringContaining("cd /proj && gh pr view 204"),
+      });
+    });
+
+    it("negation patterns apply to individual segments in chained commands", () => {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["cd *", "git *", "!git push --force"] }, PROJECT_ROOT);
+
+      const handler = pi.getHandler("tool_call")!;
+
+      // cd segment is allowed, but git push --force matches negation
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "cd /proj && git push --force",
+          }),
+        ),
+      ).toEqual({
+        block: true,
+        reason: expect.stringContaining("cd /proj && git push --force"),
+      });
+
+      // Same cd segment with a non-negated git command passes
+      expect(
+        handler(
+          makeToolCallEvent("bash", {
+            command: "cd /proj && git status",
+          }),
+        ),
+      ).toBeUndefined();
+    });
+
     it("does not resolve bash patterns against projectRoot", () => {
       const pi = makeMockPiWithHandlers();
       activateToolRestrictions(pi, { bash: ["git *"] }, PROJECT_ROOT);
