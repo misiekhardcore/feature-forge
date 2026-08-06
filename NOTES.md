@@ -2,7 +2,7 @@
 
 ## Current task
 
-- Subtask 5 iteration 2: apply review feedback to `.events.jsonl` rotation (fall-through on rename failure, counter reset inside try, prepopulate line-count seeding) — code + committed unit tests done, full validation pending
+- Subtask 6 complete — commit tests and hand off to verify
 
 ## Task list / AC checklist
 
@@ -10,7 +10,7 @@
 - [ ] AC2: Cap or rotate oversized stream files (`.events.jsonl`) instead of append-forever.
 - [ ] AC3: Add a `cleanup()` / exit hook for `SharedStreamDir` so directories are removed when the owning process ends, and sweep empty dirs on startup.
 - [ ] AC4: Stop double-writing full LLM payloads at debug level (or gate payload logging behind a dedicated config flag, keeping debug entries structural only).
-- [ ] AC5: Ship tests covering retention, rotation, and exit cleanup.
+- [x] AC5: Ship tests covering retention, rotation, and exit cleanup.
 
 ## Subtask plan
 
@@ -19,7 +19,7 @@
 - [x] 3. SharedStreamDir cleanup — static cleanup(), sweep on get(), remove old dirs (verify passed: review found 2 P2, all non-blocking; e2e 70/70 green)
 - [x] 4. Gate payload logging — only include full event data in debug logs when `logPayloads` is true (verify feedback resolved: config read moved into the progress handler + spy-based payload-gating tests shipped; CLI tsc gate clean; full suite green)
 - [x] 5. Cap stream files — line-count-based rotation for `.events.jsonl` in AgentViewerState (build passed: tsc gate clean, full suite 106 files/2009 tests green, 50k-push rotation smoke test verified archive=50k lines + fresh file=1 line; iteration 2: review feedback applied — rename failure now falls through to `.messages.jsonl` persistence instead of early-returning, counter reset moved inside try after `renameSync` succeeds, `prepopulateStreamFiles` seeds `eventsFileLineCounts` from the actual line count of an existing `.events.jsonl`; committed unit tests shipped for rotate-at-cap, archive-created, fresh-file-start, stale-archive-overwrite, rename-failure fall-through)
-- [ ] 6. Tests — FileLogger retention, SharedStreamDir cleanup, config schema, AgentViewerState rotation (RoutineTool payload-gating spy test shipped early in subtask 4 per review feedback; rotation unit tests shipped in subtask 5 iteration 2 per review feedback; dispose-cleanup + e2e rotation remain here)
+- [x] 6. Tests — FileLogger retention, SharedStreamDir cleanup, config schema, AgentViewerState rotation (RoutineTool payload-gating spy test shipped early in subtask 4 per review feedback; rotation unit tests shipped in subtask 5 iteration 2 per review feedback; dispose-cleanup unit test + FileLogger prune suite + SharedStreamDir cleanup/sweep/prune suite shipped here; e2e rotation intentionally NOT shipped per subtask 6 plan non-goal — unit tests deemed sufficient for AC5)
 
 ## AC5 test case enumeration (subtask 6 deferral contract)
 
@@ -33,8 +33,8 @@ Shipped as committed unit tests in subtask 5 (iteration 2):
 
 Deferred to subtask 6:
 
-- dispose-cleanup — `eventsFileLineCounts` cleared (extend the existing dispose test)
-- e2e rotation through CLI — force rotation with a small cap via config, asserting the AC2 path end-to-end
+- dispose-cleanup — `eventsFileLineCounts` cleared (extend the existing dispose test) — SHIPPED: existing dispose test extended with counter assertion + new internal-maps test
+- e2e rotation through CLI — force rotation with a small cap via config, asserting the AC2 path end-to-end — NOT SHIPPED: subtask 6 plan explicitly lists e2e as a non-goal (unit tests sufficient for AC5)
 
 ## Decisions made this session
 
@@ -55,7 +55,12 @@ Deferred to subtask 6:
 - `eventsFileLineCounts.set(agentId, 0)` moved inside the `try` block immediately after `renameSync` succeeds (why: review feedback — the counter reset is a consequence of successful rotation, not coupled to the absence of an early return)
 - `prepopulateStreamFiles` seeds `eventsFileLineCounts` via a streaming line count of the existing `.events.jsonl` (why: review feedback — a pre-session file already over the cap must rotate on the next event, not after another 50k appends)
 - `MAX_EVENTS_FILE_LINES` exported from `AgentViewerState` (why: committed tests assert against the real cap instead of duplicating 50_000)
+- `pruneOldLogs` retention suite added to `FileLogger.test.ts` (8 cases: retention<=0 skip, old-file delete, within-window keep, subdirectory skip, non-.log skip, current-file skip, stat-failure survival, missing-logDir no-throw) — config mocked via `vi.spyOn(ForgeConfig, "getInstance")` pointing `getLogDir()` at a temp dir so pruning never touches the real `.forge/logs` symlink target (why: worktree `.forge/logs` symlinks to shared logs; real-dir pruning must stay out of tests)
+- Stat-failure test uses chmod on the file (0000) + logDir (0555, restored in finally) so the unlink EACCES path genuinely exercises the catch (why: node:fs builtins cannot be spied in this ESM vitest setup — verified `Cannot spy on export "statSync". Module namespace is not configurable in ESM`)
+- `sharedStreamDir.test.ts` created (10 cases: get singleton creation/reuse, cleanup removes + resets, cleanup idempotent, cleanup survives rmSync failure via parent-is-file ENOTDIR path set through private static cast, sweep empty dirs, sweep keeps non-empty, prune old dirs, prune skips current singleton, retentionDays=0 disables pruning) — singleton reset via `cleanup()` + `vi.restoreAllMocks()` in afterEach to isolate tests
+- AgentViewerState dispose suite extended: existing test now asserts `eventsFileLineCounts.size === 0`; new test pushes 2 events with streamDir set, verifies the counter reached 2, then asserts all 8 internal maps + streamDir cleared (why: private members accessed via type cast — no production API added)
+- Full-suite test count grew 2011 → 2030 (+19: 8 FileLogger, 10 SharedStreamDir, 1 AgentViewerState)
 
 ## Next action on resume
 
-- Finish subtask 5 iteration 2: run the full validation loop (`npm run fix`, `npm run lint`, `npm run typecheck`, `npm test` from repo root), commit the review-feedback fixes + rotation unit tests, then start subtask 6 with the AC5 enumeration above (dispose-cleanup unit test, e2e rotation via small-cap config, FileLogger retention, SharedStreamDir cleanup)
+- Subtask 6 built: all validation gates green (`npm run fix`, `npm run lint`, `npm run typecheck`, `npm test` — 107 files/2030 tests), coverage improved vs baseline (branches 86.74→87.27, lines 92.5→92.87) though the global 90% branch gate still fails pre-existing on main (CI doesn't enforce). Commit the three test files + NOTES.md, then hand off to verify.

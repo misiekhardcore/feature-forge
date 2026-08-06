@@ -246,6 +246,47 @@ describe("AgentViewerState", () => {
       expect(state.getConversationMessages("builder")).toEqual([]);
       expect(state.getConversation("builder")).toEqual([]);
       expect(state.lastStreamLine).toBe("");
+      // The per-agent events file line counter must be reset too.
+      const internal = state as unknown as { eventsFileLineCounts: Map<string, number> };
+      expect(internal.eventsFileLineCounts.size).toBe(0);
+    });
+
+    it("clears all internal maps including eventsFileLineCounts after persistence", () => {
+      const tmpDir = makeTempDir();
+      try {
+        state.setStreamDir(tmpDir);
+        state.pushStreamEvent("builder", makeAgentStartEvent(), defaultFormat);
+        state.pushStreamEvent("builder", makeMessageEndEvent("final"), defaultFormat);
+
+        const internal = state as unknown as {
+          agents: Map<string, unknown>;
+          lastLines: Map<string, unknown>;
+          agentEvents: Map<string, unknown>;
+          agentMessages: Map<string, unknown>;
+          eventsFileLineCounts: Map<string, number>;
+          streamFiles: Map<string, unknown>;
+          eventsFiles: Map<string, unknown>;
+          messagesFiles: Map<string, unknown>;
+          streamDir?: string;
+        };
+
+        // Persistence populated the line counter before dispose.
+        expect(internal.eventsFileLineCounts.get("builder")).toBe(2);
+
+        state.dispose();
+
+        expect(internal.agents.size).toBe(0);
+        expect(internal.lastLines.size).toBe(0);
+        expect(internal.agentEvents.size).toBe(0);
+        expect(internal.agentMessages.size).toBe(0);
+        expect(internal.eventsFileLineCounts.size).toBe(0);
+        expect(internal.streamFiles.size).toBe(0);
+        expect(internal.eventsFiles.size).toBe(0);
+        expect(internal.messagesFiles.size).toBe(0);
+        expect(internal.streamDir).toBeUndefined();
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 
