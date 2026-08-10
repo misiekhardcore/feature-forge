@@ -96,6 +96,23 @@ describe("ShellStepExecutor", () => {
       expect(result.results.get("sh1")!.raw).toBe("pr created: https://github.com/...");
     });
 
+    it("runs in the process working directory when cwd is omitted", async () => {
+      mockExecSuccess("ok");
+      const executor = new ShellStepExecutor();
+
+      const instruction: ShellInstruction = {
+        type: "shell",
+        id: "sh-nocwd",
+        command: "echo hi",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      expect(execFileRaw).toHaveBeenCalledTimes(1);
+      expect(execFileRaw.mock.calls[0][2].cwd).toBeUndefined();
+      expect(result.results.get("sh-nocwd")!.parsed!.passed).toBe(true);
+    });
+
     it("resolves placeholders in command and cwd", async () => {
       mockExecSuccess("done");
       const executor = new ShellStepExecutor();

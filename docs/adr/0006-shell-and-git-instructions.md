@@ -91,6 +91,45 @@ PR-creation pipeline.
 - `FlowLoader.ts`: `validateRoutineSteps` validates git/shell instructions
   structurally (TypeBox schema) and semantically (workspace refs in `cwd`).
 
+## Update (2026-08-10): shell `cwd` becomes optional
+
+### Context
+
+The `resolve-pr-feedback` flow's `fetch_pr_comments` and
+`disposition_comments` routines shell out to `gh` for repo-independent,
+API-only work (`gh pr view --repo <owner>/<repo>`, `gh api graphql` with
+explicit `owner`/`repo` variables). They never touch the worktree, yet their
+shell steps declared `cwd: "{{workspace}}"` — a flow-level coupling that
+forced the orchestrator to provision a workspace (`set_flow_param(key="workspace", ...)`)
+**before** fetching comments. When the protocol was skipped, the cwd resolved
+to the literal `{{workspace}}` and `execFile` failed with the misleading
+`spawn /bin/sh ENOENT` (Node attributes a missing cwd to the executable).
+
+### Decision
+
+- `ShellInstructionSchema.cwd` becomes `Type.Optional(...)`. A shell step
+  without `cwd` runs in the process working directory. Git instructions keep
+  `cwd` required — they are meaningless outside a worktree.
+- The `resolve-pr-feedback` flow drops `cwd` from its four API-only shell
+  steps and makes the one repo-dependent command explicit
+  (`gh pr view {{pr}} --repo misiekhardcore/feature-forge`). The routines no
+  longer read `{{workspace}}` from session state; `apply_feedback` still
+  requires the `workspace` param for `run_build_loop`.
+- `ShellStepExecutor` validates a provided cwd before spawning (unresolved
+  placeholder, empty, missing, or non-directory) and hard-fails with an
+  actionable message (ADR 0008) instead of the spawn ENOENT.
+
+### Consequences
+
+- Flow authors can declare shell steps without `cwd` for repo-independent
+  commands; steps that operate on a worktree should keep `cwd` (required
+  when present: `Type.String({ minLength: 1 })`).
+- `flow-schema.json` regenerated; `FlowInstruction.test.ts` and
+  `flow-roundtrip.test.ts` updated for the optional field.
+- The 0006 trade-off note below is revised: `cwd` is now optional for shell
+  instructions specifically because some shell work is meaningful without a
+  working directory.
+
 ## Trade-offs
 
 - Adding two instruction types to the union increases the discriminator
@@ -104,7 +143,10 @@ PR-creation pipeline.
 - The `cwd` field is required rather than optional because both git and
   shell operations are meaningless without a working directory. This is
   stricter than the `agent` instruction's optional `workingDir` but
-  appropriate for deterministic infrastructure steps.
+  appropriate for deterministic infrastructure steps. **Revised 2026-08-10:**
+  `git` keeps `cwd` required; `shell` `cwd` is optional (defaults to the
+  process working directory) because repo-independent commands (explicit
+  `gh api` calls) are meaningful without one.
 
 ## Status of related ADRs
 

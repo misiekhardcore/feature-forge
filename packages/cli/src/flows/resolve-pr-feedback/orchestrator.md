@@ -81,8 +81,11 @@ resolve-pr-feedback convention:
    The head branch must already exist on the remote; if it does not, stop and
    report — do not create a new branch.
 2. Capture the returned workspace path and store it via
-   `set_flow_param(key="workspace", value=<path>)`. The `fetch_pr_comments` and
-   `disposition_comments` routines read `{{workspace}}` from session state.
+   `set_flow_param(key="workspace", value=<path>)`. The `apply_feedback`
+   routine passes it to `run_build_loop`; `fetch_pr_comments` and
+   `disposition_comments` are standalone and do NOT need it (they call `gh`
+   with an explicit `--repo misiekhardcore/feature-forge` and run in the
+   current directory).
 3. Create `<workspace>/NOTES.md` per the notes-md skill: PR identity, the
    comment inventory, and the triage ledger.
 

@@ -142,11 +142,11 @@ function collectFromRoutines(routines: FlowDefinition["routines"]): {
   return { agentTasks, loops, specRefs };
 }
 
-/** Collect every shell step's `command` and `cwd` across routines (recursive). */
+/** Collect every shell step's `command` and optional `cwd` across routines (recursive). */
 function collectShellSteps(
   instructions: FlowInstruction[],
-  steps: Array<{ command: string; cwd: string }> = [],
-): Array<{ command: string; cwd: string }> {
+  steps: Array<{ command: string; cwd: string | undefined }> = [],
+): Array<{ command: string; cwd: string | undefined }> {
   for (const instr of instructions) {
     if (instr.type === "shell") {
       steps.push({ command: instr.command, cwd: instr.cwd });
@@ -493,7 +493,7 @@ describe("flow round-trip", () => {
         ]),
       });
 
-      const shellSteps: Array<{ command: string; cwd: string }> = [];
+      const shellSteps: Array<{ command: string; cwd: string | undefined }> = [];
       for (const routine of resolvePrFlow.routines) {
         collectShellSteps(routine.steps, shellSteps);
       }
@@ -505,11 +505,13 @@ describe("flow round-trip", () => {
           resolvedCommand,
           `unresolved placeholder in shell command: "${command.slice(0, 80)}..."`,
         ).not.toMatch(/\{\{/);
-        const resolvedCwd = ctx.resolve(cwd);
-        expect(
-          resolvedCwd,
-          `unresolved placeholder in shell cwd: "${cwd.slice(0, 80)}..."`,
-        ).not.toMatch(/\{\{/);
+        if (cwd !== undefined) {
+          const resolvedCwd = ctx.resolve(cwd);
+          expect(
+            resolvedCwd,
+            `unresolved placeholder in shell cwd: "${cwd.slice(0, 80)}..."`,
+          ).not.toMatch(/\{\{/);
+        }
       }
     });
 

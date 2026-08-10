@@ -41,8 +41,14 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
     signal?.throwIfAborted();
 
     const resolvedCommand = context.resolve(instruction.command);
-    const resolvedCwd = context.resolve(instruction.cwd);
-    ShellStepExecutor.assertCwd(instruction.id, resolvedCwd);
+    // cwd is optional: repo-independent commands (e.g. `gh api graphql` with
+    // explicit owner/repo) run in the process working directory. When
+    // provided, validate it before spawning — see assertCwd.
+    const resolvedCwd =
+      instruction.cwd === undefined ? undefined : context.resolve(instruction.cwd);
+    if (resolvedCwd !== undefined) {
+      ShellStepExecutor.assertCwd(instruction.id, resolvedCwd);
+    }
 
     logger.info("Executing shell step", {
       instructionId: instruction.id,

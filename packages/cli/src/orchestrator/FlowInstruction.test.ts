@@ -379,9 +379,9 @@ describe("ShellInstructionSchema", () => {
     expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
   });
 
-  it("rejects missing cwd", () => {
-    const invalid = { type: "shell", id: "s1", command: "echo hello" };
-    expect(Value.Check(ShellInstructionSchema, invalid)).toBe(false);
+  it("accepts shell instruction without cwd (optional)", () => {
+    const valid = { type: "shell", id: "s1", command: "echo hello" };
+    expect(Value.Check(ShellInstructionSchema, valid)).toBe(true);
   });
 
   it("validates a shell instruction with failFast", () => {

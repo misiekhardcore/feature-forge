@@ -405,7 +405,7 @@
     },
     "ShellInstruction": {
       "type": "object",
-      "required": ["id", "type", "command", "cwd"],
+      "required": ["id", "type", "command"],
       "properties": {
         "id": {
           "type": "string",
