@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { statSync } from "node:fs";
 import { promisify } from "node:util";
 
 import { logger } from "@feature-forge/shared";
@@ -41,6 +42,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
 
     const resolvedCommand = context.resolve(instruction.command);
     const resolvedCwd = context.resolve(instruction.cwd);
+    ShellStepExecutor.assertCwd(instruction.id, resolvedCwd);
 
     logger.info("Executing shell step", {
       instructionId: instruction.id,
@@ -121,6 +123,38 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       };
 
       return context.withResult(instruction.id, failureResult);
+    }
+  }
+
+  /**
+   * Validate the resolved working directory before spawning the shell.
+   *
+   * `execFile` reports a misleading `spawn /bin/sh ENOENT` when the cwd is
+   * unusable — an unresolved `{{placeholder}}` (e.g. `{{workspace}}` before
+   * `set_flow_param` was called) or a stale/missing path fails at spawn with
+   * an error that points at the binary instead of the real cause. Fail with
+   * an actionable message instead; an unusable cwd is a routine-protocol
+   * error, not a command failure, so it always hard-fails (ADR 0008).
+   */
+  private static assertCwd(instructionId: string, cwd: string): void {
+    const unresolved = cwd.match(/\{\{([^}]+)\}\}/);
+    if (unresolved) {
+      throw new Error(
+        `Shell step "${instructionId}": working directory "${cwd}" contains an unresolved ` +
+          `placeholder "${unresolved[0]}". Pass the routine parameter or set it first, e.g. ` +
+          `set_flow_param(key="${unresolved[1].trim()}", value=<worktree path>) ` +
+          `before running this routine.`,
+      );
+    }
+    if (cwd.trim() === "") {
+      throw new Error(
+        `Shell step "${instructionId}": working directory is empty - provide the cwd parameter.`,
+      );
+    }
+    if (!statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) {
+      throw new Error(
+        `Shell step "${instructionId}": working directory "${cwd}" does not exist or is not a directory.`,
+      );
     }
   }
 

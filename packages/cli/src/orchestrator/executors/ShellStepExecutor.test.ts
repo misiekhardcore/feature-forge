@@ -1,3 +1,7 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { execFileRaw } = vi.hoisted(() => ({
@@ -62,8 +66,11 @@ function mockExecFailure(message: string, stderr?: string): void {
 // ── Tests ────────────────────────────────────────────────────
 
 describe("ShellStepExecutor", () => {
+  let wsDir: string;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    wsDir = fs.mkdtempSync(path.join(os.tmpdir(), "ff-shell-"));
   });
 
   describe("execute", () => {
@@ -75,7 +82,7 @@ describe("ShellStepExecutor", () => {
         type: "shell",
         id: "sh1",
         command: "gh pr create --title 'fix'",
-        cwd: "/tmp/ws",
+        cwd: wsDir,
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
@@ -83,7 +90,7 @@ describe("ShellStepExecutor", () => {
       expect(execFileRaw).toHaveBeenCalledTimes(1);
       expect(execFileRaw.mock.calls[0][0]).toBe("/bin/sh");
       expect(execFileRaw.mock.calls[0][1]).toEqual(["-c", "gh pr create --title 'fix'"]);
-      expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
+      expect(execFileRaw.mock.calls[0][2].cwd).toBe(wsDir);
 
       expect(result.results.get("sh1")!.parsed!.passed).toBe(true);
       expect(result.results.get("sh1")!.raw).toBe("pr created: https://github.com/...");
@@ -102,12 +109,12 @@ describe("ShellStepExecutor", () => {
       const context = new FlowContext({
         results: new Map(),
         prompt: "hello world",
-        workspaces: new Map([["ws", new WorkspaceHandle("/tmp/ws", new Date())]]),
+        workspaces: new Map([["ws", new WorkspaceHandle(wsDir, new Date())]]),
       });
       await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
       expect(execFileRaw.mock.calls[0][1][1]).toBe("echo hello world");
-      expect(execFileRaw.mock.calls[0][2].cwd).toBe("/tmp/ws");
+      expect(execFileRaw.mock.calls[0][2].cwd).toBe(wsDir);
     });
 
     it("includes stderr in output", async () => {
@@ -118,7 +125,7 @@ describe("ShellStepExecutor", () => {
         type: "shell",
         id: "sh3",
         command: "npm test",
-        cwd: "/tmp/ws",
+        cwd: wsDir,
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
@@ -134,7 +141,7 @@ describe("ShellStepExecutor", () => {
         type: "shell",
         id: "sh4",
         command: "exit 1",
-        cwd: "/tmp/ws",
+        cwd: wsDir,
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
@@ -176,7 +183,7 @@ describe("ShellStepExecutor", () => {
         type: "shell",
         id: "sh5",
         command: "curl http://localhost:12345",
-        cwd: "/tmp/ws",
+        cwd: wsDir,
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
@@ -194,7 +201,7 @@ describe("ShellStepExecutor", () => {
         id: "pr",
         command:
           'cat > /tmp/ff-pr-body-$$.md << \'FFEOF\'\n{{body}}\nFFEOF\ngh pr create --title "{{title}}" --body-file /tmp/ff-pr-body-$$.md --base "{{base}}"; rm -f /tmp/ff-pr-body-$$.md',
-        cwd: "/tmp/ws",
+        cwd: wsDir,
       };
       const context = new FlowContext({
         results: new Map(),
@@ -221,6 +228,86 @@ describe("ShellStepExecutor", () => {
       expect(resolvedCmd).toContain("rm -f /tmp/ff-pr-body-$$.md");
     });
 
+    describe("cwd validation", () => {
+      it("rejects an unresolved placeholder cwd with an actionable message", async () => {
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh-badcwd",
+          command: "echo hi",
+          cwd: "{{workspace}}",
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+        const promise = executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+        await expect(promise).rejects.toThrow(
+          /Shell step "sh-badcwd": working directory "\{\{workspace\}\}" contains an unresolved placeholder/,
+        );
+        await expect(promise).rejects.toThrow(
+          /set_flow_param\(key="workspace", value=<worktree path>\)/,
+        );
+        expect(execFileRaw).not.toHaveBeenCalled();
+      });
+
+      it("rejects an empty resolved cwd", async () => {
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh-emptycwd",
+          command: "echo hi",
+          cwd: "{{missing}}",
+        };
+        const context = new FlowContext({
+          results: new Map(),
+          prompt: "task",
+          params: new Map([["missing", ""]]),
+        });
+
+        await expect(
+          executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
+        ).rejects.toThrow(/working directory is empty/);
+        expect(execFileRaw).not.toHaveBeenCalled();
+      });
+
+      it("rejects a cwd that does not exist", async () => {
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh-missingcwd",
+          command: "echo hi",
+          cwd: path.join(wsDir, "nope"),
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+        await expect(
+          executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
+        ).rejects.toThrow(/does not exist or is not a directory/);
+        expect(execFileRaw).not.toHaveBeenCalled();
+      });
+
+      it("rejects a cwd that is a file, not a directory", async () => {
+        const filePath = path.join(wsDir, "not-a-dir");
+        fs.writeFileSync(filePath, "x");
+        const executor = new ShellStepExecutor();
+
+        const instruction: ShellInstruction = {
+          type: "shell",
+          id: "sh-filecwd",
+          command: "echo hi",
+          cwd: filePath,
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+        await expect(
+          executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
+        ).rejects.toThrow(/does not exist or is not a directory/);
+        expect(execFileRaw).not.toHaveBeenCalled();
+      });
+    });
+
     describe("failFast", () => {
       it("throws instead of returning soft-failure when failFast is true", async () => {
         mockExecFailure("Command failed", "error output");
@@ -230,7 +317,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "rebase",
           command: "git rebase origin/main",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
           failFast: true,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
@@ -248,7 +335,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh4",
           command: "exit 1",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
         const result = await executor.execute(
@@ -269,7 +356,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh5",
           command: "exit 1",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
           failFast: false,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
@@ -291,7 +378,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh6",
           command: "echo ok",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
           failFast: true,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
@@ -316,7 +403,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sig",
           command: "echo hello",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
@@ -341,7 +428,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sig2",
           command: "echo hello",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
@@ -369,7 +456,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh1",
           command: "echo hello",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
@@ -400,7 +487,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh2",
           command: "false",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
@@ -423,7 +510,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh1",
           command: "echo ok",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
@@ -445,7 +532,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh1",
           command: "gh pr create",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
@@ -471,7 +558,7 @@ describe("ShellStepExecutor", () => {
           type: "shell",
           id: "sh1",
           command: "npm run build",
-          cwd: "/tmp/ws",
+          cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });
 
