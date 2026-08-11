@@ -37,14 +37,22 @@ export class ScrollableBox extends Container {
         allLines.push(line);
       }
     }
-    this.lastTotalLines = allLines.length;
-
     const viewportHeight = this.computeViewportHeight();
 
     // Re-enable autoScroll when at bottom.
     if (this.scrollOffsetEnd === 0) {
       this.autoScroll = true;
     }
+
+    // Keep the viewport anchored when new content arrives while the user has
+    // scrolled away from the bottom: scrollOffsetEnd is measured from the END
+    // of the content, so compensate for growth so the absolute position stays
+    // put instead of drifting down with the new lines.
+    if (!this.autoScroll && this.lastTotalLines > 0 && allLines.length > this.lastTotalLines) {
+      this.scrollOffsetEnd += allLines.length - this.lastTotalLines;
+    }
+    this.lastTotalLines = allLines.length;
+
     const maxEnd = Math.max(0, allLines.length - viewportHeight);
     this.scrollOffsetEnd = Math.max(0, Math.min(this.scrollOffsetEnd, maxEnd));
 

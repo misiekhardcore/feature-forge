@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentSupervisor } from "@feature-forge/cli/src/agents";
@@ -1696,12 +1696,13 @@ describe("AgentViewerOverlay", () => {
       role: string,
       status: AgentStatus,
       createdAt: Date = new Date(),
+      overrides: { model?: string; thinkingLevel?: ThinkingLevel } = {},
     ): Agent {
       return {
         id,
         status,
         createdAt,
-        specification: { role } as AgentSpecification,
+        specification: { role, ...overrides } as AgentSpecification,
         destroy: vi.fn(),
       };
     }
@@ -1717,6 +1718,103 @@ describe("AgentViewerOverlay", () => {
         destroyAll: vi.fn(),
       };
     }
+
+    it("threads model and thinkingLevel from agentQuery into entries during connect", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running, new Date(), {
+        model: "claude-sonnet-4-5",
+        thinkingLevel: "high",
+      });
+      const agentQuery = makeMockSupervisor([agent]);
+      const eventBus = makeMockTypedEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
+      });
+
+      connect(overlay, "");
+
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("builder — claude-sonnet-4-5 (high)");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("threads model and thinkingLevel from agentQuery on agent-done events", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Completed, new Date(), {
+        model: "claude-sonnet-4-5",
+        thinkingLevel: "high",
+      });
+      const agentQuery = makeMockSupervisor([agent]);
+      const eventBus = makeMockTypedEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "builder" completed',
+        details: {
+          executionId: "exec-1",
+          agentId: "builder",
+          passed: true,
+          summary: "Build passed",
+        },
+      });
+
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("builder — claude-sonnet-4-5 (high)");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("omits model and thinkingLevel from detail title when absent", () => {
+      const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const agentQuery = makeMockSupervisor([agent]);
+      const eventBus = makeMockTypedEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
+      });
+
+      connect(overlay, "");
+
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      const lines = overlay.render(80);
+      const joined = lines.join("\n");
+      expect(joined).toContain("builder");
+      expect(joined).not.toContain("claude");
+      expect(joined).not.toContain("(high)");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
 
     it("propagates passed: true from agent-done event to the entry", () => {
       const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
