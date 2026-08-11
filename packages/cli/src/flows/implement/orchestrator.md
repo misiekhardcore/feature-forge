@@ -77,6 +77,7 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
      cost less wall-clock time than two max-iteration subtasks that hit the retry
      ceiling. The build loop has an iteration limit — a subtask that needs more
      iterations was too large and should have been split.
+
 4. Read the issue body and extract every acceptance criterion and objective into
    a **numbered AC checklist**. Include verbatim criteria — do not paraphrase or
    omit. Present the checklist to the user before proceeding so they can confirm

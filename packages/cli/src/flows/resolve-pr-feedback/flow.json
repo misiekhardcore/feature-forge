@@ -19,6 +19,14 @@
         {
           "name": "pr",
           "description": "PR number"
+        },
+        {
+          "name": "owner",
+          "description": "Repository owner"
+        },
+        {
+          "name": "repo",
+          "description": "Repository name"
         }
       ],
       "description": "Fetch unresolved PR review comments via GitHub API",
@@ -26,13 +34,13 @@
         {
           "type": "shell",
           "id": "pr_info",
-          "command": "gh pr view {{pr}} --repo misiekhardcore/feature-forge --json number,title,headRefName,state,headRepository --jq '{number, title, headRefName, state, owner: (.headRepository.nameWithOwner | split(\"/\")[0]), repo: (.headRepository.nameWithOwner | split(\"/\")[1])}'",
+          "command": "gh pr view {{pr}} --repo {{owner}}/{{repo}} --json number,title,headRefName,state,headRepository --jq '{number, title, headRefName, state, owner: (.headRepository.nameWithOwner | split(\"/\")[0]), repo: (.headRepository.nameWithOwner | split(\"/\")[1])}'",
           "failFast": true
         },
         {
           "type": "shell",
           "id": "review_threads",
-          "command": "gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{id,isResolved,comments(first:50){nodes{id,body,path,diffHunk}}}}}}}' -F owner=misiekhardcore -F repo=feature-forge -F pr={{pr}}",
+          "command": "gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{id,isResolved,comments(first:50){nodes{id,body,path,diffHunk}}}}}}}' -F owner={{owner}} -F repo={{repo}} -F pr={{pr}}",
           "failFast": true
         }
       ]

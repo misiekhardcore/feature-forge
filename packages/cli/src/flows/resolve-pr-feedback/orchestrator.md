@@ -69,10 +69,14 @@ resolve-pr-feedback convention:
 
 ### Phase 1: Resolve PR identity
 
-1. Run `gh pr view <pr> --json number,title,url,headRefName,headRepository` and
-   capture the PR number, title, URL, head branch, and `owner/repo`.
-2. Call `set_session_name` with a concise name (e.g. `resolve feedback on #42`).
-3. Store the identity via `set_flow_param` (pr number, head branch, owner/repo)
+1. Derive `owner` and `repo` from the current directory's remote:
+   `gh repo view --json nameWithOwner --jq .nameWithOwner` returns
+   `<owner>/<repo>`; split on `/`. This is the repository the flow operates
+   on — do not hardcode it.
+2. Run `gh pr view <pr> --repo <owner>/<repo> --json number,title,url,headRefName,headRepository`
+   and capture the PR number, title, URL, head branch, and `owner/repo`.
+3. Call `set_session_name` with a concise name (e.g. `resolve feedback on #42`).
+4. Store the identity via `set_flow_param` (pr number, head branch, owner/repo)
    so later phases can read it back.
 
 ### Phase 2: Provision the workspace
@@ -83,9 +87,10 @@ resolve-pr-feedback convention:
 2. Capture the returned workspace path and store it via
    `set_flow_param(key="workspace", value=<path>)`. The `apply_feedback`
    routine passes it to `run_build_loop`; `fetch_pr_comments` and
-   `disposition_comments` are standalone and do NOT need it (they call `gh`
-   with an explicit `--repo misiekhardcore/feature-forge` and run in the
-   current directory).
+   `disposition_comments` are standalone and do NOT need it — they run in
+   the current directory, with `fetch_pr_comments` calling `gh` against
+   `--repo <owner>/<repo>` (derived in Phase 1) and `disposition_comments`
+   operating on review-thread IDs alone.
 3. Create `<workspace>/NOTES.md` per the notes-md skill: PR identity, the
    comment inventory, and the triage ledger.
 
@@ -95,11 +100,12 @@ Call the `fetch_pr_comments` routine — registered as a tool by FlowRegistrar
 alongside the built-ins:
 
 ```
-fetch_pr_comments(pr=<pr>)
+fetch_pr_comments(pr=<pr>, owner=<owner>, repo=<repo>)
 ```
 
-The routine executes two shell steps and returns both outputs in the routine
-result under `results.<stepId>.raw`:
+The routine requires `owner` and `repo` (derived in Phase 1) to target the
+PR's repository instead of a hardcoded one. It executes two shell steps and
+returns both outputs in the routine result under `results.<stepId>.raw`:
 
 1. `pr_info` — `gh pr view` filtered through `--jq`, returning the PR
    metadata JSON: `number`, `title`, `headRefName`, `state`, `owner`,
@@ -125,8 +131,8 @@ query does not return — `author` login, `line`, `createdAt`, `url`, and
 issue comments. Instantiate it once
 (`import { GitHubService } from './packages/cli/src/github.ts'; const gh = new GitHubService();`)
 and use `gh.getPullRequest()` / `gh.getUnresolvedComments()`. Run those from
-the main feature-forge checkout, the one that has `node_modules` (find it
-with `git worktree list`).
+the main checkout, the one that has `node_modules` (find it with `git worktree
+list`).
 
 ### Phase 4: Triage
 
