@@ -51,6 +51,7 @@ function createDefaultConfig(): Required<ForgeConfig> {
     models: defaultsJson.models,
     defaultModel: undefined,
     dev: defaultsJson.dev,
+    forgeDir: defaultsJson.forgeDir,
   });
 }
 
@@ -123,5 +124,6 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     defaultModel: overrides.defaultModel ?? DEFAULT_FORGE_CONFIG.defaultModel,
     display: overrides.display ?? DEFAULT_FORGE_CONFIG.display,
     dev: overrides.dev ?? DEFAULT_FORGE_CONFIG.dev,
+    forgeDir: overrides.forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir,
   };
 }

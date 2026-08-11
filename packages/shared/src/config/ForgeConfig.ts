@@ -11,6 +11,7 @@
  * ```
  */
 
+import * as os from "node:os";
 import * as path from "node:path";
 
 import { ConfigError } from "./ConfigError";
@@ -208,6 +209,22 @@ export class ForgeConfig {
   getFlowDirectories(): string[] {
     const flows = this.getSpecDirectories().flows ?? [];
     return flows.map((dir) => path.resolve(ForgeConfig.cwd ?? process.cwd(), dir));
+  }
+
+  /**
+   * Return the forge directory path, resolved to an absolute path.
+   *
+   * Resolves `~` prefixes and relative paths against the project root
+   * (the cwd used during {@link create}).
+   *
+   * Defaults to `".forge"` when no forgeDir is configured.
+   */
+  getForgeDir(): string {
+    const forgeDir = this.getConfig().forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir ?? ".forge";
+    if (forgeDir.startsWith("~")) {
+      return path.resolve(os.homedir(), forgeDir.slice(1));
+    }
+    return path.resolve(ForgeConfig.cwd ?? process.cwd(), forgeDir);
   }
 
   /**

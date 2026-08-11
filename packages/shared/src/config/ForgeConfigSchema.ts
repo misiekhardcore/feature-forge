@@ -201,6 +201,15 @@ export const ForgeConfigSchema = Type.Object({
 
   /** Development-mode configuration. */
   dev: Type.Readonly(Type.Optional(DevConfigSchema)),
+
+  /**
+   * Root directory for forge assets (agents, flows, skills, config).
+   *
+   * Relative paths are resolved against the project root.
+   * Accepts `~/.forge` for a global (cross-project) forge directory.
+   * Defaults to `".forge"`.
+   */
+  forgeDir: Type.Readonly(Type.Optional(Type.String())),
 });
 
 // ── Derived TypeScript types ───────────────────────────────────────
@@ -245,4 +254,5 @@ export type ForgeConfig = Omit<
   readonly agents: ReadonlyMap<string, AgentConfig>;
   readonly models: Readonly<Record<string, AgentModelConfig>>;
   readonly defaultModel: string | undefined;
+  readonly forgeDir: string | undefined;
 };
