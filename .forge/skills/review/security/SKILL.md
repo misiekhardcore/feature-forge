@@ -12,7 +12,6 @@ Your job is to identify vulnerabilities, unsafe patterns, and compliance gaps.
 
 ## Input
 
-- `builder.raw` — the build agent's full output
 - The workspace is set as your working directory
 
 ## Checklist

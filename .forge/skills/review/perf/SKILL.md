@@ -13,7 +13,6 @@ or will not scale under expected load.
 
 ## Input
 
-- `builder.raw` — the build agent's full output
 - The workspace is set as your working directory
 
 ## Checklist

@@ -13,7 +13,6 @@ for correctness, reversibility, and operational safety.
 
 ## Input
 
-- `builder.raw` — the build agent's full output
 - The workspace is set as your working directory
 
 ## Checklist
