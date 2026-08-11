@@ -82,15 +82,27 @@ function commandAvailable(command) {
 }
 
 /**
- * Resolve the package dist directory that contains the built-in
- * agents, flows, and skills templates to scaffold.
+ * Resolve the directory that contains the built-in template assets
+ * (agents, flows, skills) to scaffold.
  *
- * The script lives at `dist/scripts/forge-setup.js` in the built
- * package, so `__dirname/..` is `dist/`. From source, `__dirname`
- * is the scripts directory; `__dirname/..` points to `packages/cli`.
+ * In the built package the script lives at `dist/scripts/`, so
+ * templates are in `dist/`. When running from source the script
+ * is at `packages/cli/scripts/` and templates are in
+ * `packages/cli/src/`.
  */
-function resolveDistDir() {
-  return path.join(__dirname, "..");
+function resolveAssetsDir() {
+  const distDir = path.join(__dirname, "..");
+  // Built package: dist/agents/declarative-specs should exist.
+  if (fs.existsSync(path.join(distDir, "agents", "declarative-specs"))) {
+    return distDir;
+  }
+  // Source layout: <pkg>/src/ contains agents, flows, skills.
+  const srcDir = path.join(distDir, "src");
+  if (fs.existsSync(srcDir)) {
+    return srcDir;
+  }
+  // Fallback — let the copy functions report clear errors.
+  return distDir;
 }
 
 /**
@@ -180,10 +192,10 @@ function createDirs() {
 
 // ── Copy templates from dist into forgeDir ────────────────────────────
 function scaffoldTemplates(forgeDir) {
-  const distDir = resolveDistDir();
+  const srcDir = resolveAssetsDir();
 
-  // Agents: copy .md files from dist/agents/declarative-specs → forgeDir/agents/
-  const agentsSrc = path.join(distDir, "agents", "declarative-specs");
+  // Agents: copy .md files from <assets>/agents/declarative-specs → forgeDir/agents/
+  const agentsSrc = path.join(srcDir, "agents", "declarative-specs");
   const agentsDest = path.join(forgeDir, "agents");
   if (fs.existsSync(agentsSrc)) {
     fs.mkdirSync(agentsDest, { recursive: true });
@@ -195,16 +207,16 @@ function scaffoldTemplates(forgeDir) {
     logInfo(`scaffolded ${agentsDest}`);
   }
 
-  // Flows: copy dist/flows → forgeDir/flows
-  const flowsSrc = path.join(distDir, "flows");
+  // Flows: copy <assets>/flows → forgeDir/flows
+  const flowsSrc = path.join(srcDir, "flows");
   const flowsDest = path.join(forgeDir, "flows");
   if (fs.existsSync(flowsSrc)) {
     fs.cpSync(flowsSrc, flowsDest, { recursive: true });
     logInfo(`scaffolded ${flowsDest}`);
   }
 
-  // Skills: copy dist/skills → forgeDir/skills
-  const skillsSrc = path.join(distDir, "skills");
+  // Skills: copy <assets>/skills → forgeDir/skills
+  const skillsSrc = path.join(srcDir, "skills");
   const skillsDest = path.join(forgeDir, "skills");
   if (fs.existsSync(skillsSrc)) {
     fs.cpSync(skillsSrc, skillsDest, { recursive: true });
