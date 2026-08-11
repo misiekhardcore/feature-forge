@@ -1,3 +1,4 @@
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 
@@ -13,7 +14,7 @@ export interface ViewerHandle {
     summary?: string;
     passed?: boolean;
     model?: string;
-    thinkingLevel?: string;
+    thinkingLevel?: ThinkingLevel;
   }): void;
   pushStreamEvent(agentId: string, event: unknown): void;
   dispose(): void;
@@ -109,21 +110,21 @@ export function registerTestLoopRoutine(
               id: "builder",
               label: "builder",
               model: "claude-sonnet-4-5",
-              thinkingLevel: "high",
+              thinkingLevel: "high" as ThinkingLevel,
               scenario: scenarios.builderScenario,
             },
             {
               id: "review",
               label: "review",
               model: "claude-sonnet-4-5",
-              thinkingLevel: "medium",
+              thinkingLevel: "medium" as ThinkingLevel,
               scenario: scenarios.reviewerScenario,
             },
             {
               id: "verify",
               label: "verify",
               model: "claude-sonnet-4-5",
-              thinkingLevel: "low",
+              thinkingLevel: "low" as ThinkingLevel,
               scenario: scenarios.errorScenario,
             },
           ];
