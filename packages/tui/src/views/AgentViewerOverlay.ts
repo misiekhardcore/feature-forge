@@ -400,8 +400,7 @@ export class AgentViewerOverlay implements Component {
    * Format a stream event into a single-line human-readable description.
    */
   static formatStreamEvent(event: AgentEvent): string {
-    const detail = AgentViewerOverlay.formatDetail(event);
-    return detail ? `${event.type}: ${detail}` : event.type;
+    return AgentViewerOverlay.formatDetail(event) || event.type;
   }
 
   // ── Event wiring ──────────────────────────────────────────
@@ -605,10 +604,10 @@ export class AgentViewerOverlay implements Component {
         const partial: string =
           typeof event.partialResult === "string"
             ? event.partialResult
-            : typeof event.partialResult === "object" && event.partialResult !== null
-              ? JSON.stringify(event.partialResult)
+            : event.partialResult !== undefined && event.partialResult !== null
+              ? AgentDisplayHelpers.serializeToolResultText(event.partialResult)
               : "";
-        return name + ": " + partial;
+        return partial ? `${name}: ${partial}` : name;
       }
 
       default:

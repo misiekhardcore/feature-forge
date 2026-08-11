@@ -80,9 +80,8 @@ describe("AgentListView", () => {
       const lines = view.render(100);
       const joined = lines.join("\n");
 
-      // Label format: icon id (role) elapsed
+      // Label format: icon id (elapsed)
       expect(joined).toContain("builder");
-      expect(joined).toContain("(builder)");
     });
 
     it("rebuilds select list when entry count changes", () => {
