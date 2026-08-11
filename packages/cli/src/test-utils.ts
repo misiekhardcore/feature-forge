@@ -208,7 +208,11 @@ export function makeMockPiWithHandlers(defaultTools: string[] = []) {
 export function makeMockCtx(): ExtensionCommandContext {
   return {
     hasUI: true,
-    ui: { notify: vi.fn(), custom: vi.fn().mockResolvedValue(undefined) },
+    ui: {
+      notify: vi.fn(),
+      custom: vi.fn().mockResolvedValue(undefined),
+      confirm: vi.fn().mockResolvedValue(true),
+    },
   } as unknown as ExtensionCommandContext;
 }
 

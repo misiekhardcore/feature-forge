@@ -24,10 +24,15 @@ export class ForgeInitCommand extends Command {
       "Scaffold .forge/config.json with defaults?",
     );
     const updateGitignore = await ctx.ui.confirm("Forge: Init", "Add forge entries to .gitignore?");
+    const useGlobal = await ctx.ui.confirm(
+      "Forge: Init",
+      "Install globally in ~/.forge (shared across projects)?",
+    );
 
     const args = [setupScript];
     if (!scaffoldConfig) args.push("--no-config");
     if (!updateGitignore) args.push("--no-gitignore");
+    if (useGlobal) args.push("--global");
     args.push("--yes", "--cwd", process.cwd());
 
     try {
