@@ -117,4 +117,19 @@ describe("SkillResolver project skill discovery", () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("discovers bundled forge-build skill without a project .forge/skills dir", () => {
+    const originalCwd = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-bundled-"));
+    try {
+      process.chdir(tempDir);
+      const allSkills = SkillResolver.discoverAll();
+      expect(allSkills.has("forge-build")).toBe(true);
+      expect(allSkills.get("forge-build")).toContain("SKILL.md");
+      expect(allSkills.get("forge-build")).toMatch(/[\\/]skills[\\/]forge-build[\\/]SKILL[.]md$/);
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

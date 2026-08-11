@@ -1,10 +1,10 @@
 # NOTES — user-modifiable-templates (#212)
 
 ## Current task
-- Starting Subtask 1: Move skills + update tsup
+- Subtask 1 done (moved skills + tsup + discovery) — next: Subtask 2 (forgeDir config)
 
 ## Task list / AC checklist
-- [ ] Move skills from repo-root `.forge/skills/` → `packages/cli/src/skills/`; add tsup copy step
+- [x] Move skills from repo-root `.forge/skills/` → `packages/cli/src/skills/`; add tsup copy step
 - [ ] Add `forgeDir` config field (default `".forge"`); defaults, accessor, TypeBox schema
 - [ ] Config loader two-location lookup — pointer config → real config merge
 - [ ] Rewrite `forge-setup.js` — scaffold agents/flows/skills; global vs local
@@ -17,9 +17,10 @@
 ## Subtask plan
 
 ### Subtask 1: Move skills + update tsup
-- [ ] Copy `.forge/skills/` → `packages/cli/src/skills/` (entire tree)
-- [ ] Add `skills` copy to tsup `onSuccess`: `cp src/skills → dist/skills`
-- [ ] Delete `.forge/skills/` from repo root
+- [x] Copy `.forge/skills/` → `packages/cli/src/skills/` (entire tree)
+- [x] Add `skills` copy to tsup `onSuccess`: `cp src/skills → dist/skills`
+- [x] Delete `.forge/skills/` from repo root
+- [x] Update runtime discovery (SkillResolver + forge-skills extension) so bundled skills stay available after the move
 - **Dependencies**: None
 
 ### Subtask 2: Add forgeDir to config schema

@@ -117,8 +117,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   activateSpecResolution(pi);
 
   // ── Forge skill discovery ────────────────────────────────────────
-  // Contribute .forge/skills/ to the main session's skill discovery
-  // so project-local skills are available to the in-session orchestrator.
+  // Contribute bundled CLI skills and .forge/skills/ to the main session's
+  // skill discovery so default and project-local skills are available to
+  // the in-session orchestrator.
   activateForgeSkills(pi);
 
   // Every session runs as a client.

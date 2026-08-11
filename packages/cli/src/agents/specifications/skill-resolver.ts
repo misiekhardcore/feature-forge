@@ -1,8 +1,26 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
+
+/**
+ * Candidate locations of the bundled default skills shipped with the CLI
+ * package. The tsup build emits a single `dist/index.js`, so `import.meta.url`
+ * resolves to `dist` in the built bundle and to the source module directory
+ * when running from source (vitest / tsx). At most one candidate exists per
+ * layout; missing directories are skipped by the scanner.
+ */
+export function bundledSkillDirectories(): string[] {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  return [
+    // Source layout: <pkg>/src/agents/specifications/../../skills
+    path.resolve(moduleDir, "..", "..", "skills"),
+    // Built bundle layout: <pkg>/dist/skills
+    path.resolve(moduleDir, "skills"),
+  ];
+}
 
 interface SkillMetadata extends Record<string, unknown> {
   name?: string;
@@ -12,8 +30,9 @@ interface SkillMetadata extends Record<string, unknown> {
  * Resolves skill names to absolute SKILL.md paths by scanning well-known
  * skill directories.
  *
- * Scans `~/.agents/skills/`, `~/.pi/agent/skills/`, and `.forge/skills/`
- * in priority order. Earlier directories take precedence if names collide.
+ * Scans `~/.agents/skills/`, `~/.pi/agent/skills/`, `.forge/skills/`, and
+ * the CLI package's bundled `skills/` directory in priority order. Earlier
+ * directories take precedence if names collide.
  *
  * The resolved paths can be passed to a pi subprocess via `--no-skills` +
  * `--skill <path>` flags to load only the required skills.
@@ -80,6 +99,8 @@ export class SkillResolver {
       path.join(os.homedir(), ".agents", "skills"),
       path.join(os.homedir(), ".pi", "agent", "skills"),
       path.resolve(".forge", "skills"),
+      // Bundled default skills (lowest priority — user/project skills override)
+      ...bundledSkillDirectories(),
     ];
   }
 
