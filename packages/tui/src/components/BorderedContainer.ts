@@ -26,7 +26,7 @@ export class StaticContent extends Container {
  */
 export class BorderedContainer extends Container {
   private readonly theme: Theme;
-  private readonly title?: string;
+  private title?: string;
   private readonly innerMargin: number;
   private readonly borderColor: ThemeColor;
 
@@ -36,6 +36,14 @@ export class BorderedContainer extends Container {
     this.title = title;
     this.innerMargin = innerMargin;
     this.borderColor = borderColor;
+  }
+
+  /**
+   * Update the title after construction (e.g. for dynamic titles).
+   */
+  setTitle(title: string | undefined): void {
+    this.title = title;
+    this.invalidate();
   }
 
   /**

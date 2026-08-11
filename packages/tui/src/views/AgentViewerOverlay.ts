@@ -464,6 +464,8 @@ export class AgentViewerOverlay implements Component {
         passed,
         summary,
         role: agent?.specification.role,
+        model: agent?.specification.model,
+        thinkingLevel: agent?.specification.thinkingLevel,
         createdAt: agent?.createdAt ?? new Date(),
       } as AgentViewerEntry);
     };
@@ -543,6 +545,8 @@ export class AgentViewerOverlay implements Component {
           status: status as AgentViewerEntry["status"],
           summary: `${agent.specification.role} — ${agent.status}`,
           role: agent.specification.role,
+          model: agent.specification.model,
+          thinkingLevel: agent.specification.thinkingLevel,
           createdAt: agent.createdAt,
         } as AgentViewerEntry);
       }

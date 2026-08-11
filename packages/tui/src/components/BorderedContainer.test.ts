@@ -235,6 +235,47 @@ describe("BorderedContainer", () => {
     });
   });
 
+  describe("setTitle", () => {
+    it("updates the rendered title after construction", () => {
+      const theme = makeTheme();
+      const box = new BorderedContainer(theme, "Old Title");
+
+      const before = box.render(80);
+      expect(before[0]).toContain("Old Title");
+      expect(before[0]).not.toContain("New Title");
+
+      box.setTitle("New Title");
+      const after = box.render(80);
+      expect(after[0]).toContain("New Title");
+      expect(after[0]).not.toContain("Old Title");
+    });
+
+    it("removes the title when set to undefined", () => {
+      const theme = makeTheme();
+      const box = new BorderedContainer(theme, "Some Title");
+
+      box.setTitle(undefined);
+      const lines = box.render(80);
+
+      expect(lines[0]).toMatch(/^┌─+┐$/);
+      expect(lines[0]).not.toContain("Some Title");
+    });
+
+    it("renders an updated long title truncated to fit", () => {
+      const theme = makeTheme();
+      const box = new BorderedContainer(theme, "Short");
+      const longTitle = "B".repeat(100);
+
+      box.setTitle(longTitle);
+      const lines = box.render(80);
+      const topLine = lines[0];
+      // eslint-disable-next-line no-control-regex
+      const visibleLen = topLine.replace(/\x1b\[[0-9;]*m/g, "").length;
+      expect(visibleLen).toBeLessThanOrEqual(80);
+      expect(topLine).toContain("…");
+    });
+  });
+
   describe("fromLines", () => {
     it("wraps pre-built lines in a bordered box", () => {
       const theme = makeTheme();

@@ -124,6 +124,66 @@ describe("ScrollableBox", () => {
       expect(box.autoScroll).toBe(false);
     });
 
+    it("keeps viewport anchored when content grows while not auto-scrolling", () => {
+      box.addChild(new FakeLines(30));
+      box.scrollOffsetEnd = 5;
+      box.autoScroll = false;
+      box.render(80);
+      // startIndex = 30 - 16 - 5 = 9
+      expect(box.scrollOffsetEnd).toBe(5);
+
+      // Content grows by 5 lines at the bottom.
+      (box as unknown as { children: unknown[] }).children.push(new FakeLines(5));
+      const lines = box.render(80);
+      // Viewport stays anchored to the same absolute position: 35 - 16 - 10 = 9
+      expect(lines[0]).toBe("line 9");
+      expect(box.scrollOffsetEnd).toBe(10);
+      expect(box.autoScroll).toBe(false);
+    });
+
+    it("stays anchored at the top when content grows while scrolled to top", () => {
+      box.addChild(new FakeLines(30));
+      box.scrollOffsetEnd = 14; // top: max(0, 30 - 16)
+      box.autoScroll = false;
+      box.render(80);
+      expect(box.scrollOffsetEnd).toBe(14);
+
+      // Content grows by 5 lines.
+      (box as unknown as { children: unknown[] }).children.push(new FakeLines(5));
+      const lines = box.render(80);
+      // Top is still line 0.
+      expect(lines[0]).toBe("line 0");
+      expect(box.scrollOffsetEnd).toBe(19); // max(0, 35 - 16)
+      expect(box.autoScroll).toBe(false);
+    });
+
+    it("does not drift when content grows at scrollOffsetEnd 0 (stays at bottom)", () => {
+      box.addChild(new FakeLines(30));
+      box.scrollOffsetEnd = 0;
+      box.autoScroll = false;
+      box.render(80);
+      // At bottom → autoScroll re-enabled.
+      expect(box.autoScroll).toBe(true);
+
+      // Content grows by 5 lines (second child renders "line 0".."line 4").
+      (box as unknown as { children: unknown[] }).children.push(new FakeLines(5));
+      const lines = box.render(80);
+      // Viewport shows the new bottom (last line of the appended content).
+      expect(lines[lines.length - 1]).toBe("line 4");
+      expect(box.scrollOffsetEnd).toBe(0);
+    });
+
+    it("does not shift viewport when content is unchanged", () => {
+      box.addChild(new FakeLines(30));
+      box.scrollOffsetEnd = 5;
+      box.autoScroll = false;
+      box.render(80);
+
+      const again = box.render(80);
+      expect(again[0]).toBe("line 9");
+      expect(box.scrollOffsetEnd).toBe(5);
+    });
+
     it("scrollOffsetEnd is clamped down when content shrinks", () => {
       box.addChild(new FakeLines(30));
       box.scrollOffsetEnd = 20;
