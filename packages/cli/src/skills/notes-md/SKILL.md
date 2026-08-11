@@ -14,10 +14,10 @@ harvesting — do not preload.
 
 Two layers, two authorities:
 
-| Layer | Where | Lifetime | Authoritative for |
-| ----- | ----- | -------- | ----------------- |
-| `NOTES.md` | Worktree root, committed | This phase | In-flight state: current task, progress, decisions, next action |
-| GitHub issue / PR | Remote | Cross-phase | Acceptance criteria, locked decisions, handoff state |
+| Layer             | Where                    | Lifetime    | Authoritative for                                               |
+| ----------------- | ------------------------ | ----------- | --------------------------------------------------------------- |
+| `NOTES.md`        | Worktree root, committed | This phase  | In-flight state: current task, progress, decisions, next action |
+| GitHub issue / PR | Remote                   | Cross-phase | Acceptance criteria, locked decisions, handoff state            |
 
 - **While working** — write to `NOTES.md` (phase-local ledger).
 - **Between sessions on the same feature** — resume from `NOTES.md`.
@@ -50,22 +50,27 @@ re-reading it must cost under ~2k tokens.
 # NOTES — <task-slug>
 
 ## Current task
+
 - <the one thing being worked on right now>
 
 ## Task list / AC checklist
+
 - [x] <done AC or subtask>
 - [ ] <pending AC or subtask — first unchecked item is current>
 - [!] <blocked item — with reason>
 
 ## Subtask plan
+
 - [ ] <subtask 1 — brief plan>
 - [ ] <subtask 2 — brief plan>
 
 ## Decisions made this session
+
 - <one-line decision> (why: <rationale>)
 - ...
 
 ## Next action on resume
+
 - <exact action to resume if the session dies — file to open, routine to call>
 ```
 
