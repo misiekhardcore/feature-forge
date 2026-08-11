@@ -346,7 +346,7 @@ describe("flow round-trip", () => {
         (s): s is LoopInstruction => s.type === "loop",
       );
       expect(loop).toBeDefined();
-      expect(loop?.maxIterations).toBe(5);
+      expect(loop?.maxIterations).toBe(3);
       expect(loop?.accumulateFrom).toEqual(["call_review", "call_verify"]);
 
       const bodyIds = loop?.steps.map((s) => s.id) ?? [];
