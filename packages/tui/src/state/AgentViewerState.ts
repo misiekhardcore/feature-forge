@@ -168,7 +168,13 @@ export class AgentViewerState {
    */
   update(entry: AgentViewerEntry): void {
     const existing = this.agents.get(entry.id);
-    const merged: AgentViewerEntry = { ...existing, ...entry };
+    // createdAt fallback: entry/existing win when present, otherwise stamp now
+    // (callers may omit createdAt at runtime despite the type requiring it).
+    const merged: AgentViewerEntry = {
+      ...existing,
+      ...entry,
+      createdAt: entry.createdAt ?? existing?.createdAt ?? new Date(),
+    };
 
     // Stamp finishedAt for terminal statuses so elapsed displays correctly
     // across overlay close/reopen cycles without pre-computing strings.
