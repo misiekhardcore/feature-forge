@@ -225,8 +225,6 @@ function appendGitignore() {
     sentinel,
     ".forge/*",
     "!.forge/config.json",
-    "!.forge/skills/",
-    "!.forge/skills/**",
     "coverage-single/",
     "",
     "# pi coding agent runtime",
@@ -256,12 +254,23 @@ scaffoldTemplates(forgeDir);
 
 if (!noConfig) {
   scaffoldConfig(forgeDir);
+
+  if (useGlobal) {
+    // Write a pointer file in the project's .forge/ so the runtime
+    // knows to look for the real config at ~/.forge/config.json.
+    const pointerPath = path.join(cwd, ".forge", "config.json");
+    fs.mkdirSync(path.dirname(pointerPath), { recursive: true });
+    fs.writeFileSync(pointerPath, JSON.stringify({ forgeDir: "~/.forge" }, null, 2) + "\n");
+    logInfo(`wrote pointer ${pointerPath} → ~/.forge`);
+  }
 }
 
 // Runtime directories always go under the project's .forge/
 createDirs();
 
-if (!noGitignore) {
+// Gitignore entries are skipped for global forge — the project's
+// .forge/ only contains logs, worktrees, and the pointer config.
+if (!noGitignore && !useGlobal) {
   appendGitignore();
 }
 
