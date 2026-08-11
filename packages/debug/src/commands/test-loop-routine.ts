@@ -7,7 +7,14 @@ import type { ScenarioData } from "../scenarios/index.js";
 
 /** Minimal AgentViewerOverlay surface needed by the simulator. */
 export interface ViewerHandle {
-  update(entry: { id: string; status: string; summary?: string; passed?: boolean }): void;
+  update(entry: {
+    id: string;
+    status: string;
+    summary?: string;
+    passed?: boolean;
+    model?: string;
+    thinkingLevel?: string;
+  }): void;
   pushStreamEvent(agentId: string, event: unknown): void;
   dispose(): void;
 }
@@ -98,9 +105,27 @@ export function registerTestLoopRoutine(
           });
 
           const agentDefs = [
-            { id: "builder", label: "builder", scenario: scenarios.builderScenario },
-            { id: "review", label: "review", scenario: scenarios.reviewerScenario },
-            { id: "verify", label: "verify", scenario: scenarios.errorScenario },
+            {
+              id: "builder",
+              label: "builder",
+              model: "claude-sonnet-4-5",
+              thinkingLevel: "high",
+              scenario: scenarios.builderScenario,
+            },
+            {
+              id: "review",
+              label: "review",
+              model: "claude-sonnet-4-5",
+              thinkingLevel: "medium",
+              scenario: scenarios.reviewerScenario,
+            },
+            {
+              id: "verify",
+              label: "verify",
+              model: "claude-sonnet-4-5",
+              thinkingLevel: "low",
+              scenario: scenarios.errorScenario,
+            },
           ];
 
           function agentPassed(agentId: string, round: number): boolean {
@@ -148,9 +173,15 @@ export function registerTestLoopRoutine(
             onStart: () => void,
             onDone: () => void,
           ): void {
+            const def = agentDefs.find((d) => d.id === agentId);
             timers.push(
               setTimeout(() => {
-                viewer.update({ id: agentId, status: "started" });
+                viewer.update({
+                  id: agentId,
+                  status: "started",
+                  model: def?.model,
+                  thinkingLevel: def?.thinkingLevel,
+                });
                 agentStates.set(agentId, { status: "running" });
                 onStart();
               }, baseDelay),
@@ -177,6 +208,8 @@ export function registerTestLoopRoutine(
                     status,
                     summary: scenario.summary,
                     passed,
+                    model: def?.model,
+                    thinkingLevel: def?.thinkingLevel,
                   });
                   agentStates.set(agentId, {
                     status,
