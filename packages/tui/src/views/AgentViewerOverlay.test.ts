@@ -157,7 +157,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
       expect(joined).toContain("builder");
-      expect(joined).toContain("tool_execution_start: read");
+      expect(joined).toContain("read");
     });
 
     it("starts in list view mode with no selection", () => {
@@ -278,7 +278,7 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
 
-      expect(joined).toContain("tool_execution_start: read");
+      expect(joined).toContain("read");
       expect(joined).toContain("⟳");
     });
 
@@ -294,13 +294,13 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       // SelectList shows last stream line as description; summary is not separately rendered.
-      expect(joined).toContain("tool_execution_start: read");
+      expect(joined).toContain("read");
     });
 
     it("does not truncate short last stream lines", () => {
       const overlay = makeOverlay();
       overlay.update(makeEntry("builder", "started"));
-      const shortLine = "tool_execution_start: read";
+      const shortLine = "read";
       overlay.pushStreamEvent("builder", {
         type: "tool_execution_start",
         toolName: "read",
@@ -502,8 +502,8 @@ describe("AgentViewerOverlay", () => {
 
       expect(overlay.entryCount).toBe(0);
       // lastLines are NOT cleared by clearMemory — they persist.
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
-      expect(overlay.lastStreamLine).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
+      expect(overlay.lastStreamLine).toBe("read");
     });
   });
 
@@ -569,12 +569,12 @@ describe("AgentViewerOverlay", () => {
   });
 
   describe("formatStreamEvent", () => {
-    it("formats tool_execution_start events as 'tool_execution_start: <toolName>'", () => {
+    it("formats tool_execution_start events as '<toolName>'", () => {
       const line = AgentViewerOverlay.formatStreamEvent({
         type: "tool_execution_start",
         toolName: "read",
       } as unknown as AgentEvent);
-      expect(line).toBe("tool_execution_start: read");
+      expect(line).toBe("read");
     });
 
     it("includes serialized args in tool_execution_start stream line", () => {
@@ -583,7 +583,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "bash",
         args: { command: "ls -la" },
       } as unknown as AgentEvent);
-      expect(line).toContain("tool_execution_start: bash");
+      expect(line).toContain("bash");
       expect(line).toContain("|");
       expect(line).toContain('"command"');
       expect(line).toContain("ls -la");
@@ -595,7 +595,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
         args: "some-file.txt",
       } as unknown as AgentEvent);
-      expect(line).toContain("tool_execution_start: read");
+      expect(line).toContain("read");
       expect(line).toContain("|");
       expect(line).toContain("some-file.txt");
     });
@@ -607,7 +607,7 @@ describe("AgentViewerOverlay", () => {
         result: "some output",
         isError: false,
       } as unknown as AgentEvent);
-      expect(line).toBe("tool_execution_end: tool (ok)");
+      expect(line).toBe("tool (ok)");
     });
 
     it("formats tool_execution_end with error status", () => {
@@ -616,7 +616,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "tool",
         isError: true,
       } as unknown as AgentEvent);
-      expect(line).toBe("tool_execution_end: tool (error)");
+      expect(line).toBe("tool (error)");
     });
 
     it("formats message_start with nested message role", () => {
@@ -624,7 +624,7 @@ describe("AgentViewerOverlay", () => {
         type: "message_start",
         message: { role: "assistant" },
       } as unknown as AgentEvent);
-      expect(line).toBe("message_start: assistant");
+      expect(line).toBe("assistant");
     });
 
     it("formats message_end with content text blocks", () => {
@@ -635,30 +635,30 @@ describe("AgentViewerOverlay", () => {
           content: [{ type: "text", text: "Here is the result." }],
         },
       } as unknown as AgentEvent);
-      expect(line).toBe("message_end: Here is the result.");
+      expect(line).toBe("Here is the result.");
     });
 
     it("formats agent_start as 'started'", () => {
       const line = AgentViewerOverlay.formatStreamEvent({
         type: "agent_start",
       } as unknown as AgentEvent);
-      expect(line).toBe("agent_start: started");
+      expect(line).toBe("started");
     });
 
     it("formats agent_end as 'completed'", () => {
       const line = AgentViewerOverlay.formatStreamEvent({
         type: "agent_end",
       } as unknown as AgentEvent);
-      expect(line).toBe("agent_end: completed");
+      expect(line).toBe("completed");
     });
 
     it("formats turn_start and turn_end", () => {
       expect(
         AgentViewerOverlay.formatStreamEvent({ type: "turn_start" } as unknown as AgentEvent),
-      ).toBe("turn_start: turn start");
+      ).toBe("turn start");
       expect(
         AgentViewerOverlay.formatStreamEvent({ type: "turn_end" } as unknown as AgentEvent),
-      ).toBe("turn_end: turn end");
+      ).toBe("turn end");
     });
 
     it("formats tool_execution_update with partial result", () => {
@@ -667,7 +667,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
         partialResult: "Reading file...",
       } as unknown as AgentEvent);
-      expect(line).toBe("tool_execution_update: read: Reading file...");
+      expect(line).toBe("read: Reading file...");
     });
 
     it("formats message_update with content text", () => {
@@ -678,7 +678,7 @@ describe("AgentViewerOverlay", () => {
           content: [{ type: "text", text: "I am thinking..." }],
         },
       } as unknown as AgentEvent);
-      expect(line).toBe("message_update: I am thinking...");
+      expect(line).toBe("I am thinking...");
     });
 
     it("returns just the type for events with no known detail", () => {
@@ -694,7 +694,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
         partialResult: { key: "value" },
       } as unknown as AgentEvent);
-      expect(line).toContain("tool_execution_update: read:");
+      expect(line).toContain("read:");
       expect(line).toContain("key");
     });
   });
@@ -707,7 +707,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
       } as unknown as AgentEvent);
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
     });
 
     it("overwrites previous last line for the same agent", () => {
@@ -721,7 +721,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "write",
       } as unknown as AgentEvent);
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: write");
+      expect(overlay.getLastStreamLine("builder")).toBe("write");
     });
 
     it("tracks last lines per agent independently", () => {
@@ -735,8 +735,8 @@ describe("AgentViewerOverlay", () => {
         toolName: "lint",
       } as unknown as AgentEvent);
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
-      expect(overlay.getLastStreamLine("reviewer")).toBe("tool_execution_start: lint");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
+      expect(overlay.getLastStreamLine("reviewer")).toBe("lint");
     });
 
     it("writes stream events to a filesystem log when streamDir is configured", () => {
@@ -754,8 +754,8 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
-      expect(content).toContain("tool_execution_start: read");
-      expect(content).toContain("message_start: assistant");
+      expect(content).toContain("read");
+      expect(content).toContain("assistant");
 
       overlay.dispose();
     });
@@ -774,7 +774,7 @@ describe("AgentViewerOverlay", () => {
       expect(existsSync(expectedPath)).toBe(true);
 
       const content = readFileSync(expectedPath, "utf-8");
-      expect(content).toContain("tool_execution_start: read");
+      expect(content).toContain("read");
 
       overlay.dispose();
     });
@@ -790,7 +790,7 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       // In-memory line should still be recorded.
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
 
       overlay.dispose();
     });
@@ -806,7 +806,7 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
-      expect(content).toContain("tool_execution_start: read");
+      expect(content).toContain("read");
 
       overlay.dispose();
     });
@@ -826,8 +826,8 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
-      expect(content).toContain("tool_execution_start: read");
-      expect(content).toContain("tool_execution_start: write");
+      expect(content).toContain("read");
+      expect(content).toContain("write");
 
       overlay.dispose();
     });
@@ -843,7 +843,7 @@ describe("AgentViewerOverlay", () => {
         } as unknown as AgentEvent);
       }).not.toThrow();
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
 
       overlay.dispose();
     });
@@ -856,8 +856,8 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
       } as unknown as AgentEvent);
 
-      expect(overlay.getLastStreamLine("unknown-agent")).toBe("tool_execution_start: read");
-      expect(overlay.lastStreamLine).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("unknown-agent")).toBe("read");
+      expect(overlay.lastStreamLine).toBe("read");
     });
 
     it("requests render when pushing an event", () => {
@@ -885,7 +885,7 @@ describe("AgentViewerOverlay", () => {
         } as unknown as AgentEvent);
       }).not.toThrow();
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
 
       overlay.dispose();
     });
@@ -908,7 +908,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "lint",
       } as unknown as AgentEvent);
 
-      expect(overlay.lastStreamLine).toBe("tool_execution_start: lint");
+      expect(overlay.lastStreamLine).toBe("lint");
     });
   });
 
@@ -923,7 +923,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "read",
       } as unknown as AgentEvent);
       const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
-      expect(content).toContain("tool_execution_start: read");
+      expect(content).toContain("read");
 
       overlay.dispose();
     });
@@ -963,7 +963,7 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       // In-memory line should still be recorded.
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
       // Disk file IS written.
       const files = existsSync(tmpDir) ? readdirSync(tmpDir) : [];
       expect(files.filter((f: string) => f.endsWith(".stream"))).toHaveLength(1);
@@ -1045,7 +1045,7 @@ describe("AgentViewerOverlay", () => {
         toolName: "lint",
       } as unknown as AgentEvent);
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: read");
+      expect(overlay.getLastStreamLine("builder")).toBe("read");
 
       overlay.dispose();
 
@@ -1660,9 +1660,9 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
-      expect(content).toContain("message_start: assistant");
-      expect(content).toContain("message_end: I will now read the file.");
-      expect(content).toContain("tool_execution_start: read");
+      expect(content).toContain("assistant");
+      expect(content).toContain("I will now read the file.");
+      expect(content).toContain("read");
 
       overlay.dispose();
     });
@@ -1683,7 +1683,7 @@ describe("AgentViewerOverlay", () => {
       } as unknown as AgentEvent);
 
       const content = readFileSync(join(tmpDir, "builder.stream"), "utf-8");
-      expect(content).toContain("tool_execution_start: write");
+      expect(content).toContain("write");
 
       overlay1.dispose();
       overlay2.dispose();
@@ -1921,7 +1921,7 @@ describe("AgentViewerOverlay", () => {
         },
       });
 
-      expect(overlay.getLastStreamLine("builder")).toBe("tool_execution_start: write");
+      expect(overlay.getLastStreamLine("builder")).toBe("write");
 
       unsubs.forEach((u) => u());
       overlay.dispose();
@@ -1961,7 +1961,7 @@ describe("AgentViewerOverlay", () => {
         });
 
         const content = readFileSync(join(streamDir, "builder.stream"), "utf-8");
-        expect(content).toContain("tool_execution_start: read");
+        expect(content).toContain("read");
 
         unsubs.forEach((u) => u());
         overlay.dispose();
@@ -2266,7 +2266,7 @@ describe("AgentViewerOverlay", () => {
         // Verify buffered event was written to disk.
         expect(existsSync(join(streamDir, "builder.stream"))).toBe(true);
         const streamContent = readFileSync(join(streamDir, "builder.stream"), "utf-8");
-        expect(streamContent).toContain("tool_execution_start: read");
+        expect(streamContent).toContain("read");
 
         expect(existsSync(join(streamDir, "builder.events.jsonl"))).toBe(true);
         const eventsContent = readFileSync(join(streamDir, "builder.events.jsonl"), "utf-8");

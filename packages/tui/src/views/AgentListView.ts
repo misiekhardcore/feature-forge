@@ -70,11 +70,12 @@ export class AgentListView {
 
     const items: SelectItem[] = entries.map(([id, entry]) => {
       const passed = AgentDisplayHelpers.getEntryPassed(entry);
-      const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, passed);
-      const { label: statusLabel } = AgentDisplayHelpers.getStatusLabel(entry.status, passed);
+      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+        entry.status,
+        passed,
+      );
       const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt, entry.finishedAt);
-      const role = entry.role ? ` (${entry.role})` : "";
-      const label = `${icon} ${id}${role} — ${statusLabel} (${elapsed})`;
+      const label = `${this.theme.fg(iconColor, icon)} ${id} (${elapsed})`;
       const lastLine = this.state.getLastLine(id);
       const rawDescription = lastLine || entry.summary;
       const description = rawDescription ? truncateToWidth(rawDescription, 60, "…") : undefined;
@@ -89,7 +90,10 @@ export class AgentListView {
       noMatch: (text: string) => this.theme.fg("muted", text),
     };
 
-    const list = new SelectList(items, 15, selectTheme);
+    const list = new SelectList(items, 15, selectTheme, {
+      minPrimaryColumnWidth: 32,
+      maxPrimaryColumnWidth: 50,
+    });
     list.setSelectedIndex(Math.min(this._selectedIndex, Math.max(0, items.length - 1)));
     list.onSelect = (item: SelectItem) => this.onSelectAgent(item.value);
     list.onCancel = () => this.onDone();
