@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { logger } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/shared";
 
 import { bundledSkillDirectories } from "../agents/specifications/skill-resolver";
 
@@ -16,8 +16,16 @@ import { bundledSkillDirectories } from "../agents/specifications/skill-resolver
  */
 export function activateForgeSkills(pi: ExtensionAPI): void {
   pi.on("resources_discover", async (_event, _ctx) => {
+    let forgeSkillsDir: string;
+    try {
+      forgeSkillsDir = path.join(ForgeConfig.getInstance().getForgeDir(), "skills");
+    } catch {
+      // ForgeConfig not initialized — fall back to .forge/skills
+      forgeSkillsDir = path.resolve(".forge", "skills");
+    }
+
     const skillPaths: string[] = [];
-    for (const dir of [...bundledSkillDirectories(), path.resolve(".forge", "skills")]) {
+    for (const dir of [...bundledSkillDirectories(), forgeSkillsDir]) {
       try {
         if (fs.existsSync(dir)) {
           skillPaths.push(dir);

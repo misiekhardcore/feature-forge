@@ -1,3 +1,5 @@
+import { ForgeConfig } from "@feature-forge/shared";
+
 import { AgentSpecification, SkillResolver } from "../specifications";
 
 /**
@@ -37,9 +39,17 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
     !specification.disableSkills &&
     (specification.skills.length > 0 || specification.excludedSkills.length > 0)
   ) {
+    let forgeDir: string | undefined;
+    try {
+      forgeDir = ForgeConfig.getInstance().getForgeDir();
+    } catch {
+      // ForgeConfig not initialized — use default .forge
+    }
+
     const skillPaths = SkillResolver.resolvePaths(
       specification.skills,
       specification.excludedSkills,
+      forgeDir,
     );
     args.push("--no-skills");
     for (const skillPath of skillPaths) {

@@ -43,10 +43,16 @@ export class SkillResolver {
    *
    * @param skills — Allowlist of skill names to include. Empty = include all discovered.
    * @param excludedSkills — Denylist of skill names to exclude. Overrides `skills`.
+   * @param forgeDir — Optional forge directory path. When provided, scans
+   *   `<forgeDir>/skills/` instead of the hardcoded `.forge/skills/`.
    * @returns Absolute paths to the effective set of SKILL.md files.
    */
-  static resolvePaths(skills: readonly string[], excludedSkills: readonly string[]): string[] {
-    const allSkills = this.discoverAll();
+  static resolvePaths(
+    skills: readonly string[],
+    excludedSkills: readonly string[],
+    forgeDir?: string,
+  ): string[] {
+    const allSkills = this.discoverAll(forgeDir);
     const names = this.resolveEffectiveNames(allSkills, skills, excludedSkills);
 
     return names.map((name) => allSkills.get(name)).filter((p): p is string => p !== undefined);
@@ -55,11 +61,12 @@ export class SkillResolver {
   /**
    * Discover all available skill names by scanning well-known directories.
    *
+   * @param forgeDir — Optional forge directory path.
    * @returns A map of all discovered skill names to their SKILL.md paths.
    */
-  static discoverAll(): Map<string, string> {
+  static discoverAll(forgeDir?: string): Map<string, string> {
     const nameMap = new Map<string, string>();
-    const resolver = new SkillResolver();
+    const resolver = new SkillResolver(forgeDir);
 
     for (const dir of resolver.skillDirectories()) {
       resolver.scanDirectory(dir, nameMap);
@@ -94,11 +101,17 @@ export class SkillResolver {
     return effectiveFrom.filter((name) => !excludedSet.has(name));
   }
 
+  private forgeDir: string;
+
+  constructor(forgeDir?: string) {
+    this.forgeDir = forgeDir ?? ".forge";
+  }
+
   private skillDirectories(): string[] {
     return [
       path.join(os.homedir(), ".agents", "skills"),
       path.join(os.homedir(), ".pi", "agent", "skills"),
-      path.resolve(".forge", "skills"),
+      path.resolve(this.forgeDir, "skills"),
       // Bundled default skills (lowest priority — user/project skills override)
       ...bundledSkillDirectories(),
     ];
