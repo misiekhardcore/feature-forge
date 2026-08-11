@@ -13,7 +13,6 @@ README completeness, inline comments, and API documentation.
 
 ## Input
 
-- `builder.raw` — the build agent's full output
 - The workspace is set as your working directory
 
 ## Checklist

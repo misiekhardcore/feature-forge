@@ -13,7 +13,6 @@ project's architectural principles.
 
 ## Input
 
-- `builder.raw` — the build agent's full output
 - The workspace is set as your working directory
 
 ## Checklist

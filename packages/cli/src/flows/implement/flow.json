@@ -103,7 +103,6 @@
                   "target": "verify",
                   "output_as": "call_verify",
                   "input": {
-                    "changes": "{{results.builder.raw}}",
                     "workspace": "{{workspace}}"
                   }
                 }
