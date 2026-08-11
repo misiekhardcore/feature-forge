@@ -62,7 +62,7 @@
         {
           "type": "loop",
           "id": "build_loop",
-          "maxIterations": 5,
+          "maxIterations": 3,
           "continueWhile": "!results.builder?.parsed?.passed || !results.call_review?.parsed?.passed || !results.call_verify?.parsed?.passed",
           "accumulateFrom": ["call_review", "call_verify"],
           "steps": [

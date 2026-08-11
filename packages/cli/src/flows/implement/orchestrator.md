@@ -61,6 +61,22 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
    summarizing the task (e.g. "implement #187 — set_session_name tool").
 3. Analyse the task and break it into **subtasks** with per-subtask implementation
    plans. Note dependencies and sequencing constraints.
+
+   **Atomicity principle.** Each subtask must be a single, coherent change
+   completable in 1-2 build loop iterations. Large subtasks cause the build loop
+   to spend many rounds retrying — small subtasks complete faster.
+
+   - **1-3 files per subtask.** Touching more than 3 files indicates multiple
+     concerns. Split: scaffold data types first, then wire logic, then add tests.
+   - **1-2 ACs per subtask.** A subtask addressing 3+ acceptance criteria is a
+     batch, not a unit of work. Split by criterion.
+   - **Single responsibility.** One component, one endpoint, or one test file
+     per subtask. Grouping a component with its tests is fine; keeping
+     wiring/integration as a separate step is preferred.
+   - **Prefer many small subtasks over few large ones.** Ten 1-round subtasks
+     cost less wall-clock time than two max-iteration subtasks that hit the retry
+     ceiling. The build loop has an iteration limit — a subtask that needs more
+     iterations was too large and should have been split.
 4. Read the issue body and extract every acceptance criterion and objective into
    a **numbered AC checklist**. Include verbatim criteria — do not paraphrase or
    omit. Present the checklist to the user before proceeding so they can confirm
@@ -75,6 +91,12 @@ A plan is the contract passed to `run_build_loop()`. The build agent reads it to
 write code; the review and verify agents receive only the `task` string. Every
 plan must describe the work at a level of detail that lets the builder code
 without making ambiguous or wrong decisions at the type, API, or data level.
+
+Plan detail should be proportional to the subtask's size. An atomic subtask
+(1-2 files, 1 AC) typically needs only File paths and Validation gates — the
+rest of the format can be one-liners or "N/A". A 3-file, 2-AC subtask needs
+the full format. If the plan feels too long for a single build iteration, the
+subtask should be split.
 
 Each subtask plan must include:
 
@@ -113,7 +135,7 @@ issue non-goals, CORE.md watch-outs, or user guidance from prior sessions.
 ### Phase 2: Loop
 
 For each subtask in sequence, call `run_build_loop(workspace, task, plan)` where
-`workspace` is the path from Phase 1. This routine runs up to 5 rounds of
+`workspace` is the path from Phase 1. This routine runs
 build → review + verify and returns the results.
 
 **NOTES.md checkpoints.** Before and after each `run_build_loop` call, follow
@@ -154,7 +176,7 @@ issue. If the ACs are not in the task, the verifier cannot check them.
 After each call:
 
 - If `passed` is true → mark the addressed ACs as done, proceed to the next subtask.
-- If `passed` is false after 5 rounds → Post the failures in the PR.
+- If `passed` is false at the loop limit → Post the failures in the PR.
 
 ### Phase 3: Gate and PR
 
