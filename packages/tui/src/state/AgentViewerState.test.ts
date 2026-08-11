@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { AgentViewerEntry } from "../types";
 import { AgentViewerState, MAX_EVENTS_FILE_LINES } from "./AgentViewerState";
 
 function makeTempDir(): string {
@@ -120,6 +121,37 @@ describe("AgentViewerState", () => {
       });
       const entry = state.getAgentEntry("builder");
       expect(entry!.role).toBe("builder");
+    });
+
+    it("stamps createdAt when entry omits it", () => {
+      const before = new Date();
+      state.update({ id: "builder", status: "started" } as AgentViewerEntry);
+      const entry = state.getAgentEntry("builder")!;
+      expect(entry.createdAt).toBeInstanceOf(Date);
+      expect(entry.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    });
+
+    it("preserves existing createdAt when subsequent update omits it", () => {
+      const original = new Date("2026-01-01T00:00:00Z");
+      state.update({ id: "builder", status: "started", createdAt: original });
+      state.update({
+        id: "builder",
+        status: "done",
+        passed: true,
+        summary: "ok",
+      } as AgentViewerEntry);
+      expect(state.getAgentEntry("builder")!.createdAt).toBe(original);
+    });
+
+    it("entry createdAt wins over existing createdAt", () => {
+      state.update({
+        id: "builder",
+        status: "started",
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      });
+      const newer = new Date("2026-02-01T00:00:00Z");
+      state.update({ id: "builder", status: "started", createdAt: newer });
+      expect(state.getAgentEntry("builder")!.createdAt).toBe(newer);
     });
   });
 
