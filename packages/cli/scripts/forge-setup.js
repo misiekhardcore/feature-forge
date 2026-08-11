@@ -2,16 +2,17 @@
 /**
  * Feature Forge project scaffolding.
  *
- * Replaces the former forge-setup.sh: checks prerequisites, writes
- * .forge/config.json from the canonical defaults JSON in
- * @feature-forge/shared, creates runtime directories, and appends
- * .gitignore entries.
+ * Replaces the former forge-setup.sh: checks prerequisites, scaffolds
+ * agents, flows, skills, config, and runtime directories into the forge
+ * directory, and appends .gitignore entries.
  *
- * Usage: forge-setup.js [--yes] [--no-config] [--no-gitignore] [--cwd <path>]
+ * Usage: forge-setup.js [--yes] [--no-config] [--no-gitignore]
+ *                      [--cwd <path>] [--global] [--forge-dir <path>]
  */
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +31,8 @@ const logWarn = (...msg) => console.warn(`${YELLOW}[forge]${NC}`, ...msg);
 const logError = (...msg) => console.error(`${RED}[forge]${NC}`, ...msg);
 
 // ── Defaults ──────────────────────────────────────────────────────────
+let useGlobal = false;
+let forgeDirFlag = null;
 let noConfig = false;
 let noGitignore = false;
 let cwd = process.cwd();
@@ -40,6 +43,17 @@ for (let i = 0; i < args.length; i += 1) {
   switch (args[i]) {
     case "--yes":
       // Accepted for CLI parity; setup is non-interactive already.
+      break;
+    case "--global":
+      useGlobal = true;
+      break;
+    case "--forge-dir":
+      if (i + 1 >= args.length) {
+        logError("flag --forge-dir requires a value");
+        process.exit(1);
+      }
+      forgeDirFlag = args[i + 1];
+      i += 1;
       break;
     case "--no-config":
       noConfig = true;
@@ -65,6 +79,41 @@ for (let i = 0; i < args.length; i += 1) {
 function commandAvailable(command) {
   const result = spawnSync(command, ["--version"], { stdio: "ignore" });
   return !(result.error && result.error.code === "ENOENT");
+}
+
+/**
+ * Resolve the package dist directory that contains the built-in
+ * agents, flows, and skills templates to scaffold.
+ *
+ * The script lives at `dist/scripts/forge-setup.js` in the built
+ * package, so `__dirname/..` is `dist/`. From source, `__dirname`
+ * is the scripts directory; `__dirname/..` points to `packages/cli`.
+ */
+function resolveDistDir() {
+  return path.join(__dirname, "..");
+}
+
+/**
+ * Compute the resolved forge directory path from flags.
+ *
+ * - `--global` → `~/.forge`
+ * - `--forge-dir <path>` → the given path, resolved
+ * - default → `.forge` relative to cwd
+ */
+function computeForgeDir() {
+  let raw;
+  if (useGlobal) {
+    raw = "~/.forge";
+  } else if (forgeDirFlag) {
+    raw = forgeDirFlag;
+  } else {
+    raw = ".forge";
+  }
+
+  if (raw.startsWith("~")) {
+    return path.join(os.homedir(), raw.slice(1));
+  }
+  return path.resolve(cwd, raw);
 }
 
 // ── Resolve canonical defaults JSON ──────────────────────────────────
@@ -110,8 +159,8 @@ function checkPrereqs() {
 }
 
 // ── Scaffold .forge/config.json ──────────────────────────────────────
-function scaffoldConfig() {
-  const target = path.join(cwd, ".forge", "config.json");
+function scaffoldConfig(forgeDir) {
+  const target = path.join(forgeDir, "config.json");
   if (fs.existsSync(target)) {
     logWarn(".forge/config.json already exists — skipping");
     return;
@@ -122,11 +171,45 @@ function scaffoldConfig() {
   logInfo("created .forge/config.json");
 }
 
-// ── Create runtime directories ────────────────────────────────────────
+// ── Create runtime directories (always project-local) ────────────────
 function createDirs() {
   fs.mkdirSync(path.join(cwd, ".forge", "logs"), { recursive: true });
   fs.mkdirSync(path.join(cwd, ".forge", "worktrees"), { recursive: true });
   logInfo("created .forge/logs and .forge/worktrees");
+}
+
+// ── Copy templates from dist into forgeDir ────────────────────────────
+function scaffoldTemplates(forgeDir) {
+  const distDir = resolveDistDir();
+
+  // Agents: copy .md files from dist/agents/declarative-specs → forgeDir/agents/
+  const agentsSrc = path.join(distDir, "agents", "declarative-specs");
+  const agentsDest = path.join(forgeDir, "agents");
+  if (fs.existsSync(agentsSrc)) {
+    fs.mkdirSync(agentsDest, { recursive: true });
+    for (const entry of fs.readdirSync(agentsSrc, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        fs.copyFileSync(path.join(agentsSrc, entry.name), path.join(agentsDest, entry.name));
+      }
+    }
+    logInfo(`scaffolded ${agentsDest}`);
+  }
+
+  // Flows: copy dist/flows → forgeDir/flows
+  const flowsSrc = path.join(distDir, "flows");
+  const flowsDest = path.join(forgeDir, "flows");
+  if (fs.existsSync(flowsSrc)) {
+    fs.cpSync(flowsSrc, flowsDest, { recursive: true });
+    logInfo(`scaffolded ${flowsDest}`);
+  }
+
+  // Skills: copy dist/skills → forgeDir/skills
+  const skillsSrc = path.join(distDir, "skills");
+  const skillsDest = path.join(forgeDir, "skills");
+  if (fs.existsSync(skillsSrc)) {
+    fs.cpSync(skillsSrc, skillsDest, { recursive: true });
+    logInfo(`scaffolded ${skillsDest}`);
+  }
 }
 
 // ── Append gitignore entries ──────────────────────────────────────────
@@ -165,10 +248,17 @@ if (checkPrereqs() > 0) {
   process.exit(1);
 }
 
+const forgeDir = computeForgeDir();
+logInfo(`forge directory: ${forgeDir}`);
+
+// Scaffold templates (agents, flows, skills) into forgeDir
+scaffoldTemplates(forgeDir);
+
 if (!noConfig) {
-  scaffoldConfig();
+  scaffoldConfig(forgeDir);
 }
 
+// Runtime directories always go under the project's .forge/
 createDirs();
 
 if (!noGitignore) {
