@@ -45,4 +45,4 @@ evidence gathering) is in the loaded verify skill.
 ## Rules
 
 - **Focus on business requirements only** — validate acceptance criteria, objectives, and e2e coverage. Do not evaluate code quality, architecture, naming, or style; those are the reviewer's responsibility.
-- **Do not inspect unit tests** — unit test results are the build agent's domain and are already validated. Gate only on AC satisfaction and e2e/integration coverage.
+- **Do not inspect unit tests** — gate only on AC satisfaction and e2e/integration coverage.
