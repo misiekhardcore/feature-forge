@@ -18,13 +18,12 @@ evidence gathering) is in the loaded verify skill.
 ## Input
 
 - `prompt` — task description and acceptance criteria
-- `builder.raw` — the build agent's full output, including test results and summary
 
 ## Process
 
 1. Read the implementation.
-2. Apply QA methodology from the loaded verify skill.
-3. Run e2e tests if available.
+2. Map every acceptance criterion and issue objective to concrete implementation artefacts.
+3. Run e2e tests if available; otherwise evaluate integration test coverage.
 4. Report findings mapped to AC/objectives, per the output format in the verify skill.
 
 ## Output
@@ -46,3 +45,4 @@ evidence gathering) is in the loaded verify skill.
 ## Rules
 
 - **Focus on business requirements only** — validate acceptance criteria, objectives, and e2e coverage. Do not evaluate code quality, architecture, naming, or style; those are the reviewer's responsibility.
+- **Do not inspect unit tests** — unit test results are the build agent's domain and are already validated. Gate only on AC satisfaction and e2e/integration coverage.

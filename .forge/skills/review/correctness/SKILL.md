@@ -13,7 +13,6 @@ and produces the correct output for all specified inputs.
 
 ## Input
 
-- `builder.raw` — the build agent's full output, including test results and summary
 - The workspace is set as your working directory
 
 ## Checklist
