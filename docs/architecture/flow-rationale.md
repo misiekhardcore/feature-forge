@@ -197,7 +197,7 @@ only the routines do. Do not spawn agents directly — routines manage agents.
         {
           "type": "loop",
           "id": "build_loop",
-          "maxIterations": 5,
+          "maxIterations": 3,
           "continueWhile": "!results.builder?.parsed?.passed || !results.review?.parsed?.passed || !results.verify?.parsed?.passed",
           "accumulateFrom": ["review", "verify"],
           "steps": [
@@ -273,7 +273,7 @@ only the routines do. Do not spawn agents directly — routines manage agents.
 4. The LLM calls tool `run_build_loop(task=..., plan=...)`.
    - `FlowEngine.run("run_build_loop", {task,plan})` executes that routine's
      `steps`: creates a worktree, runs the build→review→verify loop
-     deterministically until `continueWhile` is false or 5 rounds.
+     deterministically until `continueWhile` is false or its configured maximum.
    - Returns `{ passed, rounds, workspace, results, summary }`.
 5. The LLM reads the blob. If `passed`, calls `open_pr(workspace, title)`.
    `open_pr` runs commit/branch/`gh pr create` **in the still-live worktree**.
