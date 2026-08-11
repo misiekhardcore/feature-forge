@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 // ESM polyfill: __dirname is not available in ESM
 import { fileURLToPath } from "node:url";
@@ -79,13 +80,23 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // children receive FORGE_PARENT_SOCKET in their process environment.
   const childEnv: Record<string, string> = {};
 
+  const forgeConfig = ForgeConfig.getInstance();
+  const forgeDir = forgeConfig.getForgeDir();
+
+  const forgeAgentsDir = path.join(forgeDir, "agents");
+  if (!fs.existsSync(forgeAgentsDir)) {
+    throw new Error(
+      `Forge not initialized — ${forgeAgentsDir} does not exist. ` +
+        `Run /forge:init to scaffold agents, flows, and skills.`,
+    );
+  }
+
   const specRegistry = new SpecRegistry();
   const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
-  await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
+  await specManager.loadFromDirectory(forgeAgentsDir);
 
   // Load additional agent specs from directories configured in forge.config
-  const forgeConfig = ForgeConfig.getInstance();
   for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
     try {
       await specManager.loadFromDirectory(agentSpecDir);
@@ -185,7 +196,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
-  const flowDirs = [path.join(__dirname, "flows"), ...forgeConfig.getFlowDirectories()];
+  const flowDirs = [path.join(forgeDir, "flows"), ...forgeConfig.getFlowDirectories()];
   const flowRegistrar = new FlowRegistrar({
     pi,
     cmdRegistry,
