@@ -70,9 +70,12 @@ export class AgentListView {
 
     const items: SelectItem[] = entries.map(([id, entry]) => {
       const passed = AgentDisplayHelpers.getEntryPassed(entry);
-      const { char: icon } = AgentDisplayHelpers.getStatusIcon(entry.status, passed);
+      const { char: icon, color: iconColor } = AgentDisplayHelpers.getStatusIcon(
+        entry.status,
+        passed,
+      );
       const elapsed = AgentDisplayHelpers.formatElapsed(entry.createdAt, entry.finishedAt);
-      const label = `${icon} ${id} (${elapsed})`;
+      const label = `${this.theme.fg(iconColor, icon)} ${id} (${elapsed})`;
       const lastLine = this.state.getLastLine(id);
       const rawDescription = lastLine || entry.summary;
       const description = rawDescription ? truncateToWidth(rawDescription, 60, "…") : undefined;
