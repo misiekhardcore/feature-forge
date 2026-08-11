@@ -431,7 +431,11 @@ describe("flow round-trip", () => {
     it("fetch_pr_comments runs gh pr view and reviewThreads shell steps", () => {
       const routine = resolvePrFlow.routines.find((r) => r.id === "fetch_pr_comments");
       expect(routine).toBeDefined();
-      expect(routine?.params).toEqual([{ name: "pr", description: "PR number" }]);
+      expect(routine?.params).toEqual([
+        { name: "pr", description: "PR number" },
+        { name: "owner", description: "Repository owner" },
+        { name: "repo", description: "Repository name" },
+      ]);
 
       const steps = routine?.steps as FlowInstruction[];
       expect(steps.map((s) => s.id)).toEqual(["pr_info", "review_threads"]);
@@ -486,6 +490,8 @@ describe("flow round-trip", () => {
         prompt: "42",
         params: new Map([
           ["pr", "42"],
+          ["owner", "misiekhardcore"],
+          ["repo", "feature-forge"],
           ["workspace", "/tmp/test-workspace"],
           ["threadId", "PRRT_test"],
           ["verdict", "fixed"],
