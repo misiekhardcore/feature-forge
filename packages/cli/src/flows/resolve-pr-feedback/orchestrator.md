@@ -162,7 +162,7 @@ For each group, call `run_build_loop(workspace, task, plan)`:
 - Follow the NOTES.md checkpoint protocol before and after each call
   (notes-md skill): update `## Current task` and `## Next action on resume`,
   then integrate results and flip checkboxes.
-- If `passed` is false after 3 rounds, do not fabricate a disposition —
+- If `passed` is false at the loop limit, do not fabricate a disposition —
   assign `not-addressing` (or `needs-human`) and post an honest status reply.
 
 ### Phase 7: Disposition

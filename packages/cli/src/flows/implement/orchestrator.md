@@ -75,7 +75,7 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
      wiring/integration as a separate step is preferred.
    - **Prefer many small subtasks over few large ones.** Ten 1-round subtasks
      cost less wall-clock time than two max-iteration subtasks that hit the retry
-     ceiling. The build loop has a 3-iteration cap — a subtask that needs more
+     ceiling. The build loop has an iteration limit — a subtask that needs more
      iterations was too large and should have been split.
 4. Read the issue body and extract every acceptance criterion and objective into
    a **numbered AC checklist**. Include verbatim criteria — do not paraphrase or
@@ -135,7 +135,7 @@ issue non-goals, CORE.md watch-outs, or user guidance from prior sessions.
 ### Phase 2: Loop
 
 For each subtask in sequence, call `run_build_loop(workspace, task, plan)` where
-`workspace` is the path from Phase 1. This routine runs up to 3 rounds of
+`workspace` is the path from Phase 1. This routine runs
 build → review + verify and returns the results.
 
 **NOTES.md checkpoints.** Before and after each `run_build_loop` call, follow
@@ -176,7 +176,7 @@ issue. If the ACs are not in the task, the verifier cannot check them.
 After each call:
 
 - If `passed` is true → mark the addressed ACs as done, proceed to the next subtask.
-- If `passed` is false after 3 rounds → Post the failures in the PR.
+- If `passed` is false at the loop limit → Post the failures in the PR.
 
 ### Phase 3: Gate and PR
 
