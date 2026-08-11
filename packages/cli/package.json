@@ -1,6 +1,6 @@
 {
   "name": "@feature-forge/cli",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Pi extension for autonomous software engineering — structured discovery, ADR-driven design, and multi-agent implementation from idea to PR.",
   "type": "module",
   "license": "PolyForm-Noncommercial-1.0.0",
