@@ -16,15 +16,39 @@ import type { AgentOutput } from "../FlowContext";
  * All other fields pass through opaquely in `details`.
  */
 export function extractJson(raw: string): AgentOutput | undefined {
-  const match = raw.match(/```json\s*\n([\s\S]*?)```/);
-  if (!match || !match[1]) {
-    // Fall back: look for a bare { … } block.
-    const braceMatch = raw.match(/\{[\s\S]*\}/);
-    if (!braceMatch) return undefined;
-    return parseOrUndefined(braceMatch[0]);
+  // Prefer fenced code blocks: ```json or bare ```
+  const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenceMatch?.[1]) {
+    const parsed = parseOrUndefined(fenceMatch[1].trim());
+    if (parsed) return parsed;
   }
 
-  return parseOrUndefined(match[1]);
+  // Fall back: find balanced {…} objects. Try every opening brace
+  // position and match its closing brace via depth counting so we
+  // never pick up text between unrelated JSON-like fragments.
+  const braceRegex = /\{/g;
+  let braceMatch: RegExpExecArray | null;
+  while ((braceMatch = braceRegex.exec(raw)) !== null) {
+    const start = braceMatch.index;
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < raw.length; i++) {
+      if (raw[i] === "{") depth++;
+      else if (raw[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end > start) {
+      const parsed = parseOrUndefined(raw.slice(start, end));
+      if (parsed) return parsed;
+    }
+  }
+
+  return undefined;
 }
 
 function parseOrUndefined(json: string): AgentOutput | undefined {

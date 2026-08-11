@@ -113,13 +113,17 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       });
 
       const raw = agent.getResult();
-      logger.info("Agent completed", { instructionId, resultLength: raw.length });
 
       // When JSON is required but missing, give the agent a chance to correct
       // itself before giving up. retry() re-uses the existing transport session
       // and updates the agent's result, so getResult() is re-read after each
       // attempt. Transport errors stop the loop early - the raw output stands.
       if (instruction.parseJson && !extractJson(raw)) {
+        logger.info("Agent response missing JSON — starting retry", {
+          instructionId,
+          resultLength: raw.length,
+        });
+
         const correctionPrompt =
           "Your last response was missing the required JSON outcome block. " +
           "Review the output format instructions in your system prompt and " +
@@ -128,10 +132,30 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
         const maxRetries =
           instruction.maxJsonRetries ?? ForgeConfig.getInstance().getJsonRetryMaxAttempts();
         for (let attempt = 0; attempt < maxRetries; attempt++) {
+          logger.info("Agent JSON retry attempt", {
+            instructionId,
+            attempt: attempt + 1,
+            maxRetries,
+          });
           try {
             // Forward the abort signal so retries stay cancellable, matching
-            // the initial task execution.
-            await agent.retry(correctionPrompt, { signal });
+            // the initial task execution. Also forward onEvent so the TUI
+            // shows streaming activity during retry instead of appearing stuck.
+            await agent.retry(correctionPrompt, {
+              signal,
+              onEvent: (event) => {
+                eventBus.emit("feature-forge:agent-stream", {
+                  phase: "agent-stream",
+                  message: `Agent "${instructionId}" stream event`,
+                  details: {
+                    executionId,
+                    agentId: agent.id,
+                    label: specification.role,
+                    event,
+                  },
+                });
+              },
+            });
           } catch (error) {
             // Transport errors stop the retry loop early - the raw output
             // stands - but log the reason so failures stay diagnosable.
@@ -142,10 +166,16 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
             break;
           }
           if (extractJson(agent.getResult())) {
+            logger.info("Agent JSON retry succeeded", {
+              instructionId,
+              attempt: attempt + 1,
+            });
             break; // Got valid JSON, stop retrying
           }
         }
       }
+
+      logger.info("Agent completed", { instructionId, resultLength: agent.getResult().length });
 
       const result = this.buildResult(agent.getResult(), instruction.parseJson);
       const updatedContext = context.withResult(instructionId, result);
