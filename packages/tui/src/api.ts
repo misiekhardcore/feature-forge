@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { AgentStatus, Tool } from "@feature-forge/shared";
 
 import type { AgentViewerEntry } from "./types";
@@ -34,12 +34,16 @@ export interface AgentStateWriter {
 
 /** Query interface for wireOverlayEvents — satisfied by AgentSupervisor. */
 export interface AgentQuery {
-  getAgent(
-    id: string,
-  ): { specification: { role: string }; status: AgentStatus; createdAt: Date } | undefined;
+  getAgent(id: string):
+    | {
+        specification: { role: string; model?: string; thinkingLevel?: ThinkingLevel };
+        status: AgentStatus;
+        createdAt: Date;
+      }
+    | undefined;
   getAllAgents(): ReadonlyArray<{
     id: string;
-    specification: { role: string };
+    specification: { role: string; model?: string; thinkingLevel?: ThinkingLevel };
     status: AgentStatus;
     createdAt: Date;
   }>;
