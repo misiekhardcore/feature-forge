@@ -128,18 +128,18 @@ describe("WorktreeDestroyCommand", () => {
 
     it("notifies error when args is empty", async () => {
       await cmd.handler("", ctx);
-      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <path>", "error");
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /forge:worktree:destroy <path>", "error");
     });
 
     it("notifies error when args is whitespace", async () => {
       await cmd.handler("   ", ctx);
-      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /worktree:destroy <path>", "error");
+      expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /forge:worktree:destroy <path>", "error");
     });
 
     it("notifies error for unknown worktree path", async () => {
       await cmd.handler("/unknown/path", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith(
-        'No worktree found with path "/unknown/path". Use /worktree:list to see active ones.',
+        'No worktree found with path "/unknown/path". Use /forge:worktree:list to see active ones.',
         "error",
       );
     });

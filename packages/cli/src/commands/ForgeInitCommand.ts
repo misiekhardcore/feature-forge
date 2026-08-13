@@ -19,15 +19,21 @@ export class ForgeInitCommand extends Command {
   handler = async (_args: string, ctx: ExtensionCommandContext) => {
     const setupScript = path.join(__dirname, "..", "scripts", "forge-setup.js");
 
-    const scaffoldConfig = await ctx.ui.confirm(
-      "Forge: Init",
-      "Scaffold .forge/config.json with defaults?",
-    );
-    const updateGitignore = await ctx.ui.confirm("Forge: Init", "Add forge entries to .gitignore?");
     const useGlobal = await ctx.ui.confirm(
       "Forge: Init",
-      "Install globally in ~/.forge (shared across projects)?",
+      "Store agents, flows, and skills in ~/.forge (shared across projects)? " +
+        "Logs and worktrees always stay project-local.",
     );
+
+    let scaffoldConfig = true;
+    let updateGitignore = true;
+    if (!useGlobal) {
+      scaffoldConfig = await ctx.ui.confirm(
+        "Forge: Init",
+        "Scaffold .forge/config.json with defaults?",
+      );
+      updateGitignore = await ctx.ui.confirm("Forge: Init", "Add forge entries to .gitignore?");
+    }
 
     const args = [setupScript];
     if (!scaffoldConfig) args.push("--no-config");

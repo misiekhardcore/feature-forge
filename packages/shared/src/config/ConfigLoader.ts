@@ -163,8 +163,8 @@ export class ConfigLoader {
    *      resolve the real config from `<forgeDir>/config.json` and merge
    *      any other keys from the project config as overrides on top.
    *    - If `forgeDir` is `.forge` or absent, this IS the real config.
-   * 2. `~/.forge/config.json` (global forge, no project pointer)
-   * 3. `forge.config.json` (repo-root config)
+   * 2. `forge.config.json` (repo-root config, legacy location)
+   * 3. `~/.forge/config.json` (global forge, no project config)
    * 4. Defaults (no config file found)
    *
    * @param params.cwd — Directory to search in (defaults to `process.cwd()`).
@@ -217,18 +217,7 @@ export class ConfigLoader {
       );
     }
 
-    // 2. Global ~/.forge/config.json (no project pointer file)
-    const globalConfigPath = path.join(os.homedir(), ".forge", "config.json");
-    const globalConfig = await this.readJsonFile(globalConfigPath);
-    if (globalConfig !== null) {
-      const envOverlay = this.resolveForgeEnvOverlay();
-      return this.validateAndResolve(
-        { ...(this.resolveEnvVars(globalConfig) as Record<string, unknown>), ...envOverlay },
-        globalConfigPath,
-      );
-    }
-
-    // 3. forge.config.json at repo root
+    // 2. forge.config.json at repo root (project-local, legacy location)
     const rootConfigPath = path.join(searchDir, `${this.configFileName}.json`);
     const rootConfig = await this.readJsonFile(rootConfigPath);
     if (rootConfig !== null) {
@@ -236,6 +225,17 @@ export class ConfigLoader {
       return this.validateAndResolve(
         { ...(this.resolveEnvVars(rootConfig) as Record<string, unknown>), ...envOverlay },
         rootConfigPath,
+      );
+    }
+
+    // 3. Global ~/.forge/config.json (no project config at all)
+    const globalConfigPath = path.join(os.homedir(), ".forge", "config.json");
+    const globalConfig = await this.readJsonFile(globalConfigPath);
+    if (globalConfig !== null) {
+      const envOverlay = this.resolveForgeEnvOverlay();
+      return this.validateAndResolve(
+        { ...(this.resolveEnvVars(globalConfig) as Record<string, unknown>), ...envOverlay },
+        globalConfigPath,
       );
     }
 

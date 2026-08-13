@@ -5,11 +5,11 @@ import { Command } from "./Command";
 /**
  * Lists all active worktrees tracked by the registry.
  *
- * Usage: `/worktree:list`
+ * Usage: `/forge:worktree:list`
  */
 export class WorktreeListCommand extends Command {
   readonly name = "worktree:list";
-  readonly description = "List all active worktrees. Usage: /worktree:list";
+  readonly description = "List all active worktrees. Usage: /forge:worktree:list";
 
   handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const manager = this.workspaceManager;

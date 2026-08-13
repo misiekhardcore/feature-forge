@@ -44,11 +44,17 @@ describe("ForgeInitCommand", () => {
     expect(cmd.name).toBe("forge:init");
   });
 
-  it("runs forge-setup with all defaults when every prompt is accepted", async () => {
+  it("registers global scaffolding with a single prompt when global is accepted", async () => {
     ctx.ui.confirm.mockResolvedValue(true);
 
     await cmd.handler("", ctx);
 
+    expect(ctx.ui.confirm).toHaveBeenCalledTimes(1);
+    expect(ctx.ui.confirm).toHaveBeenCalledWith(
+      "Forge: Init",
+      "Store agents, flows, and skills in ~/.forge (shared across projects)? " +
+        "Logs and worktrees always stay project-local.",
+    );
     expect(executedArgs()).toEqual([
       expect.stringMatching(/forge-setup\.js$/),
       "--global",
@@ -62,38 +68,24 @@ describe("ForgeInitCommand", () => {
     );
   });
 
-  it("passes --no-config, --no-gitignore, and --global when declined except global", async () => {
+  it("asks local prompts and omits --global when the global prompt is declined", async () => {
     ctx.ui.confirm
-      .mockResolvedValueOnce(false) // scaffold config
-      .mockResolvedValueOnce(false) // gitignore
-      .mockResolvedValueOnce(true); // global
+      .mockResolvedValueOnce(false) // global
+      .mockResolvedValueOnce(true) // scaffold config
+      .mockResolvedValueOnce(true); // gitignore
 
     await cmd.handler("", ctx);
 
+    expect(ctx.ui.confirm).toHaveBeenCalledTimes(3);
     expect(executedArgs()).toEqual([
       expect.stringMatching(/forge-setup\.js$/),
-      "--no-config",
-      "--no-gitignore",
-      "--global",
       "--yes",
       "--cwd",
       process.cwd(),
     ]);
   });
 
-  it("passes --global when the global prompt is accepted", async () => {
-    ctx.ui.confirm.mockResolvedValue(true);
-
-    await cmd.handler("", ctx);
-
-    expect(executedArgs()).toContain("--global");
-    expect(ctx.ui.confirm).toHaveBeenCalledWith(
-      "Forge: Init",
-      "Install globally in ~/.forge (shared across projects)?",
-    );
-  });
-
-  it("omits --global when the global prompt is declined", async () => {
+  it("passes --no-config and --no-gitignore when declined in local mode", async () => {
     ctx.ui.confirm.mockResolvedValue(false);
 
     await cmd.handler("", ctx);

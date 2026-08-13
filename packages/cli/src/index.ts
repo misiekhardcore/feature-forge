@@ -34,6 +34,7 @@ import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorReg
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
 import { CommandRegistry, ToolRegistry } from "./registry";
+import { withForgePrefix } from "./registry/CommandRegistry";
 import {
   DestroyAgentTool,
   GetAgentResultTool,
@@ -89,7 +90,8 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     // Register only /forge:init so the user can initialize, then skip
     // the rest of the extension setup (agents, flows, tools, IPC).
     const initCommand = new ForgeInitCommand(undefined as never, pi);
-    pi.registerCommand(initCommand.name, {
+    const registeredName = withForgePrefix(initCommand.name);
+    pi.registerCommand(registeredName, {
       ...initCommand,
       handler: (args: string, ctx: ExtensionCommandContext) => initCommand.handler(args, ctx),
     });

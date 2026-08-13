@@ -22,6 +22,7 @@ import {
   TuiRoutineWidget,
 } from "@feature-forge/tui";
 
+import { withForgePrefix } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
 // ── Guard ───────────────────────────────────────────────────
@@ -95,7 +96,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
 
   // ── Command registrations ─────────────────────────────────
 
-  pi.registerCommand("test-viewer", {
+  pi.registerCommand(withForgePrefix("test-viewer"), {
     description: "Open AgentViewerOverlay with 7 preset test scenarios as separate agents",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;
@@ -124,7 +125,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     },
   });
 
-  pi.registerCommand("test-scroll", {
+  pi.registerCommand(withForgePrefix("test-scroll"), {
     description: "Open AgentViewerOverlay with a 35-turn conversation for auto-scroll testing",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;
@@ -145,7 +146,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     },
   });
 
-  pi.registerCommand("test-tool-args", {
+  pi.registerCommand(withForgePrefix("test-tool-args"), {
     description:
       "Open AgentViewerOverlay with bash, read, and write tool calls showing visible args",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
@@ -167,7 +168,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     },
   });
 
-  pi.registerCommand("test-stream-replay", {
+  pi.registerCommand(withForgePrefix("test-stream-replay"), {
     description: "Open AgentViewerOverlay with events persisted to disk and replayed from JSONL",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;

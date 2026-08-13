@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentSupervisor } from "../agents";
 import { Command } from "../commands/Command";
 import { makeMockPi, makeMockSpecManager, makeMockToolRegistry } from "../test-utils";
-import { CommandRegistry } from "./CommandRegistry";
+import { CommandRegistry, withForgePrefix } from "./CommandRegistry";
 
 class TestCommand extends Command {
   readonly name = "test:cmd";
@@ -22,6 +22,17 @@ class DuplicateCommand extends Command {
   async handler(_args: string, _ctx: ExtensionCommandContext): Promise<void> {}
 }
 
+describe("withForgePrefix", () => {
+  it("prefixes unprefixed names", () => {
+    expect(withForgePrefix("implement")).toBe("forge:implement");
+    expect(withForgePrefix("agent:list")).toBe("forge:agent:list");
+  });
+
+  it("does not double-prefix names that already carry the prefix", () => {
+    expect(withForgePrefix("forge:init")).toBe("forge:init");
+  });
+});
+
 describe("CommandRegistry", () => {
   let mockPi: ExtensionAPI;
   let registry: CommandRegistry;
@@ -38,29 +49,33 @@ describe("CommandRegistry", () => {
   });
 
   describe("register", () => {
-    it("registers a command and makes it retrievable", () => {
+    it("registers a command under the forge: prefix and keeps the declared name", () => {
       const cmd = registry.register(TestCommand);
       expect(cmd).toBeInstanceOf(TestCommand);
       expect(cmd.name).toBe("test:cmd");
+      expect(registry.get("forge:test:cmd")).toBe(cmd);
+      expect(registry.get("test:cmd")).toBeUndefined();
     });
 
-    it("pi.registerCommand is called via registerAllWith", () => {
+    it("pi.registerCommand is called with the prefixed name", () => {
       registry.register(TestCommand);
       expect(mockPi.registerCommand).toHaveBeenCalledTimes(1);
       expect(mockPi.registerCommand).toHaveBeenCalledWith(
-        "test:cmd",
+        "forge:test:cmd",
         expect.objectContaining({ handler: expect.any(Function) }),
       );
     });
 
     it("throws when registering a command with a duplicate name", () => {
       registry.register(DuplicateCommand);
-      expect(() => registry.register(DuplicateCommand)).toThrow("Command already registered: dup");
+      expect(() => registry.register(DuplicateCommand)).toThrow(
+        "Command already registered: forge:dup",
+      );
     });
 
     it("registered command is retrievable via get", () => {
       registry.register(TestCommand);
-      expect(registry.get("test:cmd")).toBeInstanceOf(TestCommand);
+      expect(registry.get("forge:test:cmd")).toBeInstanceOf(TestCommand);
     });
 
     it("pi.registerCommand handler executes the command", async () => {
@@ -82,7 +97,7 @@ describe("CommandRegistry", () => {
   });
 
   describe("registerInstance", () => {
-    it("registers a pre-constructed command and makes it retrievable", () => {
+    it("registers a pre-constructed command under the prefixed name", () => {
       const cmd = new TestCommand(
         {} as AgentSupervisor,
         mockPi,
@@ -91,10 +106,10 @@ describe("CommandRegistry", () => {
       );
       const result = registry.registerInstance(cmd);
       expect(result).toBe(cmd);
-      expect(registry.get("test:cmd")).toBe(cmd);
+      expect(registry.get("forge:test:cmd")).toBe(cmd);
     });
 
-    it("calls pi.registerCommand with the command data", () => {
+    it("calls pi.registerCommand with the prefixed name", () => {
       const cmd = new TestCommand(
         {} as AgentSupervisor,
         mockPi,
@@ -103,7 +118,7 @@ describe("CommandRegistry", () => {
       );
       registry.registerInstance(cmd);
       expect(mockPi.registerCommand).toHaveBeenCalledWith(
-        "test:cmd",
+        "forge:test:cmd",
         expect.objectContaining({ handler: expect.any(Function) }),
       );
     });
@@ -123,7 +138,7 @@ describe("CommandRegistry", () => {
         makeMockToolRegistry(),
       );
       expect(() => registry.registerInstance(duplicate)).toThrow(
-        "Command already registered: test:cmd",
+        "Command already registered: forge:test:cmd",
       );
     });
 
@@ -146,17 +161,17 @@ describe("CommandRegistry", () => {
   });
 
   describe("registerAll", () => {
-    it("registers multiple commands", () => {
+    it("registers multiple commands under the forge: prefix", () => {
       const cmds = registry.registerAll(TestCommand, DuplicateCommand);
       expect(cmds).toHaveLength(2);
-      expect(registry.has("test:cmd")).toBe(true);
-      expect(registry.has("dup")).toBe(true);
+      expect(registry.has("forge:test:cmd")).toBe(true);
+      expect(registry.has("forge:dup")).toBe(true);
     });
 
     it("throws if any command has a duplicate name and stops registering", () => {
       registry.register(TestCommand);
       expect(() => registry.registerAll(TestCommand, DuplicateCommand)).toThrow(
-        "Command already registered: test:cmd",
+        "Command already registered: forge:test:cmd",
       );
     });
   });
@@ -171,8 +186,8 @@ describe("CommandRegistry", () => {
     it("unregister removes command and tracks correctly", () => {
       registry.register(TestCommand);
       expect(registry.size).toBe(1);
-      expect(registry.unregister("test:cmd")).toBe(true);
-      expect(registry.has("test:cmd")).toBe(false);
+      expect(registry.unregister("forge:test:cmd")).toBe(true);
+      expect(registry.has("forge:test:cmd")).toBe(false);
       expect(registry.size).toBe(0);
     });
   });
