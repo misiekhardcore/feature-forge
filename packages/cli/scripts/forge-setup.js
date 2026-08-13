@@ -204,6 +204,30 @@ function createDirs() {
   logInfo("created .forge/logs and .forge/worktrees");
 }
 
+// ── Copy files non-destructively (skip existing destinations) ────────
+function copyMissingFiles(src, dest) {
+  let created = 0;
+  let skipped = 0;
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      const nested = copyMissingFiles(srcPath, destPath);
+      created += nested.created;
+      skipped += nested.skipped;
+    } else if (entry.isFile()) {
+      if (fs.existsSync(destPath)) {
+        skipped += 1;
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+        created += 1;
+      }
+    }
+  }
+  return { created, skipped };
+}
+
 // ── Copy templates from dist into forgeDir ────────────────────────────
 function scaffoldTemplates(forgeDir) {
   const srcDir = resolveAssetsDir();
@@ -212,29 +236,37 @@ function scaffoldTemplates(forgeDir) {
   const agentsSrc = path.join(srcDir, "agents", "declarative-specs");
   const agentsDest = path.join(forgeDir, "agents");
   if (fs.existsSync(agentsSrc)) {
+    let created = 0;
+    let skipped = 0;
     fs.mkdirSync(agentsDest, { recursive: true });
     for (const entry of fs.readdirSync(agentsSrc, { withFileTypes: true })) {
       if (entry.isFile() && entry.name.endsWith(".md")) {
-        fs.copyFileSync(path.join(agentsSrc, entry.name), path.join(agentsDest, entry.name));
+        const destFile = path.join(agentsDest, entry.name);
+        if (fs.existsSync(destFile)) {
+          skipped += 1;
+        } else {
+          fs.copyFileSync(path.join(agentsSrc, entry.name), destFile);
+          created += 1;
+        }
       }
     }
-    logInfo(`scaffolded ${agentsDest}`);
+    logInfo(`scaffolded ${created} file(s) to ${agentsDest}, skipped ${skipped} existing`);
   }
 
-  // Flows: copy <assets>/flows → forgeDir/flows
+  // Flows: copy <assets>/flows → forgeDir/flows (skip existing files)
   const flowsSrc = path.join(srcDir, "flows");
   const flowsDest = path.join(forgeDir, "flows");
   if (fs.existsSync(flowsSrc)) {
-    fs.cpSync(flowsSrc, flowsDest, { recursive: true });
-    logInfo(`scaffolded ${flowsDest}`);
+    const { created, skipped } = copyMissingFiles(flowsSrc, flowsDest);
+    logInfo(`scaffolded ${created} file(s) to ${flowsDest}, skipped ${skipped} existing`);
   }
 
-  // Skills: copy <assets>/skills → forgeDir/skills
+  // Skills: copy <assets>/skills → forgeDir/skills (skip existing files)
   const skillsSrc = path.join(srcDir, "skills");
   const skillsDest = path.join(forgeDir, "skills");
   if (fs.existsSync(skillsSrc)) {
-    fs.cpSync(skillsSrc, skillsDest, { recursive: true });
-    logInfo(`scaffolded ${skillsDest}`);
+    const { created, skipped } = copyMissingFiles(skillsSrc, skillsDest);
+    logInfo(`scaffolded ${created} file(s) to ${skillsDest}, skipped ${skipped} existing`);
   }
 }
 
