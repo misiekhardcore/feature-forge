@@ -37,7 +37,10 @@ export class ForgeInitCommand extends Command {
 
     try {
       await execFileAsync("node", args);
-      ctx.ui.notify("Feature Forge initialized successfully", "info");
+      ctx.ui.notify(
+        "Feature Forge initialized successfully — restart pi to load the scaffolded agents and flows",
+        "info",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       ctx.ui.notify(`Setup failed: ${message}`, "error");

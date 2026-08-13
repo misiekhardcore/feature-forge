@@ -56,7 +56,10 @@ describe("ForgeInitCommand", () => {
       "--cwd",
       process.cwd(),
     ]);
-    expect(ctx.ui.notify).toHaveBeenCalledWith("Feature Forge initialized successfully", "info");
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      "Feature Forge initialized successfully — restart pi to load the scaffolded agents and flows",
+      "info",
+    );
   });
 
   it("passes --no-config, --no-gitignore, and --global when declined except global", async () => {
@@ -117,7 +120,7 @@ describe("ForgeInitCommand", () => {
 
     expect(ctx.ui.notify).toHaveBeenCalledWith("Setup failed: boom", "error");
     expect(ctx.ui.notify).not.toHaveBeenCalledWith(
-      "Feature Forge initialized successfully",
+      "Feature Forge initialized successfully — restart pi to load the scaffolded agents and flows",
       "info",
     );
   });

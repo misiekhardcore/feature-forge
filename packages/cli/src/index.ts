@@ -3,7 +3,7 @@ import * as path from "node:path";
 // ESM polyfill: __dirname is not available in ESM
 import { fileURLToPath } from "node:url";
 
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
 import { FileLogger, ForgeConfig, logger } from "@feature-forge/shared";
 
@@ -85,10 +85,38 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   const forgeAgentsDir = path.join(forgeDir, "agents");
   if (!fs.existsSync(forgeAgentsDir)) {
-    throw new Error(
-      `Forge not initialized — ${forgeAgentsDir} does not exist. ` +
-        `Run /forge:init to scaffold agents, flows, and skills.`,
+    // Degraded mode: the forge directory has not been scaffolded yet.
+    // Register only /forge:init so the user can initialize, then skip
+    // the rest of the extension setup (agents, flows, tools, IPC).
+    const initCommand = new ForgeInitCommand(undefined as never, pi);
+    pi.registerCommand(initCommand.name, {
+      ...initCommand,
+      handler: (args: string, ctx: ExtensionCommandContext) => initCommand.handler(args, ctx),
+    });
+
+    // Surface a visible notice when a root session starts.
+    if (!process.env.FORGE_PARENT_SOCKET) {
+      pi.on("session_start", async () => {
+        pi.sendMessage({
+          customType: "forge_notice",
+          content: [
+            {
+              type: "text",
+              text:
+                `Feature Forge is not initialized — ${forgeAgentsDir} does not exist. ` +
+                "Run /forge:init to scaffold agents, flows, and skills, then restart pi.",
+            },
+          ],
+          display: true,
+        });
+      });
+    }
+
+    logger.warn(
+      `[feature-forge] Forge not initialized — ${forgeAgentsDir} does not exist. ` +
+        "Run /forge:init to scaffold agents, flows, and skills.",
     );
+    return;
   }
 
   const specRegistry = new SpecRegistry();
