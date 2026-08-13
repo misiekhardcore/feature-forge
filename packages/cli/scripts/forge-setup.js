@@ -311,15 +311,57 @@ logInfo(`forge directory: ${forgeDir}`);
 scaffoldTemplates(forgeDir);
 
 if (!noConfig) {
-  scaffoldConfig(forgeDir);
-
   if (useGlobal) {
-    // Write a pointer file in the project's .forge/ so the runtime
-    // knows to look for the real config at ~/.forge/config.json.
-    const pointerPath = path.join(cwd, ".forge", "config.json");
-    fs.mkdirSync(path.dirname(pointerPath), { recursive: true });
-    fs.writeFileSync(pointerPath, JSON.stringify({ forgeDir: "~/.forge" }, null, 2) + "\n");
-    logInfo(`wrote pointer ${pointerPath} → ~/.forge`);
+    // Global mode: write a pointer in the project's .forge/ so the runtime
+    // loads the real config from ~/.forge/config.json. Never clobber an
+    // existing project-local config without migrating or backing it up.
+    const projectConfigPath = path.join(cwd, ".forge", "config.json");
+    const pointer = JSON.stringify({ forgeDir: "~/.forge" }, null, 2) + "\n";
+
+    let projectConfig = null;
+    if (fs.existsSync(projectConfigPath)) {
+      try {
+        projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, "utf8"));
+      } catch {
+        logError(`cannot parse ${projectConfigPath} — aborting without touching anything`);
+        process.exit(1);
+      }
+    }
+
+    const isObject =
+      projectConfig !== null && typeof projectConfig === "object" && !Array.isArray(projectConfig);
+    const isPointer =
+      isObject && Object.keys(projectConfig).length === 1 && projectConfig.forgeDir === "~/.forge";
+    const hasRealKeys = isObject && Object.keys(projectConfig).some((key) => key !== "forgeDir");
+
+    if (isPointer) {
+      logInfo("pointer already present — skipping");
+    } else {
+      if (hasRealKeys) {
+        // A real project config sits at the pointer location. Migrate it to
+        // the global forge dir when empty, or back it up before overwriting.
+        const globalConfigPath = path.join(forgeDir, "config.json");
+        if (!fs.existsSync(globalConfigPath)) {
+          fs.mkdirSync(path.dirname(globalConfigPath), { recursive: true });
+          const migrated = { ...projectConfig, forgeDir: "~/.forge" };
+          fs.writeFileSync(globalConfigPath, `${JSON.stringify(migrated, null, 2)}\n`);
+          logInfo(`migrated project config to ${globalConfigPath}`);
+        } else {
+          const backupPath = `${projectConfigPath}.backup`;
+          fs.writeFileSync(backupPath, fs.readFileSync(projectConfigPath, "utf8"));
+          logWarn(
+            `${projectConfigPath} was a project config and ${globalConfigPath} exists — backed up to ${backupPath}`,
+          );
+        }
+      }
+      fs.mkdirSync(path.dirname(projectConfigPath), { recursive: true });
+      fs.writeFileSync(projectConfigPath, pointer);
+      logInfo(`wrote pointer ${projectConfigPath} → ~/.forge`);
+    }
+
+    scaffoldConfig(forgeDir);
+  } else {
+    scaffoldConfig(forgeDir);
   }
 }
 
