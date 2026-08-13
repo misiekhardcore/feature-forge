@@ -379,19 +379,16 @@ export class ConfigLoader {
   }
 
   /**
-   * Known FORGE_* environment variables mapped to config field paths.
-   *
-   * These are read at config-load time and merged into the resolved config
-   * (taking priority over values from config files). Subprocesses inherit
-   * the same env vars from the parent process and use them as fallbacks
-   * when ForgeConfig is not initialized in the child.
-   */
-  /**
    * Build a partial config overlay from known FORGE_* environment variables.
    *
    * Each known env var is read, type-coerced, and added to the overlay.
    * Invalid values (unparsable numbers, unknown log levels) are silently
    * skipped — the config system falls back to defaults.
+   *
+   * These are read at config-load time and merged into the resolved config
+   * (taking priority over values from config files). Subprocesses inherit
+   * the same env vars from the parent process and use them as fallbacks
+   * when ForgeConfig is not initialized in the child.
    *
    * Current env vars (all one-to-one with ForgeConfigSchema fields):
    * - FORGE_TASK_TIMEOUT_MS → taskTimeoutMs (number, parsed)
