@@ -1,36 +1,35 @@
-# NOTES — user-modifiable-templates (#212)
+# NOTES — review-findings-pr-215
 
 ## Current task
 
-- Done: all subtasks complete, PR #215 open, user e2e-tested
+- All 7 review findings implemented and validated; PR #215 ready for re-review
 
 ## Task list / AC checklist
 
-- [x] Move skills from repo-root `.forge/skills/` → `packages/cli/src/skills/`; add tsup copy step
-- [x] Add `forgeDir` config field (default `".forge"`); defaults, accessor, TypeBox schema
-- [x] Config loader two-location lookup — pointer config → real config merge
-- [x] Rewrite `forge-setup.js` — scaffold agents/flows/skills; global vs local
-- [x] Update `ForgeInitCommand.ts` — prompt "Store forge files globally (~/.forge)?"
-- [x] Update runtime loading — `index.ts` load from forgeDir, fail fast if not initialized
-- [x] Update `forge-skills.ts` — read forgeDir from config, contribute resolved path
-- [x] Update `skill-resolver.ts` — add forgeDir/skills to scan directories
-- [x] Validate — full lint/typecheck/test/e2e loop
+- [x] Fix 1 — scaffolded skills win over bundled copies (forge-skills.ts)
+- [x] Fix 2 — forge:init non-destructive template scaffolding (forge-setup.js)
+- [x] Fix 3 — global init must not clobber project config (forge-setup.js)
+- [x] Fix 4 — global mode still gitignores runtime dirs (forge-setup.js)
+- [x] Fix 5 — missing pointer target config must not kill extension (ConfigLoader.ts + index.ts)
+- [x] Fix 6 — forge-setup fails loudly on missing agents assets (forge-setup.js)
+- [x] Fix 7 — merge duplicate JSDoc blocks (ConfigLoader.ts)
+- [x] Full validation + build + Fix 1 acceptance check
+
+## Subtask plan
+
+- [x] Setup: fetch + rebase origin/main, NOTES.md checkpoint
+- [x] Implement fixes 1–7, one conventional commit each
+- [x] Run npm run fix / lint / typecheck / test
+- [x] Run turbo build --filter=@feature-forge/cli --force, run acceptance check
 
 ## Decisions made this session
 
-- Dropped `.version` file — premature infrastructure with no consumer; migration feature will add it when needed (decision: user)
-- Merged 4a+4b into one commit (flag parsing + template scaffolding) since they were tightly coupled
-- Subtask 5 was already implemented by a prior build loop attempt
-- **Degraded mode instead of fail-fast throw** — pi discards the whole extension when the factory throws, so /forge:init could never be registered to fix the missing scaffold. Load with only /forge:init registered + session_start notice, skip heavy setup
-- **resolveAssetsDir()/resolveDefaultsPath() scan all three layouts** (scripts/, dist/, src/) — e2e testing exposed silent scaffolding skips in the published-package layout
-
-## E2E verified by user
-
-- Fail-fast path (before degraded mode): extension load error surfaced
-- Degraded mode: extension loads, /forge:init available, notice shown
-- forge:init scaffolds agents/flows/skills in both local and global mode
-- forge:init:1/:2 duplication is a test-env artifact (global settings load main checkout alongside worktree) — accepted by user
+- Kept appendGitignore as a shared entries helper with two no-arg wrappers so main stays `useGlobal ? appendGlobalGitignore() : appendGitignore()` (why: matches the spec'd invocation)
+- For Fix 3, migration/backup logic runs before scaffoldConfig so a migrated config prevents the defaults write (why: scaffoldConfig only writes when target is missing)
+- registerDegradedMode closes over `pi` rather than taking it as a param (why: no extra type import needed; missing-agents notice text stays byte-identical)
+- Added `Logger.resetForTest()` to the degraded-mode afterEach (why: earlier tests leak a FileLogger whose getLogLevel needs ForgeConfig, which the config-failure test destroys)
+- Acceptance check confirmed skill:forge-build resolves to `~/.forge/skills/forge-build/SKILL.md`, not the bundled dist copy
 
 ## Next action on resume
 
-- Await PR review; apply feedback via apply_feedback if any
+- Nothing pending — hand off for verify/review
