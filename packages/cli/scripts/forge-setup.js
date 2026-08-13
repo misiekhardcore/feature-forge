@@ -85,24 +85,27 @@ function commandAvailable(command) {
  * Resolve the directory that contains the built-in template assets
  * (agents, flows, skills) to scaffold.
  *
- * In the built package the script lives at `dist/scripts/`, so
- * templates are in `dist/`. When running from source the script
- * is at `packages/cli/scripts/` and templates are in
- * `packages/cli/src/`.
+ * The script can run from three layouts:
+ * - `<pkg>/scripts/` (published package, invoked by the extension)
+ *   → assets in `<pkg>/dist/`
+ * - `<pkg>/dist/scripts/` (built copy)
+ *   → assets in `<pkg>/dist/`
+ * - `<pkg>/scripts/` in the source tree (dev)
+ *   → assets in `<pkg>/src/`
  */
 function resolveAssetsDir() {
-  const distDir = path.join(__dirname, "..");
-  // Built package: dist/agents/declarative-specs should exist.
-  if (fs.existsSync(path.join(distDir, "agents", "declarative-specs"))) {
-    return distDir;
-  }
-  // Source layout: <pkg>/src/ contains agents, flows, skills.
-  const srcDir = path.join(distDir, "src");
-  if (fs.existsSync(srcDir)) {
-    return srcDir;
+  const scriptDir = path.join(__dirname, "..");
+  const candidates = [scriptDir, path.join(scriptDir, "dist"), path.join(scriptDir, "src")];
+  for (const dir of candidates) {
+    if (
+      fs.existsSync(path.join(dir, "agents", "declarative-specs")) ||
+      fs.existsSync(path.join(dir, "flows"))
+    ) {
+      return dir;
+    }
   }
   // Fallback — let the copy functions report clear errors.
-  return distDir;
+  return scriptDir;
 }
 
 /**
@@ -131,10 +134,21 @@ function computeForgeDir() {
 // ── Resolve canonical defaults JSON ──────────────────────────────────
 function resolveDefaultsPath() {
   try {
+    // Monorepo dev: resolves via workspace symlink
     return require.resolve("@feature-forge/shared/src/config/forge-config.defaults.json");
   } catch {
-    // Installed package: the JSON is copied next to this script at build time.
-    return path.join(__dirname, "forge-config.defaults.json");
+    const candidates = [
+      // Source layout: <pkg>/scripts/forge-config.defaults.json (next to script)
+      path.join(__dirname, "forge-config.defaults.json"),
+      // Built layout: <pkg>/dist/scripts/forge-config.defaults.json
+      path.join(__dirname, "..", "dist", "scripts", "forge-config.defaults.json"),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+    return candidates[0];
   }
 }
 
