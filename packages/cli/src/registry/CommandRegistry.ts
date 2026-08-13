@@ -60,12 +60,13 @@ export class CommandRegistry extends Registry<Command> {
     }
     this.set(registeredName, command);
 
-    // pi's registerCommand() internally uses { ...options } spread, which only
-    // copies own enumerable properties. Class prototype methods (like handler)
-    // are silently dropped. Wrap handler into a plain object with an own
-    // arrow-function property so it survives the spread.
+    // pi's registerCommand() internally uses `{ name, sourceInfo, ...options }`,
+    // so any `name` carried by the command itself would override the
+    // registered (prefixed) name. Strip it, then wrap handler into an own
+    // arrow-function property — pi's spread drops prototype methods.
+    const { name: _declaredName, ...commandOptions } = command;
     this.pi.registerCommand(registeredName, {
-      ...command,
+      ...commandOptions,
       handler: (args: string, ctx: ExtensionCommandContext) => command.handler(args, ctx),
     });
 
@@ -88,8 +89,11 @@ export class CommandRegistry extends Registry<Command> {
     }
     this.set(registeredName, command);
 
+    // Strip the declared name so pi's `...options` spread cannot override
+    // the registered (prefixed) name.
+    const { name: _declaredName, ...commandOptions } = command;
     this.pi.registerCommand(registeredName, {
-      ...command,
+      ...commandOptions,
       handler: (args: string, ctx: ExtensionCommandContext) => command.handler(args, ctx),
     });
 

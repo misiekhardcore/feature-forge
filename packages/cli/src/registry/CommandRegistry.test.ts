@@ -57,13 +57,14 @@ describe("CommandRegistry", () => {
       expect(registry.get("test:cmd")).toBeUndefined();
     });
 
-    it("pi.registerCommand is called with the prefixed name", () => {
+    it("pi.registerCommand is called with the prefixed name and no overriding options.name", () => {
       registry.register(TestCommand);
       expect(mockPi.registerCommand).toHaveBeenCalledTimes(1);
-      expect(mockPi.registerCommand).toHaveBeenCalledWith(
-        "forge:test:cmd",
-        expect.objectContaining({ handler: expect.any(Function) }),
-      );
+      const [registeredName, options] = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, Record<string, unknown>];
+      expect(registeredName).toBe("forge:test:cmd");
+      expect(options.name).toBeUndefined();
+      expect(options).toEqual(expect.objectContaining({ handler: expect.any(Function) }));
     });
 
     it("throws when registering a command with a duplicate name", () => {
@@ -109,7 +110,7 @@ describe("CommandRegistry", () => {
       expect(registry.get("forge:test:cmd")).toBe(cmd);
     });
 
-    it("calls pi.registerCommand with the prefixed name", () => {
+    it("calls pi.registerCommand with the prefixed name and no overriding options.name", () => {
       const cmd = new TestCommand(
         {} as AgentSupervisor,
         mockPi,
@@ -117,10 +118,11 @@ describe("CommandRegistry", () => {
         makeMockToolRegistry(),
       );
       registry.registerInstance(cmd);
-      expect(mockPi.registerCommand).toHaveBeenCalledWith(
-        "forge:test:cmd",
-        expect.objectContaining({ handler: expect.any(Function) }),
-      );
+      const [registeredName, options] = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, Record<string, unknown>];
+      expect(registeredName).toBe("forge:test:cmd");
+      expect(options.name).toBeUndefined();
+      expect(options).toEqual(expect.objectContaining({ handler: expect.any(Function) }));
     });
 
     it("throws when registering a command with a duplicate name", () => {

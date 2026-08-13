@@ -91,8 +91,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     // the rest of the extension setup (agents, flows, tools, IPC).
     const initCommand = new ForgeInitCommand(undefined as never, pi);
     const registeredName = withForgePrefix(initCommand.name);
+    const { name: _declaredName, ...commandOptions } = initCommand;
     pi.registerCommand(registeredName, {
-      ...initCommand,
+      ...commandOptions,
       handler: (args: string, ctx: ExtensionCommandContext) => initCommand.handler(args, ctx),
     });
 
