@@ -222,7 +222,7 @@ export class ForgeConfig {
   getForgeDir(): string {
     const forgeDir = this.getConfig().forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir ?? ".forge";
     if (forgeDir.startsWith("~")) {
-      return path.resolve(os.homedir(), forgeDir.slice(1));
+      return path.join(os.homedir(), forgeDir.slice(1));
     }
     return path.resolve(ForgeConfig.cwd ?? process.cwd(), forgeDir);
   }

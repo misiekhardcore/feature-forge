@@ -251,7 +251,7 @@ export class ConfigLoader {
    */
   private resolveForgeDir(forgeDir: string): string {
     if (forgeDir.startsWith("~")) {
-      return path.resolve(os.homedir(), forgeDir.slice(1));
+      return path.join(os.homedir(), forgeDir.slice(1));
     }
     return path.resolve(process.cwd(), forgeDir);
   }

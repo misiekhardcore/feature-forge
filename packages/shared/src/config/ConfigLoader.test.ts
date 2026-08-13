@@ -649,5 +649,41 @@ describe("ConfigLoader", () => {
         spy.mockRestore();
       }
     });
+
+    it("resolves a ~/.forge pointer to the home directory, not the filesystem root", async () => {
+      // Project pointer file
+      const projectForgeDir = join(tempDir, ".forge");
+      await fs.mkdir(projectForgeDir, { recursive: true });
+      await fs.writeFile(
+        join(projectForgeDir, "config.json"),
+        JSON.stringify({ forgeDir: "~/.forge" }),
+      );
+
+      // Fake home directory with the real global config
+      const fakeHome = join(tempDir, "home");
+      const fakeGlobalForge = join(fakeHome, ".forge");
+      await fs.mkdir(fakeGlobalForge, { recursive: true });
+      await fs.writeFile(
+        join(fakeGlobalForge, "config.json"),
+        JSON.stringify({
+          logLevel: "debug",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          forgeDir: ".forge",
+        }),
+      );
+
+      vi.stubEnv("HOME", fakeHome);
+      try {
+        const loader = new ConfigLoader();
+        const config = await loader.forRoot({ cwd: tempDir });
+
+        expect(config.logLevel).toBe(LogLevel.DEBUG);
+        expect(config.forgeDir).toBe("~/.forge");
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
   });
 });
