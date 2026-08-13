@@ -8,11 +8,14 @@ import { bundledSkillDirectories } from "../agents/specifications/skill-resolver
 
 /**
  * Register a `resources_discover` handler that contributes the CLI package's
- * bundled default skills and the project's `.forge/skills/` to the main
+ * bundled default skills and the forge directory's `skills/` to the main
  * session's skill discovery.
  *
- * This makes default and project-local skills available to the in-session
- * orchestrator.
+ * This makes default and user-scaffolded skills available to the in-session
+ * orchestrator. The forge-dir skills directory is listed first, so a
+ * user-scaffolded skill whose name collides with a bundled skill takes
+ * priority; bundled skills serve as fallback for names not present in the
+ * forge directory.
  */
 export function activateForgeSkills(pi: ExtensionAPI): void {
   pi.on("resources_discover", async (_event, _ctx) => {
@@ -25,7 +28,7 @@ export function activateForgeSkills(pi: ExtensionAPI): void {
     }
 
     const skillPaths: string[] = [];
-    for (const dir of [...bundledSkillDirectories(), forgeSkillsDir]) {
+    for (const dir of [forgeSkillsDir, ...bundledSkillDirectories()]) {
       try {
         if (fs.existsSync(dir)) {
           skillPaths.push(dir);
