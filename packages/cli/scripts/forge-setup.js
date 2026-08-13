@@ -271,16 +271,18 @@ function scaffoldTemplates(forgeDir) {
 }
 
 // ── Append gitignore entries ──────────────────────────────────────────
-function appendGitignore() {
+function appendGitignoreEntries(sentinel, entries) {
   const gitignorePath = path.join(cwd, ".gitignore");
-  const sentinel = "# Feature Forge runtime";
   if (fs.existsSync(gitignorePath) && fs.readFileSync(gitignorePath, "utf8").includes(sentinel)) {
     logInfo(".gitignore already contains forge entries — skipping");
     return;
   }
-  const entries = [
-    "",
-    sentinel,
+  fs.appendFileSync(gitignorePath, `${["", sentinel, ...entries].join("\n")}\n`);
+  logInfo("appended forge entries to .gitignore");
+}
+
+function appendGitignore() {
+  appendGitignoreEntries("# Feature Forge runtime", [
     ".forge/*",
     "!.forge/config.json",
     "coverage-single/",
@@ -291,9 +293,11 @@ function appendGitignore() {
     "# Environment overrides",
     ".env",
     ".env.local",
-  ];
-  fs.appendFileSync(gitignorePath, `${entries.join("\n")}\n`);
-  logInfo("appended forge entries to .gitignore");
+  ]);
+}
+
+function appendGlobalGitignore() {
+  appendGitignoreEntries("# Feature Forge runtime (global)", [".forge/logs/", ".forge/worktrees/"]);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
@@ -368,10 +372,11 @@ if (!noConfig) {
 // Runtime directories always go under the project's .forge/
 createDirs();
 
-// Gitignore entries are skipped for global forge — the project's
-// .forge/ only contains logs, worktrees, and the pointer config.
-if (!noGitignore && !useGlobal) {
-  appendGitignore();
+// Gitignore entries: local mode ignores the whole .forge/ except the
+// pointer config; global mode still ignores runtime dirs (logs, nested
+// git worktrees) so `git add .` doesn't stage them as gitlinks.
+if (!noGitignore) {
+  useGlobal ? appendGlobalGitignore() : appendGitignore();
 }
 
 logInfo(`Feature Forge initialized successfully in ${cwd}`);
