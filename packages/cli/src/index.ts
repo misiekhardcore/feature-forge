@@ -70,8 +70,40 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * the caller is the parent or a child.
  */
 const featureForgeExtension: ExtensionFactory = async (pi) => {
+  // Register a minimal /forge:init command plus an optional session_start
+  // notice so the user can recover when the extension cannot fully load.
+  const registerDegradedMode = (noticeText: string): void => {
+    const initCommand = new ForgeInitCommand(undefined as never, pi);
+    const registeredName = withForgePrefix(initCommand.name);
+    const { name: _declaredName, ...commandOptions } = initCommand;
+    pi.registerCommand(registeredName, {
+      ...commandOptions,
+      handler: (args: string, ctx: ExtensionCommandContext) => initCommand.handler(args, ctx),
+    });
+
+    if (!process.env.FORGE_PARENT_SOCKET) {
+      pi.on("session_start", async () => {
+        pi.sendMessage({
+          customType: "forge_notice",
+          content: [{ type: "text", text: noticeText }],
+          display: true,
+        });
+      });
+    }
+  };
+
   // ── Configuration ─────────────────────────────────────────────────
-  await ForgeConfig.create({ cwd: process.cwd() });
+  try {
+    await ForgeConfig.create({ cwd: process.cwd() });
+  } catch (error) {
+    logger.warn("[feature-forge] Failed to load configuration", { error });
+    registerDegradedMode(
+      `Feature Forge could not load its configuration — ${
+        error instanceof Error ? error.message : String(error)
+      }. Run /forge:init to repair, then restart pi.`,
+    );
+    return;
+  }
 
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.initialize();
@@ -89,31 +121,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     // Degraded mode: the forge directory has not been scaffolded yet.
     // Register only /forge:init so the user can initialize, then skip
     // the rest of the extension setup (agents, flows, tools, IPC).
-    const initCommand = new ForgeInitCommand(undefined as never, pi);
-    const registeredName = withForgePrefix(initCommand.name);
-    const { name: _declaredName, ...commandOptions } = initCommand;
-    pi.registerCommand(registeredName, {
-      ...commandOptions,
-      handler: (args: string, ctx: ExtensionCommandContext) => initCommand.handler(args, ctx),
-    });
-
-    // Surface a visible notice when a root session starts.
-    if (!process.env.FORGE_PARENT_SOCKET) {
-      pi.on("session_start", async () => {
-        pi.sendMessage({
-          customType: "forge_notice",
-          content: [
-            {
-              type: "text",
-              text:
-                `Feature Forge is not initialized — ${forgeAgentsDir} does not exist. ` +
-                "Run /forge:init to scaffold agents, flows, and skills, then restart pi.",
-            },
-          ],
-          display: true,
-        });
-      });
-    }
+    registerDegradedMode(
+      `Feature Forge is not initialized — ${forgeAgentsDir} does not exist. ` +
+        "Run /forge:init to scaffold agents, flows, and skills, then restart pi.",
+    );
 
     logger.warn(
       `[feature-forge] Forge not initialized — ${forgeAgentsDir} does not exist. ` +

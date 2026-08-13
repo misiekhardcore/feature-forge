@@ -193,13 +193,17 @@ export class ConfigLoader {
         const baseConfigPath = path.join(resolvedForgeDir, "config.json");
         const baseConfig = await this.readJsonFile(baseConfigPath);
 
+        if (baseConfig === null) {
+          throw new MissingConfigFileError(baseConfigPath);
+        }
+
         // Build overrides from project config, stripping forgeDir
         const { forgeDir: _stripped, ...overrides } = record;
         const overridesResolved = this.resolveEnvVars(overrides);
 
         // Merge: base config → project overrides → env vars
         const merged = {
-          ...(baseConfig ?? {}),
+          ...baseConfig,
           ...(overridesResolved as Record<string, unknown>),
           ...this.resolveForgeEnvOverlay(),
           // forgeDir stays in the merged result; it was set by the project pointer

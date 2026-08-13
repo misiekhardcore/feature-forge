@@ -2,8 +2,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { ForgeConfig } from "@feature-forge/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ForgeConfig, Logger } from "@feature-forge/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import featureForgeExtension from "./index";
 import { makeMockPi } from "./test-utils";
@@ -25,6 +25,7 @@ describe("featureForgeExtension degraded mode", () => {
       delete process.env.FORGE_PARENT_SOCKET;
     }
     ForgeConfig.destroy();
+    Logger.resetForTest();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -51,5 +52,23 @@ describe("featureForgeExtension degraded mode", () => {
 
     expect(pi.registerCommand).toHaveBeenCalledTimes(1);
     expect(pi.on).not.toHaveBeenCalled();
+  });
+
+  it("registers only /forge:init when configuration fails to load", async () => {
+    const pi = makeMockPi();
+    const createSpy = vi.spyOn(ForgeConfig, "create").mockRejectedValueOnce(new Error("boom"));
+
+    try {
+      await featureForgeExtension(pi);
+    } finally {
+      createSpy.mockRestore();
+    }
+
+    expect(pi.registerCommand).toHaveBeenCalledTimes(1);
+    expect(pi.registerCommand).toHaveBeenCalledWith(
+      "forge:init",
+      expect.objectContaining({ description: expect.any(String) }),
+    );
+    expect(pi.on).toHaveBeenCalledWith("session_start", expect.any(Function));
   });
 });
