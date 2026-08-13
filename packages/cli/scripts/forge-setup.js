@@ -251,6 +251,9 @@ function scaffoldTemplates(forgeDir) {
       }
     }
     logInfo(`scaffolded ${created} file(s) to ${agentsDest}, skipped ${skipped} existing`);
+  } else {
+    logError(`agents source directory not found: ${agentsSrc}`);
+    process.exit(1);
   }
 
   // Flows: copy <assets>/flows → forgeDir/flows (skip existing files)
@@ -259,6 +262,8 @@ function scaffoldTemplates(forgeDir) {
   if (fs.existsSync(flowsSrc)) {
     const { created, skipped } = copyMissingFiles(flowsSrc, flowsDest);
     logInfo(`scaffolded ${created} file(s) to ${flowsDest}, skipped ${skipped} existing`);
+  } else {
+    logWarn(`flows source directory not found: ${flowsSrc} — skipping`);
   }
 
   // Skills: copy <assets>/skills → forgeDir/skills (skip existing files)
@@ -267,6 +272,8 @@ function scaffoldTemplates(forgeDir) {
   if (fs.existsSync(skillsSrc)) {
     const { created, skipped } = copyMissingFiles(skillsSrc, skillsDest);
     logInfo(`scaffolded ${created} file(s) to ${skillsDest}, skipped ${skipped} existing`);
+  } else {
+    logWarn(`skills source directory not found: ${skillsSrc} — skipping`);
   }
 }
 
