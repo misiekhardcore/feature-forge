@@ -195,8 +195,7 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      // Both flows get commands: OrchestratorCommand for valid-flow,
-      // HeadlessFlowCommand for headless-flow.
+      // Both flows load fine and each gets an OrchestratorCommand registered.
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
     });
 
