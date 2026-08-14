@@ -8,7 +8,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus, jsonParse, logger } from "@feature-forge/shared";
 
 import type { SpecManager } from "../agents";
-import { AgentSupervisor, isSubprocessAgent } from "../agents";
+import { AgentSupervisor, isSubprocessAgent, type SubprocessAgent } from "../agents";
 import {
   type SendTaskParams,
   type SocketMessage,
@@ -181,6 +181,19 @@ export class ParentSocketServer {
       agentId: agent.id,
       role: agent.specification.role,
     });
+
+    // An initial prompt is a fire-and-forget task: respond with the agentId
+    // first, then execute the prompt in the background (mirrors send_task
+    // await=false) and deliver the outcome via agent_update push.
+    if (params.prompt) {
+      const executionId = `${correlationId}:spawn-prompt`;
+      this.pi.events.emit("feature-forge:agent-started", {
+        phase: "agent-started",
+        message: `Agent "${agent.id}" (${agent.specification.role}) started`,
+        details: { executionId, agentId: agent.id },
+      });
+      this.runInBackground(agent, params.prompt, executionId);
+    }
   }
 
   private async handleSendTask(
@@ -262,44 +275,7 @@ export class ParentSocketServer {
     } else {
       // Fire and forget — respond immediately, push update later
       this.sendResponse(socket, correlationId, { status: "dispatched" });
-
-      // Execute in background and push result when done
-      agent
-        .executeTask(params.prompt, {
-          timeout: params.timeout,
-          onEvent: (event) => {
-            this.emitStreamEvent(agent.id, correlationId, agent.specification.role, event);
-          },
-        })
-        .then(
-          (result) => {
-            this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
-            this.pi.events.emit("feature-forge:agent-done", {
-              phase: "agent-done",
-              message: `Agent "${agent.id}" completed`,
-              details: {
-                executionId: correlationId,
-                agentId: agent.id,
-                passed: true,
-                summary: result,
-              },
-            });
-          },
-          (error) => {
-            const message = error instanceof Error ? error.message : String(error);
-            this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
-            this.pi.events.emit("feature-forge:agent-done", {
-              phase: "agent-done",
-              message: `Agent "${agent.id}" failed`,
-              details: {
-                executionId: correlationId,
-                agentId: agent.id,
-                passed: false,
-                summary: message,
-              },
-            });
-          },
-        );
+      this.runInBackground(agent, params.prompt, correlationId, params.timeout);
     }
   }
 
@@ -358,6 +334,56 @@ export class ParentSocketServer {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Execute a task in the background (fire-and-forget). The caller is
+   * responsible for sending the immediate response; this helper runs the
+   * task, streams its events, and delivers the outcome via an `agent_update`
+   * push plus `feature-forge:agent-done` emission.
+   */
+  private runInBackground(
+    agent: SubprocessAgent,
+    prompt: string,
+    executionId: string,
+    timeout?: number,
+  ): void {
+    agent
+      .executeTask(prompt, {
+        timeout,
+        onEvent: (event) => {
+          this.emitStreamEvent(agent.id, executionId, agent.specification.role, event);
+        },
+      })
+      .then(
+        (result) => {
+          this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
+          this.pi.events.emit("feature-forge:agent-done", {
+            phase: "agent-done",
+            message: `Agent "${agent.id}" completed`,
+            details: {
+              executionId,
+              agentId: agent.id,
+              passed: true,
+              summary: result,
+            },
+          });
+        },
+        (error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
+          this.pi.events.emit("feature-forge:agent-done", {
+            phase: "agent-done",
+            message: `Agent "${agent.id}" failed`,
+            details: {
+              executionId,
+              agentId: agent.id,
+              passed: false,
+              summary: message,
+            },
+          });
+        },
+      );
+  }
 
   private sendResponse(
     socket: Socket,
