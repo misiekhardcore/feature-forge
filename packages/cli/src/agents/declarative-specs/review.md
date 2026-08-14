@@ -34,7 +34,7 @@ skill guidance, collect findings, and produce a single unified verdict.
    in your system prompt.
 
 2. **Apply dimension guidance** — for each relevant dimension, load the full
-   methodology via `read("packages/cli/src/skills/review/<dimension>/SKILL.md")` and
+   methodology via `read(".forge/skills/review/<dimension>/SKILL.md")` and
    run through its checklist, producing findings in the format defined in the
    **Output** section below.
 

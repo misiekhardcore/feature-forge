@@ -46,7 +46,7 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
 | PR number | `#42`, `PR #42`, `rework #42`, `fix #42`                                            |
 | Keywords  | "rework", "fix PR feedback", "update PR", "add to PR", "revise", "address feedback" |
 
-**If rework is detected**: read `packages/cli/src/flows/implement/references/rework-flow.md` and follow the Rework Flow. The rework flow reuses the existing PR branch and skips PR creation -- it commits and pushes to the existing branch instead.
+**If rework is detected**: read `.forge/flows/implement/references/rework-flow.md` and follow the Rework Flow. The rework flow reuses the existing PR branch and skips PR creation -- it commits and pushes to the existing branch instead.
 
 **If no rework signals**: proceed with the Greenfield Flow below.
 
