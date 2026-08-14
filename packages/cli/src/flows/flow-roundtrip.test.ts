@@ -197,7 +197,7 @@ describe("flow round-trip", () => {
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
       expect(resolved).not.toMatch(/\{\{/);
     });
 
@@ -234,13 +234,13 @@ describe("flow round-trip", () => {
     // ── 4. Orchestrator.systemPrompt resolves cleanly ──────────────────
 
     it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
-      expect(flow.orchestrator!.systemPrompt.length).toBeGreaterThan(0);
+      expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
 
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
 
       expect(resolved).not.toMatch(/\{\{/);
       expect(resolved).not.toMatch(/\}\}/);
@@ -528,14 +528,14 @@ describe("flow round-trip", () => {
 
     it("resolves orchestrator.prompt with no {{...}} survivors", () => {
       const ctx = new FlowContext({ results: new Map(), prompt: "42" });
-      const resolved = ctx.resolve(resolvePrFlow.orchestrator!.prompt ?? "");
+      const resolved = ctx.resolve(resolvePrFlow.orchestrator.prompt ?? "");
       expect(resolved).toBe("42");
       expect(resolved).not.toMatch(/\{\{/);
     });
 
     it("orchestrator.systemPrompt resolves to a loaded spec", () => {
-      expect(resolvePrSpecs.specNames().has(resolvePrFlow.orchestrator!.systemPrompt)).toBe(true);
-      const spec = resolvePrSpecs.resolve({ spec: resolvePrFlow.orchestrator!.systemPrompt });
+      expect(resolvePrSpecs.specNames().has(resolvePrFlow.orchestrator.systemPrompt)).toBe(true);
+      const spec = resolvePrSpecs.resolve({ spec: resolvePrFlow.orchestrator.systemPrompt });
       expect(spec.id).toBe("resolve-pr-feedback-orchestrator");
     });
   });
