@@ -7,6 +7,7 @@
  */
 
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import type { Type } from "typebox";
@@ -154,15 +155,17 @@ export class ConfigLoader {
   }
 
   /**
-   * Load the root configuration file by searching for a `.json` file
-   * in the given directory. Environment variable references of the form
-   * `${VAR_NAME}` are resolved from the current process environment before
-   * validation.
+   * Load the root configuration file with two-location lookup.
    *
-   * Searches in this order:
+   * Lookup order:
    * 1. `.forge/config.json` (project-level config)
-   * 2. `forge.config.json` (repo-root config)
-   * 3. Defaults (no config file found)
+   *    - If it contains `forgeDir` pointing elsewhere (e.g. `~/.forge`),
+   *      resolve the real config from `<forgeDir>/config.json` and merge
+   *      any other keys from the project config as overrides on top.
+   *    - If `forgeDir` is `.forge` or absent, this IS the real config.
+   * 2. `forge.config.json` (repo-root config, legacy location)
+   * 3. `~/.forge/config.json` (global forge, no project config)
+   * 4. Defaults (no config file found)
    *
    * @param params.cwd — Directory to search in (defaults to `process.cwd()`).
    * @returns A fully resolved {@link ForgeConfig}.
@@ -171,73 +174,138 @@ export class ConfigLoader {
   async forRoot(params: { cwd?: string } = {}): Promise<ForgeConfig> {
     const searchDir = params.cwd ?? process.cwd();
 
-    // Priority 1: .forge/config.json (project-level config)
-    const forgeConfigPath = path.join(searchDir, ".forge", "config.json");
-    const rootConfigPath = path.join(searchDir, `${this.configFileName}.json`);
+    // 1. Project-local .forge/config.json
+    const projectConfigPath = path.join(searchDir, ".forge", "config.json");
+    const projectConfig = await this.readJsonFile(projectConfigPath);
 
-    const filePath = (await this.pickFirstExistingPath([forgeConfigPath, rootConfigPath])) ?? null;
+    if (projectConfig !== null) {
+      const record = projectConfig;
+      const rawForgeDir = record.forgeDir;
 
-    if (!filePath) {
-      return resolveConfig(this.resolveForgeEnvOverlay());
+      if (
+        rawForgeDir !== undefined &&
+        typeof rawForgeDir === "string" &&
+        rawForgeDir !== ".forge"
+      ) {
+        // Pointer file: forgeDir points elsewhere. Load the real config
+        // from forgeDir and merge project-local overrides on top.
+        const resolvedForgeDir = this.resolveForgeDir(rawForgeDir);
+        const baseConfigPath = path.join(resolvedForgeDir, "config.json");
+        const baseConfig = await this.readJsonFile(baseConfigPath);
+
+        if (baseConfig === null) {
+          throw new MissingConfigFileError(baseConfigPath);
+        }
+
+        // Build overrides from project config, stripping forgeDir
+        const { forgeDir: _stripped, ...overrides } = record;
+        const overridesResolved = this.resolveEnvVars(overrides);
+
+        // Merge: base config → project overrides → env vars
+        const merged = {
+          ...baseConfig,
+          ...(overridesResolved as Record<string, unknown>),
+          ...this.resolveForgeEnvOverlay(),
+          // forgeDir stays in the merged result; it was set by the project pointer
+          forgeDir: rawForgeDir,
+        };
+
+        return this.validateAndResolve(merged, projectConfigPath);
+      }
+
+      // forgeDir is ".forge" or absent — this IS the real config file.
+      const envOverlay = this.resolveForgeEnvOverlay();
+      return this.validateAndResolve(
+        { ...(this.resolveEnvVars(record) as Record<string, unknown>), ...envOverlay },
+        projectConfigPath,
+      );
     }
 
-    let parsed: unknown;
+    // 2. forge.config.json at repo root (project-local, legacy location)
+    const rootConfigPath = path.join(searchDir, `${this.configFileName}.json`);
+    const rootConfig = await this.readJsonFile(rootConfigPath);
+    if (rootConfig !== null) {
+      const envOverlay = this.resolveForgeEnvOverlay();
+      return this.validateAndResolve(
+        { ...(this.resolveEnvVars(rootConfig) as Record<string, unknown>), ...envOverlay },
+        rootConfigPath,
+      );
+    }
+
+    // 3. Global ~/.forge/config.json (no project config at all)
+    const globalConfigPath = path.join(os.homedir(), ".forge", "config.json");
+    const globalConfig = await this.readJsonFile(globalConfigPath);
+    if (globalConfig !== null) {
+      const envOverlay = this.resolveForgeEnvOverlay();
+      return this.validateAndResolve(
+        { ...(this.resolveEnvVars(globalConfig) as Record<string, unknown>), ...envOverlay },
+        globalConfigPath,
+      );
+    }
+
+    // 4. Defaults
+    return resolveConfig(this.resolveForgeEnvOverlay());
+  }
+
+  /**
+   * Resolve a forgeDir value to an absolute path.
+   *
+   * Handles `~` prefix (home directory) and relative paths
+   * (resolved against `process.cwd()`).
+   */
+  private resolveForgeDir(forgeDir: string): string {
+    if (forgeDir.startsWith("~")) {
+      return path.join(os.homedir(), forgeDir.slice(1));
+    }
+    return path.resolve(process.cwd(), forgeDir);
+  }
+
+  /**
+   * Read and parse a JSON file, returning `null` on any error.
+   *
+   * File-not-found, permission denied, and parse errors all return null
+   * silently — callers decide whether missing config is an error.
+   */
+  private async readJsonFile(filePath: string): Promise<Record<string, unknown> | null> {
     try {
       const content = await fs.readFile(filePath, "utf-8");
       try {
-        parsed = JSON.parse(content) as unknown;
+        return JSON.parse(content) as Record<string, unknown>;
       } catch (parseError) {
         console.warn(
           `[feature-forge] Invalid JSON in ${filePath}: ${(parseError as Error).message}. ` +
             "Falling back to default configuration.",
         );
-        return resolveConfig(this.resolveForgeEnvOverlay());
+        return null;
       }
     } catch {
-      // File not found — return defaults silently
-      return resolveConfig(this.resolveForgeEnvOverlay());
+      // File not found or permission denied — no warning needed
+      return null;
     }
+  }
 
-    // Resolve environment variable references in the parsed content
-    const resolved = this.resolveEnvVars(parsed);
-
-    if (!Value.Check(ForgeConfigSchema, resolved)) {
-      const errors = [...Value.Errors(ForgeConfigSchema, resolved)];
+  /**
+   * Validate a merged config object against the schema and resolve it.
+   *
+   * @param merged — Raw config object (post-merge, pre-validation).
+   * @param sourcePath — Path used only for error messages.
+   * @returns A fully resolved {@link ForgeConfig}.
+   * @throws {@link InvalidConfigError} if validation fails.
+   */
+  private validateAndResolve(merged: unknown, sourcePath: string): ForgeConfig {
+    if (!Value.Check(ForgeConfigSchema, merged)) {
+      const errors = [...Value.Errors(ForgeConfigSchema, merged)];
       const detail = errors.map((e) => `  ${e.instancePath}: ${e.message}`).join("\n");
       throw new InvalidConfigError(
-        filePath,
+        sourcePath,
         "a valid forge config",
-        resolved,
+        merged,
         new Error(`Schema validation failed:\n${detail}`),
       );
     }
 
-    const decoded = Value.Decode(ForgeConfigSchema, resolved);
-
-    // Merge env var overlay — env vars take priority over config file
-    // values for the same keys (taskTimeoutMs, logLevel, logDir).
-    const envOverlay = this.resolveForgeEnvOverlay();
-    const merged = { ...decoded, ...envOverlay };
-
-    return this.toResolvedConfig(merged);
-  }
-
-  /**
-   * Pick the first path from an ordered list that exists on disk.
-   *
-   * @param paths — Ordered paths to check.
-   * @returns The first path that exists, or `undefined` if none exist.
-   */
-  private async pickFirstExistingPath(paths: string[]): Promise<string | undefined> {
-    for (const p of paths) {
-      try {
-        await fs.access(p);
-        return p;
-      } catch {
-        // Not accessible — try next
-      }
-    }
-    return undefined;
+    const decoded = Value.Decode(ForgeConfigSchema, merged);
+    return this.toResolvedConfig(decoded);
   }
 
   /**
@@ -311,19 +379,16 @@ export class ConfigLoader {
   }
 
   /**
-   * Known FORGE_* environment variables mapped to config field paths.
-   *
-   * These are read at config-load time and merged into the resolved config
-   * (taking priority over values from config files). Subprocesses inherit
-   * the same env vars from the parent process and use them as fallbacks
-   * when ForgeConfig is not initialized in the child.
-   */
-  /**
    * Build a partial config overlay from known FORGE_* environment variables.
    *
    * Each known env var is read, type-coerced, and added to the overlay.
    * Invalid values (unparsable numbers, unknown log levels) are silently
    * skipped — the config system falls back to defaults.
+   *
+   * These are read at config-load time and merged into the resolved config
+   * (taking priority over values from config files). Subprocesses inherit
+   * the same env vars from the parent process and use them as fallbacks
+   * when ForgeConfig is not initialized in the child.
    *
    * Current env vars (all one-to-one with ForgeConfigSchema fields):
    * - FORGE_TASK_TIMEOUT_MS → taskTimeoutMs (number, parsed)
@@ -417,6 +482,7 @@ export class ConfigLoader {
       defaultModel: decoded.defaultModel,
       display: decoded.display,
       dev: decoded.dev,
+      forgeDir: decoded.forgeDir,
     });
   }
 }

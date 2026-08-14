@@ -5,13 +5,13 @@ import { Command } from "./Command";
 /**
  * Destroy a specific worktree by path.
  *
- * Usage: `/worktree:destroy <path>`
+ * Usage: `/forge:worktree:destroy <path>`
  *
  * Removes the worktree directory and the registry entry.
  */
 export class WorktreeDestroyCommand extends Command {
   readonly name = "worktree:destroy";
-  readonly description = "Destroy a worktree by path. Usage: /worktree:destroy <path>";
+  readonly description = "Destroy a worktree by path. Usage: /forge:worktree:destroy <path>";
 
   handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const manager = this.workspaceManager;
@@ -22,14 +22,14 @@ export class WorktreeDestroyCommand extends Command {
 
     const path = args.trim();
     if (!path) {
-      ctx.ui.notify("Usage: /worktree:destroy <path>", "error");
+      ctx.ui.notify("Usage: /forge:worktree:destroy <path>", "error");
       return;
     }
 
     const handle = manager.get(path);
     if (!handle) {
       ctx.ui.notify(
-        `No worktree found with path "${path}". Use /worktree:list to see active ones.`,
+        `No worktree found with path "${path}". Use /forge:worktree:list to see active ones.`,
         "error",
       );
       return;

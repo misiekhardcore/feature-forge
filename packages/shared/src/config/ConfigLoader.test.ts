@@ -649,5 +649,66 @@ describe("ConfigLoader", () => {
         spy.mockRestore();
       }
     });
+
+    it("resolves a ~/.forge pointer to the home directory, not the filesystem root", async () => {
+      // Project pointer file
+      const projectForgeDir = join(tempDir, ".forge");
+      await fs.mkdir(projectForgeDir, { recursive: true });
+      await fs.writeFile(
+        join(projectForgeDir, "config.json"),
+        JSON.stringify({ forgeDir: "~/.forge" }),
+      );
+
+      // Fake home directory with the real global config
+      const fakeHome = join(tempDir, "home");
+      const fakeGlobalForge = join(fakeHome, ".forge");
+      await fs.mkdir(fakeGlobalForge, { recursive: true });
+      await fs.writeFile(
+        join(fakeGlobalForge, "config.json"),
+        JSON.stringify({
+          logLevel: "debug",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          forgeDir: ".forge",
+        }),
+      );
+
+      vi.stubEnv("HOME", fakeHome);
+      try {
+        const loader = new ConfigLoader();
+        const config = await loader.forRoot({ cwd: tempDir });
+
+        expect(config.logLevel).toBe(LogLevel.DEBUG);
+        expect(config.forgeDir).toBe("~/.forge");
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("throws MissingConfigFileError when a pointer's target config is missing", async () => {
+      // Project pointer file pointing at ~/.forge, but the fake home has no
+      // .forge/config.json — the error should name the missing target file.
+      const projectForgeDir = join(tempDir, ".forge");
+      await fs.mkdir(projectForgeDir, { recursive: true });
+      await fs.writeFile(
+        join(projectForgeDir, "config.json"),
+        JSON.stringify({ forgeDir: "~/.forge" }),
+      );
+
+      const fakeHome = join(tempDir, "home");
+      await fs.mkdir(fakeHome, { recursive: true });
+
+      vi.stubEnv("HOME", fakeHome);
+      try {
+        const loader = new ConfigLoader();
+        const error: unknown = await loader.forRoot({ cwd: tempDir }).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(MissingConfigFileError);
+        expect((error as Error).message).toContain(fakeHome);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
   });
 });

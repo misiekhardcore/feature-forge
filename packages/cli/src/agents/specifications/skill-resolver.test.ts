@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
@@ -86,14 +87,8 @@ describe("SkillResolver.resolveEffectiveNames", () => {
 });
 
 describe("SkillResolver project skill discovery", () => {
-  it("discovers forge-build skill from .forge/skills/forge-build/SKILL.md", () => {
-    const buildSkillPath = path.resolve(
-      process.cwd(),
-      ".forge",
-      "skills",
-      "forge-build",
-      "SKILL.md",
-    );
+  it("discovers forge-build skill from src/skills/forge-build/SKILL.md", () => {
+    const buildSkillPath = path.resolve(__dirname, "..", "..", "skills", "forge-build", "SKILL.md");
     expect(fs.existsSync(buildSkillPath)).toBe(true);
 
     const content = fs.readFileSync(buildSkillPath, "utf-8");
@@ -102,16 +97,39 @@ describe("SkillResolver project skill discovery", () => {
     expect(frontmatter.description).toBeDefined();
   });
 
-  it("discovers forge-build skill via discoverAll when CWD is project root", () => {
+  it("discovers forge-build skill via discoverAll when CWD has .forge/skills", () => {
     const originalCwd = process.cwd();
-    const projectRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-test-"));
     try {
-      process.chdir(projectRoot);
+      const skillDir = path.join(tempDir, ".forge", "skills", "forge-build");
+      fs.mkdirSync(skillDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillDir, "SKILL.md"),
+        "---\nname: forge-build\ndescription: test\n---\n",
+      );
+
+      process.chdir(tempDir);
       const allSkills = SkillResolver.discoverAll();
       expect(allSkills.has("forge-build")).toBe(true);
       expect(allSkills.get("forge-build")).toContain("SKILL.md");
     } finally {
       process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("discovers bundled forge-build skill without a project .forge/skills dir", () => {
+    const originalCwd = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-bundled-"));
+    try {
+      process.chdir(tempDir);
+      const allSkills = SkillResolver.discoverAll();
+      expect(allSkills.has("forge-build")).toBe(true);
+      expect(allSkills.get("forge-build")).toContain("SKILL.md");
+      expect(allSkills.get("forge-build")).toMatch(/[\\/]skills[\\/]forge-build[\\/]SKILL[.]md$/);
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
 });

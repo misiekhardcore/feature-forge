@@ -6,12 +6,12 @@ export class ResearchCommand extends Command {
   readonly name = "research";
   readonly description =
     "Spawn a research subagent to investigate a topic in the background. " +
-    "Usage: /research <topic>";
+    "Usage: /forge:research <topic>";
 
   handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const topic = args.trim();
     if (!topic) {
-      ctx.ui.notify("Usage: /research <topic>", "error");
+      ctx.ui.notify("Usage: /forge:research <topic>", "error");
       return;
     }
 

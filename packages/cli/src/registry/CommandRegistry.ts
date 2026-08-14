@@ -8,6 +8,16 @@ import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
 /**
+ * Prefix a command name with `forge:` unless it already carries the prefix.
+ *
+ * All feature-forge commands are exposed as `/forge:<name>` in pi — the
+ * prefix is implicit and never stored in flow files or command classes.
+ */
+export function withForgePrefix(name: string): string {
+  return name.startsWith("forge:") ? name : `forge:${name}`;
+}
+
+/**
  * Constructor shape for commands registered via {@link CommandRegistry}.
  *
  * The optional params are forwarded to every command.
@@ -44,17 +54,19 @@ export class CommandRegistry extends Registry<Command> {
       this,
       this.worktreeRegistry,
     );
-    if (this.items.has(command.name)) {
-      throw new Error(`Command already registered: ${command.name}`);
+    const registeredName = withForgePrefix(command.name);
+    if (this.items.has(registeredName)) {
+      throw new Error(`Command already registered: ${registeredName}`);
     }
-    this.set(command.name, command);
+    this.set(registeredName, command);
 
-    // pi's registerCommand() internally uses { ...options } spread, which only
-    // copies own enumerable properties. Class prototype methods (like handler)
-    // are silently dropped. Wrap handler into a plain object with an own
-    // arrow-function property so it survives the spread.
-    this.pi.registerCommand(command.name, {
-      ...command,
+    // pi's registerCommand() internally uses `{ name, sourceInfo, ...options }`,
+    // so any `name` carried by the command itself would override the
+    // registered (prefixed) name. Strip it, then wrap handler into an own
+    // arrow-function property — pi's spread drops prototype methods.
+    const { name: _declaredName, ...commandOptions } = command;
+    this.pi.registerCommand(registeredName, {
+      ...commandOptions,
       handler: (args: string, ctx: ExtensionCommandContext) => command.handler(args, ctx),
     });
 
@@ -71,13 +83,17 @@ export class CommandRegistry extends Registry<Command> {
    * @throws If a command with the same name is already registered.
    */
   registerInstance(command: Command): Command {
-    if (this.items.has(command.name)) {
-      throw new Error(`Command already registered: ${command.name}`);
+    const registeredName = withForgePrefix(command.name);
+    if (this.items.has(registeredName)) {
+      throw new Error(`Command already registered: ${registeredName}`);
     }
-    this.set(command.name, command);
+    this.set(registeredName, command);
 
-    this.pi.registerCommand(command.name, {
-      ...command,
+    // Strip the declared name so pi's `...options` spread cannot override
+    // the registered (prefixed) name.
+    const { name: _declaredName, ...commandOptions } = command;
+    this.pi.registerCommand(registeredName, {
+      ...commandOptions,
       handler: (args: string, ctx: ExtensionCommandContext) => command.handler(args, ctx),
     });
 

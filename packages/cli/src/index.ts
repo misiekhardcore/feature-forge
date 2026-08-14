@@ -1,8 +1,9 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 // ESM polyfill: __dirname is not available in ESM
 import { fileURLToPath } from "node:url";
 
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
 import { FileLogger, ForgeConfig, logger } from "@feature-forge/shared";
 
@@ -33,6 +34,7 @@ import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorReg
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
 import { CommandRegistry, ToolRegistry } from "./registry";
+import { withForgePrefix } from "./registry/CommandRegistry";
 import {
   DestroyAgentTool,
   GetAgentResultTool,
@@ -68,8 +70,40 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * the caller is the parent or a child.
  */
 const featureForgeExtension: ExtensionFactory = async (pi) => {
+  // Register a minimal /forge:init command plus an optional session_start
+  // notice so the user can recover when the extension cannot fully load.
+  const registerDegradedMode = (noticeText: string): void => {
+    const initCommand = new ForgeInitCommand(undefined as never, pi);
+    const registeredName = withForgePrefix(initCommand.name);
+    const { name: _declaredName, ...commandOptions } = initCommand;
+    pi.registerCommand(registeredName, {
+      ...commandOptions,
+      handler: (args: string, ctx: ExtensionCommandContext) => initCommand.handler(args, ctx),
+    });
+
+    if (!process.env.FORGE_PARENT_SOCKET) {
+      pi.on("session_start", async () => {
+        pi.sendMessage({
+          customType: "forge_notice",
+          content: [{ type: "text", text: noticeText }],
+          display: true,
+        });
+      });
+    }
+  };
+
   // ── Configuration ─────────────────────────────────────────────────
-  await ForgeConfig.create({ cwd: process.cwd() });
+  try {
+    await ForgeConfig.create({ cwd: process.cwd() });
+  } catch (error) {
+    logger.warn("[feature-forge] Failed to load configuration", { error });
+    registerDegradedMode(
+      `Feature Forge could not load its configuration — ${
+        error instanceof Error ? error.message : String(error)
+      }. Run /forge:init to repair, then restart pi.`,
+    );
+    return;
+  }
 
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.initialize();
@@ -79,13 +113,32 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // children receive FORGE_PARENT_SOCKET in their process environment.
   const childEnv: Record<string, string> = {};
 
+  const forgeConfig = ForgeConfig.getInstance();
+  const forgeDir = forgeConfig.getForgeDir();
+
+  const forgeAgentsDir = path.join(forgeDir, "agents");
+  if (!fs.existsSync(forgeAgentsDir)) {
+    // Degraded mode: the forge directory has not been scaffolded yet.
+    // Register only /forge:init so the user can initialize, then skip
+    // the rest of the extension setup (agents, flows, tools, IPC).
+    registerDegradedMode(
+      `Feature Forge is not initialized — ${forgeAgentsDir} does not exist. ` +
+        "Run /forge:init to scaffold agents, flows, and skills, then restart pi.",
+    );
+
+    logger.warn(
+      `[feature-forge] Forge not initialized — ${forgeAgentsDir} does not exist. ` +
+        "Run /forge:init to scaffold agents, flows, and skills.",
+    );
+    return;
+  }
+
   const specRegistry = new SpecRegistry();
   const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
-  await specManager.loadFromDirectory(path.join(__dirname, "agents", "declarative-specs"));
+  await specManager.loadFromDirectory(forgeAgentsDir);
 
   // Load additional agent specs from directories configured in forge.config
-  const forgeConfig = ForgeConfig.getInstance();
   for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
     try {
       await specManager.loadFromDirectory(agentSpecDir);
@@ -117,8 +170,9 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   activateSpecResolution(pi);
 
   // ── Forge skill discovery ────────────────────────────────────────
-  // Contribute .forge/skills/ to the main session's skill discovery
-  // so project-local skills are available to the in-session orchestrator.
+  // Contribute bundled CLI skills and .forge/skills/ to the main session's
+  // skill discovery so default and project-local skills are available to
+  // the in-session orchestrator.
   activateForgeSkills(pi);
 
   // Every session runs as a client.
@@ -184,7 +238,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
-  const flowDirs = [path.join(__dirname, "flows"), ...forgeConfig.getFlowDirectories()];
+  const flowDirs = [path.join(forgeDir, "flows"), ...forgeConfig.getFlowDirectories()];
   const flowRegistrar = new FlowRegistrar({
     pi,
     cmdRegistry,

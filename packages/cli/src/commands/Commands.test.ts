@@ -60,12 +60,12 @@ describe("ResearchCommand", () => {
 
   it("notifies error when args is empty", async () => {
     await cmd.handler("", ctx);
-    expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /research <topic>", "error");
+    expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /forge:research <topic>", "error");
   });
 
   it("notifies error when args is whitespace", async () => {
     await cmd.handler("   ", ctx);
-    expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /research <topic>", "error");
+    expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /forge:research <topic>", "error");
   });
 
   it("triggers supervisor.runAgent with trimmed topic", async () => {
@@ -139,7 +139,7 @@ describe("AgentDestroyCommand", () => {
 
   it("notifies error when args is empty", async () => {
     await cmd.handler("", ctx);
-    expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /agent:destroy <name>", "error");
+    expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /forge:agent:destroy <name>", "error");
   });
 
   it("calls supervisor.destroyAgent and notifies", async () => {

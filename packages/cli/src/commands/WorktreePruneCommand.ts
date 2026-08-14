@@ -15,12 +15,13 @@ const execFileAsync = promisify(execFile);
  * directories, and orphaned `forge/*` branches.
  *
  * Usage:
- *   /worktree:prune          — list stale items (read-only)
- *   /worktree:prune --sweep  — remove all stale items (with confirmation)
+ *   /forge:worktree:prune          — list stale items (read-only)
+ *   /forge:worktree:prune --sweep  — remove all stale items (with confirmation)
  */
 export class WorktreePruneCommand extends Command {
   readonly name = "worktree:prune";
-  readonly description = "Prune stale worktrees and branches. Usage: /worktree:prune [--sweep]";
+  readonly description =
+    "Prune stale worktrees and branches. Usage: /forge:worktree:prune [--sweep]";
 
   handler = async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
     const manager = this.workspaceManager;
@@ -142,7 +143,7 @@ export class WorktreePruneCommand extends Command {
     }
 
     const total = staleRegistryEntries.length + orphanedWorktrees.length + orphanedBranches.length;
-    lines.push(`  Run /worktree:prune --sweep to clean up ${total} item(s).`);
+    lines.push(`  Run /forge:worktree:prune --sweep to clean up ${total} item(s).`);
 
     ctx.ui.notify(lines.join("\n"), "info");
   }

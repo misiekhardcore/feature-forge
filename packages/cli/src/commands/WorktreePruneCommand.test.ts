@@ -162,7 +162,7 @@ describe("WorktreePruneCommand", () => {
       await cmd.handler("", ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalledWith(
-        expect.stringContaining("Run /worktree:prune --sweep to clean up 4 item(s)."),
+        expect.stringContaining("Run /forge:worktree:prune --sweep to clean up 4 item(s)."),
         "info",
       );
     });

@@ -15,8 +15,6 @@ coverage-single/
 
 # Feature Forge runtime
 .forge/*
-!.forge/skills/
-!.forge/skills/**
 !.forge/config.json
 coverage-single/
 
