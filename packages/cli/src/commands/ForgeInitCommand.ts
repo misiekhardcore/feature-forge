@@ -19,11 +19,20 @@ export class ForgeInitCommand extends Command {
   handler = async (_args: string, ctx: ExtensionCommandContext) => {
     const setupScript = path.join(__dirname, "..", "scripts", "forge-setup.js");
 
-    const useGlobal = await ctx.ui.confirm(
-      "Forge: Init",
-      "Store agents, flows, and skills in ~/.forge (shared across projects)? " +
-        "Logs and worktrees always stay project-local.",
+    const scope = await ctx.ui.select(
+      "Forge: Init — where should agents, flows, and skills be stored?",
+      [
+        "project — .forge/ inside this project",
+        "global — ~/.forge shared across projects (logs and worktrees stay project-local)",
+      ],
     );
+
+    if (!scope) {
+      ctx.ui.notify("Forge init cancelled", "info");
+      return;
+    }
+
+    const useGlobal = scope.startsWith("global");
 
     let scaffoldConfig = true;
     let updateGitignore = true;

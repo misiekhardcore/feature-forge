@@ -212,6 +212,7 @@ export function makeMockCtx(): ExtensionCommandContext {
       notify: vi.fn(),
       custom: vi.fn().mockResolvedValue(undefined),
       confirm: vi.fn().mockResolvedValue(true),
+      select: vi.fn().mockResolvedValue("project"),
     },
   } as unknown as ExtensionCommandContext;
 }

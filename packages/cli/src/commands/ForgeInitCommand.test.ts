@@ -13,6 +13,7 @@ vi.mock("node:child_process", () => ({
 type MockUi = {
   confirm: ReturnType<typeof vi.fn>;
   notify: ReturnType<typeof vi.fn>;
+  select: ReturnType<typeof vi.fn>;
 };
 
 const pi = makeMockPi();
@@ -44,17 +45,22 @@ describe("ForgeInitCommand", () => {
     expect(cmd.name).toBe("forge:init");
   });
 
-  it("registers global scaffolding with a single prompt when global is accepted", async () => {
-    ctx.ui.confirm.mockResolvedValue(true);
+  it("asks for installation scope and scaffolds globally when global is chosen", async () => {
+    ctx.ui.select.mockResolvedValue(
+      "global — ~/.forge shared across projects (logs and worktrees stay project-local)",
+    );
 
     await cmd.handler("", ctx);
 
-    expect(ctx.ui.confirm).toHaveBeenCalledTimes(1);
-    expect(ctx.ui.confirm).toHaveBeenCalledWith(
-      "Forge: Init",
-      "Store agents, flows, and skills in ~/.forge (shared across projects)? " +
-        "Logs and worktrees always stay project-local.",
+    expect(ctx.ui.select).toHaveBeenCalledTimes(1);
+    expect(ctx.ui.select).toHaveBeenCalledWith(
+      "Forge: Init — where should agents, flows, and skills be stored?",
+      [
+        "project — .forge/ inside this project",
+        "global — ~/.forge shared across projects (logs and worktrees stay project-local)",
+      ],
     );
+    expect(ctx.ui.confirm).not.toHaveBeenCalled();
     expect(executedArgs()).toEqual([
       expect.stringMatching(/forge-setup\.js$/),
       "--global",
@@ -68,15 +74,15 @@ describe("ForgeInitCommand", () => {
     );
   });
 
-  it("asks local prompts and omits --global when the global prompt is declined", async () => {
+  it("asks local prompts and omits --global when project scope is chosen", async () => {
+    ctx.ui.select.mockResolvedValue("project — .forge/ inside this project");
     ctx.ui.confirm
-      .mockResolvedValueOnce(false) // global
       .mockResolvedValueOnce(true) // scaffold config
       .mockResolvedValueOnce(true); // gitignore
 
     await cmd.handler("", ctx);
 
-    expect(ctx.ui.confirm).toHaveBeenCalledTimes(3);
+    expect(ctx.ui.confirm).toHaveBeenCalledTimes(2);
     expect(executedArgs()).toEqual([
       expect.stringMatching(/forge-setup\.js$/),
       "--yes",
@@ -86,6 +92,7 @@ describe("ForgeInitCommand", () => {
   });
 
   it("passes --no-config and --no-gitignore when declined in local mode", async () => {
+    ctx.ui.select.mockResolvedValue("project — .forge/ inside this project");
     ctx.ui.confirm.mockResolvedValue(false);
 
     await cmd.handler("", ctx);
@@ -100,8 +107,19 @@ describe("ForgeInitCommand", () => {
     ]);
   });
 
+  it("cancels without running setup when the scope dialog is dismissed", async () => {
+    ctx.ui.select.mockResolvedValue(undefined);
+
+    await cmd.handler("", ctx);
+
+    expect(execFileMock).not.toHaveBeenCalled();
+    expect(ctx.ui.notify).toHaveBeenCalledWith("Forge init cancelled", "info");
+  });
+
   it("notifies error when setup fails", async () => {
-    ctx.ui.confirm.mockResolvedValue(true);
+    ctx.ui.select.mockResolvedValue(
+      "global — ~/.forge shared across projects (logs and worktrees stay project-local)",
+    );
     execFileMock.mockImplementation(
       (_file: string, _args: string[], cb?: (err: Error | null) => void) => {
         cb?.(new Error("boom"));

@@ -32,4 +32,12 @@
 
 ## Next action on resume
 
+- [x] Replace global yes/no confirm with a scope select dialog ("project" / "global") in /forge:init
+
+## Decisions made this session (continued)
+
+- Scope dialog: `ctx.ui.select` with title "Forge: Init — where should agents, flows, and skills be stored?" and option labels "project — .forge/ inside this project" / "global — ~/.forge shared across projects (logs and worktrees stay project-local)"; `useGlobal = scope.startsWith("global")`, dismissed dialog cancels init (why: user prefers an explicit scope choice over a leading yes/no)
+
+## Next action on resume
+
 - Nothing pending — hand off for verify/review
