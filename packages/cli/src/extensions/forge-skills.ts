@@ -2,20 +2,16 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/shared";
-
-import { bundledSkillDirectories } from "../agents/specifications/skill-resolver";
+import { ForgeConfig } from "@feature-forge/shared";
 
 /**
- * Register a `resources_discover` handler that contributes the CLI package's
- * bundled default skills and the forge directory's `skills/` to the main
- * session's skill discovery.
+ * Register a `resources_discover` handler that contributes the forge
+ * directory's `skills/` to the main session's skill discovery.
  *
- * This makes default and user-scaffolded skills available to the in-session
- * orchestrator. The forge-dir skills directory is listed first, so a
- * user-scaffolded skill whose name collides with a bundled skill takes
- * priority; bundled skills serve as fallback for names not present in the
- * forge directory.
+ * Only the forge directory is contributed: `forge:init` scaffolds the bundled
+ * default skills there, so the runtime never falls back to bundled package
+ * paths (ADR-0015). Contributing both would produce skill-name collisions
+ * between the scaffolded and bundled copies.
  */
 export function activateForgeSkills(pi: ExtensionAPI): void {
   pi.on("resources_discover", async (_event, _ctx) => {
@@ -27,19 +23,9 @@ export function activateForgeSkills(pi: ExtensionAPI): void {
       forgeSkillsDir = path.resolve(".forge", "skills");
     }
 
-    const skillPaths: string[] = [];
-    for (const dir of [forgeSkillsDir, ...bundledSkillDirectories()]) {
-      try {
-        if (fs.existsSync(dir)) {
-          skillPaths.push(dir);
-        }
-      } catch (error) {
-        logger.warn("Failed to check skill directory", {
-          path: dir,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+    if (!fs.existsSync(forgeSkillsDir)) {
+      return {};
     }
-    return skillPaths.length > 0 ? { skillPaths } : {};
+    return { skillPaths: [forgeSkillsDir] };
   });
 }
