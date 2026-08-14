@@ -197,7 +197,7 @@ describe("flow round-trip", () => {
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
       expect(resolved).not.toMatch(/\{\{/);
     });
 
@@ -234,13 +234,13 @@ describe("flow round-trip", () => {
     // ── 4. Orchestrator.systemPrompt resolves cleanly ──────────────────
 
     it("orchestrator.systemPrompt is non-empty and resolves cleanly", () => {
-      expect(flow.orchestrator!.systemPrompt.length).toBeGreaterThan(0);
+      expect(flow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
 
       const ctx = new FlowContext({
         results: new Map(),
         prompt: "test-task",
       });
-      const resolved = ctx.resolve(flow.orchestrator!.systemPrompt);
+      const resolved = ctx.resolve(flow.orchestrator.systemPrompt);
 
       expect(resolved).not.toMatch(/\{\{/);
       expect(resolved).not.toMatch(/\}\}/);
@@ -528,15 +528,173 @@ describe("flow round-trip", () => {
 
     it("resolves orchestrator.prompt with no {{...}} survivors", () => {
       const ctx = new FlowContext({ results: new Map(), prompt: "42" });
-      const resolved = ctx.resolve(resolvePrFlow.orchestrator!.prompt ?? "");
+      const resolved = ctx.resolve(resolvePrFlow.orchestrator.prompt ?? "");
       expect(resolved).toBe("42");
       expect(resolved).not.toMatch(/\{\{/);
     });
 
     it("orchestrator.systemPrompt resolves to a loaded spec", () => {
-      expect(resolvePrSpecs.specNames().has(resolvePrFlow.orchestrator!.systemPrompt)).toBe(true);
-      const spec = resolvePrSpecs.resolve({ spec: resolvePrFlow.orchestrator!.systemPrompt });
+      expect(resolvePrSpecs.specNames().has(resolvePrFlow.orchestrator.systemPrompt)).toBe(true);
+      const spec = resolvePrSpecs.resolve({ spec: resolvePrFlow.orchestrator.systemPrompt });
       expect(spec.id).toBe("resolve-pr-feedback-orchestrator");
+    });
+  });
+
+  describe("review", () => {
+    const reviewFlowDir = path.join(__dirname, "review");
+
+    let reviewFlow!: FlowDefinition;
+    let reviewSpecs!: SpecManager;
+
+    beforeAll(async () => {
+      // Mirror FlowRegistrar: declarative specs plus the flow's own
+      // orchestrator.md, registered under its frontmatter id.
+      reviewSpecs = new SpecManager(new SpecRegistry(), new SpecLoader());
+      await reviewSpecs.loadFromDirectory(specsDir);
+      await reviewSpecs.loadFromDirectory(reviewFlowDir);
+
+      const reviewLoader = new FlowLoader({
+        flowsDir: reviewFlowDir,
+        knownSpecs: reviewSpecs.specNames(),
+      });
+      reviewFlow = await reviewLoader.load("flow");
+    });
+
+    it("loads without validation errors", () => {
+      expect(reviewFlow.name).toBe("review");
+      expect(reviewFlow.routines.length).toBeGreaterThan(0);
+      expect(reviewFlow.command).toBe("/review");
+    });
+
+    it("resolves orchestrator.systemPrompt with no {{...}} survivors", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      });
+      const resolved = ctx.resolve(reviewFlow.orchestrator.systemPrompt);
+      expect(resolved).not.toMatch(/\{\{/);
+    });
+
+    it("resolves all agent instruction tasks with no {{...}} survivors", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      }).withParams({ changes: "test-changes", workspace: "/tmp/test-workspace" });
+
+      const { agentTasks } = collectFromRoutines(reviewFlow.routines);
+
+      for (const task of agentTasks) {
+        const resolved = ctx.resolve(task);
+        expect(resolved, `unresolved placeholder in task: "${task.slice(0, 80)}..."`).not.toMatch(
+          /\{\{/,
+        );
+      }
+    });
+
+    it("references only known agent specs", () => {
+      const { specRefs } = collectFromRoutines(reviewFlow.routines);
+
+      for (const spec of specRefs) {
+        expect(knownSpecs.has(spec), `unknown spec "${spec}" — not in declarative-specs`).toBe(
+          true,
+        );
+      }
+    });
+
+    it("orchestrator.systemPrompt is non-empty, resolves cleanly, and resolves to a loaded spec", () => {
+      expect(reviewFlow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
+
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      });
+      const resolved = ctx.resolve(reviewFlow.orchestrator.systemPrompt);
+
+      expect(resolved).not.toMatch(/\{\{/);
+      expect(resolved).not.toMatch(/\}\}/);
+
+      expect(reviewSpecs.specNames().has(reviewFlow.orchestrator.systemPrompt)).toBe(true);
+      const spec = reviewSpecs.resolve({ spec: reviewFlow.orchestrator.systemPrompt });
+      expect(spec.id).toBe("review-orchestrator");
+    });
+  });
+
+  describe("verify", () => {
+    const verifyFlowDir = path.join(__dirname, "verify");
+
+    let verifyFlow!: FlowDefinition;
+    let verifySpecs!: SpecManager;
+
+    beforeAll(async () => {
+      // Mirror FlowRegistrar: declarative specs plus the flow's own
+      // orchestrator.md, registered under its frontmatter id.
+      verifySpecs = new SpecManager(new SpecRegistry(), new SpecLoader());
+      await verifySpecs.loadFromDirectory(specsDir);
+      await verifySpecs.loadFromDirectory(verifyFlowDir);
+
+      const verifyLoader = new FlowLoader({
+        flowsDir: verifyFlowDir,
+        knownSpecs: verifySpecs.specNames(),
+      });
+      verifyFlow = await verifyLoader.load("flow");
+    });
+
+    it("loads without validation errors", () => {
+      expect(verifyFlow.name).toBe("verify");
+      expect(verifyFlow.routines.length).toBeGreaterThan(0);
+      expect(verifyFlow.command).toBe("/verify");
+    });
+
+    it("resolves orchestrator.systemPrompt with no {{...}} survivors", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      });
+      const resolved = ctx.resolve(verifyFlow.orchestrator.systemPrompt);
+      expect(resolved).not.toMatch(/\{\{/);
+    });
+
+    it("resolves all agent instruction tasks with no {{...}} survivors", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      }).withParams({ changes: "test-changes", workspace: "/tmp/test-workspace" });
+
+      const { agentTasks } = collectFromRoutines(verifyFlow.routines);
+
+      for (const task of agentTasks) {
+        const resolved = ctx.resolve(task);
+        expect(resolved, `unresolved placeholder in task: "${task.slice(0, 80)}..."`).not.toMatch(
+          /\{\{/,
+        );
+      }
+    });
+
+    it("references only known agent specs", () => {
+      const { specRefs } = collectFromRoutines(verifyFlow.routines);
+
+      for (const spec of specRefs) {
+        expect(knownSpecs.has(spec), `unknown spec "${spec}" — not in declarative-specs`).toBe(
+          true,
+        );
+      }
+    });
+
+    it("orchestrator.systemPrompt is non-empty, resolves cleanly, and resolves to a loaded spec", () => {
+      expect(verifyFlow.orchestrator.systemPrompt.length).toBeGreaterThan(0);
+
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "test-task",
+      });
+      const resolved = ctx.resolve(verifyFlow.orchestrator.systemPrompt);
+
+      expect(resolved).not.toMatch(/\{\{/);
+      expect(resolved).not.toMatch(/\}\}/);
+
+      expect(verifySpecs.specNames().has(verifyFlow.orchestrator.systemPrompt)).toBe(true);
+      const spec = verifySpecs.resolve({ spec: verifyFlow.orchestrator.systemPrompt });
+      expect(spec.id).toBe("verify-orchestrator");
     });
   });
 

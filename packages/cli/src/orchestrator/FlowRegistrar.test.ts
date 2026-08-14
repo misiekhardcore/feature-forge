@@ -18,7 +18,6 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 const {
   readdirMock,
-  accessMock,
   flowLoaderLoadMock,
   flowLoaderCtorMock,
   orchestratorCtorMock,
@@ -26,7 +25,6 @@ const {
   specManagerSpecNamesMock,
 } = vi.hoisted(() => {
   const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
-  const access = vi.fn<(p: string) => Promise<void>>();
   const load = vi.fn<() => Promise<FlowDefinition>>();
 
   // Must use named functions — arrow functions are not constructable
@@ -48,7 +46,6 @@ const {
 
   return {
     readdirMock: readdir,
-    accessMock: access,
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
     orchestratorCtorMock: orchestratorCtor,
@@ -59,7 +56,6 @@ const {
 
 vi.mock("node:fs/promises", () => ({
   readdir: readdirMock,
-  access: accessMock,
 }));
 
 vi.mock("./FlowLoader", () => ({
@@ -68,7 +64,6 @@ vi.mock("./FlowLoader", () => ({
 
 vi.mock("../commands", () => ({
   OrchestratorCommand: orchestratorCtorMock,
-  HeadlessFlowCommand: vi.fn(),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -126,7 +121,6 @@ function makeFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
 
 function setupSingleFlow() {
   readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-  accessMock.mockResolvedValue(undefined);
   flowLoaderLoadMock.mockResolvedValue(makeFlow());
 }
 
@@ -145,7 +139,6 @@ describe("FlowRegistrar", () => {
         { name: "flow-a", isDirectory: () => true },
         { name: "flow-b", isDirectory: () => true },
       ]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const params = makeParams({ flowDirs: ["/custom/flows"] });
@@ -163,7 +156,6 @@ describe("FlowRegistrar", () => {
         { name: "README.md", isDirectory: () => false },
         { name: "flow-b", isDirectory: () => true },
       ]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {
@@ -177,16 +169,18 @@ describe("FlowRegistrar", () => {
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
     });
 
-    it("registers headless flow commands for directories without orchestrator.md", async () => {
+    it("skips flows without an orchestrator (schema rejection) and logs a warning", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([
         { name: "valid-flow", isDirectory: () => true },
         { name: "headless-flow", isDirectory: () => true },
       ]);
-      flowLoaderLoadMock.mockResolvedValue(makeFlow());
-      // Both flows load fine; valid-flow has orchestrator.md, headless-flow does not.
-      accessMock.mockImplementation(async (p: string) => {
-        if (p.includes("headless-flow")) throw new Error("ENOENT");
-      });
+      // valid-flow loads; headless-flow fails schema validation (orchestrator is required).
+      flowLoaderLoadMock
+        .mockResolvedValueOnce(makeFlow())
+        .mockRejectedValueOnce(
+          new Error("Invalid flow definition: ... /orchestrator: Expected required property"),
+        );
 
       const cmdRegistry = {
         registerInstance: vi.fn().mockReturnValue(undefined),
@@ -195,15 +189,19 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      // Both flows get commands: OrchestratorCommand for valid-flow,
-      // HeadlessFlowCommand for headless-flow.
-      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(2);
+      // Only valid-flow's OrchestratorCommand is registered.
+      expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to load flow "headless-flow"'),
+        expect.any(Object),
+      );
+
+      warnSpy.mockRestore();
     });
 
     it("skips flows that fail to load and logs a warning (non-Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue("raw string error");
 
@@ -226,7 +224,6 @@ describe("FlowRegistrar", () => {
     it("skips flows that fail to load and logs a warning (Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "broken-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       specManagerLoadFromDirectoryMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockRejectedValue(new Error("Invalid JSON"));
 
@@ -278,7 +275,6 @@ describe("FlowRegistrar", () => {
 
     it("passes knownSpecs and knownProviders to FlowLoader", async () => {
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const knownSpecs = new Set(["spec-a", "spec-b"]);
@@ -311,7 +307,6 @@ describe("FlowRegistrar", () => {
     it("handles RoutineTool registration failures gracefully (non-Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
           routines: [{ id: "step1", params: [], steps: [] }],
@@ -339,7 +334,6 @@ describe("FlowRegistrar", () => {
     it("handles RoutineTool registration failures gracefully (Error throw)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(
         makeFlow({
           routines: [
@@ -387,7 +381,6 @@ describe("FlowRegistrar", () => {
 
     it("registers orchestrator commands even when a flow has no routines", async () => {
       readdirMock.mockResolvedValue([{ name: "empty-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: [] }));
 
       const cmdRegistry = {
@@ -406,7 +399,6 @@ describe("FlowRegistrar", () => {
       readdirMock
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ name: "extra-flow", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {
@@ -442,7 +434,6 @@ describe("FlowRegistrar", () => {
         .mockResolvedValueOnce([{ name: "builtin", isDirectory: () => true }])
         .mockResolvedValueOnce([{ name: "addon-a", isDirectory: () => true }])
         .mockResolvedValueOnce([{ name: "addon-b", isDirectory: () => true }]);
-      accessMock.mockResolvedValue(undefined);
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {

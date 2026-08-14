@@ -35,6 +35,9 @@ export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;
   private readonly flow: FlowDefinition;
+  // The constructor requires a SpecManager, so it is always present here
+  // even though the base Command class types it as optional.
+  declare protected readonly specManager: SpecManager;
   // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
   private agent: SessionAgent | undefined;
@@ -55,19 +58,6 @@ export class OrchestratorCommand extends Command {
 
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
     const userTask = args.trim() || "(no task provided)";
-
-    if (!this.flow.orchestrator) {
-      ctx.ui.notify(
-        `Flow "${this.flow.name}" has no orchestrator config — use a headless command instead.`,
-        "error",
-      );
-      return;
-    }
-
-    if (!this.specManager) {
-      ctx.ui.notify("SpecManager not available — orchestrator spec cannot be resolved.", "error");
-      return;
-    }
 
     if (!this.spec) {
       this.spec = this.specManager.resolve({
@@ -127,9 +117,9 @@ export class OrchestratorCommand extends Command {
    */
   private resolveTask(userTask: string): string {
     const config = this.flow.orchestrator;
-    const template = config?.prompt ?? "";
+    const template = config.prompt ?? "";
     const params: Record<string, string> = {
-      ...(config?.promptParams ?? {}),
+      ...(config.promptParams ?? {}),
       prompt: userTask,
     };
 

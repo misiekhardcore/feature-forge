@@ -3,7 +3,7 @@
   "title": "Feature Forge Flow Definition",
   "description": "Self-contained flow definition. Declares a slash command, orchestrator config, and named deterministic routines.",
   "type": "object",
-  "required": ["$schema", "name", "command", "routines"],
+  "required": ["$schema", "name", "command", "orchestrator", "routines"],
   "properties": {
     "$schema": {
       "type": "string",
