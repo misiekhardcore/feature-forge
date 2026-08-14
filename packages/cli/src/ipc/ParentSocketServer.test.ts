@@ -106,6 +106,38 @@ function readResponse(socket: Socket, timeout = 2000): Promise<unknown> {
   });
 }
 
+/**
+ * Read `count` newline-delimited JSON messages from the socket, buffering
+ * partial chunks so messages split across (or bundled into) chunks are
+ * still captured.
+ */
+function readMessages(socket: Socket, count = 1, timeout = 2000): Promise<unknown[]> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error("Response timeout"));
+    }, timeout);
+    let buffer = "";
+    const messages: unknown[] = [];
+    const handler = (chunk: Buffer) => {
+      buffer += chunk.toString("utf-8");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) {
+          messages.push(jsonParse(trimmed));
+        }
+      }
+      if (messages.length >= count) {
+        clearTimeout(timer);
+        socket.removeListener("data", handler);
+        resolve(messages.slice(0, count));
+      }
+    };
+    socket.on("data", handler);
+  });
+}
+
 describe("ParentSocketServer", () => {
   let server: ParentSocketServer;
   let supervisor: AgentSupervisor;
@@ -151,6 +183,184 @@ describe("ParentSocketServer", () => {
         role: "researcher",
       },
     });
+
+    client.end();
+  });
+
+  it("executes the spawn prompt in the background and pushes completion", async () => {
+    const client = connect(socketPath);
+
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "spawn-prompt-1",
+      params: {
+        role: "prompt-worker",
+        systemPrompt: "You are a prompt worker",
+        toolRestrictions: { read: [] },
+        prompt: "Do the initial work",
+      },
+    });
+
+    const [response, push] = await readMessages(client, 2);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "spawn-prompt-1",
+      result: {
+        agentId: "prompt-worker",
+        role: "prompt-worker",
+      },
+    });
+    expect(push).toEqual({
+      type: "agent_update",
+      payload: {
+        agentId: "prompt-worker",
+        status: AgentStatus.Completed,
+        result: "task result",
+      },
+    });
+
+    const agent = supervisor.getAgent("prompt-worker") as SubprocessAgent;
+    expect(agent.executeTask).toHaveBeenCalledOnce();
+    expect(agent.executeTask).toHaveBeenCalledWith(
+      "Do the initial work",
+      expect.objectContaining({ timeout: undefined }),
+    );
+
+    client.end();
+  });
+
+  it("emits agent-started and agent-done events for the spawn prompt", async () => {
+    const client = connect(socketPath);
+
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "spawn-prompt-2",
+      params: {
+        role: "prompt-events",
+        systemPrompt: "You are a prompt events worker",
+        toolRestrictions: { read: [] },
+        prompt: "Do the initial work",
+      },
+    });
+
+    await readMessages(client, 2);
+
+    const emitSpy = pi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+    expect(emitSpy.emit).toHaveBeenCalledWith(
+      "feature-forge:agent-started",
+      expect.objectContaining({
+        phase: "agent-started",
+        details: expect.objectContaining({
+          executionId: "spawn-prompt-2:spawn-prompt",
+          agentId: "prompt-events",
+        }),
+      }),
+    );
+    expect(emitSpy.emit).toHaveBeenCalledWith(
+      "feature-forge:agent-done",
+      expect.objectContaining({
+        phase: "agent-done",
+        details: expect.objectContaining({
+          executionId: "spawn-prompt-2:spawn-prompt",
+          agentId: "prompt-events",
+          passed: true,
+          summary: "task result",
+        }),
+      }),
+    );
+
+    client.end();
+  });
+
+  it("pushes a failed update when the spawn prompt execution fails", async () => {
+    const localAgents = new Map<string, Agent>();
+    const localSupervisor = createMockSupervisor(localAgents);
+    // Pre-configure the spawned agent to fail its initial task.
+    localSupervisor.spawnGuest = vi
+      .fn()
+      .mockImplementation(async (specification: AgentSpecification) => {
+        const agent = createMockAgent();
+        Object.defineProperty(agent, "id", { value: specification.role });
+        Object.defineProperty(agent, "specification", { value: specification });
+        vi.mocked(agent.executeTask).mockRejectedValue(new Error("initial prompt failure"));
+        localAgents.set(specification.role, agent);
+        return agent;
+      });
+    const localPi = makeMockPi();
+    const localServer = new ParentSocketServer(localSupervisor, localPi, createMockSpecManager());
+    const localPath = await localServer.start();
+
+    const client = connect(localPath);
+
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "spawn-prompt-3",
+      params: {
+        role: "prompt-fail",
+        systemPrompt: "You are a failing prompt worker",
+        toolRestrictions: { read: [] },
+        prompt: "Do the initial work",
+      },
+    });
+
+    const [response, push] = await readMessages(client, 2);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "spawn-prompt-3",
+      result: { agentId: "prompt-fail", role: "prompt-fail" },
+    });
+    expect(push).toEqual({
+      type: "agent_update",
+      payload: {
+        agentId: "prompt-fail",
+        status: AgentStatus.Failed,
+        result: "initial prompt failure",
+      },
+    });
+
+    const emitSpy = localPi.events as unknown as { emit: ReturnType<typeof vi.fn> };
+    expect(emitSpy.emit).toHaveBeenCalledWith(
+      "feature-forge:agent-done",
+      expect.objectContaining({
+        phase: "agent-done",
+        details: expect.objectContaining({
+          agentId: "prompt-fail",
+          passed: false,
+          summary: "initial prompt failure",
+        }),
+      }),
+    );
+
+    client.end();
+    await localServer.stop();
+  });
+
+  it("does not execute any task when spawned without a prompt", async () => {
+    const client = connect(socketPath);
+
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "spawn-idle-1",
+      params: {
+        role: "idle-worker",
+        systemPrompt: "You are an idle worker",
+        toolRestrictions: { read: [] },
+      },
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "spawn-idle-1",
+      result: {
+        agentId: "idle-worker",
+        role: "idle-worker",
+      },
+    });
+
+    await Promise.resolve();
+    const agent = supervisor.getAgent("idle-worker") as SubprocessAgent;
+    expect(agent.executeTask).not.toHaveBeenCalled();
 
     client.end();
   });
