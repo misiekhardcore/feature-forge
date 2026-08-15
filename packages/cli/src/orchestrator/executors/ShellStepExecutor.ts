@@ -137,8 +137,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
    *
    * `execFile` reports a misleading `spawn /bin/sh ENOENT` when the cwd is
    * unusable — an unresolved `{{placeholder}}` (e.g. `{{workspace}}` before
-   * the flow's `set_flow_param` routine (e.g. `implement_set_flow_param`) was
-   * called) or a stale/missing path fails at spawn with
+   * `set_flow_param` was called) or a stale/missing path fails at spawn with
    * an error that points at the binary instead of the real cause. Fail with
    * an actionable message instead; an unusable cwd is a routine-protocol
    * error, not a command failure, so it always hard-fails (ADR 0008).
@@ -149,7 +148,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       throw new Error(
         `Shell step "${instructionId}": working directory "${cwd}" contains an unresolved ` +
           `placeholder "${unresolved[0]}". Pass the routine parameter or set it first, e.g. ` +
-          `<flow>_set_flow_param(key="${unresolved[1].trim()}", value=<worktree path>) ` +
+          `set_flow_param(key="${unresolved[1].trim()}", value=<worktree path>) ` +
           `before running this routine.`,
       );
     }

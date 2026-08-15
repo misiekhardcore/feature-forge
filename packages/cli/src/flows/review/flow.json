@@ -8,28 +8,6 @@
   },
   "routines": [
     {
-      "id": "review_set_flow_param",
-      "description": "Set a flow-level session parameter that persists across routine calls",
-      "params": [
-        {
-          "name": "key",
-          "description": "Session key to set"
-        },
-        {
-          "name": "value",
-          "description": "Value to store"
-        }
-      ],
-      "steps": [
-        {
-          "type": "session",
-          "id": "set",
-          "key": "{{key}}",
-          "value": "{{value}}"
-        }
-      ]
-    },
-    {
       "id": "inspect",
       "params": [
         {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSupervisor } from "../agents";
 import { Command } from "../commands/Command";
+import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import { makeMockPi, makeMockSpecManager, makeMockToolRegistry } from "../test-utils";
 import { CommandRegistry, withForgePrefix } from "./CommandRegistry";
 
@@ -94,6 +95,22 @@ describe("CommandRegistry", () => {
     it("passes the registry in the dependency bag", () => {
       const cmd = registry.register(TestCommand);
       expect((cmd as TestCommand & { commandRegistry?: unknown }).commandRegistry).toBe(registry);
+    });
+
+    it("passes the activeFlow registry in the dependency bag", () => {
+      const activeFlowRegistry = new ActiveFlowRegistry();
+      registry = new CommandRegistry(
+        {} as AgentSupervisor,
+        mockPi,
+        makeMockSpecManager(),
+        makeMockToolRegistry(),
+        undefined,
+        undefined,
+        activeFlowRegistry,
+      );
+
+      const cmd = registry.register(TestCommand);
+      expect((cmd as TestCommand & { activeFlow?: unknown }).activeFlow).toBe(activeFlowRegistry);
     });
   });
 

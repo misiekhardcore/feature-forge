@@ -5,7 +5,9 @@ import type { AgentSupervisor } from "../agents";
 import { SessionAgent } from "../agents/agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
+import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
+import type { FlowStateStore } from "../orchestrator/FlowStateStore";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";
@@ -41,6 +43,8 @@ export interface OrchestratorCommandDeps extends CommandDeps {
   toolRegistry: ToolRegistry;
   workspaceManager?: WorkspaceManager;
   flow: FlowDefinition;
+  store: FlowStateStore;
+  activeFlow: ActiveFlowRegistry;
 }
 
 export class OrchestratorCommand extends Command {
@@ -53,6 +57,10 @@ export class OrchestratorCommand extends Command {
   // The constructor requires a SpecManager, so it is always present here
   // even though the base Command class types it as optional.
   declare protected readonly specManager: SpecManager;
+  // The constructor requires an ActiveFlowRegistry, so it is always present
+  // here even though the base Command class types it as optional.
+  declare protected readonly activeFlow: ActiveFlowRegistry;
+  private readonly store: FlowStateStore;
   // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
   private agent: SessionAgent | undefined;
@@ -62,6 +70,7 @@ export class OrchestratorCommand extends Command {
     this.name = deps.flow.command.replace(/^\//, "");
     this.flow = deps.flow;
     this.description = `Run the ${deps.flow.name} orchestrator workflow`;
+    this.store = deps.store;
   }
 
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
@@ -135,6 +144,12 @@ export class OrchestratorCommand extends Command {
     }
 
     this.agent.mount(this.pi, this.resolveTask(userTask));
+
+    // Register the flow as active only after a successful mount — a failed
+    // mount must not leave a stale pointer for set_flow_param. Spec/missing-
+    // tool failures above return before this line, so they never register
+    // an active flow either.
+    this.activeFlow.setCurrent(this.flow.name, this.store);
 
     ctx.ui.notify(`${this.flow.name} orchestrator loaded.`, "info");
   }

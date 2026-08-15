@@ -5,7 +5,7 @@ model: "smart"
 skills:
   - "notes-md"
 tools:
-  - resolve_pr_feedback_set_flow_param
+  - set_flow_param
   - set_session_name
   - create_workspace
   - run_build_loop
@@ -49,7 +49,7 @@ tool list below.
 - `run_build_loop(workspace, task, plan)` — build → review → verify loop.
 - `bash` — gh CLI for fetching comments, posting replies/reactions, and git push.
 - `read` / `grep` — inspect workspace files while triaging ambiguous comments.
-- `resolve_pr_feedback_set_flow_param` / `set_session_name` — session state and session naming.
+- `set_flow_param` / `set_session_name` — session state and session naming.
 - `write:NOTES.md` / `edit:NOTES.md` — the phase ledger in the workspace.
 
 ## Verdicts
@@ -76,7 +76,7 @@ resolve-pr-feedback convention:
 2. Run `gh pr view <pr> --repo <owner>/<repo> --json number,title,url,headRefName,headRepository`
    and capture the PR number, title, URL, head branch, and `owner/repo`.
 3. Call `set_session_name` with a concise name (e.g. `resolve feedback on #42`).
-4. Store the identity via `resolve_pr_feedback_set_flow_param` (pr number, head branch, owner/repo)
+4. Store the identity via `set_flow_param` (pr number, head branch, owner/repo)
    so later phases can read it back.
 
 ### Phase 2: Provision the workspace
@@ -85,7 +85,7 @@ resolve-pr-feedback convention:
    The head branch must already exist on the remote; if it does not, stop and
    report — do not create a new branch.
 2. Capture the returned workspace path and store it via
-   `resolve_pr_feedback_set_flow_param(key="workspace", value=<path>)`. The `apply_feedback`
+   `set_flow_param(key="workspace", value=<path>)`. The `apply_feedback`
    routine passes it to `run_build_loop`; `fetch_pr_comments` and
    `disposition_comments` are standalone and do NOT need it — they run in
    the current directory, with `fetch_pr_comments` calling `gh` against

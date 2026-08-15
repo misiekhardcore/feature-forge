@@ -426,9 +426,8 @@ describe("flow round-trip", () => {
       ]);
     });
 
-    it("declares the resolve_pr_feedback_set_flow_param, fetch_pr_comments, apply_feedback, and disposition_comments routines", () => {
+    it("declares the fetch_pr_comments, apply_feedback, and disposition_comments routines", () => {
       expect(resolvePrFlow.routines.map((r) => r.id)).toEqual([
-        "resolve_pr_feedback_set_flow_param",
         "fetch_pr_comments",
         "apply_feedback",
         "disposition_comments",
@@ -800,5 +799,76 @@ describe("flow round-trip", () => {
       expect(validate.errors).not.toBeNull();
       expect(validate.errors!.some((e) => e.instancePath === "/params/0")).toBe(true);
     });
+  });
+});
+
+// ── set_flow_param guardrails ────────────────────────────────
+
+/** Extract the frontmatter `tools:` list from an orchestrator.md file. */
+function parseFrontmatterTools(markdown: string): string[] {
+  const frontmatter = markdown.split(/^---\s*$/m)[1] ?? "";
+  const toolsMatch = frontmatter.match(/^tools:\n((?:^ {2}- .*$\n?)+)/m);
+  if (!toolsMatch) return [];
+  return toolsMatch[1]
+    .split("\n")
+    .map((line) => line.trim().replace(/^-\s+/, ""))
+    .filter(Boolean);
+}
+
+// The legacy flow-scoped naming this guardrail protects against (e.g.
+// implement + the shared set_flow_param name). Built from parts so the
+// repo-wide grep gate for the scoped naming stays clean — the guardrail
+// itself must not re-introduce the literal it polices.
+const FLOW_SCOPED_SET_PARAM_SUFFIX = "_set_flow_" + "param";
+
+describe("set_flow_param guardrails", () => {
+  // The flow-scoped set_flow_param routines were replaced by one shared
+  // global tool (PR #218 rework). These tests keep the flows and their
+  // orchestrator personas from regressing to flow-scoped names.
+  const guardrailFlowDirs = ["implement", "review", "verify", "resolve-pr-feedback"];
+  const guardrailSpecsDir = path.join(__dirname, "..", "agents", "declarative-specs");
+
+  let loadedFlows: FlowDefinition[] = [];
+  let orchestratorDocs: string[] = [];
+
+  beforeAll(async () => {
+    const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
+    await specManager.loadFromDirectory(guardrailSpecsDir);
+    loadedFlows = [];
+    orchestratorDocs = [];
+    for (const flowName of guardrailFlowDirs) {
+      const flowDir = path.join(__dirname, flowName);
+      await specManager.loadFromDirectory(flowDir);
+      const loader = new FlowLoader({
+        flowsDir: flowDir,
+        knownSpecs: specManager.specNames(),
+      });
+      loadedFlows.push(await loader.load("flow"));
+      orchestratorDocs.push(fs.readFileSync(path.join(flowDir, "orchestrator.md"), "utf-8"));
+    }
+  });
+
+  it("no flow declares a flow-scoped set_flow_param routine", () => {
+    expect(loadedFlows.map((f) => f.name)).toEqual(guardrailFlowDirs);
+    for (const flow of loadedFlows) {
+      for (const routine of flow.routines) {
+        expect(
+          routine.id.endsWith(FLOW_SCOPED_SET_PARAM_SUFFIX),
+          `flow "${flow.name}" declares flow-scoped routine "${routine.id}"`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("every orchestrator persona lists the shared set_flow_param tool", () => {
+    for (const [i, markdown] of orchestratorDocs.entries()) {
+      const tools = parseFrontmatterTools(markdown);
+      expect(tools, `flow "${guardrailFlowDirs[i]}" has no tools list`).toContain("set_flow_param");
+      const flowScopedTools = tools.filter((tool) => tool.endsWith(FLOW_SCOPED_SET_PARAM_SUFFIX));
+      expect(
+        flowScopedTools,
+        `flow "${guardrailFlowDirs[i]}" lists flow-scoped tools: ${flowScopedTools.join(", ")}`,
+      ).toEqual([]);
+    }
   });
 });

@@ -6,6 +6,8 @@ import { TOOL_PRESETS } from "../agents/specifications/constants";
 import { SpecManager } from "../agents/SpecManager";
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
 import { SpecLoader } from "../loaders/SpecLoader";
+import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
+import { FlowStateStore } from "../orchestrator/FlowStateStore";
 import {
   makeMockCtx,
   makeMockFactory,
@@ -209,11 +211,22 @@ describe("FlowExitCommand", () => {
     });
 
     it("notifies when no active flow is mounted", async () => {
+      // A stale pointer (e.g. left by a prior session) must be cleared —
+      // "No active flow to exit" is still a successful exit (AC5).
+      const activeFlow = new ActiveFlowRegistry();
+      activeFlow.setCurrent("implement", new FlowStateStore());
+      const cmd = new FlowExitCommand({ supervisor, pi, activeFlow });
+
       await cmd.handler("", ctx);
       expect(ctx.ui.notify).toHaveBeenCalledWith("Flow exited. No active flow to exit.", "info");
+      expect(activeFlow.getStore()).toBeUndefined();
     });
 
     it("destroys agents via supervisor and sends exit message when a session agent is mounted", async () => {
+      const activeFlow = new ActiveFlowRegistry();
+      activeFlow.setCurrent("implement", new FlowStateStore());
+      const cmd = new FlowExitCommand({ supervisor, pi, activeFlow });
+
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
       const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
@@ -231,9 +244,16 @@ describe("FlowExitCommand", () => {
         "Flow exited. Default system prompt and tools restored.",
         "info",
       );
+      // Successful exit clears the active flow (AC5) — subsequent
+      // set_flow_param calls must fail until a new flow mounts.
+      expect(activeFlow.getStore()).toBeUndefined();
     });
 
     it("notifies error and skips exit message when some agents fail to destroy", async () => {
+      const activeFlow = new ActiveFlowRegistry();
+      activeFlow.setCurrent("implement", new FlowStateStore());
+      const cmd = new FlowExitCommand({ supervisor, pi, activeFlow });
+
       const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
       const agent1 = await supervisor.mountInSession(spec1);
       agent1.mount(pi, "start task 1");
@@ -271,9 +291,15 @@ describe("FlowExitCommand", () => {
         "info",
       );
       expect(pi.sendUserMessage).not.toHaveBeenCalled();
+      // Failed exit does NOT clear the active flow (AC5).
+      expect(activeFlow.getStore()).toBeDefined();
     });
 
     it("notifies error and skips exit message when all agents fail to destroy", async () => {
+      const activeFlow = new ActiveFlowRegistry();
+      activeFlow.setCurrent("implement", new FlowStateStore());
+      const cmd = new FlowExitCommand({ supervisor, pi, activeFlow });
+
       const spec1 = makeSpec("orchestrator-1", { role: "orchestrator" });
       const agent1 = await supervisor.mountInSession(spec1);
       agent1.mount(pi, "start task 1");
@@ -302,9 +328,15 @@ describe("FlowExitCommand", () => {
         "info",
       );
       expect(pi.sendUserMessage).not.toHaveBeenCalled();
+      // Failed exit does NOT clear the active flow (AC5).
+      expect(activeFlow.getStore()).toBeDefined();
     });
 
     it("normalizes non-Error throws during destroy", async () => {
+      const activeFlow = new ActiveFlowRegistry();
+      activeFlow.setCurrent("implement", new FlowStateStore());
+      const cmd = new FlowExitCommand({ supervisor, pi, activeFlow });
+
       const spec = makeSpec("orchestrator", { role: "orchestrator" });
       const agent = await supervisor.mountInSession(spec);
       agent.mount(pi, "start task");
@@ -322,6 +354,8 @@ describe("FlowExitCommand", () => {
         "info",
       );
       expect(pi.sendUserMessage).not.toHaveBeenCalled();
+      // Failed exit does NOT clear the active flow (AC5).
+      expect(activeFlow.getStore()).toBeDefined();
     });
   });
 
@@ -329,9 +363,13 @@ describe("FlowExitCommand", () => {
     let workspaceManager: WorkspaceManager;
     let cmd: FlowExitCommand;
 
+    let activeFlow: ActiveFlowRegistry;
+
     beforeEach(() => {
       workspaceManager = makeWorkspaceManager();
-      cmd = new FlowExitCommand({ supervisor, pi, workspaceManager });
+      activeFlow = new ActiveFlowRegistry();
+      activeFlow.setCurrent("implement", new FlowStateStore());
+      cmd = new FlowExitCommand({ supervisor, pi, workspaceManager, activeFlow });
     });
 
     it("destroys active workspaces after unmounting agents", async () => {
@@ -350,6 +388,8 @@ describe("FlowExitCommand", () => {
         "Flow exited. Default system prompt and tools restored.",
         "info",
       );
+      // Successful exit clears the active flow even with workspace cleanup.
+      expect(activeFlow.getStore()).toBeUndefined();
     });
 
     it("skips workspace cleanup when list is empty", async () => {

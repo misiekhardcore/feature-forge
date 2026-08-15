@@ -30,6 +30,7 @@ import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { SpecLoader } from "./loaders";
+import { ActiveFlowRegistry } from "./orchestrator/ActiveFlowRegistry";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
@@ -40,6 +41,7 @@ import {
   GetAgentResultTool,
   ListAgentsTool,
   SendTaskTool,
+  SetFlowParamTool,
   SetSessionNameTool,
   SpawnAgentTool,
 } from "./tools";
@@ -194,6 +196,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // always call process.exit().
   registerSignalHandlers(workspaceManager);
 
+  // Shared event bus and active-flow tracking, used by tools, flow
+  // registration, and the flow commands. Created once per extension load.
+  const eventBus = new TypedEventBus(pi.events);
+  const activeFlowRegistry = new ActiveFlowRegistry();
+
   const toolRegistry = new ToolRegistry(client, pi);
   toolRegistry.registerAll(
     SpawnAgentTool,
@@ -203,6 +210,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     DestroyAgentTool,
   );
   toolRegistry.registerInstance(new SetSessionNameTool(pi));
+  toolRegistry.registerInstance(new SetFlowParamTool(activeFlowRegistry, eventBus));
 
   const cmdRegistry = new CommandRegistry(
     supervisor,
@@ -211,6 +219,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     toolRegistry,
     workspaceManager,
     worktreeRegistry,
+    activeFlowRegistry,
   );
   cmdRegistry.registerAll(
     AgentListCommand,
@@ -249,7 +258,8 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     flowDirs,
     knownProviders: workspaceProviderRegistry.names(),
     stepExecutorRegistry,
-    eventBus: new TypedEventBus(pi.events),
+    eventBus,
+    activeFlowRegistry,
   });
   await flowRegistrar.registerAll();
 

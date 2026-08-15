@@ -8,6 +8,7 @@ import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
+import type { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
@@ -36,6 +37,7 @@ export class FlowRegistrar {
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
+      activeFlowRegistry: ActiveFlowRegistry;
     },
   ) {}
 
@@ -60,6 +62,7 @@ export class FlowRegistrar {
       knownProviders,
       stepExecutorRegistry,
       eventBus,
+      activeFlowRegistry,
     } = this.params;
 
     for (const flowDir of flowDirs) {
@@ -75,6 +78,7 @@ export class FlowRegistrar {
           knownProviders,
           stepExecutorRegistry,
           eventBus,
+          activeFlowRegistry,
         });
       }
     }
@@ -106,6 +110,7 @@ export class FlowRegistrar {
       knownProviders: ReadonlySet<string>;
       stepExecutorRegistry: StepExecutorRegistry;
       eventBus: TypedEventBus;
+      activeFlowRegistry: ActiveFlowRegistry;
     },
   ): Promise<void> {
     const {
@@ -118,6 +123,7 @@ export class FlowRegistrar {
       knownProviders,
       stepExecutorRegistry,
       eventBus,
+      activeFlowRegistry,
     } = ctx;
 
     // Load the flow dir's orchestrator specs first — the FlowLoader validates
@@ -179,6 +185,8 @@ export class FlowRegistrar {
       toolRegistry,
       workspaceManager,
       flow,
+      store,
+      activeFlow: activeFlowRegistry,
     });
     try {
       cmdRegistry.registerInstance(orchestratorCommand);

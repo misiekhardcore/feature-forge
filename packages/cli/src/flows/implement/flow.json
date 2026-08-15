@@ -15,28 +15,6 @@
   ],
   "routines": [
     {
-      "id": "implement_set_flow_param",
-      "description": "Set a flow-level session parameter that persists across routine calls",
-      "params": [
-        {
-          "name": "key",
-          "description": "Session key to set"
-        },
-        {
-          "name": "value",
-          "description": "Value to store"
-        }
-      ],
-      "steps": [
-        {
-          "type": "session",
-          "id": "set",
-          "key": "{{key}}",
-          "value": "{{value}}"
-        }
-      ]
-    },
-    {
       "id": "create_workspace",
       "description": "Create an isolated workspace. Pass branch to reuse an existing workspace, or baseRef to create from a specific commit. branch and baseRef are mutually exclusive — pass only one, or neither (defaults to a new workspace from origin/HEAD).",
       "params": [

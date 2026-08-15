@@ -1,15 +1,18 @@
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it } from "vitest";
 
-import { makeMockTypedEventBus } from "../../test-utils";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
 import { TypedEventBus } from "../eventBus";
 import { FlowContext } from "../FlowContext";
 import type { FlowDefinition, FlowInstruction, RoutineRefInstruction } from "../FlowInstruction";
+import { FlowStateStore } from "../FlowStateStore";
+import { RoutineExecutor } from "../RoutineExecutor";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededError";
 import { RoutineRefStepExecutor } from "./RoutineRefStepExecutor";
+import { SessionStepExecutor } from "./SessionStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -607,6 +610,75 @@ describe("RoutineRefStepExecutor", () => {
       expect(params.get("changes")).toBe("the actual build output");
       // "{{workspace}}" → real path, NOT the literal template string
       expect(params.get("workspace")).toBe("/real/workspace/path");
+    });
+
+    it("session steps inside an inlined routine ref write the parent's store", async () => {
+      // AC3: a session step executed via an inlined routine ref must write
+      // into the PARENT flow's store, not an isolated child store.
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new SessionStepExecutor());
+      registry.register(() => new RoutineRefStepExecutor());
+
+      const childFlow: FlowDefinition = {
+        $schema: makeTargetFlow().$schema,
+        name: "child",
+        command: "/child",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "save_workspace",
+            params: [{ name: "key" }, { name: "value" }],
+            steps: [
+              {
+                type: "session",
+                id: "set",
+                key: "{{key}}",
+                value: "{{value}}",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        ],
+      };
+      registry.setFlowMap(new Map([[childFlow.name, childFlow]]));
+
+      const parentFlow: FlowDefinition = {
+        $schema: makeTargetFlow().$schema,
+        name: "parent",
+        command: "/parent",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [
+              {
+                type: "routine",
+                id: "call-child",
+                target: "child.save_workspace",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        ],
+      };
+
+      const store = new FlowStateStore();
+      const executor = new RoutineExecutor(
+        parentFlow,
+        registry,
+        makeMockTypedEventBus(),
+        makeMockToolRegistry(),
+        store,
+      );
+
+      const result = await executor.run(
+        "main",
+        { key: "workspace", value: "/tmp/parent-ws" },
+        "task",
+      );
+
+      expect(result.passed).toBe(true);
+      expect(store.get("workspace")).toBe("/tmp/parent-ws");
+      expect(result.session.workspace).toBe("/tmp/parent-ws");
     });
 
     it("propagates abort signal to inlined step execution", async () => {

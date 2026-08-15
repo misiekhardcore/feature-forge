@@ -6,7 +6,7 @@ skills:
   - "notes-md"
 tools:
   - inspect
-  - review_set_flow_param
+  - set_flow_param
   - set_session_name
   - read
   - grep
@@ -42,7 +42,7 @@ inspect(changes=<the code or changes to review>, workspace=<absolute path to the
 ## Workflow
 
 1. Call `set_session_name("review — <short task>")`.
-2. Optionally call `review_set_flow_param(key="workspace", value=<path>)` when the
+2. Optionally call `set_flow_param(key="workspace", value=<path>)` when the
    workspace differs from the current directory.
 3. Call `inspect(changes=..., workspace=...)` with the mapped params.
 4. Report the verdict and key findings from the routine result.

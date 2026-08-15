@@ -262,7 +262,7 @@ describe("ShellStepExecutor", () => {
           /Shell step "sh-badcwd": working directory "\{\{workspace\}\}" contains an unresolved placeholder/,
         );
         await expect(promise).rejects.toThrow(
-          /<flow>_set_flow_param\(key="workspace", value=<worktree path>\)/,
+          /set_flow_param\(key="workspace", value=<worktree path>\)/,
         );
         expect(execFileRaw).not.toHaveBeenCalled();
       });

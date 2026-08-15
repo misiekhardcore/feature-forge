@@ -6,6 +6,7 @@ import type {
 
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
+import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
@@ -23,6 +24,7 @@ export interface CommandDeps {
   workspaceManager?: WorkspaceManager;
   commandRegistry?: CommandRegistry;
   worktreeRegistry?: WorktreeRegistry;
+  activeFlow?: ActiveFlowRegistry;
 }
 
 /**
@@ -36,6 +38,7 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
   protected readonly workspaceManager: WorkspaceManager | undefined;
   protected readonly commandRegistry: CommandRegistry | undefined;
   protected readonly worktreeRegistry: WorktreeRegistry | undefined;
+  protected readonly activeFlow: ActiveFlowRegistry | undefined;
 
   constructor(deps: CommandDeps) {
     this.pi = deps.pi;
@@ -45,6 +48,7 @@ export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
     this.workspaceManager = deps.workspaceManager;
     this.commandRegistry = deps.commandRegistry;
     this.worktreeRegistry = deps.worktreeRegistry;
+    this.activeFlow = deps.activeFlow;
   }
   abstract readonly name: string;
   abstract readonly description?: string;

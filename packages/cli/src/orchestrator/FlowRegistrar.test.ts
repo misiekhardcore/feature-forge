@@ -7,6 +7,7 @@ import type { SpecManager } from "../agents/SpecManager";
 import type { CommandRegistry, ToolRegistry } from "../registry";
 import { makeMockPi, makeMockTypedEventBus } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";
+import { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
@@ -21,6 +22,7 @@ const {
   flowLoaderLoadMock,
   flowLoaderCtorMock,
   orchestratorCtorMock,
+  routineExecutorCtorMock,
   specManagerLoadFromDirectoryMock,
   specManagerSpecNamesMock,
 } = vi.hoisted(() => {
@@ -33,7 +35,7 @@ const {
   }
   const flowLoaderCtor = vi.fn(FlowLoaderMock);
 
-  function OrchestratorCommandMock() {
+  function OrchestratorCommandMock(_deps: unknown) {
     return {
       name: "/cmd",
       description: "desc",
@@ -41,6 +43,15 @@ const {
     };
   }
   const orchestratorCtor = vi.fn(OrchestratorCommandMock);
+
+  // FlowRegistrar only threads the executor into RoutineTool (which reads
+  // stepRegistry for display handlers) — nothing executes routines here, so
+  // a constructable stub is safe.
+  function RoutineExecutorMock(...args: unknown[]) {
+    return { stepRegistry: args[1] };
+  }
+  const routineExecutorCtor = vi.fn(RoutineExecutorMock);
+
   const specManagerLoadFromDirectory = vi.fn<() => Promise<void>>();
   const specManagerSpecNames = vi.fn<() => ReadonlySet<string>>();
 
@@ -49,6 +60,7 @@ const {
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
     orchestratorCtorMock: orchestratorCtor,
+    routineExecutorCtorMock: routineExecutorCtor,
     specManagerLoadFromDirectoryMock: specManagerLoadFromDirectory,
     specManagerSpecNamesMock: specManagerSpecNames,
   };
@@ -66,6 +78,10 @@ vi.mock("../commands", () => ({
   OrchestratorCommand: orchestratorCtorMock,
 }));
 
+vi.mock("./RoutineExecutor", () => ({
+  RoutineExecutor: routineExecutorCtorMock,
+}));
+
 // ── Helpers ──────────────────────────────────────────────────
 
 interface FlowRegistrarParams {
@@ -79,6 +95,7 @@ interface FlowRegistrarParams {
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
   eventBus: TypedEventBus;
+  activeFlowRegistry: ActiveFlowRegistry;
 }
 
 function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {
@@ -105,6 +122,7 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
+    activeFlowRegistry: overrides.activeFlowRegistry ?? new ActiveFlowRegistry(),
   };
 }
 
@@ -260,6 +278,18 @@ describe("FlowRegistrar", () => {
         .calls[0][0];
       expect(registeredCmd).toHaveProperty("name", "/cmd");
       expect(registeredCmd).toHaveProperty("handler");
+      // The OrchestratorCommand receives the flow's store and the shared
+      // active-flow registry so set_flow_param routes to this flow.
+      const orchestratorDeps = orchestratorCtorMock.mock.calls[0][0];
+      expect(orchestratorDeps).toHaveProperty("store", expect.any(FlowStateStore));
+      expect(orchestratorDeps).toHaveProperty("activeFlow", params.activeFlowRegistry);
+      // The SAME store instance must be threaded to RoutineExecutor and
+      // OrchestratorCommand so the shared set_flow_param tool and routine
+      // session steps write into one FlowStateStore per flow.
+      expect(routineExecutorCtorMock).toHaveBeenCalledTimes(1);
+      const executorStore = routineExecutorCtorMock.mock.calls[0][4];
+      expect(executorStore).toBeInstanceOf(FlowStateStore);
+      expect((orchestratorDeps as { store: FlowStateStore }).store).toBe(executorStore);
     });
 
     it("loads the orchestrator persona before constructing FlowLoader", async () => {

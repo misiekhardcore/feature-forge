@@ -31,6 +31,9 @@ export class FlowExitCommand extends Command {
     if (mountedAgents.length === 0) {
       ctx.ui.notify("Flow exited. No active flow to exit.", "info");
       // No agents to destroy and no workspaces were created — nothing to clean up.
+      // This is still a successful exit — the stale pointer must not let
+      // set_flow_param write into a destroyed flow's store.
+      this.activeFlow?.clear();
     } else {
       const errors: Error[] = [];
       for (const agent of mountedAgents) {
@@ -60,6 +63,10 @@ export class FlowExitCommand extends Command {
         );
 
         ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
+        // The flow is fully exited — subsequent set_flow_param calls must fail
+        // until a new flow mounts. Clear the active-flow pointer only on a
+        // successful exit — destroy failures above keep it.
+        this.activeFlow?.clear();
       }
     }
 

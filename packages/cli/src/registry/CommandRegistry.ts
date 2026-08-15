@@ -4,6 +4,7 @@ import { Registry } from "@feature-forge/shared";
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { Command, type CommandDeps } from "../commands/Command";
+import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
@@ -32,6 +33,7 @@ export class CommandRegistry extends Registry<Command> {
     private readonly toolRegistry: ToolRegistry,
     private readonly workspaceManager?: WorkspaceManager,
     private readonly worktreeRegistry?: WorktreeRegistry,
+    private readonly activeFlow?: ActiveFlowRegistry,
   ) {
     super();
   }
@@ -45,6 +47,7 @@ export class CommandRegistry extends Registry<Command> {
       workspaceManager: this.workspaceManager,
       commandRegistry: this,
       worktreeRegistry: this.worktreeRegistry,
+      activeFlow: this.activeFlow,
     });
     const registeredName = withForgePrefix(command.name);
     if (this.items.has(registeredName)) {

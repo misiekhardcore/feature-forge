@@ -12,12 +12,12 @@ When rework is detected, follow this protocol instead of the Greenfield Phases 1
    If this fails (PR not found, bad number), abort and report the error.
 3. Store the branch name:
    ```
-   implement_set_flow_param(key="rework_branch", value=<branch-name>)
+   set_flow_param(key="rework_branch", value=<branch-name>)
    ```
 4. Call `create_workspace(branch: "<branch-name>")` to provision a worktree on the
    existing branch. Store the workspace path:
    ```
-   implement_set_flow_param(key="workspace", value=<path>)
+   set_flow_param(key="workspace", value=<path>)
    ```
 5. Analyse the rework task and break it into subtasks. Note dependencies.
 6. Read the issue body and extract acceptance criteria relevant to this rework.

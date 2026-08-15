@@ -5,7 +5,7 @@ model: "smart"
 skills:
   - "notes-md"
 tools:
-  - implement_set_flow_param
+  - set_flow_param
   - set_session_name
   - create_workspace
   - run_build_loop
@@ -56,7 +56,7 @@ Before provisioning a workspace, scan the user's prompt for rework signals:
    origin reachability. If this fails, report the error and stop — do not create
    a workspace.
 1. Call `create_workspace()` to provision a git worktree. Capture the returned
-   workspace path and store it via `implement_set_flow_param(key="workspace", value=<path>)`.
+   workspace path and store it via `set_flow_param(key="workspace", value=<path>)`.
 2. After create_workspace, call set_session_name with a concise short phrase
    summarizing the task (e.g. "implement #187 — set_session_name tool").
 3. Analyse the task and break it into **subtasks** with per-subtask implementation
