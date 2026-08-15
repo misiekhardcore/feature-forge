@@ -271,6 +271,45 @@ describe("FlowRegistrar", () => {
 
       expect(specManagerLoadFromDirectoryMock).toHaveBeenCalledWith("/flows/my-flow");
       expect(flowLoaderCtorMock).toHaveBeenCalled();
+      // Specs must be loaded before FlowLoader snapshots knownSpecs so the
+      // orchestrator-spec semantic check can resolve systemPrompt.
+      expect(specManagerLoadFromDirectoryMock.mock.invocationCallOrder[0]).toBeLessThan(
+        flowLoaderCtorMock.mock.invocationCallOrder[0],
+      );
+      // specNames must be read after loadFromDirectory so the knownSpecs
+      // snapshot includes all specs the flow's orchestrator may reference.
+      expect(specManagerLoadFromDirectoryMock.mock.invocationCallOrder[0]).toBeLessThan(
+        specManagerSpecNamesMock.mock.invocationCallOrder[0],
+      );
+      expect(specManagerSpecNamesMock.mock.invocationCallOrder[0]).toBeLessThan(
+        flowLoaderCtorMock.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("skips the flow when orchestrator spec loading fails", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
+      specManagerLoadFromDirectoryMock.mockRejectedValue(new Error("spec load boom"));
+
+      const cmdRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as CommandRegistry;
+      const toolRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as ToolRegistry;
+      const params = makeParams({ cmdRegistry, toolRegistry });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to load orchestrator specs for flow "my-flow"'),
+        expect.any(Object),
+      );
+      expect(flowLoaderCtorMock).not.toHaveBeenCalled();
+      expect(cmdRegistry.registerInstance).not.toHaveBeenCalled();
+      expect(toolRegistry.registerInstance).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
     });
 
     it("passes knownSpecs and knownProviders to FlowLoader", async () => {
@@ -301,7 +340,27 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // 1 user + 1 builtin
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1); // 1 routine, no builtin
+    });
+
+    it("set_flow_param is no longer registered as a builtin", async () => {
+      readdirMock.mockResolvedValue([{ name: "my-flow", isDirectory: () => true }]);
+      flowLoaderLoadMock.mockResolvedValue(
+        makeFlow({ routines: [{ id: "step1", params: [], steps: [] }] }),
+      );
+
+      const toolRegistry = {
+        registerInstance: vi.fn().mockReturnValue(undefined),
+      } as unknown as ToolRegistry;
+      const params = makeParams({ toolRegistry });
+      const registrar = new FlowRegistrar(params);
+      await registrar.registerAll();
+
+      // Exactly one tool: the declared routine. No builtin set_flow_param tool.
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1);
+      const registeredTool = (toolRegistry.registerInstance as ReturnType<typeof vi.fn>).mock
+        .calls[0][0];
+      expect(registeredTool).toHaveProperty("name", expect.stringContaining("step1"));
     });
 
     it("handles RoutineTool registration failures gracefully (non-Error throw)", async () => {
@@ -322,7 +381,7 @@ describe("FlowRegistrar", () => {
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2); // 1 user + 1 builtin
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(1); // 1 routine, no builtin
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
         expect.any(Object),
@@ -356,7 +415,7 @@ describe("FlowRegistrar", () => {
       await registrar.registerAll();
 
       // First call threw, second succeeded
-      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(3); // +builtin set_flow_param
+      expect(toolRegistry.registerInstance).toHaveBeenCalledTimes(2);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to register RoutineTool"),
         expect.any(Object),

@@ -74,14 +74,13 @@ beforeEach(() => {
 });
 
 function makeCmd(supervisor: AgentSupervisor, flow: FlowDefinition): OrchestratorCommand {
-  return new OrchestratorCommand(
+  return new OrchestratorCommand({
     supervisor,
     pi,
     specManager,
-    makeMockToolRegistry(),
-    undefined,
+    toolRegistry: makeMockToolRegistry(),
     flow,
-  );
+  });
 }
 
 describe("OrchestratorCommand", () => {
@@ -106,7 +105,7 @@ describe("OrchestratorCommand", () => {
 
   it("has derived description", () => {
     const cmd = makeCmd(makeSupervisor(), baseFlow);
-    expect(cmd.description).toContain("test-flow");
+    expect(cmd.description).toBe("Run the test-flow orchestrator workflow");
   });
 
   it("resolves the spec by name, mounts an in-session agent, and drives the live session", async () => {
@@ -177,6 +176,49 @@ describe("OrchestratorCommand", () => {
     expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(1, pi, "first");
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(2, pi, "second");
+  });
+
+  // ── Error-path UX ──────────────────────────────────────────────
+
+  it("notifies and skips mounting when the orchestrator spec cannot be resolved", async () => {
+    specManager.resolve = vi.fn().mockImplementation(() => {
+      throw new Error("Spec 'implement' not found");
+    });
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("Cannot start /test"),
+      "error",
+    );
+    expect(supervisor.mountInSession).not.toHaveBeenCalled();
+    expect(hoisted.agentMock.mount).not.toHaveBeenCalled();
+  });
+
+  it("notifies and skips mounting when a declared tool is not registered", async () => {
+    const specWithTools = {
+      ...hoisted.spec,
+      get tools() {
+        return ["inspect", "missing_tool"];
+      },
+    } as unknown as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithTools);
+    (pi as unknown as Record<string, unknown>).getAllTools = vi
+      .fn()
+      .mockReturnValue([{ name: "inspect" }]);
+
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("missing_tool"), "error");
+    expect(supervisor.mountInSession).not.toHaveBeenCalled();
+    expect(hoisted.agentMock.mount).not.toHaveBeenCalled();
   });
 
   // ── Model / thinkingLevel resolution ──────────────────────────

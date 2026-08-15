@@ -50,7 +50,12 @@ describe("ResearchCommand", () => {
         }),
     );
     const specManager = new SpecManager(registry, new SpecLoader());
-    cmd = new ResearchCommand(supervisor, pi, specManager, makeMockToolRegistry());
+    cmd = new ResearchCommand({
+      supervisor,
+      pi,
+      specManager,
+      toolRegistry: makeMockToolRegistry(),
+    });
     ctx = makeMockCtx();
   });
 
@@ -90,7 +95,12 @@ describe("AgentListCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentListCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+    cmd = new AgentListCommand({
+      supervisor,
+      pi,
+      specManager: makeMockSpecManager(),
+      toolRegistry: makeMockToolRegistry(),
+    });
     ctx = makeMockCtx();
   });
 
@@ -129,7 +139,7 @@ describe("AgentDestroyCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyCommand(supervisor, pi);
+    cmd = new AgentDestroyCommand({ supervisor, pi });
     ctx = makeMockCtx();
   });
 
@@ -157,7 +167,7 @@ describe("AgentDestroyAllCommand", () => {
 
   beforeEach(() => {
     supervisor = new InMemoryAgentSupervisor(makeMockFactory());
-    cmd = new AgentDestroyAllCommand(supervisor, pi);
+    cmd = new AgentDestroyAllCommand({ supervisor, pi });
     ctx = makeMockCtx();
   });
 
@@ -191,7 +201,7 @@ describe("FlowExitCommand", () => {
     let cmd: FlowExitCommand;
 
     beforeEach(() => {
-      cmd = new FlowExitCommand(supervisor, pi);
+      cmd = new FlowExitCommand({ supervisor, pi });
     });
 
     it("has name 'flow:exit'", () => {
@@ -321,7 +331,7 @@ describe("FlowExitCommand", () => {
 
     beforeEach(() => {
       workspaceManager = makeWorkspaceManager();
-      cmd = new FlowExitCommand(supervisor, pi, undefined, undefined, workspaceManager);
+      cmd = new FlowExitCommand({ supervisor, pi, workspaceManager });
     });
 
     it("destroys active workspaces after unmounting agents", async () => {

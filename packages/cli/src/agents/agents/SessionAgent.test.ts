@@ -78,7 +78,18 @@ describe("SessionAgent", () => {
       const agent = new SessionAgent(spec);
       const pi = makeMockPi();
       agent.mount(pi, "build the feature");
-      expect(pi.setSessionName).toHaveBeenCalledWith("implement");
+      expect(pi.setSessionName).toHaveBeenCalledWith("session-agent");
+    });
+
+    it("derives the fallback session name from the spec id", () => {
+      const reviewSpec = makeSpec("review-orchestrator", {
+        role: "orchestrator",
+        systemPrompt: "# You are the reviewer.",
+      });
+      const agent = new SessionAgent(reviewSpec);
+      const pi = makeMockPi();
+      agent.mount(pi, "task");
+      expect(pi.setSessionName).toHaveBeenCalledWith("review-orchestrator");
     });
 
     it("registers a before_agent_start hook prepending the persona system prompt", () => {
@@ -232,7 +243,7 @@ describe("SessionAgent", () => {
       // AC1: mount sets the fallback session name.
       const agent = new SessionAgent(spec);
       agent.mount(pi, "build the feature");
-      expect(pi.setSessionName).toHaveBeenCalledWith("implement");
+      expect(pi.setSessionName).toHaveBeenCalledWith("session-agent");
 
       // Registration site (index.ts): registerInstance wires the tool to pi.
       const tool = new SetSessionNameTool(pi);

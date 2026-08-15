@@ -172,6 +172,7 @@ describe("flow round-trip", () => {
   beforeAll(async () => {
     const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
     await specManager.loadFromDirectory(specsDir);
+    await specManager.loadFromDirectory(flowsDir); // the flow's own orchestrator.md
     knownSpecs = specManager.specNames();
 
     // Load the single shipped flow. When more flows are added,
@@ -244,6 +245,11 @@ describe("flow round-trip", () => {
 
       expect(resolved).not.toMatch(/\{\{/);
       expect(resolved).not.toMatch(/\}\}/);
+    });
+
+    it("declares no promptParams on the orchestrator config", () => {
+      const orchestrator = flow.orchestrator as { promptParams?: unknown };
+      expect(orchestrator.promptParams).toBeUndefined();
     });
 
     // ── 5. continueWhile parses and evaluates ────────────────────
@@ -420,8 +426,9 @@ describe("flow round-trip", () => {
       ]);
     });
 
-    it("declares the fetch_pr_comments, apply_feedback, and disposition_comments routines", () => {
+    it("declares the resolve_pr_feedback_set_flow_param, fetch_pr_comments, apply_feedback, and disposition_comments routines", () => {
       expect(resolvePrFlow.routines.map((r) => r.id)).toEqual([
+        "resolve_pr_feedback_set_flow_param",
         "fetch_pr_comments",
         "apply_feedback",
         "disposition_comments",

@@ -232,14 +232,16 @@ export class RoutineExecutor {
   }
 
   /**
-   * Collect the ids of every step whose raw output carries the skipped
-   * indicator (`"skipped":true` in the raw JSON, e.g. a loop skipped by its
-   * while-guard). These drive the "skipped" routine status.
+   * Collect the ids of every step whose result carries the structured
+   * {@link InstructionResult.skipped} flag (set by executors that produce a
+   * "skipped" outcome, e.g. a loop skipped by its while-guard). These drive
+   * the "skipped" routine status. Detection is structural — the raw output
+   * string is never inspected.
    */
   private static collectSkippedIds(results: Record<string, InstructionResult>): string[] {
     const skipped: string[] = [];
     for (const [id, result] of Object.entries(results)) {
-      if (result.raw.includes('"skipped":true')) {
+      if (result.skipped) {
         skipped.push(id);
       }
     }

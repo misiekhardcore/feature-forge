@@ -149,6 +149,13 @@ export class FlowLoader {
       FlowLoader.walkInstructions(routine.steps, [], errors, knownSpecs, knownProviders, new Set());
     }
 
+    // The orchestrator persona is required (schema-enforced) — verify its
+    // systemPrompt names a spec that is actually loaded, so a broken flow fails
+    // loudly at load instead of at command invocation (SpecManager.resolve).
+    if (knownSpecs && !knownSpecs.has(flow.orchestrator.systemPrompt)) {
+      errors.push(`Unknown orchestrator spec "${flow.orchestrator.systemPrompt}"`);
+    }
+
     // Validate no duplicate routine IDs (lost compile-time guarantee from Record→Array migration).
     const routineIds = new Set<string>();
     for (const routine of flow.routines) {

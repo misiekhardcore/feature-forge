@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/shared";
 
+import type { AgentSupervisor } from "../agents";
 import { SessionAgent } from "../agents/agents/SessionAgent";
 import { Command } from "./Command";
 
@@ -16,6 +17,8 @@ import { Command } from "./Command";
  * count is shown and the LLM exit instruction is skipped.
  */
 export class FlowExitCommand extends Command {
+  // This command's handler requires a supervisor — CommandRegistry always supplies one.
+  declare protected readonly supervisor: AgentSupervisor;
   readonly name = "flow:exit";
   readonly description = "exit the current flow and restore default mode";
 

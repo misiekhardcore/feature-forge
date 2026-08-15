@@ -6,7 +6,7 @@ skills:
   - "notes-md"
 tools:
   - check
-  - set_flow_param
+  - verify_set_flow_param
   - set_session_name
   - read
   - grep
@@ -42,7 +42,7 @@ check(changes=<the code or changes to verify>, workspace=<absolute path to the w
 ## Workflow
 
 1. Call `set_session_name("verify — <short task>")`.
-2. Optionally call `set_flow_param(key="workspace", value=<path>)` when the
+2. Optionally call `verify_set_flow_param(key="workspace", value=<path>)` when the
    workspace differs from the current directory.
 3. Call `check(changes=..., workspace=...)` with the mapped params.
 4. Report the verdict and key findings from the routine result — the verify

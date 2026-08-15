@@ -182,6 +182,8 @@ export class RoutineTool
     for (const param of this.routineDef.params) {
       if (param.name in params) {
         routineParams[param.name] = params[param.name];
+      } else if (param.default !== undefined) {
+        routineParams[param.name] = param.default;
       }
     }
 

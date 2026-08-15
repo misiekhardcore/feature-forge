@@ -482,6 +482,84 @@ describe("RoutineTool", () => {
       expect(parsed.passed).toBe(true);
     });
 
+    it("applies declared param defaults for omitted params", async () => {
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "inspect",
+            params: [{ name: "changes" }, { name: "workspace", optional: true, default: "." }],
+            steps: [],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
+      const runSpy = vi.spyOn(executor, "run");
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      await tool.execute(
+        "call-1",
+        { changes: "the diff" },
+        undefined,
+        undefined,
+        {} as ExtensionContext,
+      );
+
+      expect(runSpy).toHaveBeenCalledWith(
+        "inspect",
+        { changes: "the diff", workspace: "." },
+        "",
+        undefined,
+        flow.routines[0],
+      );
+    });
+
+    it("explicit call params override declared defaults", async () => {
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "inspect",
+            params: [{ name: "changes" }, { name: "workspace", optional: true, default: "." }],
+            steps: [],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
+      const runSpy = vi.spyOn(executor, "run");
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      await tool.execute(
+        "call-1",
+        { changes: "the diff", workspace: "/custom/path" },
+        undefined,
+        undefined,
+        {} as ExtensionContext,
+      );
+
+      expect(runSpy.mock.calls[0][1].workspace).toBe("/custom/path");
+    });
+
     it("calls _onUpdate for each progress event emitted by executors", async () => {
       // Use a WorkspaceStepExecutor that fires workspace-ready events.
       class FakeProvider extends WorkspaceProvider {

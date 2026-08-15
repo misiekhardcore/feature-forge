@@ -8,7 +8,6 @@ import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";
-import { createSetFlowParamTool } from "./builtins/createSetFlowParamTool";
 import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
@@ -121,8 +120,21 @@ export class FlowRegistrar {
       eventBus,
     } = ctx;
 
-    // Load and validate the flow definition first — this always populates
-    // the shared flowMap so cross-flow routineRefs can resolve the flow.
+    // Load the flow dir's orchestrator specs first — the FlowLoader validates
+    // that flow.orchestrator.systemPrompt names a registered spec, so specs
+    // must be loaded before the loader is constructed.
+    try {
+      await specManager.loadFromDirectory(flowDir);
+    } catch (error) {
+      logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
+        error,
+      });
+      return;
+    }
+
+    // Load and validate the flow definition. Specs are loaded first; a
+    // failure there skips the whole flow, so reaching this point means
+    // the flow is registered and the shared flowMap is populated.
     const knownSpecs = specManager.specNames();
     const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
     let flow;
@@ -158,30 +170,16 @@ export class FlowRegistrar {
         });
       }
     }
-    try {
-      toolRegistry.registerInstance(createSetFlowParamTool(flowName, routineExecutor, supervisor));
-    } catch (error) {
-      logger.warn("[feature-forge] Failed to register set_flow_param", { error });
-    }
 
     // ── Command registration ──
-    try {
-      await specManager.loadFromDirectory(flowDir);
-    } catch (error) {
-      logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
-        error,
-      });
-      return;
-    }
-
-    const orchestratorCommand = new OrchestratorCommand(
+    const orchestratorCommand = new OrchestratorCommand({
       supervisor,
       pi,
       specManager,
       toolRegistry,
       workspaceManager,
       flow,
-    );
+    });
     try {
       cmdRegistry.registerInstance(orchestratorCommand);
     } catch (error) {

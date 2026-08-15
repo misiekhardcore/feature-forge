@@ -31,7 +31,7 @@ describe("ForgeInitCommand", () => {
         cb?.(null);
       },
     );
-    cmd = new ForgeInitCommand(undefined as never, pi);
+    cmd = new ForgeInitCommand({ pi });
     ctx = makeMockCtx() as ExtensionCommandContext & { ui: MockUi };
   });
 

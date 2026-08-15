@@ -3,7 +3,7 @@ import { Registry } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
-import { Command } from "../commands";
+import { Command, type CommandDeps } from "../commands/Command";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
@@ -20,17 +20,9 @@ export function withForgePrefix(name: string): string {
 /**
  * Constructor shape for commands registered via {@link CommandRegistry}.
  *
- * The optional params are forwarded to every command.
+ * The dependency bag is forwarded to every command.
  */
-type CommandConstructor = new (
-  supervisor: AgentSupervisor,
-  pi: ExtensionAPI,
-  specManager: SpecManager,
-  toolRegistry: ToolRegistry,
-  workspaceManager?: WorkspaceManager,
-  commandRegistry?: CommandRegistry,
-  worktreeRegistry?: WorktreeRegistry,
-) => Command;
+type CommandConstructor = new (deps: CommandDeps) => Command;
 
 export class CommandRegistry extends Registry<Command> {
   constructor(
@@ -45,15 +37,15 @@ export class CommandRegistry extends Registry<Command> {
   }
 
   register(constructor: CommandConstructor): Command {
-    const command = new constructor(
-      this.supervisor,
-      this.pi,
-      this.specManager,
-      this.toolRegistry,
-      this.workspaceManager,
-      this,
-      this.worktreeRegistry,
-    );
+    const command = new constructor({
+      supervisor: this.supervisor,
+      pi: this.pi,
+      specManager: this.specManager,
+      toolRegistry: this.toolRegistry,
+      workspaceManager: this.workspaceManager,
+      commandRegistry: this,
+      worktreeRegistry: this.worktreeRegistry,
+    });
     const registeredName = withForgePrefix(command.name);
     if (this.items.has(registeredName)) {
       throw new Error(`Command already registered: ${registeredName}`);

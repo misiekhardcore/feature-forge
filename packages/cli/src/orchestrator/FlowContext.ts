@@ -280,4 +280,6 @@ export interface AgentOutput {
 export interface InstructionResult {
   raw: string;
   parsed?: AgentOutput;
+  /** Set by executors that produce a "skipped" outcome (e.g. a loop skipped by its while-guard). Drives the routine-level "skipped" status structurally. */
+  skipped?: boolean;
 }

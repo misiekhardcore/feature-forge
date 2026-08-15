@@ -91,7 +91,7 @@ describe("CommandRegistry", () => {
       expect(executeSpy).toHaveBeenCalledWith("arg1", {});
     });
 
-    it("passes the registry as the fifth constructor argument", () => {
+    it("passes the registry in the dependency bag", () => {
       const cmd = registry.register(TestCommand);
       expect((cmd as TestCommand & { commandRegistry?: unknown }).commandRegistry).toBe(registry);
     });
@@ -99,24 +99,24 @@ describe("CommandRegistry", () => {
 
   describe("registerInstance", () => {
     it("registers a pre-constructed command under the prefixed name", () => {
-      const cmd = new TestCommand(
-        {} as AgentSupervisor,
-        mockPi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-      );
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
       const result = registry.registerInstance(cmd);
       expect(result).toBe(cmd);
       expect(registry.get("forge:test:cmd")).toBe(cmd);
     });
 
     it("calls pi.registerCommand with the prefixed name and no overriding options.name", () => {
-      const cmd = new TestCommand(
-        {} as AgentSupervisor,
-        mockPi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-      );
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
       registry.registerInstance(cmd);
       const [registeredName, options] = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock
         .calls[0] as [string, Record<string, unknown>];
@@ -126,31 +126,31 @@ describe("CommandRegistry", () => {
     });
 
     it("throws when registering a command with a duplicate name", () => {
-      const cmd = new TestCommand(
-        {} as AgentSupervisor,
-        mockPi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-      );
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
       registry.registerInstance(cmd);
-      const duplicate = new TestCommand(
-        {} as AgentSupervisor,
-        mockPi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-      );
+      const duplicate = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
       expect(() => registry.registerInstance(duplicate)).toThrow(
         "Command already registered: forge:test:cmd",
       );
     });
 
     it("pi.registerCommand handler delegates to command.handler", async () => {
-      const cmd = new TestCommand(
-        {} as AgentSupervisor,
-        mockPi,
-        makeMockSpecManager(),
-        makeMockToolRegistry(),
-      );
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
       const executeSpy = vi.spyOn(cmd, "handler");
       registry.registerInstance(cmd);
 

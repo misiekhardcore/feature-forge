@@ -73,7 +73,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Register a minimal /forge:init command plus an optional session_start
   // notice so the user can recover when the extension cannot fully load.
   const registerDegradedMode = (noticeText: string): void => {
-    const initCommand = new ForgeInitCommand(undefined as never, pi);
+    const initCommand = new ForgeInitCommand({ pi });
     const registeredName = withForgePrefix(initCommand.name);
     const { name: _declaredName, ...commandOptions } = initCommand;
     pi.registerCommand(registeredName, {
