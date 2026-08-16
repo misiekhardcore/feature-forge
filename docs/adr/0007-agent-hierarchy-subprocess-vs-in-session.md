@@ -92,9 +92,8 @@ deleted, and the flow schema enforces the model.
 - **Schema-enforced.** `orchestrator` is required on `FlowDefinitionSchema`
   (`FlowInstruction.ts`), mirrored in the regenerated `flow-schema.json`
   (`required: ["$schema", "name", "command", "orchestrator", "routines"]`).
-  `FlowLoader`'s "unknown orchestrator spec" validation now always applies,
-  and a flow without an orchestrator block is rejected at registration — the
-  flow is skipped with a warning — instead of silently falling back to headless
+  A flow without an orchestrator block is rejected at registration — the flow
+  is skipped with a warning — instead of silently falling back to headless
   mode. The now-unreachable `OrchestratorCommand` guards ("no orchestrator —
   use a headless command", `!specManager`) and its `config?.` optional
   chaining were removed.
@@ -112,8 +111,6 @@ deleted, and the flow schema enforces the model.
   `FlowContext.resolvePlaceholder` leaves the literal `{{changes}}` token in
   the verify prompt. The task string feeds the agent instead of `builder.raw`,
   preserving #207's decoupling intent: verify sees only the task string.
-
-The original decision record below is left intact as history.
 
 ## Amendment 2026-08-03 — remove the `InSessionAgent` intermediate
 
