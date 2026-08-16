@@ -12,6 +12,8 @@ export {
   PiSubprocessAgentFactory,
 } from "./factories";
 export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
+export type { AgentViewerHandle, ShowAgentViewerParams } from "./showAgentViewer";
+export { showAgentViewer } from "./showAgentViewer";
 export {
   AgentSpecification,
   AgentSpecificationParams,

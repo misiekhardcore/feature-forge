@@ -16,6 +16,17 @@ export class AgentDestroyCommand extends Command {
       return;
     }
 
+    const agent = this.supervisor.getAgent(name);
+    if (agent && agent.kind !== "subprocess") {
+      // In-session personas end via /forge:flow:exit — destroying them here
+      // would leave the live session without its persona teardown.
+      ctx.ui.notify(
+        `Agent "${name}" is an in-session agent - use /forge:flow:exit to end the flow.`,
+        "error",
+      );
+      return;
+    }
+
     await this.supervisor.destroyAgent(name);
     ctx.ui.notify(`🗑️ Agent "${name}" destroyed.`, "info");
   };

@@ -8,7 +8,7 @@ import { AgentStatus } from "@feature-forge/shared";
 import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display";
 import { AgentViewerState } from "../state/AgentViewerState";
-import type { AgentViewerEntry } from "../types";
+import type { AgentViewerEntry, AgentViewerEntryStatus } from "../types";
 import { AgentDetailView } from "./AgentDetailView";
 import { AgentListView } from "./AgentListView";
 
@@ -378,22 +378,13 @@ export class AgentViewerOverlay implements Component {
   // ── Static helpers ────────────────────────────────────────
 
   /**
-   * Map an {@link AgentStatus} enum value to a display status string
-   * used by the overlay.
+   * Map an {@link AgentStatus} enum value to a viewer entry status.
+   *
+   * Delegates to {@link AgentDisplayHelpers.mapAgentStatus} so the overlay
+   * and the display helpers share a single status vocabulary.
    */
-  static mapStatus(status: AgentStatus): string {
-    switch (status) {
-      case AgentStatus.Spawned:
-      case AgentStatus.Running:
-        return "started";
-      case AgentStatus.Completed:
-        return "done";
-      case AgentStatus.Failed:
-      case AgentStatus.Cancelled:
-        return "error";
-      default:
-        return "unknown";
-    }
+  static mapStatus(status: AgentStatus): AgentViewerEntryStatus {
+    return AgentDisplayHelpers.mapAgentStatus(status);
   }
 
   /**
@@ -427,7 +418,7 @@ export class AgentViewerOverlay implements Component {
     const eventBuffer: Array<{
       agentId: string;
       event?: AgentEvent;
-      status?: string;
+      status?: AgentViewerEntryStatus;
       passed?: boolean;
       summary?: string;
     }> = [];
@@ -444,7 +435,7 @@ export class AgentViewerOverlay implements Component {
     const deliverStatusEvent = (
       viewer: AgentViewerOverlay,
       agentId: string,
-      mappedStatus: string,
+      mappedStatus: AgentViewerEntryStatus,
       passed?: boolean,
       eventSummary?: string,
     ) => {
@@ -458,16 +449,18 @@ export class AgentViewerOverlay implements Component {
       } else if (!summary) {
         summary = "Agent disconnected";
       }
-      viewer.update({
-        id: agentId,
-        status: mappedStatus as AgentViewerEntry["status"],
-        passed,
-        summary,
-        role: agent?.specification.role,
-        model: agent?.specification.model,
-        thinkingLevel: agent?.specification.thinkingLevel,
-        createdAt: agent?.createdAt ?? new Date(),
-      } as AgentViewerEntry);
+      viewer.update(
+        AgentDisplayHelpers.buildEntry({
+          id: agentId,
+          status: mappedStatus,
+          passed,
+          summary,
+          role: agent?.specification.role,
+          model: agent?.specification.model,
+          thinkingLevel: agent?.specification.thinkingLevel,
+          createdAt: agent?.createdAt ?? new Date(),
+        }),
+      );
     };
 
     const unsubs = [
@@ -539,16 +532,20 @@ export class AgentViewerOverlay implements Component {
       viewer.prepopulateStreamFiles(streamDir).catch(() => {});
 
       for (const agent of agentQuery.getAllAgents()) {
-        const status = AgentViewerOverlay.mapStatus(agent.status);
-        viewer.update({
-          id: agent.id,
-          status: status as AgentViewerEntry["status"],
-          summary: `${agent.specification.role} — ${agent.status}`,
-          role: agent.specification.role,
-          model: agent.specification.model,
-          thinkingLevel: agent.specification.thinkingLevel,
-          createdAt: agent.createdAt,
-        } as AgentViewerEntry);
+        // The overlay lists subprocess agents only — in-session personas drive
+        // the live conversation and never appear here (or in /agent:list).
+        if (agent.kind !== "subprocess") continue;
+        viewer.update(
+          AgentDisplayHelpers.buildEntry({
+            id: agent.id,
+            status: AgentViewerOverlay.mapStatus(agent.status),
+            summary: `${agent.specification.role} — ${agent.status}`,
+            role: agent.specification.role,
+            model: agent.specification.model,
+            thinkingLevel: agent.specification.thinkingLevel,
+            createdAt: agent.createdAt,
+          }),
+        );
       }
     };
 

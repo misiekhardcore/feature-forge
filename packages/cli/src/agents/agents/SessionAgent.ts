@@ -30,6 +30,7 @@ type BeforeAgentStartHandler = (event: BeforeAgentStartEvent) => BeforeAgentStar
  * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
 export class SessionAgent extends Agent {
+  public readonly kind = "in-session" as const;
   public readonly id: string;
   public readonly specification: AgentSpecification;
 

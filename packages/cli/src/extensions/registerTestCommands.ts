@@ -1,8 +1,7 @@
 import * as path from "node:path";
 
-import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui";
 import type { ScenarioData } from "@feature-forge/debug";
 import {
   builderScenario,
@@ -22,6 +21,7 @@ import {
   TuiRoutineWidget,
 } from "@feature-forge/tui";
 
+import { showAgentViewer } from "../agents";
 import { withForgePrefix } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 
@@ -61,37 +61,47 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     );
   }
 
-  function createViewer(
-    tui: TUI,
-    theme: Theme,
-    onDone: () => void,
-    timers: ReturnType<typeof setTimeout>[],
+  /**
+   * Schedule every scenario on the viewer. Multi-agent sets are staggered by
+   * a 200 ms offset so the entries arrive in order.
+   */
+  function scheduleScenarios(
+    viewer: AgentViewerOverlay,
     scenarios: ScenarioData[],
-    toolRegistry: ToolRegistry,
-    streamDir?: string,
-    delay?: number,
-  ): AgentViewerOverlay & Component {
-    const resolvedDelay = delay ?? DEFAULT_EVENT_DELAY;
-    const viewer = new AgentViewerOverlay({
-      tui,
-      theme,
-      onDone: () => {
-        timers.forEach(clearTimeout);
-        viewer.dispose();
-        onDone();
-      },
-      markdownTheme: getMarkdownTheme(),
-      cwd: process.cwd(),
-      toolRegistry,
-      config: ForgeConfig.getInstance(),
-    });
-    if (streamDir) viewer.setStreamDir(streamDir);
+    timers: ReturnType<typeof setTimeout>[],
+    eventDelay = DEFAULT_EVENT_DELAY,
+  ): void {
     const offset = scenarios.length <= 1 ? 0 : 200;
     for (let i = 0; i < scenarios.length; i++) {
       const sc = scenarios[i];
-      if (sc) scheduleScenario(viewer, sc, timers, i * offset, resolvedDelay);
+      if (sc) scheduleScenario(viewer, sc, timers, i * offset, eventDelay);
     }
-    return viewer;
+  }
+
+  /**
+   * Open the viewer with a set of self-driven scenarios through the shared
+   * composer: `setup` schedules the scenario timers (and applies any stream
+   * directory), `onDismiss` clears them so no timer fires against a disposed
+   * overlay.
+   */
+  async function runScenarioViewer(
+    ctx: ExtensionCommandContext,
+    scenarios: ScenarioData[],
+    options?: { streamDir?: string; eventDelay?: number },
+  ): Promise<void> {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    await showAgentViewer({
+      ctx,
+      config: ForgeConfig.getInstance(),
+      toolRegistry,
+      setup: (viewer) => {
+        if (options?.streamDir) viewer.setStreamDir(options.streamDir);
+        scheduleScenarios(viewer, scenarios, timers, options?.eventDelay);
+      },
+      onDismiss: () => {
+        timers.forEach(clearTimeout);
+      },
+    });
   }
 
   // ── Command registrations ─────────────────────────────────
@@ -100,28 +110,15 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     description: "Open AgentViewerOverlay with 7 preset test scenarios as separate agents",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;
-      await ctx.ui.custom<void>(
-        (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
-          const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(
-            tui,
-            theme,
-            () => done(undefined),
-            timers,
-            [
-              emptyScenario(),
-              builderScenario(),
-              reviewerScenario(),
-              errorScenario(),
-              conversationScenario(),
-              toolArgsScenario(),
-              manyTurnsScenario(),
-            ],
-            toolRegistry,
-          );
-        },
-        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
-      );
+      await runScenarioViewer(ctx, [
+        emptyScenario(),
+        builderScenario(),
+        reviewerScenario(),
+        errorScenario(),
+        conversationScenario(),
+        toolArgsScenario(),
+        manyTurnsScenario(),
+      ]);
     },
   });
 
@@ -129,20 +126,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     description: "Open AgentViewerOverlay with a 35-turn conversation for auto-scroll testing",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;
-      await ctx.ui.custom<void>(
-        (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
-          const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(
-            tui,
-            theme,
-            () => done(undefined),
-            timers,
-            [manyTurnsScenario()],
-            toolRegistry,
-          );
-        },
-        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
-      );
+      await runScenarioViewer(ctx, [manyTurnsScenario()]);
     },
   });
 
@@ -151,20 +135,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
       "Open AgentViewerOverlay with bash, read, and write tool calls showing visible args",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;
-      await ctx.ui.custom<void>(
-        (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
-          const timers: ReturnType<typeof setTimeout>[] = [];
-          return createViewer(
-            tui,
-            theme,
-            () => done(undefined),
-            timers,
-            [toolArgsScenario()],
-            toolRegistry,
-          );
-        },
-        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
-      );
+      await runScenarioViewer(ctx, [toolArgsScenario()]);
     },
   });
 
@@ -172,23 +143,8 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     description: "Open AgentViewerOverlay with events persisted to disk and replayed from JSONL",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.hasUI) return;
-      await ctx.ui.custom<void>(
-        (tui: TUI, theme: Theme, _kb: KeybindingsManager, done: (result: void) => void) => {
-          const timers: ReturnType<typeof setTimeout>[] = [];
-          const streamDir = path.join(ctx.cwd, ".pi", "test-streams");
-          return createViewer(
-            tui,
-            theme,
-            () => done(undefined),
-            timers,
-            [conversationScenario()],
-            toolRegistry,
-            streamDir,
-            0,
-          );
-        },
-        { overlay: true, overlayOptions: AgentViewerOverlay.getOverlayOptions() },
-      );
+      const streamDir = path.join(ctx.cwd, ".pi", "test-streams");
+      await runScenarioViewer(ctx, [conversationScenario()], { streamDir, eventDelay: 0 });
     },
   });
 

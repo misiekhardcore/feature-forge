@@ -66,18 +66,6 @@ export class InMemoryAgentSupervisor extends AgentSupervisor {
   }
 
   /**
-   * Destroy all tracked agents and clear the map.
-   */
-  public override async destroyAll(): Promise<void> {
-    const entries = Array.from(this.agents.entries());
-    await Promise.allSettled(
-      entries.map(async ([id]) => {
-        await this.destroyAgent(id);
-      }),
-    );
-  }
-
-  /**
    * Full lifecycle: spawn → execute → agent delivers result/error → destroy.
    *
    * The agent owns its own result formatting and delivery (via pi.sendMessage).

@@ -8,7 +8,25 @@ import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, jsonParse, logger } from "@feature-forge/shared";
 import type { AgentContribution, DisplayContribution } from "@feature-forge/tui";
 import type { DisplayContributionRegistry } from "@feature-forge/tui";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { showAgentViewerMock, realShowAgentViewer } = vi.hoisted(() => {
+  type ShowAgentViewer = (
+    params: import("../agents").ShowAgentViewerParams,
+  ) => Promise<import("../agents").AgentViewerHandle>;
+  return {
+    showAgentViewerMock: vi.fn<ShowAgentViewer>(),
+    // Captured from the original module inside the mock factory so tests can
+    // fall back to the real composer (the two ctx.ui.custom integration tests).
+    realShowAgentViewer: { fn: undefined as ShowAgentViewer | undefined },
+  };
+});
+
+vi.mock("../agents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../agents")>();
+  realShowAgentViewer.fn = actual.showAgentViewer;
+  return { ...actual, showAgentViewer: showAgentViewerMock };
+});
 
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import {
@@ -125,6 +143,17 @@ function makeMockSupervisor(): AgentSupervisor {
 
 describe("RoutineTool", () => {
   const mockSupervisor = makeMockSupervisor();
+
+  beforeEach(() => {
+    // Default to the real composer; individual tests override with mocks.
+    const real = realShowAgentViewer.fn;
+    if (!real) throw new Error("real showAgentViewer was not captured by the mock factory");
+    showAgentViewerMock.mockImplementation(real);
+  });
+
+  afterEach(() => {
+    showAgentViewerMock.mockReset();
+  });
   describe("constructor", () => {
     it("sets name to routineName", () => {
       const flow = makeFlow();
@@ -847,7 +876,7 @@ describe("RoutineTool", () => {
                   ? "started"
                   : event.phase === "agent-done"
                     ? "done"
-                    : "streaming";
+                    : "running";
               return {
                 type: "agent",
                 agentId,
@@ -1022,7 +1051,7 @@ describe("RoutineTool", () => {
                     ? "started"
                     : event.phase === "agent-done"
                       ? "done"
-                      : "streaming",
+                      : "running",
                 streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
                 phase: event.phase,
                 message: event.message,
@@ -1169,6 +1198,78 @@ describe("RoutineTool", () => {
       expect(rendered.length).toBeGreaterThan(0);
       const joined = rendered.join("\n");
       expect(joined).toContain("Agent Viewer");
+    });
+
+    it("logs and swallows agent viewer overlay creation failures", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const mockCustom = vi.fn().mockRejectedValue(new Error("boom"));
+        const ctx = {
+          hasUI: true,
+          ui: { custom: mockCustom, setWidget: vi.fn(), setStatus: vi.fn() },
+          mode: "tui",
+        } as unknown as ExtensionContext;
+
+        const result = await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+        expect(mockCustom).toHaveBeenCalled();
+        // The composer's rejection is logged, not propagated to the routine.
+        await vi.waitFor(() =>
+          expect(warnSpy).toHaveBeenCalledWith("Agent viewer overlay creation failed", {
+            err: expect.any(Error),
+          }),
+        );
+        expect(result.content).toHaveLength(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("disposes the viewer handle in finally after routine completion", async () => {
+      const dispose = vi.fn();
+      showAgentViewerMock.mockResolvedValueOnce({ viewer: undefined, dispose });
+
+      const flow = makeFlow();
+      const eventBus = makeMockTypedEventBus();
+      const toolRegistry = makeMockToolRegistry();
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        toolRegistry,
+      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      const ctx = {
+        hasUI: true,
+        ui: { custom: vi.fn(), setWidget: vi.fn(), setStatus: vi.fn() },
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // The composer receives the executor's own TypedEventBus — no re-wrap.
+      expect(showAgentViewerMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ctx,
+          config: ForgeConfig.getInstance(),
+          eventBus,
+          agentQuery: mockSupervisor,
+          toolRegistry,
+        }),
+      );
+      // finally releases the handle once the routine completes.
+      expect(dispose).toHaveBeenCalledTimes(1);
     });
   });
 });

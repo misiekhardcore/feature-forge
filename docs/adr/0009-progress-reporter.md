@@ -1,6 +1,6 @@
 # ADR 0009: Progress Reporter Port and TUI Adapter
 
-**Status:** Accepted
+**Status:** Superseded 2026-08-16 — the `ProgressReporter` port was removed (D2): `ProgressReporter`/`ProgressEvent` are deleted, `NoOpProgressReporter` implements `ProgressWidget`, and progress surfaces are driven by `ProgressRenderer` + `AccumulatedState` contributions.
 **Date:** 2026-07-04
 **Decision-makers:** Build agent
 

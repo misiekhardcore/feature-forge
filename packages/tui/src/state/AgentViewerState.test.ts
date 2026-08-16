@@ -153,6 +153,34 @@ describe("AgentViewerState", () => {
       state.update({ id: "builder", status: "started", createdAt: newer });
       expect(state.getAgentEntry("builder")!.createdAt).toBe(newer);
     });
+
+    it("stamps finishedAt for cancelled entries (terminal status)", () => {
+      const before = new Date();
+      state.update({ id: "builder", status: "cancelled", createdAt: new Date() });
+      const entry = state.getAgentEntry("builder")!;
+      expect(entry.finishedAt).toBeInstanceOf(Date);
+      expect(entry.finishedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    });
+
+    it("preserves an existing finishedAt when a later update omits it", () => {
+      const finished = new Date("2026-01-01T00:05:00Z");
+      state.update({
+        id: "builder",
+        status: "cancelled",
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        finishedAt: finished,
+      });
+      state.update({
+        id: "builder",
+        status: "done",
+        passed: true,
+        summary: "ok",
+        createdAt: new Date("2026-01-02T00:00:00Z"),
+      });
+      const entry = state.getAgentEntry("builder")!;
+      expect(entry.status).toBe("done");
+      expect(entry.finishedAt).toBe(finished);
+    });
   });
 
   // ── getAgentEntries ───────────────────────────────────────
@@ -176,6 +204,15 @@ describe("AgentViewerState", () => {
       const entry = state.getAgentEntry("new-agent");
       expect(entry).toBeDefined();
       expect(entry!.status).toBe("started");
+    });
+
+    it("updates lastStreamLine for running entries", () => {
+      state.update({ id: "builder", status: "running", createdAt: new Date() });
+      state.pushStreamEvent("builder", makeAgentStartEvent(), defaultFormat);
+      const entry = state.getAgentEntry("builder")!;
+      if (entry.status === "running") {
+        expect(entry.lastStreamLine).toBe("agent_start: detail");
+      }
     });
 
     it("stores the last formatted stream line", () => {

@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { AgentStatus } from "@feature-forge/shared";
 import { describe, expect, it } from "vitest";
 
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";
@@ -23,6 +24,140 @@ describe("formatElapsed", () => {
     const old = new Date(now - 4000 * 1000);
     const result = AgentDisplayHelpers.formatElapsed(old);
     expect(result).toMatch(/^\d+h \d+m \d+s$/);
+  });
+});
+
+describe("mapAgentStatus", () => {
+  it('maps Spawned to "started"', () => {
+    expect(AgentDisplayHelpers.mapAgentStatus(AgentStatus.Spawned)).toBe("started");
+  });
+
+  it('maps Running to "running"', () => {
+    expect(AgentDisplayHelpers.mapAgentStatus(AgentStatus.Running)).toBe("running");
+  });
+
+  it('maps Completed to "done"', () => {
+    expect(AgentDisplayHelpers.mapAgentStatus(AgentStatus.Completed)).toBe("done");
+  });
+
+  it('maps Failed to "error"', () => {
+    expect(AgentDisplayHelpers.mapAgentStatus(AgentStatus.Failed)).toBe("error");
+  });
+
+  it('maps Cancelled to "cancelled"', () => {
+    expect(AgentDisplayHelpers.mapAgentStatus(AgentStatus.Cancelled)).toBe("cancelled");
+  });
+});
+
+describe("buildEntry", () => {
+  it("builds a started entry without passed", () => {
+    const entry = AgentDisplayHelpers.buildEntry({ id: "builder", status: "started" });
+    expect(entry.status).toBe("started");
+    expect("passed" in entry).toBe(false);
+  });
+
+  it("builds a running entry with running status", () => {
+    const entry = AgentDisplayHelpers.buildEntry({ id: "builder", status: "running" });
+    expect(entry.status).toBe("running");
+    expect("passed" in entry).toBe(false);
+  });
+
+  it("preserves undefined passed on done entries (default empty summary)", () => {
+    // HEAD semantics: an agent-done event without a parsed result keeps
+    // `passed` undefined so the entry renders "completed" (green), never
+    // "failed". Defaulting to false here would regress that display.
+    const entry = AgentDisplayHelpers.buildEntry({ id: "builder", status: "done" });
+    expect(entry).toMatchObject({ status: "done", summary: "" });
+    expect("passed" in entry).toBe(false);
+  });
+
+  it("keeps explicit passed and summary on done entries", () => {
+    const entry = AgentDisplayHelpers.buildEntry({
+      id: "builder",
+      status: "done",
+      passed: true,
+      summary: "all good",
+    });
+    expect(entry).toMatchObject({ status: "done", passed: true, summary: "all good" });
+  });
+
+  it("builds an error entry with default error message", () => {
+    const entry = AgentDisplayHelpers.buildEntry({ id: "builder", status: "error" });
+    expect(entry.status).toBe("error");
+    expect("errorMessage" in entry).toBe(true);
+    if (entry.status === "error") {
+      expect(entry.errorMessage).toBe("Agent failed");
+    }
+  });
+
+  it("uses summary as error message for error entries", () => {
+    const entry = AgentDisplayHelpers.buildEntry({
+      id: "builder",
+      status: "error",
+      summary: "boom",
+    });
+    expect(entry.status).toBe("error");
+    if (entry.status === "error") {
+      expect(entry.errorMessage).toBe("boom");
+    }
+  });
+
+  it("builds a cancelled entry without passed", () => {
+    const entry = AgentDisplayHelpers.buildEntry({ id: "builder", status: "cancelled" });
+    expect(entry.status).toBe("cancelled");
+    expect("passed" in entry).toBe(false);
+  });
+
+  it("carries optional metadata onto the entry", () => {
+    const createdAt = new Date("2026-01-01T00:00:00Z");
+    const finishedAt = new Date("2026-01-01T00:05:00Z");
+    const entry = AgentDisplayHelpers.buildEntry({
+      id: "builder",
+      status: "done",
+      passed: true,
+      summary: "ok",
+      role: "builder",
+      model: "claude-sonnet-4-5",
+      thinkingLevel: "low",
+      createdAt,
+      finishedAt,
+    });
+    expect(entry).toMatchObject({
+      id: "builder",
+      role: "builder",
+      model: "claude-sonnet-4-5",
+      thinkingLevel: "low",
+      createdAt,
+      finishedAt,
+    });
+  });
+
+  it("omits finishedAt from the entry when not provided (no clobber on merge)", () => {
+    const entry = AgentDisplayHelpers.buildEntry({ id: "builder", status: "done", passed: true });
+    expect("finishedAt" in entry).toBe(false);
+  });
+});
+
+describe("getStatusLabel", () => {
+  it('returns running label for "running" status', () => {
+    expect(AgentDisplayHelpers.getStatusLabel("running")).toEqual({
+      label: "running",
+      color: "accent",
+    });
+  });
+
+  it('returns running label for "started" status', () => {
+    expect(AgentDisplayHelpers.getStatusLabel("started")).toEqual({
+      label: "running",
+      color: "accent",
+    });
+  });
+
+  it('returns cancelled label for "cancelled" status', () => {
+    expect(AgentDisplayHelpers.getStatusLabel("cancelled")).toEqual({
+      label: "cancelled",
+      color: "muted",
+    });
   });
 });
 
@@ -52,6 +187,10 @@ describe("getStatusIcon", () => {
 
   it('returns error icon for "error" status', () => {
     expect(AgentDisplayHelpers.getStatusIcon("error")).toEqual({ char: "✗", color: "error" });
+  });
+
+  it('returns muted circle icon for "cancelled" status', () => {
+    expect(AgentDisplayHelpers.getStatusIcon("cancelled")).toEqual({ char: "○", color: "muted" });
   });
 
   it("returns default muted icon for undefined status", () => {

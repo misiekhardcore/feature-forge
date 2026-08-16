@@ -13,19 +13,10 @@ import type { ProgressWidget } from "./ProgressWidget";
 // Minimal result shape consumed by buildResultSuffix — avoids direct
 // dependency on CLI's RoutineResult type.
 interface RoutineResultLike {
-  label?: string;
-  agentId?: string;
-  rounds?: number;
   passed?: boolean;
-  summary?: string;
-  workspace?: string;
-  routine?: string;
-  results?: {
-    pr?: { raw?: string };
-    cleanup?: { parsed?: { summary?: string } };
-  };
 }
 
+import type { AccumulatedState } from "./AccumulatedState";
 import { createAccumulatedState } from "./AccumulatedState";
 import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import type { RoutineProgressState } from "./RoutineProgressState";
@@ -79,11 +70,11 @@ export class ProgressRenderer {
   /**
    * Map an agent status to a theme-coloured icon character.
    *
-   * - `"done"` + passed → success green ✓
-   * - `"done"` + !passed → error red ✗
-   * - `"running"` → accent ⟳
-   * - `"started"` → warning yellow →
+   * - `"done"` + passed !== false → success green ✓
+   * - `"done"` + passed === false → error red ✗
+   * - `"started"` / `"running"` → accent ⟳
    * - `"error"` → error red ✗
+   * - `"cancelled"` → muted grey ○
    * - anything else → muted grey ○
    */
   static statusIcon(status: string | undefined, theme: Theme, passed?: boolean): string {
@@ -169,63 +160,18 @@ export class ProgressRenderer {
   }
 
   /**
-   * Build a human-readable result suffix from routine result details.
+   * Build a human-readable result suffix.
    *
-   * Priority (highest first):
-   * 1. Agent label or id — identifies which agent produced the result.
-   * 2. Rounds count — shows how many loop iterations the routine ran.
-   * 3. PR URL — extracted from the `pr` instruction raw output (e.g. `gh pr create` result).
-   * 4. Workspace path — shows the worktree location.
-   * 5. Cleanup summary — extracted from the `cleanup` instruction parsed output.
-   * 6. Summary text — the routine's own digest message.
-   * 7. Fallback — "passed" / "failed" based on {@link RoutineResultLike.passed}.
+   * Single source of truth for the result suffix: delegates to the
+   * accumulated state's `resultSnippet` (set by session contributions),
+   * falling back to "passed" / "failed" from the result details.
    *
+   * @param acc — Accumulated progress state (may carry a `resultSnippet`).
    * @param details — The routine result details (may be undefined).
    * @returns A short human-readable suffix string.
    */
-  static buildResultSuffix(details: RoutineResultLike | undefined): string {
-    if (!details) {
-      return "failed";
-    }
-
-    if (details.label) {
-      return `agent: ${details.label}`;
-    }
-
-    if (details.agentId) {
-      return `agent: ${details.agentId}`;
-    }
-
-    if (typeof details.rounds === "number" && details.rounds > 0) {
-      return `${details.rounds} round${details.rounds > 1 ? "s" : ""}`;
-    }
-
-    if (details.results?.pr?.raw) {
-      const raw = details.results.pr.raw;
-      // Extract just the GitHub PR URL — raw may contain multi-line stderr
-      const prUrlMatch = raw.match(/https?:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/);
-      if (prUrlMatch) {
-        return prUrlMatch[0];
-      }
-      // Fall back to first non-empty line only — never emit multi-line raw output
-      const firstLine = raw.split("\n").find((l: string) => l.trim()) ?? raw;
-      return firstLine;
-    }
-
-    if (details.workspace) {
-      const base = details.workspace.split("/").pop() ?? details.workspace;
-      return `ws: ${base}`;
-    }
-
-    if (details.results?.cleanup?.parsed?.summary) {
-      return details.results.cleanup.parsed.summary;
-    }
-
-    if (details.summary) {
-      return details.summary;
-    }
-
-    return details.passed ? "passed" : "failed";
+  static buildResultSuffix(acc: AccumulatedState, details?: RoutineResultLike): string {
+    return acc.resultSnippet ?? (details?.passed ? "passed" : "failed");
   }
 
   // ── Instance (reads live state) ────────────────────────────
@@ -288,7 +234,7 @@ export class ProgressRenderer {
     options: ToolRenderResultOptions,
     theme: Theme,
   ): Component {
-    const routine = result.details?.routine ?? this.state.routineName;
+    const routine = this.state.routineName;
 
     if (options.isPartial) {
       return {
@@ -301,7 +247,7 @@ export class ProgressRenderer {
     const icon = ProgressRenderer.statusIcon("done", theme, passed);
     const acc = createAccumulatedState();
     this.registry.apply(acc, this.state.contributions);
-    const suffix = acc.resultSnippet ?? ProgressRenderer.buildResultSuffix(result.details);
+    const suffix = ProgressRenderer.buildResultSuffix(acc, result.details);
 
     return {
       render: (width: number) => {

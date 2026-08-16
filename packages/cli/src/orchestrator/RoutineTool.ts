@@ -2,7 +2,6 @@ import {
   type AgentToolResult,
   type AgentToolUpdateCallback,
   type ExtensionContext,
-  getMarkdownTheme,
   type Theme,
   type ToolDefinition,
   type ToolRenderResultOptions,
@@ -13,18 +12,17 @@ import { ForgeConfig } from "@feature-forge/shared";
 import type { ProgressWidget } from "@feature-forge/tui";
 import type { DisplayContribution } from "@feature-forge/tui";
 import type { RoutineProgressState } from "@feature-forge/tui";
-import { AgentViewerOverlay, TuiRoutineWidget } from "@feature-forge/tui";
-import { createAccumulatedState } from "@feature-forge/tui";
+import { TuiRoutineWidget } from "@feature-forge/tui";
 import { NoOpProgressReporter } from "@feature-forge/tui";
 import { ProgressRenderer } from "@feature-forge/tui";
 import { DisplayContributionRegistry } from "@feature-forge/tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
+import type { AgentViewerHandle } from "../agents";
+import { showAgentViewer } from "../agents";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { TypedEventBus } from "./eventBus";
 import type { RoutineDefinition } from "./FlowInstruction";
-import { SharedStreamDir } from "./progress/sharedStreamDir";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";
 import type { RoutineResult } from "./RoutineResult";
@@ -33,7 +31,7 @@ import type { RoutineResult } from "./RoutineResult";
  * Channels the handler subscribes to for contribution accumulation and
  * progress widget rendering. Agent channels are included so the widget
  * shows agent lifecycle status — the overlay is driven separately via
- * {@link AgentViewerOverlay.wireOverlayEvents}.
+ * {@link showAgentViewer}.
  */
 const PROGRESS_CHANNELS = [
   "feature-forge:workspace-ready",
@@ -199,55 +197,32 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
-    // Agent viewer overlay — shown via ctx.ui.custom, dismissed on routine completion.
-    let viewerDismiss: (() => void) | undefined;
-    let overlayCleanup: (() => void) | undefined;
-    let overlayUnsubs: Array<() => void> | undefined;
+    // Agent viewer overlay — the composer owns the full lifecycle
+    // (wire → open via ctx.ui.custom → connect → dispose/dismiss). The
+    // call is deliberately not awaited: `ctx.ui.custom` resolves only when
+    // the overlay is dismissed, so awaiting would stall the routine until
+    // the user closes it. The resolved handle is captured for finally — in
+    // headless mocks `custom` resolves without opening an overlay and the
+    // composer already released the wiring, so finally's dispose is an
+    // idempotent safety net; in the TUI the overlay stays open until the
+    // user dismisses it and the composer's own dispose tears everything
+    // down. If the routine completes first, the handle may not be assigned
+    // yet — that is intentional: teardown stays with the composer (its
+    // onDone path / headless self-dispose), never with this tool.
+    let viewerHandle: AgentViewerHandle | undefined;
     if (ctx.hasUI) {
-      const streamDir = SharedStreamDir.get(ForgeConfig.getInstance().getLogDir());
-      const typedBus = new TypedEventBus(this.executor.eventBus);
-
-      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-        eventBus: typedBus,
-        agentQuery: this.supervisor,
+      void showAgentViewer({
+        ctx,
         config: ForgeConfig.getInstance(),
         toolRegistry: this.executor.toolRegistry,
-      });
-      overlayUnsubs = unsubs;
-
-      ctx.ui
-        .custom<void>(
-          (tui, theme, _kb, done) => {
-            viewerDismiss = done;
-
-            const viewer = new AgentViewerOverlay({
-              tui,
-              theme,
-              onDone: () => {
-                viewer.dispose();
-                done();
-              },
-              markdownTheme: getMarkdownTheme(),
-              cwd: ctx.cwd,
-              toolRegistry: this.executor.toolRegistry,
-              config: ForgeConfig.getInstance(),
-            });
-
-            void connect(viewer, streamDir);
-
-            overlayCleanup = () => {
-              viewer.dispose();
-            };
-
-            return viewer;
-          },
-          {
-            overlay: true,
-            overlayOptions: AgentViewerOverlay.getOverlayOptions(),
-          },
-        )
-        .catch(() => {
-          logger.warn("Agent viewer overlay creation failed");
+        eventBus: this.executor.eventBus,
+        agentQuery: this.supervisor,
+      })
+        .then((handle) => {
+          viewerHandle = handle;
+        })
+        .catch((err) => {
+          logger.warn("Agent viewer overlay creation failed", { err });
         });
     }
 
@@ -278,8 +253,6 @@ export class RoutineTool
       this.renderProgress(widget, ctx);
 
       if (onUpdate) {
-        const acc = createAccumulatedState();
-        this.displayRegistry.apply(acc, this._contributions);
         const resultDetails = event.details as Partial<RoutineResult>;
         onUpdate({
           content: [
@@ -292,10 +265,10 @@ export class RoutineTool
             routine: resultDetails.routine ?? this._routineName,
             passed: resultDetails.passed ?? false,
             status: resultDetails.status ?? "success",
-            rounds: resultDetails.rounds ?? acc.iteration + 1,
+            rounds: resultDetails.rounds ?? 0,
             workspace: resultDetails.workspace,
             results: {},
-            summary: event.message,
+            summary: resultDetails.summary ?? "",
             session: this.executor.store.toObject(),
           },
         });
@@ -326,9 +299,7 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      overlayUnsubs?.forEach((u) => u());
-      viewerDismiss?.();
-      overlayCleanup?.();
+      viewerHandle?.dispose();
       unsubscribers.forEach((u) => u());
     }
   }

@@ -18,7 +18,7 @@ export interface AgentEntryBase {
   thinkingLevel?: ThinkingLevel;
   /** Timestamp when the agent entry was created. */
   createdAt: Date;
-  /** Timestamp when the agent finished (set on done/error, undefined while running). */
+  /** Timestamp when the agent finished (set on done/error/cancelled, undefined while running). */
   finishedAt?: Date;
   /** Optional one-line summary from a completed or errored agent step. */
   summary?: string;

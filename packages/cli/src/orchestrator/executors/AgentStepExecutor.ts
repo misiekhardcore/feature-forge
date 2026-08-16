@@ -8,6 +8,7 @@ import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
 import type { SpecManager } from "../../agents/SpecManager";
 import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import type { TypedEventBus } from "../eventBus";
+import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../eventBus/agentChannels";
 import type { FlowContext, InstructionResult } from "../FlowContext";
 import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
 import type { RoutineProgressEvent } from "../RoutineProgress";
@@ -89,22 +90,20 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     // 3. Spawn agent, execute task, collect result, and destroy.
     const agent: SubprocessAgent = await this.supervisor.spawnGuest(effectiveSpecification);
 
-    eventBus.emit("feature-forge:agent-started", {
-      phase: "agent-started",
-      message: `Agent "${instructionId}" (${instruction.systemPrompt}) started`,
-      details: { executionId, agentId: agent.id },
+    emitAgentStarted(eventBus, {
+      executionId,
+      agentId: agent.id,
+      name: instructionId,
+      label: instruction.systemPrompt,
     });
 
     const emitStreamEvent = (event: AgentEvent): void => {
-      eventBus.emit("feature-forge:agent-stream", {
-        phase: "agent-stream",
-        message: `Agent "${instructionId}" stream event`,
-        details: {
-          executionId,
-          agentId: agent.id,
-          label: specification.role,
-          event,
-        },
+      emitAgentStream(eventBus, {
+        executionId,
+        agentId: agent.id,
+        name: instructionId,
+        label: specification.role,
+        event,
       });
     };
 
@@ -173,15 +172,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
 
       const agentPassed = result.parsed?.passed;
       const agentSummary = result.parsed?.summary;
-      eventBus.emit("feature-forge:agent-done", {
-        phase: "agent-done",
-        message: `Agent "${instructionId}" completed`,
-        details: {
-          executionId,
-          agentId: agent.id,
-          summary: agentSummary,
-          passed: agentPassed,
-        },
+      emitAgentDone(eventBus, {
+        executionId,
+        agentId: agent.id,
+        name: instructionId,
+        summary: agentSummary,
+        passed: agentPassed,
       });
 
       return updatedContext;
@@ -195,15 +191,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       logger.error("Agent execution failed", { instructionId, error: err });
 
       const failureSummary = `Agent "${instructionId}" failed: ${err.message}`;
-      eventBus.emit("feature-forge:agent-done", {
-        phase: "agent-done",
-        message: `Agent "${instructionId}" failed`,
-        details: {
-          executionId,
-          agentId: agent.id,
-          passed: false,
-          summary: failureSummary,
-        },
+      emitAgentDone(eventBus, {
+        executionId,
+        agentId: agent.id,
+        name: instructionId,
+        passed: false,
+        summary: failureSummary,
       });
 
       const failureResult: InstructionResult = {
@@ -250,12 +243,12 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
     if (!agentId) {
       return undefined;
     }
-    const agentStatus: string =
+    const agentStatus =
       event.phase === "agent-started"
         ? "started"
         : event.phase === "agent-done"
           ? "done"
-          : "streaming";
+          : "running";
     const details = event.details as {
       executionId?: string;
       agentId: string;

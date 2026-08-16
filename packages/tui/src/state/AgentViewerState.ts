@@ -178,7 +178,10 @@ export class AgentViewerState {
 
     // Stamp finishedAt for terminal statuses so elapsed displays correctly
     // across overlay close/reopen cycles without pre-computing strings.
-    if (!merged.finishedAt && (merged.status === "done" || merged.status === "error")) {
+    if (
+      !merged.finishedAt &&
+      (merged.status === "done" || merged.status === "error" || merged.status === "cancelled")
+    ) {
       merged.finishedAt = new Date();
     }
 
@@ -236,9 +239,9 @@ export class AgentViewerState {
     this.lastLines.set(agentId, line);
     this.version++;
 
-    // Update the running agent entry with the last stream line
+    // Update the in-flight agent entry with the last stream line
     const existing = this.agents.get(agentId);
-    if (existing && existing.status === "started") {
+    if (existing && (existing.status === "started" || existing.status === "running")) {
       this.agents.set(agentId, {
         ...existing,
         lastStreamLine: line,

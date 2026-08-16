@@ -17,6 +17,7 @@ function createMockAgent(): SubprocessAgent {
   const id = "test-agent";
   return {
     id,
+    kind: "subprocess",
     specification: {
       role: "test",
       systemPrompt: "",
@@ -33,6 +34,22 @@ function createMockAgent(): SubprocessAgent {
     deliverResult: vi.fn(),
     deliverError: vi.fn(),
     start: vi.fn(),
+  };
+}
+
+function createMockInSessionAgent(): Agent {
+  return {
+    kind: "in-session",
+    id: "session-agent",
+    specification: {
+      role: "session",
+      systemPrompt: "",
+      toolRestrictions: { read: [] },
+      id: "session-agent",
+    } as never,
+    status: AgentStatus.Running,
+    createdAt: new Date(),
+    destroy: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -82,7 +99,6 @@ function createMockSupervisor(agents: Map<string, Agent> = new Map()): AgentSupe
     getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
     destroyAgent: vi.fn().mockImplementation(async (id: string) => agents.delete(id)),
-    destroyAll: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -481,6 +497,99 @@ describe("ParentSocketServer", () => {
       type: "result",
       correlationId: "f2",
       result: { status: "dispatched" },
+    });
+
+    client.end();
+  });
+
+  it("excludes in-session agents from list_agents", async () => {
+    const localAgents = new Map<string, Agent>();
+    localAgents.set("session-agent", createMockInSessionAgent());
+    const localSupervisor = createMockSupervisor(localAgents);
+    const localServer = new ParentSocketServer(
+      localSupervisor,
+      makeMockPi(),
+      createMockSpecManager(),
+    );
+    const localPath = await localServer.start();
+
+    const client = connect(localPath);
+
+    // Spawn a subprocess sibling alongside the pre-seeded in-session persona.
+    await sendJson(client, {
+      type: "spawn_agent",
+      correlationId: "l1",
+      params: { role: "sub-worker", systemPrompt: "sub", toolRestrictions: { read: [] } },
+    });
+    await readResponse(client);
+
+    await sendJson(client, {
+      type: "list_agents",
+      correlationId: "l2",
+      params: {},
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "result",
+      correlationId: "l2",
+      result: {
+        agents: [{ agentId: "sub-worker", role: "sub-worker", status: AgentStatus.Running }],
+      },
+    });
+
+    client.end();
+    await localServer.stop();
+  });
+
+  it("refuses to destroy an in-session agent", async () => {
+    const localAgents = new Map<string, Agent>();
+    const sessionAgent = createMockInSessionAgent();
+    localAgents.set("session-agent", sessionAgent);
+    const localSupervisor = createMockSupervisor(localAgents);
+    const localServer = new ParentSocketServer(
+      localSupervisor,
+      makeMockPi(),
+      createMockSpecManager(),
+    );
+    const localPath = await localServer.start();
+
+    const client = connect(localPath);
+
+    await sendJson(client, {
+      type: "destroy_agent",
+      correlationId: "da-1",
+      params: { agentId: "session-agent" },
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "error",
+      correlationId: "da-1",
+      error: "Agent not a subprocess agent: session-agent",
+    });
+    expect(localSupervisor.destroyAgent).not.toHaveBeenCalled();
+    expect(localAgents.has("session-agent")).toBe(true);
+    expect(sessionAgent.destroy).not.toHaveBeenCalled();
+
+    client.end();
+    await localServer.stop();
+  });
+
+  it("responds with an error when destroying an unknown agent", async () => {
+    const client = connect(socketPath);
+
+    await sendJson(client, {
+      type: "destroy_agent",
+      correlationId: "da-2",
+      params: { agentId: "non-existent" },
+    });
+
+    const response = await readResponse(client);
+    expect(response).toEqual({
+      type: "error",
+      correlationId: "da-2",
+      error: "Agent not found: non-existent",
     });
 
     client.end();

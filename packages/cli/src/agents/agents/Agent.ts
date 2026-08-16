@@ -3,6 +3,14 @@ import { AgentStatus } from "@feature-forge/shared";
 import { AgentSpecification } from "../specifications";
 
 /**
+ * Family discriminator: which interaction model an agent belongs to.
+ *
+ * `"subprocess"` — separate process / RPC transport (`SubprocessAgent`).
+ * `"in-session"` — drives the live pi conversation (`SessionAgent`).
+ */
+export type AgentKind = "subprocess" | "in-session";
+
+/**
  * The slim, truly common contract shared by every agent, regardless of
  * interaction model.
  *
@@ -18,6 +26,9 @@ import { AgentSpecification } from "../specifications";
  * @see docs/adr/0007-agent-hierarchy-subprocess-vs-in-session.md
  */
 export abstract class Agent {
+  /** Family discriminator — `"subprocess"` or `"in-session"`. */
+  public abstract readonly kind: AgentKind;
+
   /** Stable fleet identifier (unique within a supervisor's map). */
   public abstract readonly id: string;
 

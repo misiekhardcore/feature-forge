@@ -1,5 +1,7 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 
+import type { AgentViewerEntryStatus } from "../types";
+
 /**
  * A DTO returned by {@link import("../StepExecutor").StepExecutor.getDisplayContribution}
  * carrying display-relevant fields extracted from a
@@ -20,8 +22,8 @@ export interface AgentContribution {
   executionId?: string;
   /** Agent instruction id. */
   agentId: string;
-  /** Agent lifecycle status ("started" | "done" | "error"). */
-  agentStatus: string;
+  /** Agent lifecycle status ("started" | "running" | "done" | "error" | "cancelled"). */
+  agentStatus: AgentViewerEntryStatus;
   /** Summary text from a completed agent step. */
   agentSummary?: string;
   /** Whether the agent's parsed result passed (undefined when not available). */

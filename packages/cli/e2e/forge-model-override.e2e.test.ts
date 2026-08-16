@@ -33,6 +33,7 @@ import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 function makeMockAgent(): SubprocessAgent {
   return {
     id: "model-test-agent",
+    kind: "subprocess",
     specification: new DynamicAgentSpecification({
       id: "model-test-agent",
       role: "test",

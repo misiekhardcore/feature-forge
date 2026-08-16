@@ -49,6 +49,7 @@ export function createMockAgent(specification?: AgentSpecification): SubprocessA
   const spec = specification ?? createMockSpec();
   return {
     id: spec.id,
+    kind: "subprocess",
     specification: spec,
     status: AgentStatus.Running,
     createdAt: new Date(),
@@ -101,7 +102,6 @@ export function createMockSupervisor(): AgentSupervisor {
     destroyAgent: vi.fn().mockImplementation(async (id: string) => {
       agents.delete(id);
     }),
-    destroyAll: vi.fn().mockResolvedValue(undefined),
   };
 }
 

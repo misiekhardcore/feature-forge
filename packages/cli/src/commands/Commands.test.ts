@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
@@ -132,6 +133,42 @@ describe("AgentListCommand", () => {
       }),
     );
   });
+
+  it("does not open the overlay when the session has no UI", async () => {
+    const noUiCtx = { ...ctx, hasUI: false };
+    await cmd.handler("", noUiCtx);
+    expect(noUiCtx.ui.custom).not.toHaveBeenCalled();
+  });
+
+  it("notifies an error and skips the overlay when the tool registry is missing", async () => {
+    const noRegistryCmd = new AgentListCommand({
+      supervisor,
+      pi,
+      specManager: makeMockSpecManager(),
+      toolRegistry: undefined,
+    });
+    await noRegistryCmd.handler("", ctx);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      "Tool registry not available — agent viewer cannot open.",
+      "error",
+    );
+    expect(ctx.ui.custom).not.toHaveBeenCalled();
+  });
+
+  it("logs and swallows overlay creation failures", async () => {
+    const debugSpy = vi.spyOn(logger, "debug").mockImplementation(() => {});
+    try {
+      const failingCtx = makeMockCtx();
+      (failingCtx.ui.custom as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+      await expect(cmd.handler("", failingCtx)).resolves.toBeUndefined();
+      expect(debugSpy).toHaveBeenCalledWith(
+        "Agent viewer overlay creation failed",
+        expect.objectContaining({ err: expect.any(Error) }),
+      );
+    } finally {
+      debugSpy.mockRestore();
+    }
+  });
 });
 
 describe("AgentDestroyCommand", () => {
@@ -160,6 +197,23 @@ describe("AgentDestroyCommand", () => {
     expect(supervisor.destroyAgent).toHaveBeenCalledWith("agent-1");
     expect(ctx.ui.notify).toHaveBeenCalledWith('🗑️ Agent "agent-1" destroyed.', "info");
   });
+
+  it("refuses to destroy an in-session agent, notifying to use flow:exit", async () => {
+    const persona = await supervisor.mountInSession(
+      makeSpec("orchestrator", { role: "orchestrator" }),
+    );
+    const destroySpy = vi.spyOn(supervisor, "destroyAgent");
+    const personaDestroySpy = vi.spyOn(persona, "destroy");
+
+    await cmd.handler("orchestrator", ctx);
+
+    expect(destroySpy).not.toHaveBeenCalled();
+    expect(personaDestroySpy).not.toHaveBeenCalled();
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      'Agent "orchestrator" is an in-session agent - use /forge:flow:exit to end the flow.',
+      "error",
+    );
+  });
 });
 
 describe("AgentDestroyAllCommand", () => {
@@ -177,16 +231,52 @@ describe("AgentDestroyAllCommand", () => {
     expect(cmd.name).toBe("agent:destroy-all");
   });
 
-  it("calls supervisor.destroyAll and notifies with count", async () => {
+  it("destroys each subprocess agent via destroyAgent and notifies with count", async () => {
     await supervisor.spawnGuest(makeSpec("a1"));
     await supervisor.spawnGuest(makeSpec("a2"));
+    const destroySpy = vi.spyOn(supervisor, "destroyAgent");
     await cmd.handler("", ctx);
+    expect(destroySpy).toHaveBeenCalledTimes(2);
+    expect(destroySpy).toHaveBeenCalledWith("a1");
+    expect(destroySpy).toHaveBeenCalledWith("a2");
+    expect(ctx.ui.notify).toHaveBeenCalledWith("All 2 agent(s) destroyed.", "info");
+  });
+
+  it("counts and destroys subprocess agents only, leaving the mounted persona untouched", async () => {
+    await supervisor.spawnGuest(makeSpec("worker-1"));
+    await supervisor.spawnGuest(makeSpec("worker-2"));
+    const persona = await supervisor.mountInSession(
+      makeSpec("orchestrator", { role: "orchestrator" }),
+    );
+    const destroySpy = vi.spyOn(supervisor, "destroyAgent");
+    const personaDestroySpy = vi.spyOn(persona, "destroy");
+
+    await cmd.handler("", ctx);
+
+    expect(destroySpy).toHaveBeenCalledTimes(2);
+    expect(destroySpy).toHaveBeenCalledWith("worker-1");
+    expect(destroySpy).toHaveBeenCalledWith("worker-2");
+    expect(destroySpy).not.toHaveBeenCalledWith("orchestrator");
+    expect(personaDestroySpy).not.toHaveBeenCalled();
     expect(ctx.ui.notify).toHaveBeenCalledWith("All 2 agent(s) destroyed.", "info");
   });
 
   it("notifies 0 when no agents", async () => {
     await cmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith("All 0 agent(s) destroyed.", "info");
+  });
+
+  it("tolerates per-agent destroy failures and reports the fulfilled count", async () => {
+    await supervisor.spawnGuest(makeSpec("ok"));
+    await supervisor.spawnGuest(makeSpec("crashed"));
+    const destroySpy = vi
+      .spyOn(supervisor, "destroyAgent")
+      .mockRejectedValueOnce(new Error("RPC destroy failed"));
+
+    await cmd.handler("", ctx);
+
+    expect(destroySpy).toHaveBeenCalledTimes(2);
+    expect(ctx.ui.notify).toHaveBeenCalledWith("1 of 2 agent(s) destroyed, 1 failed.", "warning");
   });
 });
 

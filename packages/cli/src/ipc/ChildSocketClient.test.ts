@@ -19,6 +19,7 @@ function createMockAgent(): SubprocessAgent {
   const id = "test-agent";
   return {
     id,
+    kind: "subprocess",
     specification: {
       role: "test",
       systemPrompt: "",
@@ -54,7 +55,6 @@ function createMockSupervisor(): AgentSupervisor {
     getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
     destroyAgent: vi.fn().mockImplementation((id: string) => agents.delete(id)),
-    destroyAll: vi.fn().mockResolvedValue(undefined),
   };
 }
 
