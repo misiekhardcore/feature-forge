@@ -90,6 +90,7 @@ class SkippedLoopExecutorStub extends StepExecutor {
     return context.withResult(instruction.id, {
       raw: JSON.stringify({ iterations: 0, maxIterations: 3, skipped: true }),
       parsed: { passed: true, summary: "Loop skipped by while-guard" },
+      skipped: true,
     });
   }
 }
@@ -882,6 +883,49 @@ describe("RoutineExecutor", () => {
 
       expect(result.passed).toBe(false);
       expect(result.status).toBe("failed");
+      expect(result.reason).toBeUndefined();
+    });
+
+    it("does not classify raw text mentioning skipped:true as a skipped step", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "shell";
+            async execute(
+              instruction: FlowInstruction,
+              context: FlowContext,
+            ): Promise<FlowContext> {
+              return context.withResult(instruction.id, {
+                raw: 'echo "skipped":true in output',
+                parsed: { passed: true, summary: "done" },
+              });
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "raw-skip-text-flow",
+        command: "/raw-skip-text",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "main",
+            params: [],
+            steps: [{ type: "shell", id: "echo", command: "echo hi", cwd: "/tmp" }],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+
+      const result = await executor.run("main", {}, "task");
+
+      // Raw text mentioning the marker is not a structural skip.
+      expect(result.passed).toBe(true);
+      expect(result.status).toBe("success");
       expect(result.reason).toBeUndefined();
     });
 

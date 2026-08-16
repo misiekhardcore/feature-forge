@@ -71,8 +71,8 @@ export class SessionAgent extends Agent {
     this._status = AgentStatus.Running;
     this.unmounted = false;
 
-    // Fallback session name until orchestrator refines it
-    pi.setSessionName("implement");
+    // Fallback session name until the persona refines it via set_session_name
+    pi.setSessionName(this.specification.id);
 
     // Save default tools before the flow overrides them (only once — a
     // re-entrant mount must not overwrite the pre-flow tools with flow tools).

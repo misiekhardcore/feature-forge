@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/shared";
 
+import type { AgentSupervisor } from "../agents";
 import { SessionAgent } from "../agents/agents/SessionAgent";
 import { Command } from "./Command";
 
@@ -16,6 +17,8 @@ import { Command } from "./Command";
  * count is shown and the LLM exit instruction is skipped.
  */
 export class FlowExitCommand extends Command {
+  // This command's handler requires a supervisor — CommandRegistry always supplies one.
+  declare protected readonly supervisor: AgentSupervisor;
   readonly name = "flow:exit";
   readonly description = "exit the current flow and restore default mode";
 
@@ -28,6 +31,9 @@ export class FlowExitCommand extends Command {
     if (mountedAgents.length === 0) {
       ctx.ui.notify("Flow exited. No active flow to exit.", "info");
       // No agents to destroy and no workspaces were created — nothing to clean up.
+      // This is still a successful exit — the stale pointer must not let
+      // set_flow_param write into a destroyed flow's store.
+      this.activeFlow?.clear();
     } else {
       const errors: Error[] = [];
       for (const agent of mountedAgents) {
@@ -57,6 +63,10 @@ export class FlowExitCommand extends Command {
         );
 
         ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");
+        // The flow is fully exited — subsequent set_flow_param calls must fail
+        // until a new flow mounts. Clear the active-flow pointer only on a
+        // successful exit — destroy failures above keep it.
+        this.activeFlow?.clear();
       }
     }
 

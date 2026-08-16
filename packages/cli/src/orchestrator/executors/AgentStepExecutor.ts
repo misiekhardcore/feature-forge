@@ -95,21 +95,23 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       details: { executionId, agentId: agent.id },
     });
 
+    const emitStreamEvent = (event: AgentEvent): void => {
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: `Agent "${instructionId}" stream event`,
+        details: {
+          executionId,
+          agentId: agent.id,
+          label: specification.role,
+          event,
+        },
+      });
+    };
+
     try {
       await agent.executeTask(resolvedTask, {
         signal,
-        onEvent: (event) => {
-          eventBus.emit("feature-forge:agent-stream", {
-            phase: "agent-stream",
-            message: `Agent "${instructionId}" stream event`,
-            details: {
-              executionId,
-              agentId: agent.id,
-              label: specification.role,
-              event,
-            },
-          });
-        },
+        onEvent: emitStreamEvent,
       });
 
       const raw = agent.getResult();
@@ -143,18 +145,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
             // shows streaming activity during retry instead of appearing stuck.
             await agent.retry(correctionPrompt, {
               signal,
-              onEvent: (event) => {
-                eventBus.emit("feature-forge:agent-stream", {
-                  phase: "agent-stream",
-                  message: `Agent "${instructionId}" stream event`,
-                  details: {
-                    executionId,
-                    agentId: agent.id,
-                    label: specification.role,
-                    event,
-                  },
-                });
-              },
+              onEvent: emitStreamEvent,
             });
           } catch (error) {
             // Transport errors stop the retry loop early - the raw output

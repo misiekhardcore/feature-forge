@@ -1,8 +1,11 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
+import type { AgentSupervisor } from "../agents";
 import { Command } from "./Command";
 
 export class ResearchCommand extends Command {
+  // This command's handler requires a supervisor — CommandRegistry always supplies one.
+  declare protected readonly supervisor: AgentSupervisor;
   readonly name = "research";
   readonly description =
     "Spawn a research subagent to investigate a topic in the background. " +

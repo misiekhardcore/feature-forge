@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
+import { FlowStateStore } from "../orchestrator/FlowStateStore";
 import { makeMockCtx, makeMockPi, makeMockToolRegistry } from "../test-utils";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
@@ -73,15 +75,20 @@ beforeEach(() => {
   } as unknown as SpecManager;
 });
 
-function makeCmd(supervisor: AgentSupervisor, flow: FlowDefinition): OrchestratorCommand {
-  return new OrchestratorCommand(
+function makeCmd(
+  supervisor: AgentSupervisor,
+  flow: FlowDefinition,
+  deps: { store?: FlowStateStore; activeFlow?: ActiveFlowRegistry } = {},
+): OrchestratorCommand {
+  return new OrchestratorCommand({
     supervisor,
     pi,
     specManager,
-    makeMockToolRegistry(),
-    undefined,
+    toolRegistry: makeMockToolRegistry(),
     flow,
-  );
+    store: deps.store ?? new FlowStateStore(),
+    activeFlow: deps.activeFlow ?? new ActiveFlowRegistry(),
+  });
 }
 
 describe("OrchestratorCommand", () => {
@@ -106,7 +113,7 @@ describe("OrchestratorCommand", () => {
 
   it("has derived description", () => {
     const cmd = makeCmd(makeSupervisor(), baseFlow);
-    expect(cmd.description).toContain("test-flow");
+    expect(cmd.description).toBe("Run the test-flow orchestrator workflow");
   });
 
   it("resolves the spec by name, mounts an in-session agent, and drives the live session", async () => {
@@ -177,6 +184,113 @@ describe("OrchestratorCommand", () => {
     expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(1, pi, "first");
     expect(hoisted.agentMock.mount).toHaveBeenNthCalledWith(2, pi, "second");
+  });
+
+  it("registers the flow as active after a successful mount", async () => {
+    const supervisor = makeSupervisor();
+    const store = new FlowStateStore();
+    const activeFlow = new ActiveFlowRegistry();
+    const cmd = makeCmd(supervisor, baseFlow, { store, activeFlow });
+
+    const ctx = makeMockCtx();
+    await cmd.handler("task", ctx);
+
+    expect(activeFlow.getStore()).toBe(store);
+    expect(activeFlow.currentFlowName).toBe("test-flow");
+  });
+
+  it("does not register an active flow when mount throws", async () => {
+    hoisted.agentMock.mount = vi.fn().mockImplementation(() => {
+      throw new Error("mount boom");
+    });
+    const supervisor = makeSupervisor();
+    const activeFlow = new ActiveFlowRegistry();
+    const cmd = makeCmd(supervisor, baseFlow, { activeFlow });
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).rejects.toThrow("mount boom");
+
+    // A failed mount must not leave a stale pointer for set_flow_param.
+    expect(activeFlow.getStore()).toBeUndefined();
+  });
+
+  // ── Error-path UX ──────────────────────────────────────────────
+
+  it("notifies and skips mounting when the orchestrator spec cannot be resolved", async () => {
+    specManager.resolve = vi.fn().mockImplementation(() => {
+      throw new Error("Spec 'implement' not found");
+    });
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("Cannot start /test"),
+      "error",
+    );
+    expect(supervisor.mountInSession).not.toHaveBeenCalled();
+    expect(hoisted.agentMock.mount).not.toHaveBeenCalled();
+  });
+
+  it("notifies and skips mounting when a declared tool is not registered", async () => {
+    const specWithTools = {
+      ...hoisted.spec,
+      get tools() {
+        return ["inspect", "missing_tool"];
+      },
+    } as unknown as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithTools);
+    (pi as unknown as Record<string, unknown>).getAllTools = vi
+      .fn()
+      .mockReturnValue([{ name: "inspect" }]);
+
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, baseFlow);
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("missing_tool"), "error");
+    expect(supervisor.mountInSession).not.toHaveBeenCalled();
+    expect(hoisted.agentMock.mount).not.toHaveBeenCalled();
+  });
+
+  it("does not register an active flow when the spec cannot be resolved", async () => {
+    specManager.resolve = vi.fn().mockImplementation(() => {
+      throw new Error("Spec 'implement' not found");
+    });
+    const supervisor = makeSupervisor();
+    const activeFlow = new ActiveFlowRegistry();
+    const cmd = makeCmd(supervisor, baseFlow, { activeFlow });
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+    expect(activeFlow.getStore()).toBeUndefined();
+  });
+
+  it("does not register an active flow when a tool is missing", async () => {
+    const specWithTools = {
+      ...hoisted.spec,
+      get tools() {
+        return ["inspect", "missing_tool"];
+      },
+    } as unknown as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithTools);
+    (pi as unknown as Record<string, unknown>).getAllTools = vi
+      .fn()
+      .mockReturnValue([{ name: "inspect" }]);
+
+    const supervisor = makeSupervisor();
+    const activeFlow = new ActiveFlowRegistry();
+    const cmd = makeCmd(supervisor, baseFlow, { activeFlow });
+
+    const ctx = makeMockCtx();
+    await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+    expect(activeFlow.getStore()).toBeUndefined();
   });
 
   // ── Model / thinkingLevel resolution ──────────────────────────

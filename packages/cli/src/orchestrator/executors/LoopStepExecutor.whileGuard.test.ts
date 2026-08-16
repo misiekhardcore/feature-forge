@@ -138,6 +138,7 @@ describe("LoopStepExecutor while-guard", () => {
 
     const loopResult = result.results.get("l")!;
     expect(loopResult.raw).toBe('{"iterations":0,"maxIterations":3,"skipped":true}');
+    expect(loopResult.skipped).toBe(true);
     expect(loopResult.parsed!.passed).toBe(true);
     expect(loopResult.parsed!.summary).toBe("Loop skipped by while-guard");
     // Body steps must not have executed.

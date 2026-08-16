@@ -68,6 +68,7 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
         const skippedResult: InstructionResult = {
           raw: JSON.stringify({ iterations: 0, maxIterations, skipped: true }),
           parsed: { passed: true, summary: "Loop skipped by while-guard" },
+          skipped: true,
         };
         return current.withResult(instruction.id, skippedResult);
       }

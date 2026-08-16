@@ -1,14 +1,16 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, resolveModel } from "@feature-forge/shared";
 
 import type { AgentSupervisor } from "../agents";
 import { SessionAgent } from "../agents/agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
+import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
+import type { FlowStateStore } from "../orchestrator/FlowStateStore";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
-import { Command } from "./Command";
+import { Command, type CommandDeps } from "./Command";
 
 /**
  * Generic command that loads a flow's orchestrator persona into the main pi
@@ -31,38 +33,73 @@ import { Command } from "./Command";
  * The routine engine's `FlowContext` does not appear here — the prompt template
  * is resolved inline so only a plain `task` string reaches the agent (ADR 0007).
  */
+/**
+ * Dependency bag for {@link OrchestratorCommand}. Extends {@link CommandDeps}
+ * with the dependencies every flow command needs plus the flow itself.
+ */
+export interface OrchestratorCommandDeps extends CommandDeps {
+  supervisor: AgentSupervisor;
+  specManager: SpecManager;
+  toolRegistry: ToolRegistry;
+  workspaceManager?: WorkspaceManager;
+  flow: FlowDefinition;
+  store: FlowStateStore;
+  activeFlow: ActiveFlowRegistry;
+}
+
 export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;
   private readonly flow: FlowDefinition;
+  // The constructor requires a supervisor, so it is always present here
+  // even though the base Command class types it as optional.
+  declare protected readonly supervisor: AgentSupervisor;
   // The constructor requires a SpecManager, so it is always present here
   // even though the base Command class types it as optional.
   declare protected readonly specManager: SpecManager;
+  // The constructor requires an ActiveFlowRegistry, so it is always present
+  // here even though the base Command class types it as optional.
+  declare protected readonly activeFlow: ActiveFlowRegistry;
+  private readonly store: FlowStateStore;
   // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
   private agent: SessionAgent | undefined;
 
-  constructor(
-    supervisor: AgentSupervisor,
-    pi: ExtensionAPI,
-    specManager: SpecManager,
-    toolRegistry: ToolRegistry,
-    workspaceManager: WorkspaceManager | undefined,
-    flow: FlowDefinition,
-  ) {
-    super(supervisor, pi, specManager, toolRegistry, workspaceManager);
-    this.name = flow.command.replace(/^\//, "");
-    this.flow = flow;
-    this.description = `Run the ${flow.name} orchestrator workflow`;
+  constructor(deps: OrchestratorCommandDeps) {
+    super(deps);
+    this.name = deps.flow.command.replace(/^\//, "");
+    this.flow = deps.flow;
+    this.description = `Run the ${deps.flow.name} orchestrator workflow`;
+    this.store = deps.store;
   }
 
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
     const userTask = args.trim() || "(no task provided)";
 
     if (!this.spec) {
-      this.spec = this.specManager.resolve({
-        spec: this.flow.orchestrator.systemPrompt,
-      });
+      try {
+        this.spec = this.specManager.resolve({
+          spec: this.flow.orchestrator.systemPrompt,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.ui.notify(
+          `Cannot start ${this.flow.command}: orchestrator spec "${this.flow.orchestrator.systemPrompt}" could not be resolved (${message}). Run /forge:init and restart pi.`,
+          "error",
+        );
+        return;
+      }
+    }
+
+    // Verify every tool the spec declares is registered in pi before mounting.
+    const registeredTools = new Set(this.pi.getAllTools().map((t) => t.name));
+    const missingTools = this.spec.tools.filter((tool) => !registeredTools.has(tool));
+    if (missingTools.length > 0) {
+      ctx.ui.notify(
+        `Cannot start ${this.flow.command}: tool(s) not registered: ${missingTools.join(", ")}`,
+        "error",
+      );
+      return;
     }
 
     // Apply orchestrator model and thinking level to the main pi session.
@@ -107,6 +144,12 @@ export class OrchestratorCommand extends Command {
     }
 
     this.agent.mount(this.pi, this.resolveTask(userTask));
+
+    // Register the flow as active only after a successful mount — a failed
+    // mount must not leave a stale pointer for set_flow_param. Spec/missing-
+    // tool failures above return before this line, so they never register
+    // an active flow either.
+    this.activeFlow.setCurrent(this.flow.name, this.store);
 
     ctx.ui.notify(`${this.flow.name} orchestrator loaded.`, "info");
   }

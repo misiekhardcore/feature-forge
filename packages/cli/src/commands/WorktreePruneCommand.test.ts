@@ -58,15 +58,14 @@ describe("WorktreePruneCommand", () => {
   });
 
   function makeCommand(): WorktreePruneCommand {
-    return new WorktreePruneCommand(
+    return new WorktreePruneCommand({
       supervisor,
       pi,
-      makeMockSpecManager(),
-      makeMockToolRegistry(),
-      manager,
-      undefined,
-      registry,
-    );
+      specManager: makeMockSpecManager(),
+      toolRegistry: makeMockToolRegistry(),
+      workspaceManager: manager,
+      worktreeRegistry: registry,
+    });
   }
 
   describe("command metadata", () => {
@@ -85,7 +84,12 @@ describe("WorktreePruneCommand", () => {
 
   describe("without workspace manager or registry", () => {
     beforeEach(() => {
-      cmd = new WorktreePruneCommand(supervisor, pi, makeMockSpecManager(), makeMockToolRegistry());
+      cmd = new WorktreePruneCommand({
+        supervisor,
+        pi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
     });
 
     it("notifies error when workspace infrastructure is not configured", async () => {

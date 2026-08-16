@@ -4,10 +4,7 @@
   "command": "/implement",
   "orchestrator": {
     "systemPrompt": "implement-orchestrator",
-    "prompt": "{{prompt}}",
-    "promptParams": {
-      "TASK": "{{prompt}}"
-    }
+    "prompt": "{{prompt}}"
   },
   "params": [
     {

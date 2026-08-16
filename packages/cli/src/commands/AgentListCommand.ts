@@ -3,6 +3,7 @@ import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, logger } from "@feature-forge/shared";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 
+import type { AgentSupervisor } from "../agents";
 import { TypedEventBus } from "../orchestrator/eventBus";
 import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";
@@ -13,6 +14,8 @@ import { Command } from "./Command";
  * Enter for detail, Esc to dismiss).
  */
 export class AgentListCommand extends Command {
+  // This command's handler requires a supervisor — CommandRegistry always supplies one.
+  declare protected readonly supervisor: AgentSupervisor;
   readonly name = "agent:list";
   readonly description = "Open the agent viewer overlay with all tracked agents.";
 

@@ -14,7 +14,7 @@ function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition 
     $schema: FLOW_SCHEMA_URL,
     name: "test",
     command: "/test",
-    orchestrator: { systemPrompt: "You are the test orchestrator." },
+    orchestrator: { systemPrompt: "test-orchestrator" },
     routines: [
       {
         id: "main",
@@ -694,7 +694,7 @@ describe("validateSemantics", () => {
             },
           ],
         }),
-        new Set(["build", "review", "verify"]),
+        new Set(["build", "review", "verify", "test-orchestrator"]),
       );
       expect(errors).toHaveLength(1);
       expect(errors[0]).toContain('Unknown spec "unknown-spec"');
@@ -712,7 +712,7 @@ describe("validateSemantics", () => {
             },
           ],
         }),
-        new Set(["build", "review", "verify"]),
+        new Set(["build", "review", "verify", "test-orchestrator"]),
       );
       expect(errors).toEqual([]);
     });
@@ -728,6 +728,23 @@ describe("validateSemantics", () => {
             },
           ],
         }),
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it("rejects unknown orchestrator spec when knownSpecs is provided", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({ orchestrator: { systemPrompt: "missing-orchestrator" } }),
+        new Set(["build", "review", "verify", "test-orchestrator"]),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('Unknown orchestrator spec "missing-orchestrator"');
+    });
+
+    it("accepts known orchestrator spec when knownSpecs is provided", () => {
+      const errors = FlowLoader.validateSemantics(
+        makeValidFlow({ orchestrator: { systemPrompt: "review-orchestrator" } }),
+        new Set(["build", "review", "verify", "test-orchestrator", "review-orchestrator"]),
       );
       expect(errors).toEqual([]);
     });
