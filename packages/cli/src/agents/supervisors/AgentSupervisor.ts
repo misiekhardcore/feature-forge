@@ -60,9 +60,4 @@ export abstract class AgentSupervisor {
    * Removes it from tracking. Safe to call multiple times.
    */
   public abstract destroyAgent(agentId: string): Promise<void>;
-
-  /**
-   * Destroy all tracked agents.
-   */
-  public abstract destroyAll(): Promise<void>;
 }

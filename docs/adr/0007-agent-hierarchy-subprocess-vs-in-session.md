@@ -3,6 +3,63 @@
 **Date:** 2026-07-02
 **Status:** Accepted
 
+## Amendment 2026-08-16 — agents list/viewer is a subprocess-agent presentation surface
+
+The fleet presentation contract is pinned: every surface that lists, streams,
+or destroys agents is a **subprocess-agent surface**. In-session personas
+(`SessionAgent`) are deliberately invisible to it.
+
+- **Kind discriminator.** The base `Agent` gains `kind: AgentKind` with
+  `AgentKind = "subprocess" | "in-session"` (`src/agents/agents/Agent.ts`);
+  concretes pin it with `as const` (`PiSubprocessAgent` → `"subprocess"`,
+  `SessionAgent` → `"in-session"`). The TUI mirrors the type locally and the
+  `AgentQuery` projection in `packages/tui/src/api.ts` carries `kind` next to
+  `id`, `specification`, `status`, and `createdAt`, so presentation consumers
+  can filter on the family without narrowing.
+- **List/viewer surfaces filter on the discriminator.**
+  `AgentViewerOverlay.wireOverlayEvents` connect seeding skips any agent whose
+  `kind !== "subprocess"` — this covers the overlay and `/agent:list`, which
+  share the wiring. The IPC path is guarded too:
+  `ParentSocketServer.handleListAgents` returns `kind === "subprocess"` entries
+  only, since socket clients are sibling subagents, not the live session.
+- **One overlay owner.** `showAgentViewer`
+  (`packages/cli/src/agents/showAgentViewer.ts`) is the single composer owning
+  the agent-viewer overlay lifecycle (wire → `ctx.ui.custom` → connect →
+  dispose/dismiss); `RoutineTool`, `AgentListCommand`, and the dev test
+  commands in `registerTestCommands` all delegate to it instead of inlining
+  the overlay. The debug loop routine is the one deliberate exception:
+  `registerTestLoopRoutine` receives a plain `createOverlay` constructor
+  factory from `registerTestCommands` and drives the overlay instance itself
+  (it owns its own `ctx.ui.custom` wiring, so there is nothing to hand off).
+- **Persona history is the pi session transcript.** An in-session persona's
+  conversation is persisted by pi itself (session JSONL); forge never writes
+  viewer stream files (`.stream`, `.events.jsonl`, `.messages.jsonl`) for it.
+  Those files are keyed to subprocess agent ids and remain the subprocess
+  presentation's storage.
+- **No new in-session status.** Resolution E's revision holds: the in-session
+  family reuses `Spawned` / `Running` / `Cancelled`, and the presentation needs
+  no new member — an in-session persona never appears in the viewer, so there
+  is no in-session-only status for fleet consumers to special-case.
+- **Terminal states are lossless.** `AgentDisplayHelpers.mapAgentStatus` is an
+  exhaustive switch over `AgentStatus` with a 1:1 vocabulary: `Spawned` →
+  `"started"`, `Running` → `"running"`, `Completed` → `"done"`, `Failed` →
+  `"error"`, `Cancelled` → `"cancelled"` (backed by the dedicated
+  `CancelledAgentEntry` type). A destroyed subprocess agent renders as
+  `"cancelled"`; no terminal state collapses into another.
+- **Destroy paths are kind-guarded.** `AgentDestroyCommand` refuses
+  `kind !== "subprocess"` with a pointer to `/forge:flow:exit`;
+  `AgentDestroyAllCommand` filters `kind === "subprocess"` before destroying;
+  `ParentSocketServer.handleDestroyAgent` rejects non-subprocess agents via the
+  `kind` discriminator (consistent with `handleListAgents` and the commands;
+  `isSubprocessAgent` stays reserved for narrowing where `executeTask` /
+  `getResult` is actually invoked). The supervisor's base-typed `destroyAgent`
+  is unchanged — `AgentSupervisor.destroyAll` was removed (zero callers, and
+  blanket-destroying would violate the kind contract) — and every surface that
+  reaches destroy is guarded, so in-session personas are torn down only through
+  their own path (flow exit).
+
+The original decision record below is left intact as history.
+
 ## Amendment 2026-08-03 — remove the `InSessionAgent` intermediate
 
 The abstract `InSessionAgent` intermediate was removed. `SessionAgent` now

@@ -3,12 +3,16 @@ import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus, jsonParse, logger } from "@feature-forge/shared";
 
 import type { SpecManager } from "../agents";
 import { AgentSupervisor, isSubprocessAgent, type SubprocessAgent } from "../agents";
+import {
+  emitAgentDone,
+  emitAgentStarted,
+  emitAgentStream,
+} from "../orchestrator/eventBus/agentChannels";
 import {
   type SendTaskParams,
   type SocketMessage,
@@ -187,10 +191,11 @@ export class ParentSocketServer {
     // await=false) and deliver the outcome via agent_update push.
     if (params.prompt) {
       const executionId = `${correlationId}:spawn-prompt`;
-      this.pi.events.emit("feature-forge:agent-started", {
-        phase: "agent-started",
-        message: `Agent "${agent.id}" (${agent.specification.role}) started`,
-        details: { executionId, agentId: agent.id },
+      emitAgentStarted(this.pi.events, {
+        executionId,
+        agentId: agent.id,
+        name: agent.id,
+        label: agent.specification.role,
       });
       this.runInBackground(agent, params.prompt, executionId);
     }
@@ -212,10 +217,11 @@ export class ParentSocketServer {
       return;
     }
 
-    this.pi.events.emit("feature-forge:agent-started", {
-      phase: "agent-started",
-      message: `Agent "${agent.id}" (${agent.specification.role}) started`,
-      details: { executionId: correlationId, agentId: agent.id },
+    emitAgentStarted(this.pi.events, {
+      executionId: correlationId,
+      agentId: agent.id,
+      name: agent.id,
+      label: agent.specification.role,
     });
 
     if (params.await) {
@@ -238,19 +244,22 @@ export class ParentSocketServer {
         const result = await agent.executeTask(params.prompt, {
           timeout: params.timeout,
           onEvent: (event) => {
-            this.emitStreamEvent(agent.id, correlationId, agent.specification.role, event);
+            emitAgentStream(this.pi.events, {
+              executionId: correlationId,
+              agentId: agent.id,
+              name: agent.id,
+              label: agent.specification.role,
+              event,
+            });
           },
         });
         this.sendResponse(socket, correlationId, { result });
-        this.pi.events.emit("feature-forge:agent-done", {
-          phase: "agent-done",
-          message: `Agent "${agent.id}" completed`,
-          details: {
-            executionId: correlationId,
-            agentId: agent.id,
-            summary: result,
-            passed: true,
-          },
+        emitAgentDone(this.pi.events, {
+          executionId: correlationId,
+          agentId: agent.id,
+          name: agent.id,
+          summary: result,
+          passed: true,
         });
       } catch (error) {
         if (socketClosed) {
@@ -259,15 +268,12 @@ export class ParentSocketServer {
         const message = error instanceof Error ? error.message : String(error);
         this.sendError(socket, correlationId, message);
         this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
-        this.pi.events.emit("feature-forge:agent-done", {
-          phase: "agent-done",
-          message: `Agent "${agent.id}" failed`,
-          details: {
-            executionId: correlationId,
-            agentId: agent.id,
-            passed: false,
-            summary: message,
-          },
+        emitAgentDone(this.pi.events, {
+          executionId: correlationId,
+          agentId: agent.id,
+          name: agent.id,
+          passed: false,
+          summary: message,
         });
       } finally {
         socket.removeListener("close", onSocketClose);
@@ -300,11 +306,17 @@ export class ParentSocketServer {
   }
 
   private async handleListAgents(socket: Socket, correlationId: string): Promise<void> {
-    const agents = this.supervisor.getAllAgents().map((agent) => ({
-      agentId: agent.id,
-      role: agent.specification.role,
-      status: agent.status,
-    }));
+    // IPC clients are sibling subagents — in-session personas stay out of the
+    // socket view. Filter on the family discriminator so list_agents returns
+    // subprocess siblings only.
+    const agents = this.supervisor
+      .getAllAgents()
+      .filter((agent) => agent.kind === "subprocess")
+      .map((agent) => ({
+        agentId: agent.id,
+        role: agent.specification.role,
+        status: agent.status,
+      }));
 
     this.sendResponse(socket, correlationId, { agents });
   }
@@ -314,23 +326,19 @@ export class ParentSocketServer {
     correlationId: string,
     params: { agentId: string },
   ): Promise<void> {
+    const agent = this.supervisor.getAgent(params.agentId);
+    if (!agent) {
+      this.sendError(socket, correlationId, `Agent not found: ${params.agentId}`);
+      return;
+    }
+
+    if (agent.kind !== "subprocess") {
+      this.sendError(socket, correlationId, `Agent not a subprocess agent: ${params.agentId}`);
+      return;
+    }
+
     await this.supervisor.destroyAgent(params.agentId);
     this.sendResponse(socket, correlationId, { status: "destroyed" });
-  }
-
-  // ─── Event bus emissions ──────────────────────────────────────────
-
-  private emitStreamEvent(
-    agentId: string,
-    executionId: string,
-    label: string,
-    event: AgentEvent,
-  ): void {
-    this.pi.events.emit("feature-forge:agent-stream", {
-      phase: "agent-stream",
-      message: `Agent "${agentId}" stream event`,
-      details: { executionId, agentId, label, event },
-    });
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────
@@ -351,35 +359,35 @@ export class ParentSocketServer {
       .executeTask(prompt, {
         timeout,
         onEvent: (event) => {
-          this.emitStreamEvent(agent.id, executionId, agent.specification.role, event);
+          emitAgentStream(this.pi.events, {
+            executionId,
+            agentId: agent.id,
+            name: agent.id,
+            label: agent.specification.role,
+            event,
+          });
         },
       })
       .then(
         (result) => {
           this.pushAgentUpdate(agent.id, AgentStatus.Completed, result);
-          this.pi.events.emit("feature-forge:agent-done", {
-            phase: "agent-done",
-            message: `Agent "${agent.id}" completed`,
-            details: {
-              executionId,
-              agentId: agent.id,
-              passed: true,
-              summary: result,
-            },
+          emitAgentDone(this.pi.events, {
+            executionId,
+            agentId: agent.id,
+            name: agent.id,
+            passed: true,
+            summary: result,
           });
         },
         (error) => {
           const message = error instanceof Error ? error.message : String(error);
           this.pushAgentUpdate(agent.id, AgentStatus.Failed, message);
-          this.pi.events.emit("feature-forge:agent-done", {
-            phase: "agent-done",
-            message: `Agent "${agent.id}" failed`,
-            details: {
-              executionId,
-              agentId: agent.id,
-              passed: false,
-              summary: message,
-            },
+          emitAgentDone(this.pi.events, {
+            executionId,
+            agentId: agent.id,
+            name: agent.id,
+            passed: false,
+            summary: message,
           });
         },
       );

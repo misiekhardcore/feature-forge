@@ -13,6 +13,7 @@ import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
  * Delegates all lifecycle (start, stop, communicate) to the underlying RpcClient.
  */
 export class PiSubprocessAgent extends SubprocessAgent {
+  public readonly kind = "subprocess" as const;
   public readonly id: string;
   public readonly specification: AgentSpecification;
 

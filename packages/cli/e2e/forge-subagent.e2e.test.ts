@@ -27,6 +27,7 @@ function createMockAgent(): SubprocessAgent {
   const id = "e2e-agent";
   return {
     id,
+    kind: "subprocess",
     specification: {
       role: "e2e",
       systemPrompt: "",
@@ -61,7 +62,6 @@ function createMockSupervisor(): AgentSupervisor {
     getAgent: vi.fn().mockImplementation((id: string) => agents.get(id)),
     getAllAgents: vi.fn().mockImplementation(() => Array.from(agents.values())),
     destroyAgent: vi.fn().mockImplementation(async (id: string) => agents.delete(id)),
-    destroyAll: vi.fn().mockResolvedValue(undefined),
   };
 }
 

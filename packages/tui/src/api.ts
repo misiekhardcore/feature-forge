@@ -32,10 +32,14 @@ export interface AgentStateWriter {
   dispose(): void;
 }
 
+/** Family discriminator: `"subprocess"` (RPC transport) or `"in-session"` (live-session persona). */
+export type AgentKind = "subprocess" | "in-session";
+
 /** Query interface for wireOverlayEvents — satisfied by AgentSupervisor. */
 export interface AgentQuery {
   getAgent(id: string):
     | {
+        kind: AgentKind;
         specification: { role: string; model?: string; thinkingLevel?: ThinkingLevel };
         status: AgentStatus;
         createdAt: Date;
@@ -43,6 +47,7 @@ export interface AgentQuery {
     | undefined;
   getAllAgents(): ReadonlyArray<{
     id: string;
+    kind: AgentKind;
     specification: { role: string; model?: string; thinkingLevel?: ThinkingLevel };
     status: AgentStatus;
     createdAt: Date;

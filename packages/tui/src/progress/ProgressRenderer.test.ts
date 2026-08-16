@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 
+import { createAccumulatedState } from "./AccumulatedState";
 import type { DisplayContribution } from "./DisplayContribution";
 import { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import { ProgressRenderer } from "./ProgressRenderer";
@@ -12,16 +13,7 @@ import type { RoutineProgressState } from "./RoutineProgressState";
 
 // Local result shape matching RoutineResultLike used by ProgressRenderer.
 interface TestResult {
-  label?: string;
-  agentId?: string;
-  rounds?: number;
   passed?: boolean;
-  summary?: string;
-  workspace?: string;
-  routine?: string;
-  session?: Record<string, unknown>;
-  results?: Record<string, unknown>;
-  [key: string]: unknown;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -92,227 +84,34 @@ describe("ProgressRenderer", () => {
   });
 
   describe("buildResultSuffix", () => {
-    it("returns 'failed' when details is undefined (aligns with default passed=false)", () => {
-      expect(ProgressRenderer.buildResultSuffix(undefined)).toBe("failed");
-    });
+    function makeAcc(snippet?: string) {
+      const acc = createAccumulatedState();
+      acc.resultSnippet = snippet;
+      return acc;
+    }
 
-    it("returns label-prefixed suffix when label is present (highest priority)", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "done",
-        session: {},
-        label: "builder",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("agent: builder");
-    });
-
-    it("returns agentId-prefixed suffix when label is absent but agentId is present", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "done",
-        session: {},
-        agentId: "agent-42",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("agent: agent-42");
-    });
-
-    it("returns rounds string when rounds > 0 (priority over workspace/summary)", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 3,
-        results: {},
-        summary: "done",
-        session: {},
-        workspace: "/tmp/ws",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("3 rounds");
-    });
-
-    it("uses singular 'round' for a single round", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 1,
-        results: {},
-        summary: "done",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("1 round");
-    });
-
-    it("extracts PR URL from results.pr.raw when available (priority over workspace)", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {
-          pr: { raw: "https://github.com/owner/repo/pull/42" },
-        },
-        summary: "done",
-        session: {},
-        workspace: "/tmp/ws",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe(
-        "https://github.com/owner/repo/pull/42",
+    it("returns the accumulated resultSnippet when present (wins over failed details)", () => {
+      expect(ProgressRenderer.buildResultSuffix(makeAcc("ws: forge-ws"), { passed: false })).toBe(
+        "ws: forge-ws",
       );
     });
 
-    it("falls through pr.raw when pr is missing from results", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "done",
-        session: {},
-        workspace: "/tmp/ws",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("ws: ws");
+    it("returns the accumulated resultSnippet when present (wins over passed details)", () => {
+      expect(ProgressRenderer.buildResultSuffix(makeAcc("pr: #42"), { passed: true })).toBe(
+        "pr: #42",
+      );
     });
 
-    it("returns workspace suffix when workspace is present but no rounds/label/agentId/pr", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "done",
-        session: {},
-        workspace: "/home/user/projects/ws-my-worktree",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("ws: ws-my-worktree");
+    it("falls back to 'passed' when no snippet and result passed", () => {
+      expect(ProgressRenderer.buildResultSuffix(makeAcc(), { passed: true })).toBe("passed");
     });
 
-    it("extracts cleanup summary from results.cleanup.parsed.summary (priority over summary)", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {
-          cleanup: { raw: "", parsed: { passed: true, summary: "workspace released" } },
-        },
-        summary: "done",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("workspace released");
+    it("falls back to 'failed' when no snippet and result failed", () => {
+      expect(ProgressRenderer.buildResultSuffix(makeAcc(), { passed: false })).toBe("failed");
     });
 
-    it("shows cleanup summary for destroy_workspace-style result (rounds > 0 regression guard)", () => {
-      // Regression: PR #115 added cleanup summary at step 6, but rounds was
-      // always ≥1 in production (RoutineExecutor context.iteration + 1 bug)
-      // so the cleanup path was unreachable for non-loop routines.
-      const details: TestResult = {
-        routine: "destroy_workspace",
-        passed: true,
-        rounds: 0,
-        results: {
-          cleanup: {
-            raw: "",
-            parsed: { passed: true, summary: "Cleanup completed: 1 workspace(s)" },
-          },
-        },
-        summary: "done",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("Cleanup completed: 1 workspace(s)");
-    });
-
-    it("shows workspace path for create_workspace-style result (rounds > 0 regression guard)", () => {
-      // Regression: rounds was always ≥1, masking workspace display for
-      // non-loop routines like create_workspace.
-      const details: TestResult = {
-        routine: "create_workspace",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "done",
-        session: {},
-        workspace: "/tmp/forge-ws",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("ws: forge-ws");
-    });
-
-    it("falls through cleanup when parsed is missing", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {
-          cleanup: { raw: "cleaned up" },
-        },
-        summary: "generic summary",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("generic summary");
-    });
-
-    it("falls through cleanup when results is empty", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "done",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("done");
-    });
-
-    it("returns summary when no label, rounds, workspace, pr, or cleanup are available", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "all checks passed",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("all checks passed");
-    });
-
-    it("returns 'passed' fallback when no details are present and result passed", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("passed");
-    });
-
-    it("returns 'failed' fallback when no details are present and result failed", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: false,
-        rounds: 0,
-        results: {},
-        summary: "",
-        session: {},
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("failed");
-    });
-
-    it("prefers label over agentId when both are present", () => {
-      const details: TestResult = {
-        routine: "test",
-        passed: true,
-        rounds: 0,
-        results: {},
-        summary: "",
-        session: {},
-        label: "reviewer",
-        agentId: "agent-42",
-      };
-      expect(ProgressRenderer.buildResultSuffix(details)).toBe("agent: reviewer");
+    it("falls back to 'failed' when no snippet and details is undefined", () => {
+      expect(ProgressRenderer.buildResultSuffix(makeAcc(), undefined)).toBe("failed");
     });
   });
 
@@ -447,14 +246,7 @@ describe("ProgressRenderer", () => {
       const renderer = makeRenderer();
       const result: AgentToolResult<TestResult> = {
         content: [],
-        details: {
-          routine: "test-routine",
-          passed: true,
-          rounds: 0,
-          results: {},
-          summary: "",
-          session: {},
-        },
+        details: { passed: true },
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
       const rendered = renderer.buildResultComponent(result, options, theme);
@@ -502,15 +294,7 @@ describe("ProgressRenderer", () => {
 
       const result: AgentToolResult<TestResult> = {
         content: [],
-        details: {
-          routine: "test-routine",
-          passed: true,
-          rounds: 3,
-          results: {},
-          summary: "should not appear",
-          session: {},
-          workspace: "/tmp/should-not-appear",
-        },
+        details: { passed: true },
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
       const rendered = renderer.buildResultComponent(result, options, theme);
@@ -518,7 +302,7 @@ describe("ProgressRenderer", () => {
       expect(lines[0]).toContain("✓");
       expect(lines[0]).toContain("test-routine");
       expect(lines[0]).toContain("ws: /tmp/forge-ws, branch: forge/ws-abc");
-      expect(lines[0]).not.toContain("3 rounds");
+      expect(lines[0]).not.toContain("passed");
     });
 
     it("falls back to buildResultSuffix when accumulated state has no resultSnippet", () => {
@@ -531,21 +315,14 @@ describe("ProgressRenderer", () => {
 
       const result: AgentToolResult<TestResult> = {
         content: [],
-        details: {
-          routine: "test-routine",
-          passed: true,
-          rounds: 3,
-          results: {},
-          summary: "done",
-          session: {},
-        },
+        details: { passed: true },
       };
       const options: ToolRenderResultOptions = { expanded: true, isPartial: false };
       const rendered = renderer.buildResultComponent(result, options, theme);
       const lines = rendered.render(80);
       expect(lines[0]).toContain("✓");
       expect(lines[0]).toContain("test-routine");
-      expect(lines[0]).toContain("3 rounds");
+      expect(lines[0]).toContain("passed");
     });
   });
 

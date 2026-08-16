@@ -6,7 +6,7 @@ import type { AgentEvent, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentSupervisor } from "@feature-forge/cli/src/agents";
-import type { Agent } from "@feature-forge/cli/src/agents/agents/Agent";
+import type { Agent, AgentKind } from "@feature-forge/cli/src/agents/agents/Agent";
 import type { AgentSpecification } from "@feature-forge/cli/src/agents/specifications";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
@@ -84,6 +84,9 @@ function makeEntry(
   if (status === "started") {
     return { id, status: "started", createdAt: new Date(), ...overrides };
   }
+  if (status === "running") {
+    return { id, status: "running", createdAt: new Date(), ...overrides };
+  }
   if (status === "done") {
     return {
       id,
@@ -102,6 +105,9 @@ function makeEntry(
       errorMessage: "",
       ...overrides,
     };
+  }
+  if (status === "cancelled") {
+    return { id, status: "cancelled", createdAt: new Date(), ...overrides };
   }
   return { id, status: "started", createdAt: new Date(), ...overrides };
 }
@@ -551,8 +557,8 @@ describe("AgentViewerOverlay", () => {
       expect(AgentViewerOverlay.mapStatus(AgentStatus.Spawned)).toBe("started");
     });
 
-    it("maps Running to started", () => {
-      expect(AgentViewerOverlay.mapStatus(AgentStatus.Running)).toBe("started");
+    it("maps Running to running", () => {
+      expect(AgentViewerOverlay.mapStatus(AgentStatus.Running)).toBe("running");
     });
 
     it("maps Completed to done", () => {
@@ -563,8 +569,8 @@ describe("AgentViewerOverlay", () => {
       expect(AgentViewerOverlay.mapStatus(AgentStatus.Failed)).toBe("error");
     });
 
-    it("maps Cancelled to error", () => {
-      expect(AgentViewerOverlay.mapStatus(AgentStatus.Cancelled)).toBe("error");
+    it("maps Cancelled to cancelled", () => {
+      expect(AgentViewerOverlay.mapStatus(AgentStatus.Cancelled)).toBe("cancelled");
     });
   });
 
@@ -1697,9 +1703,11 @@ describe("AgentViewerOverlay", () => {
       status: AgentStatus,
       createdAt: Date = new Date(),
       overrides: { model?: string; thinkingLevel?: ThinkingLevel } = {},
+      kind: AgentKind = "subprocess",
     ): Agent {
       return {
         id,
+        kind,
         status,
         createdAt,
         specification: { role, ...overrides } as AgentSpecification,
@@ -1715,7 +1723,6 @@ describe("AgentViewerOverlay", () => {
         mountInSession: vi.fn(),
         runAgent: vi.fn(),
         destroyAgent: vi.fn(),
-        destroyAll: vi.fn(),
       };
     }
 
@@ -1959,6 +1966,114 @@ describe("AgentViewerOverlay", () => {
       const lines = overlay.render(80);
       const joined = lines.join("\n");
       expect(joined).toContain("⟳");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("seeds subprocess agents only, excluding in-session personas, on connect", () => {
+      const subprocessAgent = makeMockAgent("builder", "builder", AgentStatus.Running);
+      const sessionAgent = makeMockAgent(
+        "orchestrator",
+        "orchestrator",
+        AgentStatus.Running,
+        new Date(),
+        {},
+        "in-session",
+      );
+      const agentQuery = makeMockSupervisor([subprocessAgent, sessionAgent]);
+      const eventBus = makeMockTypedEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
+      });
+
+      connect(overlay, "");
+
+      // Only the subprocess agent is seeded — the in-session persona must
+      // never appear in the overlay (or /agent:list) list.
+      expect(overlay.entryCount).toBe(1);
+      const joined = overlay.render(80).join("\n");
+      expect(joined).toContain("builder");
+      expect(joined).not.toContain("orchestrator");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("seeds a Cancelled agent as cancelled, not error, on connect", () => {
+      const agent = makeMockAgent("cancelled-agent", "builder", AgentStatus.Cancelled);
+      const agentQuery = makeMockSupervisor([agent]);
+      const eventBus = makeMockTypedEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
+      });
+
+      connect(overlay, "");
+
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "cancelled-agent";
+
+      const lines = overlay.render(80);
+      // Pattern-match on ANSI-stripped output: the detail header line must
+      // carry the muted "○" icon and the "cancelled" status label — never
+      // "error". (A plain substring check for "cancelled" is vacuous because
+      // the agent id "cancelled-agent" already contains it.)
+      const clean = lines.map(stripAnsiForTest).join("\n");
+      expect(clean).toMatch(/○ .*cancelled-agent .*— .*cancelled/);
+      expect(clean).not.toMatch(/error/);
+      expect(clean).not.toContain("✗");
+
+      unsubs.forEach((u) => u());
+      overlay.dispose();
+    });
+
+    it("yields status cancelled for agent-done when the query status is Cancelled", () => {
+      const agent = makeMockAgent("cancelled-agent", "builder", AgentStatus.Cancelled);
+      const agentQuery = makeMockSupervisor([agent]);
+      const eventBus = makeMockTypedEventBus();
+      const overlay = makeOverlay();
+
+      const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
+        eventBus,
+        agentQuery,
+        config: mockConfig,
+        toolRegistry: makeMockToolRegistry(),
+      });
+
+      connect(overlay, "");
+
+      eventBus.emit("feature-forge:agent-done", {
+        phase: "agent-done",
+        message: 'Agent "cancelled-agent" done',
+        details: {
+          executionId: "exec-1",
+          agentId: "cancelled-agent",
+          passed: false,
+          summary: "Cancelled by user",
+        },
+      });
+
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "cancelled-agent";
+
+      const lines = overlay.render(80);
+      // Same header pattern as the connect-seeding test: the done event must
+      // resolve to the "cancelled" label (via the query's Cancelled status),
+      // not "error".
+      const clean = lines.map(stripAnsiForTest).join("\n");
+      expect(clean).toMatch(/○ .*cancelled-agent .*— .*cancelled/);
+      expect(clean).not.toMatch(/error/);
+      expect(clean).not.toContain("✗");
 
       unsubs.forEach((u) => u());
       overlay.dispose();

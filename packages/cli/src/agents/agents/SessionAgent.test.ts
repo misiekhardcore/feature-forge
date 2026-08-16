@@ -30,6 +30,11 @@ describe("SessionAgent", () => {
       expect(agent.specification).toBe(spec);
       expect(agent.specification.systemPrompt).toBe("# You are the orchestrator.");
     });
+
+    it("identifies as the in-session family", () => {
+      const agent = new SessionAgent(spec);
+      expect(agent.kind).toBe("in-session");
+    });
   });
 
   describe("mount", () => {

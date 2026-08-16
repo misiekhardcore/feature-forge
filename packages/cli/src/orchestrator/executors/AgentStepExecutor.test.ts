@@ -38,6 +38,7 @@ function makeMockSpecManager(): SpecManager {
 function makeMockAgent(result: string): SubprocessAgent {
   return {
     id: "test-agent",
+    kind: "subprocess",
     executeTask: vi
       .fn()
       .mockImplementation(
@@ -63,6 +64,7 @@ function makeMockAgent(result: string): SubprocessAgent {
 function makeMockAgentThatThrows(error: Error): SubprocessAgent {
   return {
     id: "test-agent",
+    kind: "subprocess",
     executeTask: vi.fn().mockRejectedValue(error),
     destroy: vi.fn().mockResolvedValue(undefined),
   } as unknown as SubprocessAgent;
@@ -421,6 +423,7 @@ describe("AgentStepExecutor", () => {
       // Create an agent that throws a non-Error value.
       const agent = {
         id: "test-agent",
+        kind: "subprocess",
         executeTask: vi.fn().mockRejectedValue("just a string"),
         destroy: vi.fn().mockResolvedValue(undefined),
       } as unknown as SubprocessAgent;
@@ -1311,7 +1314,7 @@ describe("AgentStepExecutor", () => {
       expect(contrib).toBeDefined();
       const agentContrib = contrib as AgentContribution;
       expect(agentContrib.agentId).toBe("builder");
-      expect(agentContrib.agentStatus).toBe("streaming");
+      expect(agentContrib.agentStatus).toBe("running");
       expect(agentContrib.streamEvent).toBe(streamPayload);
       expect(agentContrib.phase).toBe("agent-stream");
     });

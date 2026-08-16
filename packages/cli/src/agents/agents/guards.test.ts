@@ -12,7 +12,10 @@ describe("agent guards", () => {
     });
 
     it("rejects a plain agent with no executeTask", () => {
+      // The bare agent is not subprocess-shaped — it carries the in-session
+      // family discriminator, and structural narrowing must reject it.
       const bare: Agent = {
+        kind: "in-session",
         id: "bare",
         specification: makeSpec("bare", { role: "bare" }),
         createdAt: new Date(),

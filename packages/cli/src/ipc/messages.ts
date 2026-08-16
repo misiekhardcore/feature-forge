@@ -46,7 +46,7 @@ export interface GetAgentResultParams {
   /** Target agent's id string. */
   agentId: string;
 }
-/** Parameters for list_agents — intentionally empty (all agents are returned). */
+/** Parameters for list_agents — intentionally empty; the response lists subprocess agents only. */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ListAgentsParams {}
 export interface DestroyAgentParams {

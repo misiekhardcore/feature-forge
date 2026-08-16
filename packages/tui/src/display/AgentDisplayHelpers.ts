@@ -1,8 +1,9 @@
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message, TextContent } from "@earendil-works/pi-ai";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
+import { AgentStatus } from "@feature-forge/shared";
 
-import type { AgentViewerEntry } from "../types";
+import type { AgentEntryBase, AgentViewerEntry, AgentViewerEntryStatus } from "../types";
 
 /**
  * Display helpers for agent viewer rendering.
@@ -74,13 +75,92 @@ export class AgentDisplayHelpers {
     );
   }
 
+  /**
+   * Map an {@link AgentStatus} enum value to a viewer entry status.
+   *
+   * Exhaustive switch — every enum member maps to exactly one entry status.
+   */
+  static mapAgentStatus(status: AgentStatus): AgentViewerEntryStatus {
+    switch (status) {
+      case AgentStatus.Spawned:
+        return "started";
+      case AgentStatus.Running:
+        return "running";
+      case AgentStatus.Completed:
+        return "done";
+      case AgentStatus.Failed:
+        return "error";
+      case AgentStatus.Cancelled:
+        return "cancelled";
+    }
+  }
+
+  /**
+   * Build an {@link AgentViewerEntry} for the requested status.
+   *
+   * Variant-specific defaults:
+   * - `"done"` → `passed` spread only when defined (undefined renders
+   *   "completed", never "failed"), `summary: params.summary ?? ""`
+   * - `"error"` → `errorMessage: params.summary ?? "Agent failed"`
+   * - `"started"` / `"running"` / `"cancelled"` → no `passed` field
+   */
+  static buildEntry(params: {
+    id: string;
+    status: AgentViewerEntryStatus;
+    passed?: boolean;
+    summary?: string;
+    role?: string;
+    model?: string;
+    thinkingLevel?: ThinkingLevel;
+    createdAt?: Date;
+    finishedAt?: Date;
+  }): AgentViewerEntry {
+    const base: AgentEntryBase = {
+      id: params.id,
+      role: params.role,
+      model: params.model,
+      thinkingLevel: params.thinkingLevel,
+      createdAt: params.createdAt ?? new Date(),
+      // Spread finishedAt only when defined so a merge with an existing
+      // entry never clobbers a previously stamped terminal timestamp.
+      ...(params.finishedAt !== undefined ? { finishedAt: params.finishedAt } : {}),
+      summary: params.summary,
+    };
+    switch (params.status) {
+      case "started":
+      case "running":
+        return { ...base, status: params.status };
+      case "done":
+        return {
+          ...base,
+          status: "done",
+          // Spread passed only when defined: agent-done events without a
+          // parsed result keep `passed` undefined so the entry renders
+          // "completed" (green), matching HEAD semantics.
+          ...(params.passed !== undefined ? { passed: params.passed } : {}),
+          summary: params.summary ?? "",
+        };
+      case "error":
+        return {
+          ...base,
+          status: "error",
+          errorMessage: params.summary ?? "Agent failed",
+        };
+      case "cancelled":
+        return { ...base, status: "cancelled" };
+    }
+  }
+
   static getStatusLabel(
     status: string | undefined,
     passed?: boolean,
   ): { label: string; color: ThemeColor } {
     switch (status) {
       case "started":
+      case "running":
         return { label: "running", color: "accent" };
+      case "cancelled":
+        return { label: "cancelled", color: "muted" };
       case "done":
         return passed === false
           ? { label: "failed", color: "error" }
@@ -93,6 +173,17 @@ export class AgentDisplayHelpers {
   }
 
   /**
+   * Extract the `passed` flag from the discriminated union.
+   *
+   * Only {@link CompletedAgentEntry} carries this field. Returns
+   * `undefined` for "started", "running", "cancelled", and "error"
+   * statuses where the concept does not apply.
+   */
+  static getEntryPassed(entry: AgentViewerEntry): boolean | undefined {
+    return entry.status === "done" ? entry.passed : undefined;
+  }
+
+  /**
    * Resolve a status string to an icon character and theme colour tuple.
    *
    * - `"done"` + `passed !== false` → `{ char: "✓", color: "success" }`
@@ -100,19 +191,9 @@ export class AgentDisplayHelpers {
    * - `"running"` → `{ char: "⟳", color: "accent" }`
    * - `"started"` → `{ char: "⟳", color: "accent" }`
    * - `"error"` → `{ char: "✗", color: "error" }`
+   * - `"cancelled"` → `{ char: "○", color: "muted" }`
    * - anything else → `{ char: "○", color: "muted" }`
    */
-  /**
-   * Extract the `passed` flag from the discriminated union.
-   *
-   * Only {@link CompletedAgentEntry} carries this field. Returns
-   * `undefined` for "started" and "error" statuses where the concept
-   * does not apply.
-   */
-  static getEntryPassed(entry: AgentViewerEntry): boolean | undefined {
-    return entry.status === "done" ? entry.passed : undefined;
-  }
-
   static getStatusIcon(
     status: string | undefined,
     passed?: boolean,
@@ -125,6 +206,8 @@ export class AgentDisplayHelpers {
         return { char: "⟳", color: "accent" };
       case "error":
         return { char: "✗", color: "error" };
+      case "cancelled":
+        return { char: "○", color: "muted" };
       default:
         return { char: "○", color: "muted" };
     }

@@ -1,3 +1,5 @@
+import type { AgentViewerEntryStatus } from "../types";
+
 /**
  * Accumulated, derived progress state consumed by the TUI renderer.
  *
@@ -7,7 +9,10 @@
  */
 export interface AccumulatedState {
   /** Agent ID → current status, summary, and parse result. */
-  readonly agentMap: Map<string, { status: string; summary?: string; passed?: boolean }>;
+  readonly agentMap: Map<
+    string,
+    { status: AgentViewerEntryStatus; summary?: string; passed?: boolean }
+  >;
   /** Current iteration index (0-based). */
   iteration: number;
   /** Maximum number of loop iterations, or 0 if not a looped routine. */

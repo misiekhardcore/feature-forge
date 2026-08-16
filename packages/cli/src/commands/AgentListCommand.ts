@@ -1,11 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, logger } from "@feature-forge/shared";
-import { AgentViewerOverlay } from "@feature-forge/tui";
 
-import type { AgentSupervisor } from "../agents";
+import { type AgentSupervisor, showAgentViewer } from "../agents";
 import { TypedEventBus } from "../orchestrator/eventBus";
-import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { Command } from "./Command";
 
 /**
@@ -27,58 +24,15 @@ export class AgentListCommand extends Command {
     }
 
     if (ctx.hasUI) {
-      let overlayCleanup: (() => void) | undefined;
-      let viewerDismiss: (() => void) | undefined;
-      const streamDir = SharedStreamDir.get(ForgeConfig.getInstance().getLogDir());
-      await ctx.ui
-        .custom<void>(
-          (tui, theme, _kb, done) => {
-            viewerDismiss = done;
-
-            const typedBus = new TypedEventBus(this.pi.events);
-
-            const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-              eventBus: typedBus,
-              agentQuery: this.supervisor,
-              config: ForgeConfig.getInstance(),
-              toolRegistry,
-            });
-
-            const viewer = new AgentViewerOverlay({
-              tui,
-              theme,
-              onDone: () => {
-                unsubs.forEach((u) => u());
-                viewer.dispose();
-                done();
-              },
-              markdownTheme: getMarkdownTheme(),
-              cwd: ctx.cwd,
-              toolRegistry,
-              config: ForgeConfig.getInstance(),
-            });
-
-            void connect(viewer, streamDir);
-
-            overlayCleanup = () => {
-              unsubs.forEach((u) => u());
-              viewer.dispose();
-            };
-
-            return viewer;
-          },
-          {
-            overlay: true,
-            overlayOptions: AgentViewerOverlay.getOverlayOptions(),
-          },
-        )
-        .catch((err) => {
-          logger.debug("Agent viewer overlay creation failed", { err });
-        })
-        .finally(() => {
-          overlayCleanup?.();
-          viewerDismiss?.();
-        });
+      await showAgentViewer({
+        ctx,
+        config: ForgeConfig.getInstance(),
+        toolRegistry,
+        eventBus: new TypedEventBus(this.pi.events),
+        agentQuery: this.supervisor,
+      }).catch((err) => {
+        logger.debug("Agent viewer overlay creation failed", { err });
+      });
     }
   };
 }

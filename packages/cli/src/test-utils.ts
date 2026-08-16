@@ -88,6 +88,7 @@ export function makeSpec(
 // ---------------------------------------------------------------------------
 
 export class MockAgent extends SubprocessAgent {
+  public readonly kind = "subprocess" as const;
   public readonly specification: AgentSpecification;
   public status: AgentStatus = AgentStatus.Spawned;
   public lastPrompt: string = "";

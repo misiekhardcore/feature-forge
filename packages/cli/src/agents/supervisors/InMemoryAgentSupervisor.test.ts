@@ -71,21 +71,6 @@ describe("InMemoryAgentSupervisor", () => {
     });
   });
 
-  describe("destroyAll", () => {
-    it("destroys all agents and clears the map", async () => {
-      await supervisor.spawnGuest(makeSpec("a"));
-      await supervisor.spawnGuest(makeSpec("b"));
-      expect(supervisor.getAllAgents()).toHaveLength(2);
-      await supervisor.destroyAll();
-      expect(supervisor.getAllAgents()).toEqual([]);
-    });
-
-    it("handles empty map gracefully", async () => {
-      await supervisor.destroyAll();
-      expect(supervisor.getAllAgents()).toEqual([]);
-    });
-  });
-
   describe("runAgent", () => {
     it("full lifecycle removes agent after completion", async () => {
       const pi = makeMockPi();

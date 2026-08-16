@@ -78,6 +78,10 @@ describe("PiSubprocessAgent", () => {
     it("has correct id", () => {
       expect(agent.id).toBe("test-agent");
     });
+
+    it("identifies as the subprocess family", () => {
+      expect(agent.kind).toBe("subprocess");
+    });
   });
 
   describe("start", () => {
