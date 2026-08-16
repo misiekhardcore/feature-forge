@@ -72,8 +72,6 @@ or destroys agents is a **subprocess-agent surface**. In-session personas
   reaches destroy is guarded, so in-session personas are torn down only through
   their own path (flow exit).
 
-The original decision record below is left intact as history.
-
 ## Amendment 2026-08-16 — flow execution model: every flow is orchestrator-driven
 
 The flow-execution model is pinned: **every flow is driven by an in-session
@@ -111,6 +109,8 @@ deleted, and the flow schema enforces the model.
   `FlowContext.resolvePlaceholder` leaves the literal `{{changes}}` token in
   the verify prompt. The task string feeds the agent instead of `builder.raw`,
   preserving #207's decoupling intent: verify sees only the task string.
+
+The original decision record below is left intact as history.
 
 ## Amendment 2026-08-03 — remove the `InSessionAgent` intermediate
 
