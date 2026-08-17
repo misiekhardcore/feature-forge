@@ -198,7 +198,43 @@ describe("AgentViewerState", () => {
       expect(entry.finishedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
     });
 
-    it("re-stamps finishedAt on a later terminal update instead of preserving a stale stamp", () => {
+    it("re-stamps finishedAt for error across a new run of the same agent id", () => {
+      vi.useFakeTimers();
+      try {
+        // Iteration 1: "build" errors at 00:05.
+        vi.setSystemTime(new Date("2026-01-01T00:05:00Z"));
+        state.update({
+          id: "build",
+          status: "error",
+          errorMessage: "Agent failed",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+        });
+        expect(state.getAgentEntry("build")!.finishedAt!.getTime()).toBe(
+          new Date("2026-01-01T00:05:00Z").getTime(),
+        );
+
+        // Iteration 2: the new run's started clears the stale stamp.
+        vi.setSystemTime(new Date("2026-01-01T00:10:00Z"));
+        state.update({ id: "build", status: "started", createdAt: new Date() });
+        expect(state.getAgentEntry("build")!.finishedAt).toBeUndefined();
+
+        // The new run's error re-stamps fresh — no freeze, no negative elapsed.
+        state.update({
+          id: "build",
+          status: "error",
+          errorMessage: "Agent failed again",
+        } as AgentViewerEntry);
+        const reErrored = state.getAgentEntry("build")!;
+        expect(reErrored.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:10:00Z").getTime());
+        expect(
+          reErrored.finishedAt!.getTime() - reErrored.createdAt.getTime(),
+        ).toBeGreaterThanOrEqual(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("preserves finishedAt on a terminal re-delivery with a changed createdAt (restart path)", () => {
       vi.useFakeTimers();
       try {
         // Run 1 completes at 00:05.
@@ -214,20 +250,27 @@ describe("AgentViewerState", () => {
           new Date("2026-01-01T00:05:00Z").getTime(),
         );
 
-        // Run 2 of the same agent id starts later — the previous iteration's
-        // stamp must not be preserved.
-        vi.setSystemTime(new Date("2026-01-02T00:00:00Z"));
+        // After a restart, prepopulate seeds the stale entry from the stream
+        // file (birthtime createdAt, mtime finishedAt) and connect() then
+        // re-delivers done with the run-record createdAt — close to, but not
+        // identical to, the seeded one. A changed createdAt alone must NOT
+        // trigger a re-stamp: the existing stamp is the real finish time and
+        // re-stamping would inflate elapsed by the whole downtime.
+        vi.setSystemTime(new Date("2026-01-01T03:00:00Z"));
         state.update({
           id: "builder",
           status: "done",
           passed: true,
           summary: "ok",
-          createdAt: new Date("2026-01-02T00:00:00Z"),
+          createdAt: new Date("2026-01-01T00:00:00.005Z"),
         });
         const entry = state.getAgentEntry("builder")!;
         expect(entry.status).toBe("done");
-        expect(entry.finishedAt).toBeInstanceOf(Date);
-        expect(entry.finishedAt!.getTime()).toBe(new Date("2026-01-02T00:00:00Z").getTime());
+        expect(entry.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00Z").getTime());
+        // Elapsed stays at the real run duration, not the reopen time.
+        expect(entry.finishedAt!.getTime() - entry.createdAt.getTime()).toBeLessThan(
+          10 * 60 * 1000,
+        );
       } finally {
         vi.useRealTimers();
       }
@@ -609,6 +652,40 @@ describe("AgentViewerState", () => {
       expect(entry.status).toBe("done");
       expect(entry.finishedAt).toBeInstanceOf(Date);
       expect(entry.finishedAt!.getTime()).toBe(past.getTime());
+    });
+
+    it("prepopulateStreamFiles mtime seed survives connect-style terminal re-delivery", async () => {
+      // After prepopulate, AgentViewerOverlay.connect() re-delivers done for
+      // every still-Completed agent with the run-record createdAt — close to,
+      // but not identical to, the birthtime-seeded createdAt. The mtime seed
+      // must survive that re-delivery: it is the real finish time, and a
+      // re-stamp would inflate elapsed by the whole downtime.
+      const streamPath = join(tmpDir, "old-agent.stream");
+      writeFileSync(streamPath, "old line\n", "utf-8");
+      utimesSync(streamPath, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:05:00Z"));
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const seeded = state.getAgentEntry("old-agent")!;
+      expect(seeded.status).toBe("done");
+      expect(seeded.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00Z").getTime());
+
+      // connect() re-delivery: same run, run-record createdAt (ms-level
+      // difference from the seed), no finishedAt.
+      state.update({
+        id: "old-agent",
+        status: "done",
+        passed: false,
+        summary: "Agent completed",
+        createdAt: new Date("2026-01-01T00:00:00.005Z"),
+      });
+
+      const redelivered = state.getAgentEntry("old-agent")!;
+      expect(redelivered.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00Z").getTime());
+      // Elapsed = mtime - run-record createdAt ≈ the real run duration.
+      expect(redelivered.finishedAt!.getTime() - redelivered.createdAt.getTime()).toBeLessThan(
+        10 * 60 * 1000,
+      );
     });
 
     it("loadConversationEvents reads from disk when in-memory buffer is insufficient", async () => {

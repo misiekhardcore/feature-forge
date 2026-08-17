@@ -177,30 +177,16 @@ export class AgentViewerState {
     };
 
     // Timestamp lifecycle: terminal entries (done/error) always carry a
-    // finishedAt. A caller-provided stamp wins (e.g. prepopulateStreamFiles
-    // mtime seeding); a same-run re-delivery (unchanged createdAt — e.g. the
-    // overlay re-sending done for a still-Completed agent on reopen)
-    // preserves the previously stamped value so elapsed stays at the real
-    // run duration; a new run of the same agent id (changed createdAt) gets
-    // a fresh stamp so elapsed counts from the new createdAt instead of a
-    // stale previous stamp. Non-terminal entries (started/running/cancelled)
-    // clear it so a restarted agent never inherits a stale stamp (which
-    // would render negative or frozen elapsed time).
+    // finishedAt — a caller-provided stamp wins (e.g. prepopulateStreamFiles
+    // mtime seeding) and an existing stamp is preserved (same-run
+    // re-delivery: overlay reopen, restart redelivery after prepopulate,
+    // duplicate terminal events), otherwise a fresh stamp is written (first
+    // terminal transition or a new run whose started/running cleared it).
+    // Non-terminal entries (started/running/cancelled) clear the stamp so
+    // loop iterations that re-run the same agent id never inherit a stale
+    // one (which would render negative or frozen elapsed time).
     if (merged.status === "done" || merged.status === "error") {
-      if (entry.finishedAt) {
-        merged.finishedAt = entry.finishedAt;
-      } else if (
-        existing &&
-        entry.createdAt &&
-        entry.createdAt.getTime() !== existing.createdAt.getTime()
-      ) {
-        // New run: stamp fresh so the elapsed window is this run's.
-        merged.finishedAt = new Date();
-      } else {
-        // Same-run re-delivery: preserve the existing stamp when present,
-        // otherwise stamp now (first terminal transition).
-        merged.finishedAt = existing?.finishedAt ?? new Date();
-      }
+      merged.finishedAt = entry.finishedAt ?? existing?.finishedAt ?? new Date();
     } else {
       delete merged.finishedAt;
     }
