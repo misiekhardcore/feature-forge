@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -521,6 +529,23 @@ describe("AgentViewerState", () => {
       // Messages should have been loaded from disk.
       const messages = state.getConversationMessages("stale-agent");
       expect(messages.length).toBe(1);
+    });
+
+    it("prepopulateStreamFiles preserves mtime-based finishedAt seeding", async () => {
+      // A .stream file from a prior session carries its mtime as the
+      // finishedAt hint; update() must preserve an explicit finishedAt on
+      // terminal entries instead of overwriting it with a fresh stamp.
+      const past = new Date("2026-01-01T00:00:00Z");
+      const streamPath = join(tmpDir, "old-agent.stream");
+      writeFileSync(streamPath, "old line\n", "utf-8");
+      utimesSync(streamPath, past, past);
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("old-agent")!;
+      expect(entry.status).toBe("done");
+      expect(entry.finishedAt).toBeInstanceOf(Date);
+      expect(entry.finishedAt!.getTime()).toBe(past.getTime());
     });
 
     it("loadConversationEvents reads from disk when in-memory buffer is insufficient", async () => {
