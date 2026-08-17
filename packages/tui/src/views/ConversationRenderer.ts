@@ -26,6 +26,15 @@ export interface ConversationRendererParams {
   cwd: string;
   /** Registry for resolving tool definitions to restore argument formatting. */
   toolRegistry: ToolFormatter;
+  /**
+   * Returns whether thinking blocks should be collapsed — rendered as the
+   * "Thinking..." label instead of the full reasoning text.
+   *
+   * Re-read on every {@link render} call (pi exposes no settings-change
+   * event) so the Ctrl+T toggle takes effect on the next re-render. When
+   * omitted, thinking blocks stay visible.
+   */
+  getHideThinkingBlock?: () => boolean;
 }
 
 /**
@@ -43,8 +52,9 @@ export interface ConversationRendererParams {
  *   to display results inline
  *
  * Each {@link render} call is stateless — the class holds only its
- * injected dependencies (theme, markdownTheme, tui, cwd, toolRegistry) and produces output
- * purely from the given message list.
+ * injected dependencies (theme, markdownTheme, tui, cwd, toolRegistry,
+ * getHideThinkingBlock) and produces output purely from the given message
+ * list.
  */
 export class ConversationRenderer {
   private readonly theme: Theme;
@@ -52,6 +62,7 @@ export class ConversationRenderer {
   private readonly tui: TUI;
   private readonly cwd: string;
   private readonly toolRegistry: ToolFormatter;
+  private readonly getHideThinkingBlock?: () => boolean;
 
   constructor(params: ConversationRendererParams) {
     this.theme = params.theme;
@@ -59,6 +70,7 @@ export class ConversationRenderer {
     this.tui = params.tui;
     this.cwd = params.cwd;
     this.toolRegistry = params.toolRegistry;
+    this.getHideThinkingBlock = params.getHideThinkingBlock;
   }
 
   /**
@@ -91,6 +103,9 @@ export class ConversationRenderer {
   render(messages: AgentMessage[], width: number): string[] {
     const container = new Container();
     const pendingTools = new Map<string, ToolExecutionComponent>();
+    // Re-read on every render — pi exposes no settings-change event, so the
+    // Ctrl+T toggle lands on the next re-render.
+    const hideThinkingBlock = this.getHideThinkingBlock?.() ?? false;
 
     for (const message of messages) {
       if (message.role === "user") {
@@ -101,7 +116,11 @@ export class ConversationRenderer {
         if (!message.content || (Array.isArray(message.content) && message.content.length === 0)) {
           continue;
         }
-        const component = new AssistantMessageComponent(message, false, this.markdownTheme);
+        const component = new AssistantMessageComponent(
+          message,
+          hideThinkingBlock,
+          this.markdownTheme,
+        );
 
         if (container.children.length > 0) {
           // Add a spacer only when the previous child is not already an assistant
