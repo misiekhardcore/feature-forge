@@ -25,6 +25,7 @@ const mockConfig = {
   getDisplayMaxAgentEvents: () => 200,
   getDisplayMaxPreconnectBuffer: () => 100,
   getDisplayMaxOverlayHeight: () => "85%",
+  getHideThinkingBlock: () => false,
 };
 
 // ── Helpers ──────────────────────────────────────────────────

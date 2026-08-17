@@ -31,10 +31,9 @@ export interface ConversationRendererParams {
    * "Thinking..." label instead of the full reasoning text.
    *
    * Re-read on every {@link render} call (pi exposes no settings-change
-   * event) so the Ctrl+T toggle takes effect on the next re-render. When
-   * omitted, thinking blocks stay visible.
+   * event) so the Ctrl+T toggle takes effect on the next re-render.
    */
-  getHideThinkingBlock?: () => boolean;
+  getHideThinkingBlock: () => boolean;
 }
 
 /**
@@ -62,7 +61,7 @@ export class ConversationRenderer {
   private readonly tui: TUI;
   private readonly cwd: string;
   private readonly toolRegistry: ToolFormatter;
-  private readonly getHideThinkingBlock?: () => boolean;
+  private readonly getHideThinkingBlock: () => boolean;
 
   constructor(params: ConversationRendererParams) {
     this.theme = params.theme;
@@ -105,7 +104,7 @@ export class ConversationRenderer {
     const pendingTools = new Map<string, ToolExecutionComponent>();
     // Re-read on every render — pi exposes no settings-change event, so the
     // Ctrl+T toggle lands on the next re-render.
-    const hideThinkingBlock = this.getHideThinkingBlock?.() ?? false;
+    const hideThinkingBlock = this.getHideThinkingBlock();
 
     for (const message of messages) {
       if (message.role === "user") {

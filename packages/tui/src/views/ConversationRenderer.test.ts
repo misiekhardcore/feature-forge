@@ -160,13 +160,15 @@ describe("ConversationRenderer", () => {
       expect(joined).toContain("assistant response");
     });
 
-    it("keeps thinking visible when no getter is provided", () => {
+    it("keeps thinking visible when getHideThinkingBlock returns false (default)", () => {
+      const getHideThinkingBlock = vi.fn(() => false);
       const renderer = new ConversationRenderer({
         theme: makeTheme(),
         markdownTheme: makeMarkdownTheme(),
         tui: makeTui(),
         cwd: "/test/cwd",
         toolRegistry: makeMockToolFormatter(),
+        getHideThinkingBlock,
       });
       const messages = [
         makeAssistantMessageWithThinking("internal reasoning trace", "final answer"),
@@ -174,6 +176,9 @@ describe("ConversationRenderer", () => {
       const result = renderer.render(messages, 80);
       expect(result.length).not.toBe(0);
       const joined = result.join(" ");
+      // The required getter is consulted on every render; its default value
+      // (false, matching ForgeConfig) keeps the reasoning text visible.
+      expect(getHideThinkingBlock).toHaveBeenCalled();
       expect(joined).toContain("internal reasoning trace");
     });
 

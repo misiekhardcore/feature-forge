@@ -15,6 +15,7 @@ const config = {
   getDisplayMaxAgentEvents: () => 200,
   getDisplayMaxPreconnectBuffer: () => 100,
   getDisplayMaxOverlayHeight: () => "85%",
+  getHideThinkingBlock: () => false,
 } as unknown as ForgeConfig;
 
 const STREAM_DIR = "/tmp/forge-test-streams";

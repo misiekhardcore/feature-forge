@@ -69,10 +69,9 @@ export interface DisplayConfig {
    * label instead of rendering the full reasoning text.
    *
    * Re-read on every render — pi exposes no settings-change event, so the
-   * Ctrl+T toggle takes effect on the next re-render. Optional while the
-   * toggle is not wired up: consumers may omit it (thinking stays visible).
+   * Ctrl+T toggle takes effect on the next re-render.
    */
-  getHideThinkingBlock?(): boolean;
+  getHideThinkingBlock(): boolean;
 }
 
 /** Tool lookup — satisfied by ToolRegistry (extends Registry<Tool>). */
