@@ -57,10 +57,11 @@ npm run test:e2e
 npm -w @feature-forge/cli run test:e2e
 ```
 
-(The package script changes into the repo root before invoking vitest because
-vitest resolves inline project `root` paths against the working directory
-(vitest-dev/vitest#6855), and npm runs lifecycle scripts with the package
-as cwd.)
+(npm runs lifecycle scripts with the package as cwd, and vitest resolves
+inline project `root` paths against the working directory
+(vitest-dev/vitest#6855). The package script passes `--root ../..` to point
+vitest at the repository root config, and the config anchors its project
+roots at the config file location, so discovery works from any cwd.)
 
 ## Conventions
 
