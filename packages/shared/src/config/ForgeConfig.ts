@@ -11,6 +11,7 @@
  * ```
  */
 
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -297,6 +298,64 @@ export class ForgeConfig {
    */
   getDevEnabled(): boolean {
     return this.getDevConfig().enabled ?? DEFAULT_FORGE_CONFIG.dev.enabled!;
+  }
+
+  /**
+   * Return whether pi's thinking blocks should be collapsed to the
+   * "Thinking..." label in the agent overlay.
+   *
+   * Reads pi's settings.json files fresh on every call — pi exposes no
+   * settings-change event, so the Ctrl+T toggle takes effect on the next
+   * read. Resolution mirrors pi's `SettingsManager`: the global settings
+   * file (agent dir from `$PI_CODING_AGENT_DIR`, tilde-expanded, else
+   * `~/.pi/agent`) is merged with the project settings file
+   * (`<cwd>/.pi/settings.json`), the project value winning. Missing or
+   * malformed files are ignored.
+   *
+   * Defaults to `false` when unset.
+   */
+  getHideThinkingBlock(): boolean {
+    const globalSettings = ForgeConfig.readPiSettings(
+      path.join(ForgeConfig.getPiAgentDir(), "settings.json"),
+    );
+    const projectSettings = ForgeConfig.readPiSettings(
+      path.join(ForgeConfig.cwd ?? process.cwd(), ".pi", "settings.json"),
+    );
+    const hideThinkingBlock = projectSettings.hideThinkingBlock ?? globalSettings.hideThinkingBlock;
+    return typeof hideThinkingBlock === "boolean" ? hideThinkingBlock : false;
+  }
+
+  // ── Pi settings helpers ────────────────────────────────────────────
+
+  /**
+   * Resolve pi's agent config directory, mirroring pi's `getAgentDir()`:
+   * `$PI_CODING_AGENT_DIR` when set (tilde-expanded), else `~/.pi/agent`.
+   */
+  private static getPiAgentDir(): string {
+    const envDir = process.env.PI_CODING_AGENT_DIR;
+    if (envDir) {
+      if (envDir === "~") return os.homedir();
+      if (envDir.startsWith("~/")) return path.join(os.homedir(), envDir.slice(2));
+      return envDir;
+    }
+    return path.join(os.homedir(), ".pi", "agent");
+  }
+
+  /**
+   * Read a pi settings.json file, tolerating missing or malformed files
+   * (both treated as empty). Non-object JSON shapes are ignored too.
+   */
+  private static readPiSettings(settingsPath: string): Record<string, unknown> {
+    try {
+      const raw = fs.readFileSync(settingsPath, "utf8");
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return {};
+      }
+      return parsed as Record<string, unknown>;
+    } catch {
+      return {};
+    }
   }
 
   /**

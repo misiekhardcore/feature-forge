@@ -572,6 +572,155 @@ describe("ForgeConfig", () => {
     });
   });
 
+  describe("getHideThinkingBlock", () => {
+    /** Isolated fake home so tests never touch the real ~/.pi/agent. */
+    let fakeHome: string;
+
+    beforeEach(() => {
+      fakeHome = join(tempDir, "home");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("returns false when no pi settings files exist", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("returns true when the global settings file hides thinking blocks", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("resolves the global settings dir from PI_CODING_AGENT_DIR", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", join(fakeHome, "custom-agent"));
+      await fs.mkdir(join(fakeHome, "custom-agent"), { recursive: true });
+      await fs.writeFile(
+        join(fakeHome, "custom-agent", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("tilde-expands PI_CODING_AGENT_DIR", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "~/custom-agent");
+      await fs.mkdir(join(fakeHome, "custom-agent"), { recursive: true });
+      await fs.writeFile(
+        join(fakeHome, "custom-agent", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("returns true when the project settings file hides thinking blocks", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".pi", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("prefers the project settings value over the global one", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".pi", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: false }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("falls back to the global value when the project file is missing", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("tolerates malformed settings files", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(join(globalDir, "settings.json"), "{ not valid json");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(join(tempDir, ".pi", "settings.json"), "{ not valid json");
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("tolerates non-boolean hideThinkingBlock values", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".pi", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: "yes" }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("re-reads settings fresh on every call", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      const settingsPath = join(globalDir, "settings.json");
+      await fs.writeFile(settingsPath, JSON.stringify({ hideThinkingBlock: true }));
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+
+      // Toggle on disk — the next call must observe it (no caching).
+      await fs.writeFile(settingsPath, JSON.stringify({ hideThinkingBlock: false }));
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+  });
+
   describe("static instance getter", () => {
     it("returns the singleton instance when initialized", async () => {
       await fs.writeFile(
