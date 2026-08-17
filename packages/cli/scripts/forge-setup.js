@@ -368,8 +368,10 @@ if (!noConfig) {
 // Runtime directories always go under the project's .forge/
 createDirs();
 
-// Gitignore entries: ignore the runtime dirs (logs, worktree registry,
-// nested git worktrees) so `git add .` doesn't stage them as gitlinks.
+// Gitignore entries: ignore only runtime artifacts (nested git worktrees,
+// the worktree registry, logs) so `git add .` doesn't stage them as
+// gitlinks; everything else under .forge/ (config, agents, flows, skills)
+// stays tracked.
 if (!noGitignore) {
   appendGitignore();
 }
