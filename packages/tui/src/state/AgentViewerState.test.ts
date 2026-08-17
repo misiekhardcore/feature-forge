@@ -163,10 +163,26 @@ describe("AgentViewerState", () => {
     });
 
     it("clears finishedAt for cancelled entries", () => {
-      state.update({ id: "builder", status: "started", createdAt: new Date() });
-      state.update({ id: "builder", status: "cancelled", createdAt: new Date() });
-      const entry = state.getAgentEntry("builder")!;
-      expect(entry.finishedAt).toBeUndefined();
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date("2026-01-01T00:05:00Z"));
+        state.update({
+          id: "builder",
+          status: "done",
+          passed: true,
+          summary: "ok",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+        });
+        // Terminal done stamped a finishedAt; cancelled must clear a prior
+        // stamp, not merely fail to add one.
+        expect(state.getAgentEntry("builder")!.finishedAt).toBeInstanceOf(Date);
+
+        state.update({ id: "builder", status: "cancelled", createdAt: new Date() });
+        const entry = state.getAgentEntry("builder")!;
+        expect(entry.finishedAt).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("stamps finishedAt for error entries (terminal status)", () => {
@@ -183,25 +199,72 @@ describe("AgentViewerState", () => {
     });
 
     it("re-stamps finishedAt on a later terminal update instead of preserving a stale stamp", () => {
-      const finished = new Date("2026-01-01T00:05:00Z");
-      state.update({
-        id: "builder",
-        status: "cancelled",
-        createdAt: new Date("2026-01-01T00:00:00Z"),
-        finishedAt: finished,
-      });
-      state.update({
-        id: "builder",
-        status: "done",
-        passed: true,
-        summary: "ok",
-        createdAt: new Date("2026-01-02T00:00:00Z"),
-      });
-      const entry = state.getAgentEntry("builder")!;
-      expect(entry.status).toBe("done");
-      expect(entry.finishedAt).toBeInstanceOf(Date);
-      // Fresh stamp (real now) beats the preserved 2026-01-01 stamp.
-      expect(entry.finishedAt!.getTime()).toBeGreaterThan(finished.getTime());
+      vi.useFakeTimers();
+      try {
+        // Run 1 completes at 00:05.
+        vi.setSystemTime(new Date("2026-01-01T00:05:00Z"));
+        state.update({
+          id: "builder",
+          status: "done",
+          passed: true,
+          summary: "ok",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+        });
+        expect(state.getAgentEntry("builder")!.finishedAt!.getTime()).toBe(
+          new Date("2026-01-01T00:05:00Z").getTime(),
+        );
+
+        // Run 2 of the same agent id starts later — the previous iteration's
+        // stamp must not be preserved.
+        vi.setSystemTime(new Date("2026-01-02T00:00:00Z"));
+        state.update({
+          id: "builder",
+          status: "done",
+          passed: true,
+          summary: "ok",
+          createdAt: new Date("2026-01-02T00:00:00Z"),
+        });
+        const entry = state.getAgentEntry("builder")!;
+        expect(entry.status).toBe("done");
+        expect(entry.finishedAt).toBeInstanceOf(Date);
+        expect(entry.finishedAt!.getTime()).toBe(new Date("2026-01-02T00:00:00Z").getTime());
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("preserves existing finishedAt on same-run terminal re-delivery (overlay reopen)", () => {
+      vi.useFakeTimers();
+      try {
+        const createdAt = new Date("2026-01-01T00:00:00Z");
+        vi.setSystemTime(new Date("2026-01-01T00:05:00Z"));
+        state.update({
+          id: "build",
+          status: "done",
+          passed: true,
+          summary: "ok",
+          createdAt,
+        });
+        const runFinishedAt = state.getAgentEntry("build")!.finishedAt!;
+        expect(runFinishedAt.getTime()).toBe(new Date("2026-01-01T00:05:00Z").getTime());
+
+        // The overlay re-delivers done for still-Completed agents on every
+        // reopen with the same agent.createdAt and no finishedAt. The stamp
+        // must be preserved — elapsed stays at the real run duration instead
+        // of inflating to reopen-time.
+        vi.setSystemTime(new Date("2026-01-01T03:00:00Z"));
+        state.update({
+          id: "build",
+          status: "done",
+          passed: true,
+          summary: "ok",
+          createdAt,
+        });
+        const redelivered = state.getAgentEntry("build")!;
+        expect(redelivered.finishedAt!.getTime()).toBe(runFinishedAt.getTime());
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("clears finishedAt across loop iterations that re-run the same agent id", () => {
