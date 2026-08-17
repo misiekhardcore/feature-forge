@@ -632,6 +632,19 @@ describe("ForgeConfig", () => {
       expect(instance.getHideThinkingBlock()).toBe(true);
     });
 
+    it("treats a bare tilde PI_CODING_AGENT_DIR as the home dir", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "~");
+      await fs.mkdir(fakeHome, { recursive: true });
+      await fs.writeFile(
+        join(fakeHome, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
     it("returns true when the project settings file hides thinking blocks", async () => {
       vi.stubEnv("HOME", fakeHome);
       vi.stubEnv("PI_CODING_AGENT_DIR", "");
@@ -699,6 +712,16 @@ describe("ForgeConfig", () => {
         join(tempDir, ".pi", "settings.json"),
         JSON.stringify({ hideThinkingBlock: "yes" }),
       );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("tolerates non-object settings files", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(join(tempDir, ".pi", "settings.json"), "[1, 2, 3]");
 
       const instance = await ForgeConfig.create({ cwd: tempDir });
       expect(instance.getHideThinkingBlock()).toBe(false);
