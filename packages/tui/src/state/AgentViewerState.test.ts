@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentViewerEntry } from "../types";
 import { AgentViewerState, MAX_EVENTS_FILE_LINES } from "./AgentViewerState";
@@ -154,15 +154,27 @@ describe("AgentViewerState", () => {
       expect(state.getAgentEntry("builder")!.createdAt).toBe(newer);
     });
 
-    it("stamps finishedAt for cancelled entries (terminal status)", () => {
-      const before = new Date();
+    it("clears finishedAt for cancelled entries", () => {
+      state.update({ id: "builder", status: "started", createdAt: new Date() });
       state.update({ id: "builder", status: "cancelled", createdAt: new Date() });
+      const entry = state.getAgentEntry("builder")!;
+      expect(entry.finishedAt).toBeUndefined();
+    });
+
+    it("stamps finishedAt for error entries (terminal status)", () => {
+      const before = new Date();
+      state.update({
+        id: "builder",
+        status: "error",
+        errorMessage: "Agent failed",
+        createdAt: new Date(),
+      });
       const entry = state.getAgentEntry("builder")!;
       expect(entry.finishedAt).toBeInstanceOf(Date);
       expect(entry.finishedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
     });
 
-    it("preserves an existing finishedAt when a later update omits it", () => {
+    it("re-stamps finishedAt on a later terminal update instead of preserving a stale stamp", () => {
       const finished = new Date("2026-01-01T00:05:00Z");
       state.update({
         id: "builder",
@@ -179,7 +191,51 @@ describe("AgentViewerState", () => {
       });
       const entry = state.getAgentEntry("builder")!;
       expect(entry.status).toBe("done");
-      expect(entry.finishedAt).toBe(finished);
+      expect(entry.finishedAt).toBeInstanceOf(Date);
+      // Fresh stamp (real now) beats the preserved 2026-01-01 stamp.
+      expect(entry.finishedAt!.getTime()).toBeGreaterThan(finished.getTime());
+    });
+
+    it("clears finishedAt across loop iterations that re-run the same agent id", () => {
+      vi.useFakeTimers();
+      try {
+        // Iteration 1: "build" starts and completes.
+        vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+        state.update({ id: "build", status: "started", createdAt: new Date() });
+        state.update({
+          id: "build",
+          status: "done",
+          passed: true,
+          summary: "ok",
+        } as AgentViewerEntry);
+        const run1Finished = state.getAgentEntry("build")!.finishedAt!;
+        expect(run1Finished.getTime()).toBe(new Date("2026-01-01T00:00:00Z").getTime());
+
+        // Iteration 2 reuses the same agent id — the stale finishedAt must be
+        // cleared, otherwise elapsed (finishedAt - createdAt) would go
+        // negative since createdAt2 > finishedAt1.
+        vi.setSystemTime(new Date("2026-01-01T00:10:00Z"));
+        state.update({ id: "build", status: "started", createdAt: new Date() });
+        const reStarted = state.getAgentEntry("build")!;
+        expect(reStarted.status).toBe("started");
+        expect(reStarted.finishedAt).toBeUndefined();
+
+        // Completion re-stamps a fresh finishedAt instead of freezing the
+        // previous iteration's stamp.
+        state.update({
+          id: "build",
+          status: "done",
+          passed: true,
+          summary: "ok",
+        } as AgentViewerEntry);
+        const reDone = state.getAgentEntry("build")!;
+        expect(reDone.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:10:00Z").getTime());
+        // Elapsed is non-negative and the stamp is fresh, not frozen.
+        expect(reDone.finishedAt!.getTime() - reDone.createdAt.getTime()).toBeGreaterThanOrEqual(0);
+        expect(reDone.finishedAt!.getTime()).toBeGreaterThan(run1Finished.getTime());
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

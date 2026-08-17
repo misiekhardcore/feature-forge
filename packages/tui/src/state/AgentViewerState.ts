@@ -176,13 +176,20 @@ export class AgentViewerState {
       createdAt: entry.createdAt ?? existing?.createdAt ?? new Date(),
     };
 
-    // Stamp finishedAt for terminal statuses so elapsed displays correctly
-    // across overlay close/reopen cycles without pre-computing strings.
-    if (
-      !merged.finishedAt &&
-      (merged.status === "done" || merged.status === "error" || merged.status === "cancelled")
-    ) {
+    // Terminal statuses (done/error) always stamp a fresh finishedAt so
+    // elapsed displays correctly across overlay close/reopen cycles without
+    // pre-computing strings. Non-terminal statuses (started/running/cancelled)
+    // clear it so loop iterations that re-run the same agent id never inherit
+    // a stale stamp from a previous iteration (which would render negative or
+    // frozen elapsed time).
+    if (merged.status === "done" || merged.status === "error") {
       merged.finishedAt = new Date();
+    } else if (
+      merged.status === "started" ||
+      merged.status === "running" ||
+      merged.status === "cancelled"
+    ) {
+      merged.finishedAt = undefined;
     }
 
     this.agents.set(entry.id, merged);
