@@ -2,77 +2,27 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      version_bump:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
-  contents: write
+  contents: read
+  id-token: write
 
 jobs:
-  release:
+  publish-v030:
+    name: Publish v0.3.0 to npm (trusted publisher)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
+          registry-url: "https://registry.npmjs.org"
 
       - run: npm ci
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version
-        id: bump
-        run: |
-          npm version ${{ inputs.version_bump }} --no-git-tag-version
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          npm version "$NEW_VERSION" --workspaces --no-git-tag-version --allow-same-version
-          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Generate changelog
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --verbose --latest --tag v${{ steps.bump.outputs.new }}
-        env:
-          OUTPUT: CHANGELOG.md
-
-      - name: Commit and tag
-        run: |
-          git add package.json package-lock.json packages/*/package.json CHANGELOG.md
-          git commit -m "chore: release v${{ steps.bump.outputs.new }}"
-          git tag "v${{ steps.bump.outputs.new }}"
-          git push origin HEAD:main
-          git push origin "v${{ steps.bump.outputs.new }}"
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.bump.outputs.new }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
-
-      - name: Setup npm registry
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
       - name: Build
         run: npm run build
 
       - name: Publish to npm
-        run: npm publish --workspace @feature-forge/cli --access public
+        run: npm publish --workspace @feature-forge/cli --access public --provenance
