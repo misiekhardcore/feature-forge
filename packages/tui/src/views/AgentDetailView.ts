@@ -48,6 +48,7 @@ export class AgentDetailView {
   private readonly tui: TUI;
   private readonly markdownTheme: MarkdownTheme;
   private readonly cwd: string;
+  private readonly getHideThinkingBlock: () => boolean;
   private readonly conversationRenderer: ConversationRenderer;
   private readonly scrollableBox: ScrollableBox;
   private readonly borderedContainer: BorderedContainer;
@@ -63,6 +64,9 @@ export class AgentDetailView {
   /** Whether the conversation line count cache needs to be recomputed. */
   private conversationLinesDirty = true;
 
+  /** Value of getHideThinkingBlock() at the last conversation render. */
+  private cachedHideThinkingBlock = false;
+
   /** Heuristic: average lines rendered per message, tracked per-agent. */
   private avgLinesPerMessage = new Map<string, number>();
 
@@ -73,12 +77,20 @@ export class AgentDetailView {
     tui: TUI,
     cwd: string,
     toolRegistry: ToolFormatter,
+    /**
+     * Returns whether thinking blocks should be collapsed to the
+     * "Thinking..." label. Re-read on every render — pi exposes no
+     * settings-change event, so the Ctrl+T toggle takes effect on the next
+     * re-render.
+     */
+    getHideThinkingBlock: () => boolean,
   ) {
     this.state = state;
     this.theme = theme;
     this.markdownTheme = markdownTheme;
     this.tui = tui;
     this.cwd = cwd;
+    this.getHideThinkingBlock = getHideThinkingBlock;
 
     this.scrollableBox = new ScrollableBox(tui, 0.85, 4);
     this.borderedContainer = new BorderedContainer(theme, "Agent Detail", 1, "warning");
@@ -90,6 +102,7 @@ export class AgentDetailView {
       tui,
       cwd,
       toolRegistry,
+      getHideThinkingBlock,
     });
   }
 
@@ -165,11 +178,21 @@ export class AgentDetailView {
     const contentWidth = BorderedContainer.contentWidth(width);
     let conversationLines: string[];
 
-    if (this.conversationLinesDirty || width !== this.cachedConversationWidth) {
+    // Re-read on every render — pi exposes no settings-change event, so the
+    // Ctrl+T toggle lands on the next re-render. A flag flip invalidates the
+    // #154 conversation-line cache, which would otherwise serve stale output.
+    const hideThinkingBlock = this.getHideThinkingBlock();
+
+    if (
+      this.conversationLinesDirty ||
+      width !== this.cachedConversationWidth ||
+      hideThinkingBlock !== this.cachedHideThinkingBlock
+    ) {
       const messages = this.state.getConversationMessages(entry.id);
       conversationLines = this.conversationRenderer.render(messages, contentWidth);
       this.cachedConversationLines = conversationLines;
       this.cachedConversationWidth = width;
+      this.cachedHideThinkingBlock = hideThinkingBlock;
       this.conversationLinesDirty = false;
       this.avgLinesPerMessage.set(
         entry.id,

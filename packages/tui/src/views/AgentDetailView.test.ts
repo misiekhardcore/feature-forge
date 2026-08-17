@@ -87,6 +87,7 @@ describe("AgentDetailView", () => {
       tui,
       "/test/cwd",
       makeMockToolFormatter(),
+      () => false,
     );
   });
 
@@ -273,6 +274,7 @@ describe("AgentDetailView", () => {
         tuiNoRows,
         "/test/cwd",
         makeMockToolFormatter(),
+        () => false,
       );
 
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
@@ -443,6 +445,70 @@ describe("AgentDetailView", () => {
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe("hideThinkingBlock", () => {
+    function makeThinkingEvent(): AgentEvent {
+      return {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "internal reasoning trace" },
+            { type: "text", text: "final answer" },
+          ],
+        },
+      } as unknown as AgentEvent;
+    }
+
+    it("collapses thinking blocks when getHideThinkingBlock returns true", () => {
+      const hideThinking = true;
+      view = new AgentDetailView(
+        state,
+        theme,
+        markdownTheme,
+        tui,
+        "/test/cwd",
+        makeMockToolFormatter(),
+        () => hideThinking,
+      );
+      state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
+      state.pushStreamEvent("builder", makeThinkingEvent(), () => "line");
+      view.selectedAgentId = "builder";
+
+      const joined = view.render(100).join("\n");
+      expect(joined).toContain("Thinking...");
+      expect(joined).not.toContain("internal reasoning trace");
+      expect(joined).toContain("final answer");
+    });
+
+    it("invalidates the #154 conversation cache when the flag changes between renders", () => {
+      let hideThinking = false;
+      view = new AgentDetailView(
+        state,
+        theme,
+        markdownTheme,
+        tui,
+        "/test/cwd",
+        makeMockToolFormatter(),
+        () => hideThinking,
+      );
+      state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
+      state.pushStreamEvent("builder", makeThinkingEvent(), () => "line");
+      view.selectedAgentId = "builder";
+
+      // First render with thinking visible — populates the cache.
+      const first = view.render(100).join("\n");
+      expect(first).toContain("internal reasoning trace");
+      expect(first).not.toContain("Thinking...");
+
+      // Same width, same messages: the cache would serve stale lines if the
+      // flag flip did not invalidate it.
+      hideThinking = true;
+      const second = view.render(100).join("\n");
+      expect(second).toContain("Thinking...");
+      expect(second).not.toContain("internal reasoning trace");
     });
   });
 
