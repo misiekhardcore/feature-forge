@@ -87,10 +87,13 @@ let activeViewer: ActiveViewer | undefined;
  * on dispose, on creation errors, and in headless mocks, so the invocation
  * after dismissal opens a fresh instance.
  *
- * The singleton lives at module scope in this file — it is process-global.
- * The reuse contract therefore assumes every caller imports the same bundled
- * module instance (all forge callers do: `RoutineTool`, `AgentListCommand`,
- * and the dev test commands in `registerTestCommands`).
+ * The singleton lives at module scope in this file — it is process-global:
+ * at most one overlay is ever open per process, which fits pi's single TUI
+ * surface. If pi ever ran multiple session UIs in one process, this would
+ * need per-`ctx` scoping. The reuse contract also assumes every caller
+ * imports the same bundled module instance (all forge callers do:
+ * `RoutineTool`, `AgentListCommand`, and the dev test commands in
+ * `registerTestCommands`).
  *
  * The two resolution contracts differ. The opening call resolves once the
  * overlay is dismissed (or immediately in headless mocks whose `ui.custom`
