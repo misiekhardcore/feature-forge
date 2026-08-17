@@ -1,6 +1,6 @@
 {
   "name": "@feature-forge/monorepo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Pi extension for autonomous software engineering — structured discovery, ADR-driven design, and multi-agent implementation from idea to PR.",
   "type": "module",
