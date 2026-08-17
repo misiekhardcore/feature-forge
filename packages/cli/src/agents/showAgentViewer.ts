@@ -36,9 +36,20 @@ export interface ShowAgentViewerParams {
 
 /**
  * Handle returned by {@link showAgentViewer}.
+ *
+ * The handle is a point-in-time snapshot, not a live reference: `viewer`
+ * reflects the state at the moment of the call, so a caller that reused an
+ * already-open overlay observes the snapshot that existed at reuse time
+ * (see {@link showAgentViewer}).
  */
 export interface AgentViewerHandle {
-  /** The opened overlay component — undefined in headless mocks whose `ui.custom` resolves without opening one. */
+  /**
+   * The opened overlay component — `undefined` whenever the call could not
+   * (yet) expose one: for callers that reused while the overlay was still
+   * opening (the factory had not run), and in headless mocks whose
+   * `ui.custom` resolves without opening an overlay. The opening call's
+   * handle receives the viewer once the factory has constructed it.
+   */
   viewer?: AgentViewerOverlay;
   /**
    * Release event subscriptions, dispose the viewer, and dismiss the overlay.
@@ -76,11 +87,22 @@ let activeViewer: ActiveViewer | undefined;
  * on dispose, on creation errors, and in headless mocks, so the invocation
  * after dismissal opens a fresh instance.
  *
- * Resolves once the overlay is dismissed (or immediately in headless mocks
- * whose `ui.custom` never opens an overlay — in that case the wiring is
- * released before returning). The handle's {@link AgentViewerHandle.dispose}
- * is the single cleanup path — it is wired to the overlay's own `onDone` and
- * safe to call multiple times.
+ * The singleton lives at module scope in this file — it is process-global.
+ * The reuse contract therefore assumes every caller imports the same bundled
+ * module instance (all forge callers do: `RoutineTool`, `AgentListCommand`,
+ * and the dev test commands in `registerTestCommands`).
+ *
+ * The two resolution contracts differ. The opening call resolves once the
+ * overlay is dismissed (or immediately in headless mocks whose `ui.custom`
+ * never opens an overlay — in that case the wiring is released before
+ * returning). A reusing call resolves immediately with a point-in-time
+ * snapshot of the active viewer — it does not wait for dismissal — and its
+ * {@link AgentViewerHandle.viewer} is `undefined` if the overlay was still
+ * opening when the reuse landed (the factory had not run yet). Reusing
+ * callers must not treat `viewer` as guaranteed, nor await the promise as a
+ * dismissal signal. The handle's {@link AgentViewerHandle.dispose} is the
+ * single cleanup path — it is wired to the overlay's own `onDone` and safe
+ * to call multiple times.
  */
 export async function showAgentViewer(params: ShowAgentViewerParams): Promise<AgentViewerHandle> {
   const { ctx, config, toolRegistry, eventBus, agentQuery, streamDir, setup, onDismiss } = params;

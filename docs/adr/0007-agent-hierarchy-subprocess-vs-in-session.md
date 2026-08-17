@@ -31,6 +31,17 @@ or destroys agents is a **subprocess-agent surface**. In-session personas
   `registerTestLoopRoutine` receives a plain `createOverlay` constructor
   factory from `registerTestCommands` and drives the overlay instance itself
   (it owns its own `ctx.ui.custom` wiring, so there is nothing to hand off).
+  Only one overlay is ever open per process: a module-scope singleton entry
+  in `showAgentViewer.ts` (the contract assumes all callers import the same
+  bundled module instance — they do). A second invocation while an overlay is
+  open (or still opening) never calls `ctx.ui.custom` again; it refocuses the
+  existing overlay via its `OverlayHandle` and returns a point-in-time
+  snapshot of the active viewer under a no-op `dispose` — the opener keeps
+  lifecycle ownership, so a reusing caller's teardown (e.g. `RoutineTool`'s
+  `finally`) cannot close a viewer it did not open. Because the snapshot is
+  taken before the factory may have run, a reusing caller's `viewer` field
+  can be `undefined` and its promise resolves immediately rather than on
+  dismissal.
 - **Persona history is the pi session transcript.** An in-session persona's
   conversation is persisted by pi itself (session JSONL); forge never writes
   viewer stream files (`.stream`, `.events.jsonl`, `.messages.jsonl`) for it.
