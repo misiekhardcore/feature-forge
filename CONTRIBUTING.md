@@ -50,6 +50,16 @@ npm -w @feature-forge/cli run test
 npm -w @feature-forge/shared run lint
 ```
 
+E2E tests (`packages/cli/e2e`) run as the `cli-e2e` vitest project and must
+be invoked from the repo root:
+
+```bash
+npx vitest run --project cli-e2e
+```
+
+(`npm -w @feature-forge/cli run test:e2e` finds no test files because npm
+sets the cwd to the package, which breaks the root vitest project resolution.)
+
 ## Conventions
 
 - **TypeScript** with ES modules (`"type": "module"`)
