@@ -18,6 +18,7 @@
     "format:fix": "turbo run format:fix",
     "typecheck": "turbo run typecheck",
     "typecheck:watch": "turbo run typecheck:watch",
+    "test:e2e": "vitest run --project cli-e2e",
     "flow:generate-schema": "npm -w @feature-forge/cli run flow:generate-schema",
     "flow:validate": "npm -w @feature-forge/cli run flow:validate",
     "flow:validate-json": "npm -w @feature-forge/cli run flow:validate-json",

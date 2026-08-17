@@ -50,15 +50,17 @@ npm -w @feature-forge/cli run test
 npm -w @feature-forge/shared run lint
 ```
 
-E2E tests (`packages/cli/e2e`) run as the `cli-e2e` vitest project and must
-be invoked from the repo root:
+E2E tests (`packages/cli/e2e`) run as the `cli-e2e` vitest project:
 
 ```bash
-npx vitest run --project cli-e2e
+npm run test:e2e
+npm -w @feature-forge/cli run test:e2e
 ```
 
-(`npm -w @feature-forge/cli run test:e2e` finds no test files because npm
-sets the cwd to the package, which breaks the root vitest project resolution.)
+(The package script changes into the repo root before invoking vitest because
+vitest resolves inline project `root` paths against the working directory
+(vitest-dev/vitest#6855), and npm runs lifecycle scripts with the package
+as cwd.)
 
 ## Conventions
 
