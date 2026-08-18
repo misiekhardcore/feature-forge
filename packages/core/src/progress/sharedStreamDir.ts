@@ -1,4 +1,5 @@
 import {
+  Dirent,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -61,19 +62,44 @@ export class SharedStreamDir {
     const retentionDays = ForgeConfig.getInstance().getLogRetentionDays();
     if (retentionDays <= 0) return;
     const cutoff = Date.now() - retentionDays * 86_400_000;
-    for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
+    let pruned = 0;
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(baseDir, { withFileTypes: true });
+    } catch (err) {
+      logger.warn("Failed to list shared stream dirs during retention pruning", {
+        dir: baseDir,
+        error: String(err),
+      });
+      return;
+    }
+    for (const entry of entries) {
       if (!entry.isDirectory() || !entry.name.startsWith("agent-streams-")) continue;
       const dirPath = join(baseDir, entry.name);
       if (dirPath === SharedStreamDir.instance) continue;
-      if (statSync(dirPath).mtimeMs >= cutoff) continue;
+      let stale: boolean;
+      try {
+        stale = statSync(dirPath).mtimeMs < cutoff;
+      } catch (err) {
+        logger.warn("Failed to stat shared stream dir during retention pruning", {
+          dir: dirPath,
+          error: String(err),
+        });
+        continue;
+      }
+      if (!stale) continue;
       try {
         rmSync(dirPath, { recursive: true, force: true });
+        pruned++;
       } catch (err) {
         logger.warn("Failed to prune stale shared stream dir", {
           dir: dirPath,
           error: String(err),
         });
       }
+    }
+    if (pruned > 0) {
+      logger.info("Pruned stale shared stream dirs", { count: pruned });
     }
   }
 
@@ -87,11 +113,31 @@ export class SharedStreamDir {
     if (SharedStreamDir._swept) return;
     SharedStreamDir._swept = true;
     if (!existsSync(baseDir)) return;
-    for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(baseDir, { withFileTypes: true });
+    } catch (err) {
+      logger.warn("Failed to list shared stream dirs during sweep", {
+        dir: baseDir,
+        error: String(err),
+      });
+      return;
+    }
+    for (const entry of entries) {
       if (!entry.isDirectory() || !entry.name.startsWith("agent-streams-")) continue;
       const dirPath = join(baseDir, entry.name);
       if (dirPath === SharedStreamDir.instance) continue;
-      if (readdirSync(dirPath).length === 0) {
+      let isEmpty: boolean;
+      try {
+        isEmpty = readdirSync(dirPath).length === 0;
+      } catch (err) {
+        logger.warn("Failed to read shared stream dir during sweep", {
+          dir: dirPath,
+          error: String(err),
+        });
+        continue;
+      }
+      if (isEmpty) {
         try {
           rmdirSync(dirPath);
         } catch (err) {
