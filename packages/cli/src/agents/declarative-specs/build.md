@@ -33,7 +33,7 @@ hygiene, feedback handling) is in the loaded build skill.
 ```json
 {
   "passed": true,
-  "summary": "One line (max ~120 chars) describing what was built or attempted - no newlines, no markdown"
+  "summary": "Brief description of what was built or attempted"
 }
 ```
 
