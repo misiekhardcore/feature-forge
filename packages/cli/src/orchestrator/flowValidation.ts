@@ -20,6 +20,9 @@ import {
  *    unknown specs/providers.
  */
 export class FlowValidation {
+  /** Static utility class - not instantiable. */
+  private constructor() {}
+
   static validateStructure(value: unknown): asserts value is FlowDefinition {
     if (!Value.Check(FlowDefinitionSchema, value)) {
       const errors = [...Value.Errors(FlowDefinitionSchema, value)].map(
@@ -277,7 +280,9 @@ export class FlowValidation {
     ids: Set<string>,
   ): void {
     for (const instruction of instructions) {
-      if (flag in instruction && instruction[flag] === true) {
+      // Only agent instructions carry the parseJson flag; the type guard
+      // makes the indexed access verifiable against the instruction union.
+      if (instruction.type === "agent" && instruction[flag] === true) {
         ids.add(instruction.id);
       }
       if (isContainerInstruction(instruction)) {

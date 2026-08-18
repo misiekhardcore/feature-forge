@@ -40,7 +40,7 @@ function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition 
 
 // ── Structural validation ────────────────────────────────────
 
-describe("validateStructure", () => {
+describe("FlowValidation.validateStructure", () => {
   it("accepts a valid flow definition", () => {
     expect(() => FlowValidation.validateStructure(makeValidFlow())).not.toThrow();
   });
@@ -155,7 +155,7 @@ describe("validateStructure", () => {
 
 // ── Semantic validation ──────────────────────────────────────
 
-describe("validateSemantics", () => {
+describe("FlowValidation.validateSemantics", () => {
   it("returns no errors for a valid flow", () => {
     const errors = FlowValidation.validateSemantics(makeValidFlow());
     expect(errors).toEqual([]);

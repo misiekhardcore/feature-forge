@@ -29,6 +29,9 @@ interface SkillMetadata extends Record<string, unknown> {
  * `--skill <path>` flags to load only the required skills.
  */
 export class SkillResolver {
+  /** Static utility class - not instantiable. */
+  private constructor() {}
+
   /**
    * Candidate locations of the bundled default skills shipped with the CLI
    * package. The tsup build emits a single `dist/index.js`, so `import.meta.url`

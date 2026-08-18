@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { SkillResolver } from "./skill-resolver";
 
-describe("resolveEffectiveSkillNames", () => {
+describe("SkillResolver.resolveEffectiveSkillNames", () => {
   const allSkills = new Map([
     ["build", "/path/build/SKILL.md"],
     ["review", "/path/review/SKILL.md"],
@@ -97,7 +97,7 @@ describe("skill discovery", () => {
     expect(frontmatter.description).toBeDefined();
   });
 
-  it("discovers forge-build skill via discoverAllSkills when CWD has .forge/skills", () => {
+  it("discovers forge-build skill via SkillResolver.discoverAllSkills when CWD has .forge/skills", () => {
     const originalCwd = process.cwd();
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-test-"));
     try {
