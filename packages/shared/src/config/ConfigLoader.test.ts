@@ -142,7 +142,10 @@ describe("ConfigLoader", () => {
 
     it("throws InvalidConfigError when the file contains invalid YAML", async () => {
       const filePath = join(tempDir, "bad.yaml");
-      await fs.writeFile(filePath, "key: value\n  bad indent");
+      // Unclosed flow sequence - a genuine YAML syntax error. (A
+      // mis-indented plain scalar like "key: value\n  bad indent" is
+      // actually valid YAML: the second line continues the scalar.)
+      await fs.writeFile(filePath, "key: [1, 2");
 
       const loader = new ConfigLoader();
 
@@ -219,18 +222,18 @@ describe("ConfigLoader", () => {
       expect((error as InvalidConfigError).cause).toBeInstanceOf(Error);
     });
 
-    it("throws InvalidConfigError when required fields are missing", async () => {
-      const filePath = join(tempDir, "incomplete.json");
-      await fs.writeFile(
-        filePath,
-        JSON.stringify({
-          logLevel: "info",
-        }),
-      );
+    it("loads a minimal config, filling defaults for omitted fields", async () => {
+      const filePath = join(tempDir, "minimal.json");
+      await fs.writeFile(filePath, "{}");
 
       const loader = new ConfigLoader();
+      const config = await loader.loadFromFile(filePath);
 
-      await expect(loader.loadFromFile(filePath)).rejects.toThrow(InvalidConfigError);
+      expect(config.logLevel).toBe(LogLevel.INFO);
+      expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
+      expect(config.agents).toBeInstanceOf(Map);
+      expect(config.agents.size).toBe(0);
+      expect(config.defaultAgent).toEqual(DEFAULT_AGENT_CONFIG);
     });
 
     it("merges with defaults for omitted optional fields", async () => {

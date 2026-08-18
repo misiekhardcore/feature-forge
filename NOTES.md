@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 8 done. Next: subtask 9 (Schema + shared test script D, 3.17#27/#28).
+Subtask 9 done. Next: subtask 10 (Magic numbers, 3.17#12).
 
 ## Next action on resume
-Run build loop for subtask 8 (Progress/e2e C).
+Run build loop for subtask 10 (Magic numbers: shell 120s, git 60s, maxBuffer 10MB, preconnect 2000 → ForgeConfigDefaults / named constants).
 
 ## AC checklist
 
@@ -38,8 +38,8 @@ Run build loop for subtask 8 (Progress/e2e C).
 | 21 | 3.17#5: TOOL_PRESETS readOnly/reviewOnly deduped (alias) | [x] |
 | 22 | 3.17#24: sharedStreamDir pruning extracted into one pruneByRetention() | [x] |
 | 23 | 3.17#25: e2e helper socket setTimeout cleared on resolve; PROJECT_ROOT via fileURLToPath | [x] |
-| 24 | 3.17#27: ForgeConfigSchema logLevel/workspaceProvider/agents/defaultAgent → Type.Optional (defaults supplied) | [ ] |
-| 25 | 3.17#28: packages/shared `npm run test` works (package-local vitest config) | [ ] |
+| 24 | 3.17#27: ForgeConfigSchema logLevel/workspaceProvider/agents/defaultAgent → Type.Optional (defaults supplied) | [x] |
+| 25 | 3.17#28: packages/shared `npm run test` works (package-local vitest config) | [x] |
 | 26 | 3.17#12: magic numbers → named constants (shell 120s, git 60s, maxBuffer 10MB, preconnect 2000) | [ ] |
 | 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [ ] |
 | 28 | 3.17#14: packages/web placeholder deleted | [ ] |
@@ -76,6 +76,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Subtask 9 (Schema + shared test script D, 3.17#27/#28) done — ForgeConfigSchema `logLevel`/`workspaceProvider`/`agents`/`defaultAgent` are now `Type.Optional` (defaults already supplied by `resolveConfig`/`DEFAULT_FORGE_CONFIG`); the derived `ForgeConfig` type re-declares the four as required (added to the `Omit` + intersection) since resolution always fills them — zero ripple into consumers (`ForgeConfig.getLogLevel()` keeps its plain `LogLevel` return). Field JSDoc now states defaults. Tests: 5 new schema acceptance cases (per-field omission + empty `{}` object) replace the two "rejects missing" cases; ConfigLoader test flipped from "throws InvalidConfigError when required fields are missing" to "loads a minimal config, filling defaults" (`{}` → INFO/git-worktree/empty Map/DEFAULT_AGENT_CONFIG). Bonus: the old "invalid YAML" test input `key: value\n  bad indent` is actually VALID YAML (plain scalar continuation — it only failed via missing-required-fields before); replaced with an unclosed flow sequence `key: [1, 2` (verified to throw in the yaml package). AC #28: new `packages/shared/vitest.config.ts` (root anchored at config file, setupFiles/globals/include mirroring the root config's shared project) — `npm run test` in packages/shared now runs only its 15 files/355 tests (~1.3s) instead of find-up'ing the root config and running the whole 121-file workspace; root `npm run test` still runs all projects (nearest-config-wins verified in vitest's `any(configFiles, { cwd: root })` walk-up). eslint: `vitest.config.ts` ignored in packages/shared/eslint.config.js (cli's `tsup.config.ts` precedent — root-level config files are outside the src-only tsconfig project). Verified: full suite 121 files/2353 tests green (+3 net tests), coverage unchanged 96.59% lines 96.98%. Commit: `refactor: schema defaults via Type.Optional, shared package-local vitest config (3.17#27/#28)`.
 
 - 2026-08-18: Subtask 8 (Progress/e2e C) done — retention pruning extracted into `SharedStreamDir.pruneByRetention(baseDir)` (private, `retentionDays <= 0` early-return + singleton skip + mtime cutoff + rmSync warn), shared by `cleanup()` (which now only guards `existsSync` then delegates) and `sweepAndPrune()` (empty-dir pass, then one prune pass — both synchronous, so the two-pass split is behavior-identical to the old single loop); e2e helpers: `PROJECT_ROOT` now via `fileURLToPath(new URL("../", import.meta.url))` (was `.pathname` — breaks on Windows/percent-encoding), socket roundtrip timeout now `const timer` inside the promise executor with `clearTimeout(timer)` on data (was an unref'd dangling timer that fired `rej` after resolve). Verified: 121 files/2350 tests green, coverage unchanged at 96.59% (the single uncovered line 97 is the pre-existing rmdir-failure warn — no test triggers it in either version), full `forge-spec.e2e.test.ts` (25 tests) green. Note: `forge-subagent.e2e.test.ts` duplicates the same `.pathname` + dangling-timer pattern but is outside this subtask's file list (plan scoped to e2e/helpers.ts) — left as-is.
 
