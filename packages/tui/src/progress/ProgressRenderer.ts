@@ -53,6 +53,11 @@ export interface BuildStatusLineParams {
   tags: string[];
 }
 
+// ── Constants ────────────────────────────────────────────────
+
+/** Max visible width for an agent summary annotation in a widget row. */
+const MAX_AGENT_ANNOTATION_WIDTH = 120;
+
 // ── Class ────────────────────────────────────────────────────
 
 /**
@@ -92,6 +97,29 @@ export class ProgressRenderer {
   static formatAgentRow(icon: string, label: string, annotation?: string): string {
     const suffix = annotation ? ` — ${annotation}` : "";
     return `  ${icon} ${label}${suffix}`;
+  }
+
+  /**
+   * Normalize an agent summary annotation for display in a widget row.
+   *
+   * Collapses all whitespace runs (including newlines) into single spaces
+   * and truncates the result to {@link MAX_AGENT_ANNOTATION_WIDTH} visible
+   * characters (with an ellipsis), so a summary never spans multiple rows
+   * or overflows the widget panel.
+   *
+   * @param annotation — Raw agent summary (may be undefined).
+   * @returns The normalized single-line annotation, or `undefined` when the
+   *   input is empty or whitespace-only.
+   */
+  static normalizeAgentAnnotation(annotation: string | undefined): string | undefined {
+    if (!annotation) {
+      return undefined;
+    }
+    const collapsed = annotation.replace(/\s+/g, " ").trim();
+    if (collapsed.length === 0) {
+      return undefined;
+    }
+    return truncateToWidth(collapsed, MAX_AGENT_ANNOTATION_WIDTH, "…");
   }
 
   /**
@@ -275,7 +303,13 @@ export class ProgressRenderer {
     const rows: string[] = [];
     for (const [label, agent] of acc.agentMap) {
       const icon = ProgressRenderer.statusIcon(agent.status, theme, agent.passed);
-      rows.push(ProgressRenderer.formatAgentRow(icon, label, agent.summary));
+      rows.push(
+        ProgressRenderer.formatAgentRow(
+          icon,
+          label,
+          ProgressRenderer.normalizeAgentAnnotation(agent.summary),
+        ),
+      );
     }
 
     const subtitle =

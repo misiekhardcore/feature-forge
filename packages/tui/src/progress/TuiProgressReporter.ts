@@ -4,6 +4,11 @@ import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 import type { ProgressWidget } from "./ProgressWidget";
 
+// ── Constants ────────────────────────────────────────────────
+
+/** Max widget lines rendered before collapsing the overflow into a muted summary line. */
+const MAX_WIDGET_LINES = 16;
+
 /**
  * TUI implementation of {@link ProgressWidget} that drives two surfaces:
  *
@@ -80,10 +85,18 @@ export class TuiRoutineWidget implements ProgressWidget {
   }
 
   private renderWidget(): void {
-    const lines = this.cachedLines;
-
-    const renderFn = (_tui: TUI, _renderTheme: Theme): Component => ({
-      render: (width: number) => lines.flatMap((line) => wrapTextWithAnsi(line, width)),
+    const renderFn = (_tui: TUI, renderTheme: Theme): Component => ({
+      render: (width: number) => {
+        let lines = this.cachedLines;
+        if (lines.length > MAX_WIDGET_LINES) {
+          const hidden = lines.length - MAX_WIDGET_LINES;
+          lines = [
+            ...lines.slice(0, MAX_WIDGET_LINES),
+            renderTheme.fg("muted", `… +${hidden} more`),
+          ];
+        }
+        return lines.flatMap((line) => wrapTextWithAnsi(line, width));
+      },
       invalidate: () => {
         /* stateless — re-render is handled by throttled update */
       },

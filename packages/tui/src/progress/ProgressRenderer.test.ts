@@ -3,6 +3,7 @@ import type {
   Theme,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { createAccumulatedState } from "./AccumulatedState";
@@ -25,6 +26,11 @@ function makeTheme(): Theme {
 }
 
 const theme = makeTheme();
+
+/** Remove ANSI SGR codes (truncateToWidth wraps its ellipsis in resets). */
+function stripAnsi(text: string): string {
+  return text.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
+}
 
 /** Minimal mock widget for renderToWidget tests. */
 function makeMockWidget() {
@@ -124,6 +130,53 @@ describe("ProgressRenderer", () => {
     it("appends annotation after an em-dash", () => {
       const result = ProgressRenderer.formatAgentRow("→", "tester", "in progress");
       expect(result).toBe("  → tester — in progress");
+    });
+  });
+
+  describe("normalizeAgentAnnotation", () => {
+    it("returns undefined for undefined input", () => {
+      expect(ProgressRenderer.normalizeAgentAnnotation(undefined)).toBeUndefined();
+    });
+
+    it("returns undefined for empty input", () => {
+      expect(ProgressRenderer.normalizeAgentAnnotation("")).toBeUndefined();
+    });
+
+    it("returns undefined for whitespace-only input", () => {
+      expect(ProgressRenderer.normalizeAgentAnnotation(" \n\t ")).toBeUndefined();
+    });
+
+    it("collapses multi-line and multi-space summaries into a single line", () => {
+      const result = ProgressRenderer.normalizeAgentAnnotation(
+        "line one\n\nline two    with  spaces",
+      );
+      expect(result).toBe("line one line two with spaces");
+      expect(result).not.toContain("\n");
+    });
+
+    it("keeps summaries within the cap unchanged", () => {
+      const summary = "short summary";
+      expect(ProgressRenderer.normalizeAgentAnnotation(summary)).toBe(summary);
+    });
+
+    it("truncates summaries longer than 120 visible chars with an ellipsis", () => {
+      const result = ProgressRenderer.normalizeAgentAnnotation("x".repeat(130));
+      expect(stripAnsi(result ?? "").endsWith("…")).toBe(true);
+      expect(visibleWidth(result ?? "")).toBeLessThanOrEqual(120);
+    });
+
+    it("measures by visible width, not code units (wide chars)", () => {
+      // 60 CJK chars = 120 visible columns: exactly at the cap, kept in full.
+      const atCap = "中".repeat(60);
+      const kept = ProgressRenderer.normalizeAgentAnnotation(atCap);
+      expect(kept).toBe(atCap);
+      expect(visibleWidth(kept ?? "")).toBe(120);
+
+      // 61 CJK chars = 122 visible columns but only 61 code units: still truncated.
+      const overCap = "中".repeat(61);
+      const truncated = ProgressRenderer.normalizeAgentAnnotation(overCap);
+      expect(stripAnsi(truncated ?? "").endsWith("…")).toBe(true);
+      expect(visibleWidth(truncated ?? "")).toBeLessThanOrEqual(120);
     });
   });
 
@@ -568,6 +621,88 @@ describe("ProgressRenderer", () => {
       const [lines] = widget.render.mock.calls[0];
       const joinedLines = (lines as string[]).join("\n");
       expect(joinedLines).toContain("while: result.passed");
+    });
+
+    it("collapses and truncates agent summaries to a single capped row", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, {
+            status: contribution.agentStatus,
+            summary: contribution.agentSummary,
+            passed: contribution.agentPassed,
+          });
+        }
+      });
+
+      const contributions: DisplayContribution[] = [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "done",
+          agentPassed: true,
+          agentSummary: "line one\n\nline two    with  spaces " + "x".repeat(150),
+          phase: "agent-done",
+          message: "completed",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "my-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      const [lines] = widget.render.mock.calls[0];
+      const row = (lines as string[]).find((l) => l.includes("builder"));
+      expect(row).toBeDefined();
+      const rowText = row ?? "";
+      expect(rowText).not.toContain("\n");
+      expect(rowText).toContain("line one line two with spaces");
+      expect(stripAnsi(rowText)).toMatch(/…$/);
+      const annotation = rowText.split(" — ")[1] ?? "";
+      expect(visibleWidth(annotation)).toBeLessThanOrEqual(120);
+    });
+
+    it("renders rows without annotation when an agent has no summary", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, {
+            status: contribution.agentStatus,
+            summary: contribution.agentSummary,
+            passed: contribution.agentPassed,
+          });
+        }
+      });
+
+      const contributions: DisplayContribution[] = [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "done",
+          agentPassed: true,
+          phase: "agent-done",
+          message: "completed",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "my-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      const [lines] = widget.render.mock.calls[0];
+      const row = (lines as string[]).find((l) => l.includes("builder"));
+      expect(row).toBe("  ✓ builder");
+      expect(row).not.toContain(" — ");
     });
   });
 });

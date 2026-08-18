@@ -71,6 +71,40 @@ describe("TuiRoutineWidget", () => {
       expect(renderedLines).toEqual(lines);
     });
 
+    it("caps widget lines at MAX_WIDGET_LINES and appends a muted +N more line", () => {
+      const ctx = makeMockCtx();
+      const widget = new TuiRoutineWidget({ ctx });
+      const lines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);
+
+      widget.render(lines, "status");
+
+      const renderFn = (ctx.ui.setWidget as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const fg = vi.fn((_color: string, text: string) => text);
+      const component = renderFn({}, { fg });
+      const renderedLines = component.render(80);
+
+      expect(renderedLines).toHaveLength(17);
+      expect(renderedLines.slice(0, 16)).toEqual(lines.slice(0, 16));
+      expect(renderedLines[16]).toBe("… +4 more");
+      expect(fg).toHaveBeenCalledWith("muted", "… +4 more");
+    });
+
+    it("does not cap when at or under MAX_WIDGET_LINES", () => {
+      const ctx = makeMockCtx();
+      const widget = new TuiRoutineWidget({ ctx });
+      const lines = Array.from({ length: 16 }, (_, index) => `line ${index + 1}`);
+
+      widget.render(lines, "status");
+
+      const renderFn = (ctx.ui.setWidget as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const fg = vi.fn((_color: string, text: string) => text);
+      const component = renderFn({}, { fg });
+      const renderedLines = component.render(80);
+
+      expect(renderedLines).toEqual(lines);
+      expect(fg).not.toHaveBeenCalled();
+    });
+
     it("calls onStateChange callback after each render", () => {
       const ctx = makeMockCtx();
       const onStateChange = vi.fn();
