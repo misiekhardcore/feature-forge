@@ -53,11 +53,6 @@ export interface BuildStatusLineParams {
   tags: string[];
 }
 
-// ── Constants ────────────────────────────────────────────────
-
-/** Max visible width for an agent summary annotation in a widget row. */
-const MAX_AGENT_ANNOTATION_WIDTH = 120;
-
 // ── Class ────────────────────────────────────────────────────
 
 /**
@@ -103,12 +98,12 @@ export class ProgressRenderer {
    * Normalize an agent summary annotation for display in a widget row.
    *
    * Collapses all whitespace runs (including newlines) into single spaces
-   * and truncates the result to {@link MAX_AGENT_ANNOTATION_WIDTH} visible
-   * characters (with an ellipsis), so a summary never spans multiple rows
-   * or overflows the widget panel.
+   * so a summary never spans multiple rows. Width truncation is NOT done
+   * here — it happens at render time in {@link TuiRoutineWidget}, which
+   * knows the terminal width.
    *
    * @param annotation — Raw agent summary (may be undefined).
-   * @returns The normalized single-line annotation, or `undefined` when the
+   * @returns The collapsed single-line annotation, or `undefined` when the
    *   input is empty or whitespace-only.
    */
   static normalizeAgentAnnotation(annotation: string | undefined): string | undefined {
@@ -119,7 +114,7 @@ export class ProgressRenderer {
     if (collapsed.length === 0) {
       return undefined;
     }
-    return truncateToWidth(collapsed, MAX_AGENT_ANNOTATION_WIDTH, "…");
+    return collapsed;
   }
 
   /**

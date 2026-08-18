@@ -1,9 +1,15 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { TuiRoutineWidget } from "./TuiProgressReporter";
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/** Remove ANSI SGR codes (truncateToWidth wraps its ellipsis in resets). */
+function stripAnsi(text: string): string {
+  return text.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
+}
 
 function makeMockCtx(): ExtensionContext {
   const setWidget = vi.fn();
@@ -71,38 +77,50 @@ describe("TuiRoutineWidget", () => {
       expect(renderedLines).toEqual(lines);
     });
 
-    it("caps widget lines at MAX_WIDGET_LINES and appends a muted +N more line", () => {
+    it("truncates each line to the render width with ellipsis", () => {
       const ctx = makeMockCtx();
       const widget = new TuiRoutineWidget({ ctx });
-      const lines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);
+      const lines = ["a".repeat(100)];
 
       widget.render(lines, "status");
 
       const renderFn = (ctx.ui.setWidget as ReturnType<typeof vi.fn>).mock.calls[0][1];
-      const fg = vi.fn((_color: string, text: string) => text);
-      const component = renderFn({}, { fg });
-      const renderedLines = component.render(80);
+      const component = renderFn({}, { fg: vi.fn() });
+      const renderedLines = component.render(80) as string[];
 
-      expect(renderedLines).toHaveLength(17);
-      expect(renderedLines.slice(0, 16)).toEqual(lines.slice(0, 16));
-      expect(renderedLines[16]).toBe("… +4 more");
-      expect(fg).toHaveBeenCalledWith("muted", "… +4 more");
+      expect(renderedLines).toHaveLength(1);
+      expect(visibleWidth(renderedLines[0])).toBeLessThanOrEqual(80);
+      expect(stripAnsi(renderedLines[0]).endsWith("…")).toBe(true);
     });
 
-    it("does not cap when at or under MAX_WIDGET_LINES", () => {
+    it("truncates by visible width not code units", () => {
       const ctx = makeMockCtx();
       const widget = new TuiRoutineWidget({ ctx });
-      const lines = Array.from({ length: 16 }, (_, index) => `line ${index + 1}`);
+      // 61 CJK chars = 122 visible columns but only 61 code units.
+      const lines = ["中".repeat(61)];
 
       widget.render(lines, "status");
 
       const renderFn = (ctx.ui.setWidget as ReturnType<typeof vi.fn>).mock.calls[0][1];
-      const fg = vi.fn((_color: string, text: string) => text);
-      const component = renderFn({}, { fg });
-      const renderedLines = component.render(80);
+      const component = renderFn({}, { fg: vi.fn() });
+      const renderedLines = component.render(60) as string[];
 
+      expect(renderedLines).toHaveLength(1);
+      expect(visibleWidth(renderedLines[0])).toBeLessThanOrEqual(60);
+      expect(stripAnsi(renderedLines[0]).endsWith("…")).toBe(true);
+    });
+
+    it("keeps lines shorter than the render width unchanged", () => {
+      const ctx = makeMockCtx();
+      const widget = new TuiRoutineWidget({ ctx });
+      const lines = ["line 1", "line 2", "line 3"];
+
+      widget.render(lines, "status");
+
+      const renderFn = (ctx.ui.setWidget as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const component = renderFn({}, { fg: vi.fn() });
+      const renderedLines = component.render(80);
       expect(renderedLines).toEqual(lines);
-      expect(fg).not.toHaveBeenCalled();
     });
 
     it("calls onStateChange callback after each render", () => {

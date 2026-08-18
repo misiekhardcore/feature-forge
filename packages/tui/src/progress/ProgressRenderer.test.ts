@@ -3,7 +3,6 @@ import type {
   Theme,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { createAccumulatedState } from "./AccumulatedState";
@@ -26,11 +25,6 @@ function makeTheme(): Theme {
 }
 
 const theme = makeTheme();
-
-/** Remove ANSI SGR codes (truncateToWidth wraps its ellipsis in resets). */
-function stripAnsi(text: string): string {
-  return text.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
-}
 
 /** Minimal mock widget for renderToWidget tests. */
 function makeMockWidget() {
@@ -154,29 +148,21 @@ describe("ProgressRenderer", () => {
       expect(result).not.toContain("\n");
     });
 
-    it("keeps summaries within the cap unchanged", () => {
-      const summary = "short summary";
+    it("trims leading and trailing whitespace", () => {
+      const result = ProgressRenderer.normalizeAgentAnnotation("  padded  ");
+      expect(result).toBe("padded");
+    });
+
+    it("keeps long summaries intact without truncation", () => {
+      const summary = "x".repeat(130);
       expect(ProgressRenderer.normalizeAgentAnnotation(summary)).toBe(summary);
     });
 
-    it("truncates summaries longer than 120 visible chars with an ellipsis", () => {
-      const result = ProgressRenderer.normalizeAgentAnnotation("x".repeat(130));
-      expect(stripAnsi(result ?? "").endsWith("…")).toBe(true);
-      expect(visibleWidth(result ?? "")).toBeLessThanOrEqual(120);
-    });
-
-    it("measures by visible width, not code units (wide chars)", () => {
-      // 60 CJK chars = 120 visible columns: exactly at the cap, kept in full.
-      const atCap = "中".repeat(60);
-      const kept = ProgressRenderer.normalizeAgentAnnotation(atCap);
-      expect(kept).toBe(atCap);
-      expect(visibleWidth(kept ?? "")).toBe(120);
-
-      // 61 CJK chars = 122 visible columns but only 61 code units: still truncated.
-      const overCap = "中".repeat(61);
-      const truncated = ProgressRenderer.normalizeAgentAnnotation(overCap);
-      expect(stripAnsi(truncated ?? "").endsWith("…")).toBe(true);
-      expect(visibleWidth(truncated ?? "")).toBeLessThanOrEqual(120);
+    it("keeps wide-char summaries intact without truncation", () => {
+      // 61 CJK chars = 122 visible columns: width truncation happens at
+      // render time, not here.
+      const wide = "中".repeat(61);
+      expect(ProgressRenderer.normalizeAgentAnnotation(wide)).toBe(wide);
     });
   });
 
@@ -623,7 +609,7 @@ describe("ProgressRenderer", () => {
       expect(joinedLines).toContain("while: result.passed");
     });
 
-    it("collapses and truncates agent summaries to a single capped row", () => {
+    it("collapses long multi-line summaries into a single full-text row", () => {
       const registry = new DisplayContributionRegistry();
       registry.register("agent", (state, contribution) => {
         if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
@@ -635,13 +621,14 @@ describe("ProgressRenderer", () => {
         }
       });
 
+      const longText = "x".repeat(150);
       const contributions: DisplayContribution[] = [
         {
           type: "agent",
           agentId: "builder",
           agentStatus: "done",
           agentPassed: true,
-          agentSummary: "line one\n\nline two    with  spaces " + "x".repeat(150),
+          agentSummary: "line one\n\nline two    with  spaces " + longText,
           phase: "agent-done",
           message: "completed",
         },
@@ -662,9 +649,9 @@ describe("ProgressRenderer", () => {
       const rowText = row ?? "";
       expect(rowText).not.toContain("\n");
       expect(rowText).toContain("line one line two with spaces");
-      expect(stripAnsi(rowText)).toMatch(/…$/);
-      const annotation = rowText.split(" — ")[1] ?? "";
-      expect(visibleWidth(annotation)).toBeLessThanOrEqual(120);
+      // Full collapsed text is kept — no truncation or ellipsis at row build time.
+      expect(rowText).toContain(longText);
+      expect(rowText).not.toContain("…");
     });
 
     it("renders rows without annotation when an agent has no summary", () => {
