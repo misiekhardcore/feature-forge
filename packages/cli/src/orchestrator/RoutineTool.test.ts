@@ -84,6 +84,9 @@ const STREAM_EVENT_PAYLOAD = {
   },
 } as const;
 
+/** Agent lifecycle phases a fake step can emit (D4 payloads, see agentChannels.ts). */
+type AgentTestPhase = "started" | "stream" | "done";
+
 /** Build a registry + flow whose agent step emits one agent-stream event. */
 function makeStreamEmittingSetup(): { registry: StepExecutorRegistry; flow: FlowDefinition } {
   const registry = new StepExecutorRegistry();
@@ -103,6 +106,83 @@ function makeStreamEmittingSetup(): { registry: StepExecutorRegistry; flow: Flow
           _signal?: AbortSignal,
         ): Promise<FlowContext> {
           eventBus.emit("feature-forge:agent-stream", STREAM_EVENT_PAYLOAD);
+          return _context;
+        }
+      })(),
+  );
+  return {
+    registry,
+    flow: {
+      $schema: FLOW_SCHEMA_URL,
+      name: "test-flow",
+      command: "/test",
+      orchestrator: { systemPrompt: "t" },
+      routines: [
+        {
+          id: "build",
+          params: [],
+          steps: [
+            {
+              type: "agent",
+              id: "builder",
+              systemPrompt: "build",
+              task: "do task",
+            } as unknown as FlowInstruction,
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Build a registry + flow whose agent step emits the requested agent
+ * lifecycle events (agent-started by default) with D4 payload details
+ * (`executionId` + `agentId`), mirroring {@link emitAgentStarted} in
+ * `eventBus/agentChannels.ts`.
+ */
+function makeAgentStartedEmittingSetup(phases: AgentTestPhase[] = ["started"]): {
+  registry: StepExecutorRegistry;
+  flow: FlowDefinition;
+} {
+  const registry = new StepExecutorRegistry();
+  registry.register(
+    () =>
+      new (class extends StepExecutor {
+        readonly type = "agent";
+        async execute(
+          _instruction: FlowInstruction,
+          _context: FlowContext,
+          _executeStep: (
+            instruction: FlowInstruction,
+            context: FlowContext,
+            signal?: AbortSignal,
+          ) => Promise<FlowContext>,
+          eventBus: EventBus,
+          _signal?: AbortSignal,
+        ): Promise<FlowContext> {
+          if (phases.includes("started")) {
+            eventBus.emit("feature-forge:agent-started", {
+              phase: "agent-started",
+              message: 'Agent "builder" (build) started',
+              details: { executionId: "exec-1", agentId: "builder" },
+            });
+          }
+          if (phases.includes("stream")) {
+            eventBus.emit("feature-forge:agent-stream", STREAM_EVENT_PAYLOAD);
+          }
+          if (phases.includes("done")) {
+            eventBus.emit("feature-forge:agent-done", {
+              phase: "agent-done",
+              message: 'Agent "builder" (build) completed',
+              details: {
+                executionId: "exec-1",
+                agentId: "builder",
+                passed: true,
+                summary: "ok",
+              },
+            });
+          }
           return _context;
         }
       })(),
@@ -727,9 +807,14 @@ describe("RoutineTool", () => {
                 context: FlowContext,
                 signal?: AbortSignal,
               ) => Promise<FlowContext>,
-              _eventBus: EventBus,
+              eventBus: EventBus,
               _signal?: AbortSignal,
             ): Promise<FlowContext> {
+              eventBus.emit("feature-forge:agent-started", {
+                phase: "agent-started",
+                message: 'Agent "s1" (build) started',
+                details: { executionId: "exec-1", agentId: "s1" },
+              });
               throw new DOMException("The operation was aborted.", "AbortError");
             }
           })(),
@@ -1131,14 +1216,9 @@ describe("RoutineTool", () => {
     });
 
     it("creates agent viewer overlay via ctx.ui.custom in TUI mode", async () => {
-      const flow = makeFlow();
+      const { registry, flow } = makeAgentStartedEmittingSetup();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        makeMockToolRegistry(),
-      );
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const mockCustom = vi.fn().mockResolvedValue(undefined);
@@ -1201,14 +1281,9 @@ describe("RoutineTool", () => {
     });
 
     it("logs and swallows agent viewer overlay creation failures", async () => {
-      const flow = makeFlow();
+      const { registry, flow } = makeAgentStartedEmittingSetup();
       const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        makeMockToolRegistry(),
-      );
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
       const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
@@ -1239,15 +1314,10 @@ describe("RoutineTool", () => {
       const dispose = vi.fn();
       showAgentViewerMock.mockResolvedValueOnce({ viewer: undefined, dispose });
 
-      const flow = makeFlow();
+      const { registry, flow } = makeAgentStartedEmittingSetup();
       const eventBus = makeMockTypedEventBus();
       const toolRegistry = makeMockToolRegistry();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        toolRegistry,
-      );
+      const executor = new RoutineExecutor(flow, registry, eventBus, toolRegistry);
       const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       const ctx = {
@@ -1269,6 +1339,59 @@ describe("RoutineTool", () => {
         }),
       );
       // finally releases the handle once the routine completes.
+      expect(dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not open the agent viewer when the routine has no agent steps", async () => {
+      const flow = makeFlow();
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(
+        flow,
+        new StepExecutorRegistry(),
+        eventBus,
+        makeMockToolRegistry(),
+      );
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      const mockCustom = vi.fn().mockResolvedValue(undefined);
+      const mockUi = { custom: mockCustom, setWidget: vi.fn(), setStatus: vi.fn() };
+      const ctx = { hasUI: true, ui: mockUi, mode: "tui" } as unknown as ExtensionContext;
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // No agent progress events → the one-shot lazy opener never fires.
+      expect(showAgentViewerMock).not.toHaveBeenCalled();
+      expect(mockCustom).not.toHaveBeenCalled();
+      // The progress widget surface is still driven unconditionally
+      // (finally clears it) — only the overlay is gated.
+      expect(mockUi.setWidget).toHaveBeenCalledWith("forge-run", undefined);
+    });
+
+    it("opens the agent viewer exactly once across agent lifecycle events", async () => {
+      const dispose = vi.fn();
+      showAgentViewerMock.mockResolvedValue({ viewer: undefined, dispose });
+
+      const { registry, flow } = makeAgentStartedEmittingSetup(["started", "stream", "done"]);
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      const ctx = {
+        hasUI: true,
+        ui: {
+          custom: vi.fn().mockResolvedValue(undefined),
+          setWidget: vi.fn(),
+          setStatus: vi.fn(),
+        },
+        mode: "tui",
+      } as unknown as ExtensionContext;
+
+      await tool.execute("call-1", {}, undefined, undefined, ctx);
+
+      // started + stream + done all carry agentId, but the one-shot guard
+      // opens the overlay only on the first of them.
+      expect(showAgentViewerMock).toHaveBeenCalledTimes(1);
+      // finally still releases the handle from the single opening call.
       expect(dispose).toHaveBeenCalledTimes(1);
     });
   });

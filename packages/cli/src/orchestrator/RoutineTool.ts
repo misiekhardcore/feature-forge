@@ -197,20 +197,25 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
-    // Agent viewer overlay — the composer owns the full lifecycle
-    // (wire → open via ctx.ui.custom → connect → dispose/dismiss). The
-    // call is deliberately not awaited: `ctx.ui.custom` resolves only when
-    // the overlay is dismissed, so awaiting would stall the routine until
-    // the user closes it. The resolved handle is captured for finally — in
-    // headless mocks `custom` resolves without opening an overlay and the
-    // composer already released the wiring, so finally's dispose is an
-    // idempotent safety net; in the TUI the overlay stays open until the
-    // user dismisses it and the composer's own dispose tears everything
-    // down. If the routine completes first, the handle may not be assigned
-    // yet — that is intentional: teardown stays with the composer (its
-    // onDone path / headless self-dispose), never with this tool.
+    // Agent viewer overlay — opened lazily on the first agent progress
+    // event, not eagerly, so routines without agent steps never create an
+    // overlay. The composer owns the full lifecycle (wire → open via
+    // ctx.ui.custom → connect → dispose/dismiss). The call is deliberately
+    // not awaited: `ctx.ui.custom` resolves only when the overlay is
+    // dismissed, so awaiting would stall the routine until the user closes
+    // it. The resolved handle is captured for finally — in headless mocks
+    // `custom` resolves without opening an overlay and the composer already
+    // released the wiring, so finally's dispose is an idempotent safety
+    // net; in the TUI the overlay stays open until the user dismisses it
+    // and the composer's own dispose tears everything down. If the routine
+    // completes first, the handle may not be assigned yet — that is
+    // intentional: teardown stays with the composer (its onDone path /
+    // headless self-dispose), never with this tool.
     let viewerHandle: AgentViewerHandle | undefined;
-    if (ctx.hasUI) {
+    let viewerOpened = false;
+    const openViewer = (): void => {
+      if (!ctx.hasUI || viewerOpened) return;
+      viewerOpened = true;
       void showAgentViewer({
         ctx,
         config: ForgeConfig.getInstance(),
@@ -224,13 +229,20 @@ export class RoutineTool
         .catch((err) => {
           logger.warn("Agent viewer overlay creation failed", { err });
         });
-    }
+    };
 
     // Read lazily on the first progress event — the flag is only needed when
     // a debug entry is actually written, so avoid config access otherwise.
     let logPayloads: boolean | undefined;
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
+
+      // Open the viewer on the first agent-tagged progress event. Only
+      // agent-started/stream/done carry `agentId`; all other phases don't,
+      // so routines without agent steps never open the overlay.
+      const agentId = (event.details as { agentId?: string }).agentId;
+      if (agentId) openViewer();
+
       logPayloads ??= ForgeConfig.getInstance().getLogPayloads();
       logger.debug(
         "RoutineTool progress",
