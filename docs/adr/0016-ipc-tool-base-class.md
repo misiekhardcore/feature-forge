@@ -37,9 +37,10 @@ Add an abstract `IpcTool<TParams, TResult>` base class to
 - **Concrete tools declare only their schema and renderers** - plus a
   one-line `execute` override when a non-default timeout is needed
   (`SendTaskTool` threads `params.timeout` through).
-- **`NO_CLIENT_ERROR` is a frozen constant** (`as const`) exported from the
-  shared package, pinning the literal `{ error: "Not available in
-orchestrator mode" }` shape.
+- **`NO_CLIENT_ERROR` is a readonly literal** (`as const`) exported from the
+  shared package, pinning the compile-time shape `{ error: "Not available in
+orchestrator mode" }`; the reference itself is shared across null-client
+  results, so callers must not mutate `details`.
 
 The base `execute` takes `params: unknown` rather than a generic `P`: TypeScript
 rejects generic-method overrides with narrower parameter types, so `unknown`
