@@ -85,34 +85,39 @@ export class FileLogger extends Logger {
     let considered = 0;
     let deleted = 0;
 
-    for (const entry of readdirSync(logDir, { withFileTypes: true })) {
-      // Skip subdirectories and non-log files.
-      if (!entry.isFile() || !entry.name.endsWith(".log")) {
-        continue;
-      }
-
-      const fullPath = path.resolve(logDir, entry.name);
-      // Never prune the active session's own log file.
-      if (currentFilePath !== undefined && path.resolve(currentFilePath) === fullPath) {
-        continue;
-      }
-
-      try {
-        if (statSync(fullPath).mtimeMs < cutoff) {
-          unlinkSync(fullPath);
-          deleted += 1;
+    try {
+      for (const entry of readdirSync(logDir, { withFileTypes: true })) {
+        // Skip subdirectories and non-log files.
+        if (!entry.isFile() || !entry.name.endsWith(".log")) {
+          continue;
         }
-        considered += 1;
-      } catch (error) {
-        logger.warn(`Log retention: failed to inspect or delete ${fullPath}: ${String(error)}`);
+
+        const fullPath = path.resolve(logDir, entry.name);
+        // Never prune the active session's own log file.
+        if (currentFilePath !== undefined && path.resolve(currentFilePath) === fullPath) {
+          continue;
+        }
+
+        try {
+          if (statSync(fullPath).mtimeMs < cutoff) {
+            unlinkSync(fullPath);
+            deleted += 1;
+          }
+          considered += 1;
+        } catch (error) {
+          logger.warn(`Log retention: failed to inspect or delete ${fullPath}: ${String(error)}`);
+        }
       }
+    } catch (error) {
+      logger.warn(`Log retention: cannot read log directory ${logDir}: ${String(error)}`);
+      return;
     }
 
-    if (deleted > 0) {
-      logger.info(
-        `Log retention: pruned ${deleted} of ${considered} files older than ${retentionDays} days`,
-      );
-    }
+    // Report the retention outcome on every run (even when nothing was
+    // pruned); like any other entry it is filtered by the session log level.
+    logger.info(
+      `Log retention: pruned ${deleted} of ${considered} files older than ${retentionDays} days`,
+    );
   }
 
   static getDefaultLogFilePath(): string {
