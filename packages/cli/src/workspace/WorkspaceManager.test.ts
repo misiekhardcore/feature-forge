@@ -55,7 +55,7 @@ describe("WorkspaceManager", () => {
 
     it("throws for an unknown workspace path", async () => {
       await expect(manager.destroy("/nonexistent")).rejects.toThrow(
-        'No workspace found with id "/nonexistent"',
+        'No workspace found at path "/nonexistent"',
       );
     });
   });

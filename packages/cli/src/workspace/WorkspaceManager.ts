@@ -9,9 +9,12 @@ import { WorktreeRegistry } from "./WorktreeRegistry";
  *
  * - **`create(id)`** — creates the workspace via the provider, then registers
  *   a new {@link WorkspaceHandle} so it's tracked and persisted.
- * - **`destroy(id)`** — looks up the handle, destroys via the provider, then
+ * - **`destroy(path)`** — looks up the handle, destroys via the provider, then
  *   removes the registry entry and untracks from the session set.
- * - **`get(id)` / `list()`** — delegate to the registry.
+ * - **`get(path)` / `list()`** — delegate to the registry.
+ *
+ * Note: `destroy`/`get` are keyed by workspace **path**, not by workspace id
+ * (the underlying {@link WorktreeRegistry} keys by `handle.path`).
  *
  * Also maintains a session-scoped path set ({@link listSessionPaths})
  * so signal handlers only destroy workspaces belonging to this process,
@@ -44,16 +47,16 @@ export class WorkspaceManager {
    * Destroy a workspace, remove its registry entry, and untrack
    * from the session set.
    *
-   * Throws if the workspace id is not tracked.
+   * Throws if the path is not tracked.
    */
-  async destroy(workspaceId: string): Promise<void> {
-    const handle = this.registry.get(workspaceId);
+  async destroy(path: string): Promise<void> {
+    const handle = this.registry.get(path);
     if (!handle) {
-      throw new WorkspaceError(`No workspace found with id "${workspaceId}"`);
+      throw new WorkspaceError(`No workspace found at path "${path}"`);
     }
     await this.provider.destroyWorkspace(handle.path, handle.branch);
-    await this.registry.remove(workspaceId);
-    this.sessionPaths.delete(workspaceId);
+    await this.registry.remove(path);
+    this.sessionPaths.delete(path);
   }
 
   /**
@@ -91,10 +94,10 @@ export class WorkspaceManager {
   }
 
   /**
-   * Look up a workspace handle by id.
+   * Look up a workspace handle by path.
    */
-  get(workspaceId: string): WorkspaceHandle | undefined {
-    return this.registry.get(workspaceId);
+  get(path: string): WorkspaceHandle | undefined {
+    return this.registry.get(path);
   }
 
   /**
