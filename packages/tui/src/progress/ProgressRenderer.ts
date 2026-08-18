@@ -95,6 +95,29 @@ export class ProgressRenderer {
   }
 
   /**
+   * Normalize an agent summary annotation for display in a widget row.
+   *
+   * Collapses all whitespace runs (including newlines) into single spaces
+   * so a summary never spans multiple rows. Width truncation is NOT done
+   * here — it happens at render time in {@link TuiRoutineWidget}, which
+   * knows the terminal width.
+   *
+   * @param annotation — Raw agent summary (may be undefined).
+   * @returns The collapsed single-line annotation, or `undefined` when the
+   *   input is empty or whitespace-only.
+   */
+  static normalizeAgentAnnotation(annotation: string | undefined): string | undefined {
+    if (!annotation) {
+      return undefined;
+    }
+    const collapsed = annotation.replace(/\s+/g, " ").trim();
+    if (collapsed.length === 0) {
+      return undefined;
+    }
+    return collapsed;
+  }
+
+  /**
    * Build an array of lines for the TUI widget panel.
    *
    * Produces the "forge-run" widget content: a header with an accent
@@ -275,7 +298,13 @@ export class ProgressRenderer {
     const rows: string[] = [];
     for (const [label, agent] of acc.agentMap) {
       const icon = ProgressRenderer.statusIcon(agent.status, theme, agent.passed);
-      rows.push(ProgressRenderer.formatAgentRow(icon, label, agent.summary));
+      rows.push(
+        ProgressRenderer.formatAgentRow(
+          icon,
+          label,
+          ProgressRenderer.normalizeAgentAnnotation(agent.summary),
+        ),
+      );
     }
 
     const subtitle =

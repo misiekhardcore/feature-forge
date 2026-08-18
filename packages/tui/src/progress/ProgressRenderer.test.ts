@@ -127,6 +127,45 @@ describe("ProgressRenderer", () => {
     });
   });
 
+  describe("normalizeAgentAnnotation", () => {
+    it("returns undefined for undefined input", () => {
+      expect(ProgressRenderer.normalizeAgentAnnotation(undefined)).toBeUndefined();
+    });
+
+    it("returns undefined for empty input", () => {
+      expect(ProgressRenderer.normalizeAgentAnnotation("")).toBeUndefined();
+    });
+
+    it("returns undefined for whitespace-only input", () => {
+      expect(ProgressRenderer.normalizeAgentAnnotation(" \n\t ")).toBeUndefined();
+    });
+
+    it("collapses multi-line and multi-space summaries into a single line", () => {
+      const result = ProgressRenderer.normalizeAgentAnnotation(
+        "line one\n\nline two    with  spaces",
+      );
+      expect(result).toBe("line one line two with spaces");
+      expect(result).not.toContain("\n");
+    });
+
+    it("trims leading and trailing whitespace", () => {
+      const result = ProgressRenderer.normalizeAgentAnnotation("  padded  ");
+      expect(result).toBe("padded");
+    });
+
+    it("keeps long summaries intact without truncation", () => {
+      const summary = "x".repeat(130);
+      expect(ProgressRenderer.normalizeAgentAnnotation(summary)).toBe(summary);
+    });
+
+    it("keeps wide-char summaries intact without truncation", () => {
+      // 61 CJK chars = 122 visible columns: width truncation happens at
+      // render time, not here.
+      const wide = "中".repeat(61);
+      expect(ProgressRenderer.normalizeAgentAnnotation(wide)).toBe(wide);
+    });
+  });
+
   describe("buildWidgetLines", () => {
     it("uses statusIcon('running') in the header", () => {
       const lines = ProgressRenderer.buildWidgetLines({
@@ -568,6 +607,89 @@ describe("ProgressRenderer", () => {
       const [lines] = widget.render.mock.calls[0];
       const joinedLines = (lines as string[]).join("\n");
       expect(joinedLines).toContain("while: result.passed");
+    });
+
+    it("collapses long multi-line summaries into a single full-text row", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, {
+            status: contribution.agentStatus,
+            summary: contribution.agentSummary,
+            passed: contribution.agentPassed,
+          });
+        }
+      });
+
+      const longText = "x".repeat(150);
+      const contributions: DisplayContribution[] = [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "done",
+          agentPassed: true,
+          agentSummary: "line one\n\nline two    with  spaces " + longText,
+          phase: "agent-done",
+          message: "completed",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "my-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      const [lines] = widget.render.mock.calls[0];
+      const row = (lines as string[]).find((l) => l.includes("builder"));
+      expect(row).toBeDefined();
+      const rowText = row ?? "";
+      expect(rowText).not.toContain("\n");
+      expect(rowText).toContain("line one line two with spaces");
+      // Full collapsed text is kept — no truncation or ellipsis at row build time.
+      expect(rowText).toContain(longText);
+      expect(rowText).not.toContain("…");
+    });
+
+    it("renders rows without annotation when an agent has no summary", () => {
+      const registry = new DisplayContributionRegistry();
+      registry.register("agent", (state, contribution) => {
+        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
+          state.agentMap.set(contribution.agentId, {
+            status: contribution.agentStatus,
+            summary: contribution.agentSummary,
+            passed: contribution.agentPassed,
+          });
+        }
+      });
+
+      const contributions: DisplayContribution[] = [
+        {
+          type: "agent",
+          agentId: "builder",
+          agentStatus: "done",
+          agentPassed: true,
+          phase: "agent-done",
+          message: "completed",
+        },
+      ];
+
+      const state: RoutineProgressState = {
+        routineName: "my-routine",
+        contributions,
+      };
+      const renderer = new ProgressRenderer(state, registry);
+      const widget = makeMockWidget();
+
+      renderer.renderToWidget(widget, theme);
+
+      const [lines] = widget.render.mock.calls[0];
+      const row = (lines as string[]).find((l) => l.includes("builder"));
+      expect(row).toBe("  ✓ builder");
+      expect(row).not.toContain(" — ");
     });
   });
 });

@@ -1,6 +1,6 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
-import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 
 import type { ProgressWidget } from "./ProgressWidget";
 
@@ -13,6 +13,10 @@ import type { ProgressWidget } from "./ProgressWidget";
  * Widget renders are throttled to ~4/s (250ms minimum interval) to avoid
  * thrashing the TUI when calls arrive in rapid succession. Status updates
  * are immediate.
+ *
+ * Each widget line is truncated to the terminal width at render time — one
+ * terminal-width line per agent row, no wrapping. Full summaries remain
+ * available in the agent detail overlay.
  *
  * The class is domain-agnostic — it accepts pre-formatted widget lines
  * and status text. All formatting and state accumulation happens in the
@@ -80,10 +84,8 @@ export class TuiRoutineWidget implements ProgressWidget {
   }
 
   private renderWidget(): void {
-    const lines = this.cachedLines;
-
     const renderFn = (_tui: TUI, _renderTheme: Theme): Component => ({
-      render: (width: number) => lines.flatMap((line) => wrapTextWithAnsi(line, width)),
+      render: (width: number) => this.cachedLines.map((line) => truncateToWidth(line, width, "…")),
       invalidate: () => {
         /* stateless — re-render is handled by throttled update */
       },
