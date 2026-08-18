@@ -1,6 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Agent, SessionAgent, SubprocessAgent } from "@feature-forge/core/src/agents";
 import { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
+
+import type { Agent } from "../Agent";
+import type { SessionAgent } from "../SessionAgent";
+import type { SubprocessAgent } from "../SubprocessAgent";
 
 /**
  * Manages the unified fleet lifecycle of agents: spawning, tracking,

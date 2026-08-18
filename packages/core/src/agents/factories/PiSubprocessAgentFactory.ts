@@ -1,13 +1,14 @@
 import { join } from "node:path";
 
 import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
-import { PiSubprocessAgent, SubprocessAgent } from "@feature-forge/core/src/agents";
 import { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
 import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
 import type { AgentModelConfig } from "@feature-forge/core/src/config";
 import { resolveModel } from "@feature-forge/core/src/config";
 import { logger } from "@feature-forge/core/src/logging";
 
+import { PiSubprocessAgent } from "../PiSubprocessAgent";
+import type { SubprocessAgent } from "../SubprocessAgent";
 import { AgentCreationError, AgentFactory } from "./AgentFactory";
 import { buildPiCliArguments } from "./helpers";
 

@@ -20,7 +20,9 @@ export default defineConfig({
     "typebox",
   ],
   async onSuccess() {
-    await cp("src/agents/declarative-specs", "dist/agents/declarative-specs", { recursive: true });
+    await cp("../core/src/agents/specifications/templates", "dist/agents/declarative-specs", {
+      recursive: true,
+    });
     await cp("src/flows", "dist/flows", {
       recursive: true,
       filter: (src) => !src.endsWith(".test.ts"),

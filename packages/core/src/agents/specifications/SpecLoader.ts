@@ -2,8 +2,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
-import { AgentSpecificationParams } from "@feature-forge/core/src/agents";
 
+import type { AgentSpecificationParams } from "./AgentSpecification";
 import { TOOL_PRESETS, ToolPresetName } from "./constants";
 import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 import type { SpecFactory } from "./SpecRegistry";
@@ -70,7 +70,7 @@ export class SpecLoader {
     }
 
     const toolRestrictions = this.resolveToolRestrictions(frontmatter, absolutePath);
-    const id = frontmatter.id ?? DynamicAgentSpecification.generateId(frontmatter);
+    const id = frontmatter.id;
 
     const { toolRestrictions: _fmToolRestrictions, ...specParams } = frontmatter;
     const factory: SpecFactory = () => {

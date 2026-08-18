@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { jsonParse } from "@feature-forge/core";
 import { AgentStatus } from "@feature-forge/core";
-import type { Agent } from "@feature-forge/core/src/agents";
+import type { Agent } from "@feature-forge/core/src/agents/Agent";
 import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
 import type {
   AgentSpecification,

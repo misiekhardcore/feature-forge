@@ -232,18 +232,12 @@ function copyMissingFiles(src, dest) {
 function scaffoldTemplates(forgeDir) {
   const srcDir = resolveAssetsDir();
 
-  // Agents: copy .md files from <core>/src/agents/specifications/templates → forgeDir/agents/
-  // (declarative-specs moved to core in S4a; srcDir/../../.. = packages/)
-  const agentsSrc = path.join(
-    srcDir,
-    "..",
-    "..",
-    "core",
-    "src",
-    "agents",
-    "specifications",
-    "templates",
-  );
+  // Agents: prefer the dist copy (built/published layout), fall back to the
+  // core source templates (monorepo dev layout; declarative-specs moved to
+  // core in S4a; srcDir/../../.. = packages/)
+  const agentsSrc = fs.existsSync(path.join(srcDir, "agents", "declarative-specs"))
+    ? path.join(srcDir, "agents", "declarative-specs")
+    : path.join(srcDir, "..", "..", "core", "src", "agents", "specifications", "templates");
   const agentsDest = path.join(forgeDir, "agents");
   if (fs.existsSync(agentsSrc)) {
     let created = 0;
