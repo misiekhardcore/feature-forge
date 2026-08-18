@@ -34,6 +34,7 @@ import { ActiveFlowRegistry } from "./orchestrator/ActiveFlowRegistry";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
+import { SharedStreamDir } from "./orchestrator/progress/sharedStreamDir";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import { withForgePrefix } from "./registry/CommandRegistry";
 import {
@@ -109,6 +110,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.initialize();
+
+  // Prune stale agent-streams dirs from previous sessions now that the
+  // logger is live, so post-mortem history stays within the retention window.
+  SharedStreamDir.cleanup();
 
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
