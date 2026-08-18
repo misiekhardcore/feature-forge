@@ -15,12 +15,16 @@ export default defineConfig({
       // harness code (not shipped surface) and their low ratios would drag
       // the gate below 90% without adding signal.
       exclude: [
+        // A custom exclude list OVERRIDES Vitest's defaults, so test files
+        // must be listed explicitly or they get swept into coverage.
+        "**/*.test.ts",
         "**/node_modules/**",
         "**/dist/**",
         "**/coverage/**",
         "**/test-setup.ts",
         "**/test-utils.ts",
         "**/e2e/**",
+
         // The debug package has no vitest project — its scenario helpers are
         // test-support only and would drag the gate down with no signal.
         "**/packages/debug/**",

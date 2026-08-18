@@ -14,9 +14,10 @@
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { deepFreeze } from "../helpers";
 import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
-import { deepFreeze, DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
+import { DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
 import type {
   DevConfig,
   DisplayConfig,

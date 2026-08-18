@@ -1,5 +1,3 @@
-import type { SpecDirectories } from "../config/ForgeConfigSchema";
-
 /**
  * Recursively freeze an object, array, or Map (including nested values).
  *
@@ -50,15 +48,4 @@ function throwFrozenMapMutation(method: "set" | "delete" | "clear"): () => never
  */
 export function cloneReadonlyArray<T>(value: readonly T[]): T[] {
   return [...value];
-}
-
-/**
- * Clone a {@link SpecDirectories} structure so a resolved config never
- * shares references with the frozen defaults (or the caller's own overrides).
- */
-export function cloneSpecDirectories(value: SpecDirectories): SpecDirectories {
-  return {
-    flows: cloneReadonlyArray(value.flows ?? []),
-    agents: cloneReadonlyArray(value.agents ?? []),
-  };
 }

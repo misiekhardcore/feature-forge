@@ -9,14 +9,21 @@
  * This module maps the JSON's string enum values onto typed constants.
  */
 
-import { cloneReadonlyArray, cloneSpecDirectories, deepFreeze } from "../helpers";
+import { cloneReadonlyArray, deepFreeze } from "../helpers";
 import defaultsJson from "./forge-config.defaults.json";
-import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
+import type { AgentConfig, ForgeConfig, SpecDirectories } from "./ForgeConfigSchema";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
-// Re-exported for existing consumers (e.g. ForgeConfig) that import
-// deepFreeze from the config module.
-export { deepFreeze };
+/**
+ * Clone a {@link SpecDirectories} structure so a resolved config never
+ * shares references with the frozen defaults (or the caller's own overrides).
+ */
+function cloneSpecDirectories(value: SpecDirectories): SpecDirectories {
+  return {
+    flows: cloneReadonlyArray(value.flows ?? []),
+    agents: cloneReadonlyArray(value.agents ?? []),
+  };
+}
 
 /**
  * Default agent configuration.
