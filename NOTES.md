@@ -6,7 +6,7 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 14 (FlowLoader split, 3.17#18) done. All 14 subtasks complete — next: final cleanup subtask (IpcTool P2 follow-ups: freeze NO_CLIENT_ERROR, em-dash in IpcTool.ts JSDoc, IpcTool ADR) then close the phase.
+Final cleanup subtask (IpcTool P2 follow-ups: freeze NO_CLIENT_ERROR, em-dash in IpcTool.ts JSDoc, IpcTool ADR) done. All phase work complete — close the phase (PR).
 
 ## AC checklist
 
@@ -101,4 +101,4 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 - 2026-08-18: Phase 0 scope = roadmap Phase 0 headline + gantt items p0a-p0d; all subtasks independent, no file overlaps between them (AgentDetailView/AgentViewerOverlay changes consolidated in subtask 7).
 - 2026-08-18: IpcTool goes in `shared` with a structural `IpcRequestClient` interface (method-signature bivariance keeps `ChildSocketClient` assignable); it moves alongside wire types in Phase 1 if needed.
 - 2026-08-18: IpcTool implements `execute` itself (params `unknown`); only SendTaskTool overrides it to thread `params.timeout` through. A generic `execute<P>` was tried first — TS rejects generic-method overrides with narrower param types, so `unknown` + one override is the shape (why: override compatibility). Per-tool tests kept as-is; error-shape coverage now also centralized in IpcTool.test.ts. Subtask 1 commit: `refactor: extract IpcTool base class for agent IPC tools (3.4)`.
-- 2026-08-18: Review P2 follow-ups from subtask 1 queued for a final cleanup subtask: freeze `NO_CLIENT_ERROR` (as const/Readonly), em-dash → hyphen in IpcTool.ts JSDoc, ADR for the IpcTool/IpcRequestClient abstraction (AGENTS.md requires ADR for new public APIs). Abort-swallow and bivariance findings accepted as behavior-preserving (documented, pre-existing).
+- 2026-08-18: Final cleanup subtask (IpcTool P2 follow-ups) done — `NO_CLIENT_ERROR` frozen via `as const` (type-level pin in IpcTool.test.ts via `expectTypeOf` asserting `{ readonly error: "Not available in orchestrator mode" }`; assignability to `{ error: string }` unaffected since readonly modifiers don't block structural compatibility), em-dash → hyphen in the IpcRequestClient JSDoc ("satisfies this structurally - method-signature"), and ADR 0016 (`docs/adr/0016-ipc-tool-base-class.md`) documenting the IpcTool/IpcRequestClient abstraction — context (5 duplicated skeletons), decision (structural contract + skeleton + frozen error const, `unknown` params rationale), consequences (centralized error-shape coverage, behavior-preserving, public API in shared, concrete clients), references (ADR 0007, roadmap 3.4, all five cli tools). Abort-swallow + bivariance documented in the ADR as accepted behavior-preserving findings (per the subtask-1 review).

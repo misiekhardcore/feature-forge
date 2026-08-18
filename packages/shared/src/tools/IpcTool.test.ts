@@ -1,6 +1,6 @@
 import type { TSchema } from "typebox";
 import type { Mock } from "vitest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { type IpcRequestClient, IpcTool, NO_CLIENT_ERROR } from "./IpcTool";
 
@@ -23,6 +23,12 @@ type RequestMock = Mock<
 >;
 
 describe("IpcTool", () => {
+  it("keeps NO_CLIENT_ERROR frozen as a readonly literal", () => {
+    expectTypeOf(NO_CLIENT_ERROR).toEqualTypeOf<{
+      readonly error: "Not available in orchestrator mode";
+    }>();
+  });
+
   it("exposes the tool identity members", () => {
     const tool = new TestIpcTool(null);
     expect(tool.name).toBe("test_ipc");
