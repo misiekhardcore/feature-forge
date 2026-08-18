@@ -10,6 +10,9 @@ import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
 
+/** Maximum time (ms) a git command may run before being aborted. */
+const GIT_TIMEOUT_MS = 60_000;
+
 /**
  * Executes a "git" instruction by running git commands in a worktree.
  *
@@ -25,7 +28,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
   readonly type = "git";
 
   /** Maximum time (ms) a git command may run before being aborted. */
-  private readonly timeout = 60_000;
+  private readonly timeout = GIT_TIMEOUT_MS;
 
   async execute(
     instruction: GitInstruction,

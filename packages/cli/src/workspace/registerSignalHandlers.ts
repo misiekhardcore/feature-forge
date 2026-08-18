@@ -2,6 +2,9 @@ import { logger } from "@feature-forge/shared";
 
 import type { WorkspaceManager } from "./WorkspaceManager";
 
+/** Maximum time (ms) to wait for workspace destruction before forcing exit. */
+const CLEANUP_TIMEOUT_MS = 2000;
+
 /**
  * Best-effort cleanup of workspace paths on process termination.
  *
@@ -39,7 +42,9 @@ export function cleanupWorkspaces(
     }
   });
 
-  const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 2000));
+  const timeout = new Promise<"timeout">((resolve) =>
+    setTimeout(() => resolve("timeout"), CLEANUP_TIMEOUT_MS),
+  );
 
   void Promise.race([Promise.all(destroyOps), timeout])
     .then((result) => {
