@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 
-import { TuiRoutineWidget } from "./TuiProgressReporter";
+import { TuiRoutineWidget } from "./TuiRoutineWidget";
 
 // ── Helpers ──────────────────────────────────────────────────
 

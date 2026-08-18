@@ -1,15 +1,27 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { logger, Tool } from "@feature-forge/shared";
+import { IpcTool } from "@feature-forge/shared";
 import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
 
-import { SendTaskParams } from "../ipc";
-import type { ChildSocketClient } from "../ipc/ChildSocketClient";
-import { SendTaskResult } from "../ipc/messages";
+import { SendTaskParams, SendTaskResult } from "../ipc/messages";
 
-const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
+const SendTaskParameters = Type.Object({
+  agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
+  prompt: Type.String({ description: "The task description to send to the agent" }),
+  await: Type.Boolean({
+    description:
+      "If true, wait for the agent to finish. " +
+      "If false, dispatch in background and receive result later",
+  }),
+  timeout: Type.Optional(
+    Type.Number({
+      description:
+        "Optional timeout in milliseconds for this dispatch. " + "Overrides the default when set.",
+    }),
+  ),
+});
 
-export class SendTaskTool extends Tool {
+export class SendTaskTool extends IpcTool<typeof SendTaskParameters, SendTaskResult> {
   readonly name = "send_task";
   readonly label = "Send Task";
   readonly description =
@@ -18,63 +30,18 @@ export class SendTaskTool extends Tool {
     "When await is false, returns immediately with 'dispatched' status; " +
     "the result is delivered asynchronously via an agent_update notification.";
 
-  readonly parameters = Type.Object({
-    agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
-    prompt: Type.String({ description: "The task description to send to the agent" }),
-    await: Type.Boolean({
-      description:
-        "If true, wait for the agent to finish. " +
-        "If false, dispatch in background and receive result later",
-    }),
-    timeout: Type.Optional(
-      Type.Number({
-        description:
-          "Optional timeout in milliseconds for this dispatch. " +
-          "Overrides the default when set.",
-      }),
-    ),
-  });
+  readonly parameters = SendTaskParameters;
+  protected readonly messageType = "send_task";
 
   renderShell = "self";
   renderCall = ToolRenderer.sendTaskCall;
   renderResult = ToolRenderer.sendTaskResult;
 
-  constructor(private client: ChildSocketClient | null) {
-    super();
-  }
-
   async execute(
     _toolCallId: string,
     params: SendTaskParams,
-    signal: AbortSignal | undefined,
+    signal?: AbortSignal,
   ): Promise<AgentToolResult<SendTaskResult | { error: string }>> {
-    if (!this.client) {
-      signal?.throwIfAborted();
-      return {
-        content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
-        details: NO_CLIENT_ERROR,
-      };
-    }
-
-    signal?.throwIfAborted();
-
-    try {
-      const result = await this.client.request("send_task", params, params.timeout, signal);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        details: result,
-      };
-    } catch (error) {
-      logger.error("Tool execution failed", { toolName: this.name, error });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-          },
-        ],
-        details: { error: error instanceof Error ? error.message : String(error) },
-      };
-    }
+    return this.ipc(params, params.timeout, signal);
   }
 }

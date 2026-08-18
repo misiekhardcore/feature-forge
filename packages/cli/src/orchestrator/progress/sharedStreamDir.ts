@@ -46,8 +46,19 @@ export class SharedStreamDir {
    */
   static cleanup(): void {
     const baseDir = ForgeConfig.getInstance().getLogDir();
+    if (!existsSync(baseDir)) return;
+    this.pruneByRetention(baseDir);
+  }
+
+  /**
+   * Prune `agent-streams-*` directories under `baseDir` older than the
+   * configured retention window. The current singleton and directories within
+   * the window are kept so stream history survives overlay close/reopen
+   * cycles. No-op when `logRetentionDays` is `0` (retention disabled).
+   */
+  private static pruneByRetention(baseDir: string): void {
     const retentionDays = ForgeConfig.getInstance().getLogRetentionDays();
-    if (!existsSync(baseDir) || retentionDays <= 0) return;
+    if (retentionDays <= 0) return;
     const cutoff = Date.now() - retentionDays * 86_400_000;
     for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory() || !entry.name.startsWith("agent-streams-")) continue;
@@ -75,8 +86,6 @@ export class SharedStreamDir {
     if (SharedStreamDir._swept) return;
     SharedStreamDir._swept = true;
     if (!existsSync(baseDir)) return;
-    const retentionDays = ForgeConfig.getInstance().getLogRetentionDays();
-    const cutoff = Date.now() - retentionDays * 86_400_000;
     for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory() || !entry.name.startsWith("agent-streams-")) continue;
       const dirPath = join(baseDir, entry.name);
@@ -90,18 +99,8 @@ export class SharedStreamDir {
             error: String(err),
           });
         }
-        continue;
-      }
-      if (retentionDays > 0 && statSync(dirPath).mtimeMs < cutoff) {
-        try {
-          rmSync(dirPath, { recursive: true, force: true });
-        } catch (err) {
-          logger.warn("Failed to prune stale shared stream dir", {
-            dir: dirPath,
-            error: String(err),
-          });
-        }
       }
     }
+    this.pruneByRetention(baseDir);
   }
 }

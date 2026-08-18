@@ -32,15 +32,6 @@ export class DynamicAgentSpecification extends AgentSpecification {
     return new DynamicAgentSpecification(parsed);
   }
 
-  /**
-   * Serialize this specification to a plain object suitable for
-   * `JSON.stringify`. Used by the parent process to pass the full
-   * spec to child subprocesses via `FORGE_SPEC`.
-   */
-  toJSON(): AgentSpecificationParams {
-    return super.toJSON();
-  }
-
   static generateId(params: Pick<AgentSpecificationParams, "role">): string {
     return params.role + "-" + Math.random().toString(36).substring(2, 8);
   }

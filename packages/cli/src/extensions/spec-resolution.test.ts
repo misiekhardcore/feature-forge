@@ -1,3 +1,4 @@
+import { logger } from "@feature-forge/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockPiWithHandlers } from "../test-utils";
@@ -358,18 +359,18 @@ describe("activateSpecResolution", () => {
       const pi = makeMockPiWithHandlers();
       activateSpecResolution(pi);
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
 
       process.env.FORGE_SPEC = "{invalid";
       const sessionStartHandler = pi.getHandler("session_start");
       sessionStartHandler!();
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to deserialize FORGE_SPEC", {
+      expect(loggerErrorSpy).toHaveBeenCalledWith("Failed to deserialize FORGE_SPEC", {
         error: expect.any(String),
       });
       expect(pi.setActiveTools).not.toHaveBeenCalled();
 
-      consoleErrorSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
     });
   });
 });

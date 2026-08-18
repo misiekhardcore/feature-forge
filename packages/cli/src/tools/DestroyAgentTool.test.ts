@@ -43,7 +43,7 @@ describe("DestroyAgentTool", () => {
 
     beforeEach(() => {
       client = makeMockSocketClient();
-      tool = new DestroyAgentTool(client as never);
+      tool = new DestroyAgentTool(client);
     });
 
     it("sends request and returns destroyed status", async () => {

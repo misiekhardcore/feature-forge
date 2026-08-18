@@ -38,6 +38,10 @@
     ]
   },
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "0.79.10",
+    "@earendil-works/pi-ai": "0.79.10",
+    "@earendil-works/pi-coding-agent": "0.79.10",
+    "@earendil-works/pi-tui": "0.79.10",
     "@types/node": "26.0.0",
     "@vitest/coverage-v8": "4.1.9",
     "ajv": "^8.20.0",

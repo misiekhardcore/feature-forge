@@ -14,14 +14,11 @@
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch"
   },
-  "dependencies": {
-    "@earendil-works/pi-agent-core": "0.79.10",
-    "@earendil-works/pi-ai": "0.79.10",
-    "@earendil-works/pi-coding-agent": "0.79.8",
-    "@earendil-works/pi-tui": "0.79.8"
-  },
   "devDependencies": {
-    "@feature-forge/eslint-config": "*",
-    "typescript": "^5.0.0"
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "@feature-forge/eslint-config": "*"
   }
 }

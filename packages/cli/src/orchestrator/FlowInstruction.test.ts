@@ -23,7 +23,7 @@ import {
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
-import { FlowLoader } from "./FlowLoader";
+import { FlowValidation } from "./flowValidation";
 
 // ---------------------------------------------------------------------------
 // Individual instruction schemas
@@ -753,7 +753,7 @@ describe("FlowDefinitionSchema", () => {
         },
       ],
     };
-    expect(() => FlowLoader.validateStructure(invalid)).toThrow();
+    expect(() => FlowValidation.validateStructure(invalid)).toThrow();
   });
 
   it("rejects a nested instruction missing required fields (recursive validation)", () => {
@@ -779,7 +779,7 @@ describe("FlowDefinitionSchema", () => {
         },
       ],
     };
-    expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
+    expect(() => FlowValidation.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
 
   it("rejects deeply nested invalid instruction type", () => {
@@ -811,7 +811,7 @@ describe("FlowDefinitionSchema", () => {
         },
       ],
     };
-    expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
+    expect(() => FlowValidation.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
 
   it("produces human-readable errors for invalid flows", () => {
@@ -828,7 +828,7 @@ describe("FlowDefinitionSchema", () => {
         },
       ],
     };
-    expect(() => FlowLoader.validateStructure(invalid)).toThrow("Invalid flow definition");
+    expect(() => FlowValidation.validateStructure(invalid)).toThrow("Invalid flow definition");
   });
 
   it("validates an agent step with model field", () => {

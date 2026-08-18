@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 
 import { AgentSpecification } from "../agents/specifications/AgentSpecification";
 import { DynamicAgentSpecification } from "../agents/specifications/DynamicAgentSpecification";
@@ -55,7 +56,7 @@ export function activateSpecResolution(pi: ExtensionAPI): void {
 
       childSpec = spec;
     } catch (error) {
-      console.error("Failed to deserialize FORGE_SPEC", {
+      logger.error("Failed to deserialize FORGE_SPEC", {
         error: error instanceof Error ? error.message : String(error),
       });
     }

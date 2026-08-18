@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Logger } from "../logging/Logger";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
@@ -141,7 +142,10 @@ describe("ConfigLoader", () => {
 
     it("throws InvalidConfigError when the file contains invalid YAML", async () => {
       const filePath = join(tempDir, "bad.yaml");
-      await fs.writeFile(filePath, "key: value\n  bad indent");
+      // Unclosed flow sequence - a genuine YAML syntax error. (A
+      // mis-indented plain scalar like "key: value\n  bad indent" is
+      // actually valid YAML: the second line continues the scalar.)
+      await fs.writeFile(filePath, "key: [1, 2");
 
       const loader = new ConfigLoader();
 
@@ -218,18 +222,19 @@ describe("ConfigLoader", () => {
       expect((error as InvalidConfigError).cause).toBeInstanceOf(Error);
     });
 
-    it("throws InvalidConfigError when required fields are missing", async () => {
-      const filePath = join(tempDir, "incomplete.json");
-      await fs.writeFile(
-        filePath,
-        JSON.stringify({
-          logLevel: "info",
-        }),
-      );
+    it("loads a config with only logPrefix, filling defaults for omitted fields", async () => {
+      const filePath = join(tempDir, "minimal.json");
+      await fs.writeFile(filePath, JSON.stringify({ logPrefix: "x" }));
 
       const loader = new ConfigLoader();
+      const config = await loader.loadFromFile(filePath);
 
-      await expect(loader.loadFromFile(filePath)).rejects.toThrow(InvalidConfigError);
+      expect(config.logPrefix).toBe("x");
+      expect(config.logLevel).toBe(LogLevel.INFO);
+      expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
+      expect(config.agents).toBeInstanceOf(Map);
+      expect(config.agents.size).toBe(0);
+      expect(config.defaultAgent).toEqual(DEFAULT_AGENT_CONFIG);
     });
 
     it("merges with defaults for omitted optional fields", async () => {
@@ -720,15 +725,22 @@ describe("ConfigLoader", () => {
     it("returns defaults when config file has invalid JSON and logs a warning", async () => {
       await fs.writeFile(join(tempDir, "forge.config.json"), "not valid json at all");
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      // Pin the logger to the base console fallback so this test does not
+      // depend on whichever logger earlier tests initialized (or on the
+      // singleton being at warn-or-lower level).
+      Logger.resetForTest();
+      Logger.initialize();
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      const loader = new ConfigLoader();
-      const config = await loader.forRoot({ cwd: tempDir });
+      try {
+        const loader = new ConfigLoader();
+        const config = await loader.forRoot({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
-
-      consoleSpy.mockRestore();
+        expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
     });
 
     it("prefers .forge/config.json even when forge.config.json has invalid JSON", async () => {

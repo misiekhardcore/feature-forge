@@ -29,6 +29,9 @@ import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } f
 export class ChildSocketClient {
   private socket: Socket | null = null;
 
+  /** In-flight connect attempt; guards against double-connect. */
+  private connectPromise: Promise<void> | null = null;
+
   /** Map of correlationId → pending promise resolvers. */
   private pending = new Map<
     string,
@@ -48,29 +51,57 @@ export class ChildSocketClient {
   /**
    * Connect to the parent socket.
    * Throws IpcConnectionError if the connection fails.
+   * Calling this again while connected, or while a previous attempt is
+   * still in flight, reuses the existing connection (no-op).
    */
   async connect(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const socket = connect(this.socketPath, () => {
-        this.socket = socket;
-        this.socket.setTimeout(0);
-        resolve();
-      });
+    if (this.socket) {
+      return; // Already connected.
+    }
 
-      socket.on("data", (chunk: Buffer) => {
-        this.handleData(chunk);
-      });
+    if (!this.connectPromise) {
+      this.connectPromise = new Promise<void>((resolve, reject) => {
+        const socket = connect(this.socketPath, () => {
+          this.socket = socket;
+          socket.setTimeout(0);
+          resolve();
+        });
 
-      socket.on("error", (error) => {
-        if (!this.socket) {
-          reject(new IpcConnectionError(`Failed to connect to ${this.socketPath}`, error));
-        }
-      });
+        socket.on("data", (chunk: Buffer) => {
+          this.handleData(chunk);
+        });
 
-      socket.on("close", () => {
-        this.socket = null;
+        socket.on("error", (error) => {
+          if (!this.socket) {
+            reject(new IpcConnectionError(`Failed to connect to ${this.socketPath}`, error));
+          } else {
+            // Transport error after connection: reject pending requests so no
+            // caller waits out the timeout (error-first ordering must not leak;
+            // the close handler that follows only resets state).
+            this.rejectAllPending(
+              new IpcConnectionError(`Connection to ${this.socketPath} failed`, error),
+            );
+          }
+        });
+
+        socket.on("close", () => {
+          if (this.socket !== socket) {
+            return; // Stale close from a superseded connect attempt.
+          }
+          this.socket = null;
+          this.connectPromise = null;
+          this.rejectAllPending(new IpcConnectionError(`Connection to ${this.socketPath} closed`));
+        });
       });
-    });
+    }
+
+    try {
+      await this.connectPromise;
+    } catch (error) {
+      // Allow a retry after a failed connection attempt.
+      this.connectPromise = null;
+      throw error;
+    }
   }
 
   /**
@@ -91,9 +122,15 @@ export class ChildSocketClient {
 
     signal?.throwIfAborted();
 
+    const socket = this.socket;
+    if (!socket) {
+      // Reject immediately instead of silently no-op'ing the write and
+      // making the caller wait out the full timeout.
+      throw new IpcConnectionError(`Not connected to ${this.socketPath}`);
+    }
+
     return new Promise((resolve, reject) => {
       const message = { type, correlationId, params };
-      this.socket?.write(JSON.stringify(message) + "\n");
 
       // Timeout
       const timer = setTimeout(() => {
@@ -118,6 +155,9 @@ export class ChildSocketClient {
         }
       };
 
+      // Register the pending entry before writing: a response that arrives
+      // immediately after the write must find its entry already in place,
+      // otherwise it would be dropped as stale and the request would hang.
       this.pending.set(correlationId, {
         resolve: (value) => {
           cleanup();
@@ -128,6 +168,8 @@ export class ChildSocketClient {
           reject(error);
         },
       });
+
+      socket.write(JSON.stringify(message) + "\n");
     });
   }
 
@@ -149,12 +191,24 @@ export class ChildSocketClient {
     return new Promise<void>((resolve) => {
       this.socket!.end(() => {
         this.socket = null;
+        this.connectPromise = null;
         resolve();
       });
     });
   }
 
   // ─── Data handling ──────────────────────────────────────────────────
+
+  /**
+   * Reject every pending request (e.g. on transport close) so no caller
+   * waits out the timeout after the connection dies.
+   */
+  private rejectAllPending(error: Error): void {
+    for (const { reject } of this.pending.values()) {
+      reject(error);
+    }
+    this.pending.clear();
+  }
 
   private handleData(chunk: Buffer): void {
     this.buffer += chunk.toString("utf-8");

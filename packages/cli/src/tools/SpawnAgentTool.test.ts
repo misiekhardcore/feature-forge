@@ -58,7 +58,7 @@ describe("SpawnAgentTool", () => {
 
     beforeEach(() => {
       client = makeMockSocketClient();
-      tool = new SpawnAgentTool(client as never);
+      tool = new SpawnAgentTool(client);
     });
 
     it("sends request and returns formatted result", async () => {

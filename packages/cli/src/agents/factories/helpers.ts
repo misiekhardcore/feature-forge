@@ -46,7 +46,7 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
       // ForgeConfig not initialized — use default .forge
     }
 
-    const skillPaths = SkillResolver.resolvePaths(
+    const skillPaths = SkillResolver.resolveSkillPaths(
       specification.skills,
       specification.excludedSkills,
       forgeDir,

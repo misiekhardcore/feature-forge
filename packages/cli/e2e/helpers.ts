@@ -4,6 +4,7 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
+import { fileURLToPath } from "node:url";
 
 import { jsonParse } from "@feature-forge/shared";
 import { AgentStatus } from "@feature-forge/shared";
@@ -19,7 +20,7 @@ import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 import { makeMockPi, makeMockSpecManager } from "../src/test-utils";
 
 /** Absolute path to the CLI package root (where package.json lives). */
-export const PROJECT_ROOT = new URL("../", import.meta.url).pathname;
+export const PROJECT_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 /**
  * Create an {@link AgentSpecification} instance from optional parameter overrides.
@@ -171,7 +172,9 @@ export async function spawnAndVerify(
     // Socket roundtrip
     const client = connect(socketPath);
     const response = await new Promise<unknown>((res, rej) => {
+      const timer = setTimeout(() => rej(new Error("Timeout waiting for response")), 3000);
       client.once("data", (chunk: Buffer) => {
+        clearTimeout(timer);
         try {
           res(jsonParse(chunk.toString().trim()));
         } catch (error) {
@@ -186,8 +189,6 @@ export async function spawnAndVerify(
           params: {},
         }) + "\n",
       );
-
-      setTimeout(() => rej(new Error("Timeout waiting for response")), 3000);
     });
 
     expect(response).toMatchObject({

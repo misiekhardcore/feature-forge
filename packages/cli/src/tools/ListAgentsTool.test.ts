@@ -46,7 +46,7 @@ describe("ListAgentsTool", () => {
 
     beforeEach(() => {
       client = makeMockSocketClient();
-      tool = new ListAgentsTool(client as never);
+      tool = new ListAgentsTool(client);
     });
 
     it("sends request and returns agent list", async () => {

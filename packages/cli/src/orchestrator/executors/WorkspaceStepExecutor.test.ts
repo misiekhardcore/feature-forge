@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { DisplayContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
@@ -60,7 +62,7 @@ function stubWorkspaceManager(
 // ── Tests ────────────────────────────────────────────────────
 
 describe("WorkspaceStepExecutor", () => {
-  it("creates a workspace and stores the handle in context under key 'ws'", async () => {
+  it("creates a workspace and stores the handle in context under the instruction id", async () => {
     const provider = new CountingProvider();
     const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
     const wtRegistry = stubWorktreeRegistry();
@@ -77,9 +79,43 @@ describe("WorkspaceStepExecutor", () => {
 
     const expectedId = `ws-00000000`;
     expect(provider.created).toContain(`/test/${expectedId}`);
-    expect(result.workspaces.has("ws")).toBe(true);
-    expect(result.workspaces.get("ws")!.path).toBe(`/test/${expectedId}`);
-    expect(result.results.get("ws")!.parsed!.passed).toBe(true);
+    expect(result.workspaces.has("ws1")).toBe(true);
+    expect(result.workspaces.get("ws1")!.path).toBe(`/test/${expectedId}`);
+    expect(result.results.get("ws1")!.parsed!.passed).toBe(true);
+  });
+
+  it("stores each workspace under its own instruction id", async () => {
+    vi.mocked(randomUUID)
+      .mockImplementationOnce(() => "11111111-1111-4111-a111-111111111111")
+      .mockImplementationOnce(() => "22222222-2222-4222-a222-222222222222");
+
+    const provider = new CountingProvider();
+    const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
+    const wtRegistry = stubWorktreeRegistry();
+    const wm = stubWorkspaceManager(provider, wtRegistry);
+    const executor = new WorkspaceStepExecutor(provRegistry, wtRegistry, wm);
+
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
+    const first = await executor.execute(
+      { type: "workspace", id: "docs-ws", provider: "git-worktree" },
+      context,
+      vi.fn(),
+      makeMockTypedEventBus(),
+    );
+    const second = await executor.execute(
+      { type: "workspace", id: "test-ws", provider: "git-worktree" },
+      first,
+      vi.fn(),
+      makeMockTypedEventBus(),
+    );
+
+    expect(second.workspaces.has("docs-ws")).toBe(true);
+    expect(second.workspaces.has("test-ws")).toBe(true);
+    expect(second.workspaces.get("docs-ws")!.path).toBe("/test/ws-11111111");
+    expect(second.workspaces.get("test-ws")!.path).toBe("/test/ws-22222222");
+    expect(second.workspaces.get("docs-ws")!.path).not.toBe(second.workspaces.get("test-ws")!.path);
+    expect(second.results.get("docs-ws")!.parsed!.passed).toBe(true);
+    expect(second.results.get("test-ws")!.parsed!.passed).toBe(true);
   });
 
   it("throws for an unregistered provider", async () => {
@@ -238,7 +274,7 @@ describe("WorkspaceStepExecutor", () => {
 
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-      expect(result.workspaces.has("ws")).toBe(true);
+      expect(result.workspaces.has("ws1")).toBe(true);
     });
   });
 
@@ -330,7 +366,7 @@ describe("WorkspaceStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-      const handle = result.workspaces.get("ws");
+      const handle = result.workspaces.get("ws1");
       expect(handle).toBeDefined();
       expect(handle!.branch).toBe(`forge/ws-00000000`);
     });
@@ -351,7 +387,7 @@ describe("WorkspaceStepExecutor", () => {
       const context = new FlowContext({ results: new Map(), prompt: "task" });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-      const handle = result.workspaces.get("ws");
+      const handle = result.workspaces.get("ws1");
       expect(handle).toBeDefined();
       expect(handle!.branch).toBe("feature/existing-pr");
       expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
@@ -380,7 +416,7 @@ describe("WorkspaceStepExecutor", () => {
       });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-      const handle = result.workspaces.get("ws");
+      const handle = result.workspaces.get("ws1");
       expect(handle!.branch).toBe("feature/from-template");
       expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
         branch: "feature/from-template",
@@ -407,7 +443,7 @@ describe("WorkspaceStepExecutor", () => {
       });
       const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 
-      const handle = result.workspaces.get("ws");
+      const handle = result.workspaces.get("ws1");
       expect(handle!.branch).toBe("forge/ws-00000000");
       expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
         branch: "forge/ws-00000000",

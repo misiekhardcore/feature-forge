@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/shared";
 import { minimatch } from "minimatch";
 
 /**
@@ -216,7 +217,7 @@ function isValueAllowed(
     } catch {
       // Safe: malformed patterns are benign to ignore — the value simply
       // will not match that pattern.
-      console.warn("Failed to match pattern", { pattern, value });
+      logger.warn("Failed to match pattern", { pattern, value });
     }
   }
   return allowed;

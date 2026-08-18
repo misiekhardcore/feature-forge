@@ -16,10 +16,12 @@
     "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.79.8"
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "typebox": "1.3.0",
-    "@feature-forge/eslint-config": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@feature-forge/eslint-config": "*",
+    "typebox": "*",
+    "vitest": "4.1.9"
   }
 }

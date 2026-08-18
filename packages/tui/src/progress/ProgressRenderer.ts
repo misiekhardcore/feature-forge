@@ -85,12 +85,12 @@ export class ProgressRenderer {
   /**
    * Format a single agent row for the widget panel.
    *
-   * @param icon — Theme-coloured status icon.
-   * @param label — Agent display label (typically the instruction id).
-   * @param annotation — Optional summary text to append after an em-dash.
+   * @param icon - Theme-coloured status icon.
+   * @param label - Agent display label (typically the instruction id).
+   * @param annotation - Optional summary text to append after a hyphen.
    */
   static formatAgentRow(icon: string, label: string, annotation?: string): string {
-    const suffix = annotation ? ` — ${annotation}` : "";
+    const suffix = annotation ? ` - ${annotation}` : "";
     return `  ${icon} ${label}${suffix}`;
   }
 
@@ -135,10 +135,14 @@ export class ProgressRenderer {
       : `${runningIcon} ${title}`;
     lines.push(header);
 
-    // Separator
+    // Separator - match the header width including the running icon and
+    // the spaces around it, so the border never falls short of the title.
     const separatorWidth = Math.max(
       0,
-      visibleWidth(title) + (subtitle ? visibleWidth(subtitle) : 0),
+      visibleWidth(runningIcon) +
+        1 +
+        visibleWidth(title) +
+        (subtitle ? 1 + visibleWidth(subtitle) : 0),
     );
     lines.push(...new DynamicBorder((str) => theme.fg("muted", str)).render(separatorWidth));
 

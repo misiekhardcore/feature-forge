@@ -10,6 +10,9 @@ import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
 
+/** Maximum time (ms) a git command may run before being aborted. */
+const GIT_TIMEOUT_MS = 60_000;
+
 /**
  * Executes a "git" instruction by running git commands in a worktree.
  *
@@ -25,7 +28,7 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
   readonly type = "git";
 
   /** Maximum time (ms) a git command may run before being aborted. */
-  private readonly timeout = 60_000;
+  private readonly timeout = GIT_TIMEOUT_MS;
 
   async execute(
     instruction: GitInstruction,
@@ -46,11 +49,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       instructionId: instruction.id,
       action: instruction.action,
       cwd: resolvedCwd,
-    });
-
-    logger.debug("git-start", {
-      phase: "git-start",
-      message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,
     });
 
     eventBus.emit("feature-forge:git-start", {
@@ -98,11 +96,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         },
       };
 
-      logger.debug("git-done", {
-        phase: "git-done",
-        message: `Git "${instruction.id}": ${instruction.action} complete`,
-      });
-
       eventBus.emit("feature-forge:git-done", {
         phase: "git-done",
         message: `Git "${instruction.id}": ${instruction.action} complete`,
@@ -125,11 +118,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       if (instruction.action === "add-and-commit") {
         throw err;
       }
-
-      logger.debug("git-done", {
-        phase: "git-done",
-        message: `Git "${instruction.id}": ${instruction.action} failed`,
-      });
 
       eventBus.emit("feature-forge:git-done", {
         phase: "git-done",

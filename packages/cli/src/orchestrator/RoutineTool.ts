@@ -65,6 +65,17 @@ interface ToolRowInvalidation {
 }
 
 /**
+ * Minimal shape of the tool-row render context passed by the pi SDK.
+ *
+ * `ToolRenderContext` is not publicly exported, so the full context is
+ * narrowed to the fields the renderers consume (state + invalidate).
+ */
+interface ToolRowRenderContext {
+  state: ToolRowInvalidation;
+  invalidate: () => void;
+}
+
+/**
  * Tool adapter that wraps a single routine as a pi tool so the
  * orchestrator LLM can invoke it by name.
  *
@@ -143,9 +154,7 @@ export class RoutineTool
   renderCall = (
     _args: Record<string, unknown>,
     theme: Theme,
-    // ToolRenderContext is not publicly exported, so we type context loosely.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    context: { state: ToolRowInvalidation; invalidate: () => void; [key: string]: any },
+    context: ToolRowRenderContext,
   ): Component => {
     context.state.invalidate = context.invalidate;
     this.toolRowState.invalidate = context.invalidate;
@@ -156,7 +165,7 @@ export class RoutineTool
     result: AgentToolResult<RoutineResult>,
     options: ToolRenderResultOptions,
     theme: Theme,
-    _context: { state: ToolRowInvalidation; invalidate: () => void },
+    _context: ToolRowRenderContext,
   ): Component => {
     return this.renderer.buildResultComponent(result, options, theme);
   };

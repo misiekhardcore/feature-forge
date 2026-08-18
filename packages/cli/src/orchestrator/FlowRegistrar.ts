@@ -17,6 +17,27 @@ import { RoutineTool } from "./RoutineTool";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
+ * Shared context threaded through flow registration: the pi extension
+ * surface plus the registries and managers each discovered flow wires into.
+ *
+ * Passed as a single object so fields never get destructured and rebuilt
+ * at every call boundary.
+ */
+interface FlowRegistrarContext {
+  pi: ExtensionAPI;
+  cmdRegistry: CommandRegistry;
+  toolRegistry: ToolRegistry;
+  supervisor: InMemoryAgentSupervisor;
+  specManager: SpecManager;
+  workspaceManager: WorkspaceManager;
+  flowDirs: readonly string[];
+  knownProviders: ReadonlySet<string>;
+  stepExecutorRegistry: StepExecutorRegistry;
+  eventBus: TypedEventBus;
+  activeFlowRegistry: ActiveFlowRegistry;
+}
+
+/**
  * Discovers flow definitions in a directory and registers their
  * orchestrator commands and routine tools with the pi extension.
  */
@@ -24,21 +45,7 @@ export class FlowRegistrar {
   /** Shared flow map keyed by flow name, populated during registerAll. */
   readonly flowMap = new Map<string, FlowDefinition>();
 
-  constructor(
-    private readonly params: {
-      pi: ExtensionAPI;
-      cmdRegistry: CommandRegistry;
-      toolRegistry: ToolRegistry;
-      supervisor: InMemoryAgentSupervisor;
-      specManager: SpecManager;
-      workspaceManager: WorkspaceManager;
-      flowDirs: readonly string[];
-      knownProviders: ReadonlySet<string>;
-      stepExecutorRegistry: StepExecutorRegistry;
-      eventBus: TypedEventBus;
-      activeFlowRegistry: ActiveFlowRegistry;
-    },
-  ) {}
+  constructor(private readonly context: FlowRegistrarContext) {}
 
   /**
    * Discover flow directories, load each flow definition, and register
@@ -50,77 +57,30 @@ export class FlowRegistrar {
    * that cross-flow routine refs can be resolved.
    */
   async registerAll(): Promise<void> {
-    const {
-      pi,
-      cmdRegistry,
-      toolRegistry,
-      supervisor,
-      specManager,
-      workspaceManager,
-      flowDirs,
-      knownProviders,
-      stepExecutorRegistry,
-      eventBus,
-      activeFlowRegistry,
-    } = this.params;
+    const { flowDirs } = this.context;
 
     for (const flowDir of flowDirs) {
       const flowNames = await discoverFlowDirectories(flowDir);
       for (const flowName of flowNames) {
-        await this.registerFlow(flowName, path.join(flowDir, flowName), {
-          pi,
-          cmdRegistry,
-          toolRegistry,
-          supervisor,
-          specManager,
-          workspaceManager,
-          knownProviders,
-          stepExecutorRegistry,
-          eventBus,
-          activeFlowRegistry,
-        });
+        await this.registerFlow(flowName, path.join(flowDir, flowName), this.context);
       }
     }
 
     // Thread the fully populated flowMap to executors that need it
     // for cross-flow routine ref resolution.
-    stepExecutorRegistry.setFlowMap(this.flowMap);
+    this.context.stepExecutorRegistry.setFlowMap(this.flowMap);
   }
 
   private async registerFlow(
     flowName: string,
     flowDir: string,
-    ctx: {
-      pi: ExtensionAPI;
-      cmdRegistry: CommandRegistry;
-      toolRegistry: ToolRegistry;
-      supervisor: InMemoryAgentSupervisor;
-      specManager: SpecManager;
-      workspaceManager: WorkspaceManager;
-      knownProviders: ReadonlySet<string>;
-      stepExecutorRegistry: StepExecutorRegistry;
-      eventBus: TypedEventBus;
-      activeFlowRegistry: ActiveFlowRegistry;
-    },
+    ctx: FlowRegistrarContext,
   ): Promise<void> {
-    const {
-      pi,
-      cmdRegistry,
-      toolRegistry,
-      supervisor,
-      specManager,
-      workspaceManager,
-      knownProviders,
-      stepExecutorRegistry,
-      eventBus,
-      activeFlowRegistry,
-    } = ctx;
-
     // Load the flow dir's orchestrator specs first — the FlowLoader validates
     // that flow.orchestrator.systemPrompt names a registered spec, so specs
     // must be loaded before the loader is constructed.
     try {
-      await specManager.loadFromDirectory(flowDir);
+      await ctx.specManager.loadFromDirectory(flowDir);
     } catch (error) {
       logger.warn(`[feature-forge] Failed to load orchestrator specs for flow "${flowName}"`, {
         error,
@@ -131,9 +91,13 @@ export class FlowRegistrar {
     // Load and validate the flow definition. Specs are loaded first; a
     // failure there skips the whole flow, so reaching this point means
     // the flow is registered and the shared flowMap is populated.
-    const knownSpecs = specManager.specNames();
-    const flowLoader = new FlowLoader({ flowsDir: flowDir, knownSpecs, knownProviders });
-    let flow;
+    const knownSpecs = ctx.specManager.specNames();
+    const flowLoader = new FlowLoader({
+      flowsDir: flowDir,
+      knownSpecs,
+      knownProviders: ctx.knownProviders,
+    });
+    let flow: FlowDefinition;
     const store = new FlowStateStore();
     try {
       flow = await flowLoader.load("flow");
@@ -151,15 +115,15 @@ export class FlowRegistrar {
     // ── Routine tools (always registered) ──
     const routineExecutor = new RoutineExecutor(
       flow,
-      stepExecutorRegistry,
-      eventBus,
-      toolRegistry,
+      ctx.stepExecutorRegistry,
+      ctx.eventBus,
+      ctx.toolRegistry,
       store,
     );
     for (const routineDef of flow.routines) {
-      const routineTool = new RoutineTool(flowName, routineDef, routineExecutor, supervisor);
+      const routineTool = new RoutineTool(flowName, routineDef, routineExecutor, ctx.supervisor);
       try {
-        toolRegistry.registerInstance(routineTool);
+        ctx.toolRegistry.registerInstance(routineTool);
       } catch (error) {
         logger.warn(`[feature-forge] Failed to register RoutineTool "${routineTool.name}"`, {
           error,
@@ -169,17 +133,17 @@ export class FlowRegistrar {
 
     // ── Command registration ──
     const orchestratorCommand = new OrchestratorCommand({
-      supervisor,
-      pi,
-      specManager,
-      toolRegistry,
-      workspaceManager,
+      supervisor: ctx.supervisor,
+      pi: ctx.pi,
+      specManager: ctx.specManager,
+      toolRegistry: ctx.toolRegistry,
+      workspaceManager: ctx.workspaceManager,
       flow,
       store,
-      activeFlow: activeFlowRegistry,
+      activeFlow: ctx.activeFlowRegistry,
     });
     try {
-      cmdRegistry.registerInstance(orchestratorCommand);
+      ctx.cmdRegistry.registerInstance(orchestratorCommand);
     } catch (error) {
       logger.warn(`[feature-forge] Failed to register OrchestratorCommand for "${flowName}"`, {
         error,

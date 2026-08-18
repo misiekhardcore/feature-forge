@@ -43,7 +43,7 @@ describe("GetAgentResultTool", () => {
 
     beforeEach(() => {
       client = makeMockSocketClient();
-      tool = new GetAgentResultTool(client as never);
+      tool = new GetAgentResultTool(client);
     });
 
     it("sends request and returns agent status with result", async () => {

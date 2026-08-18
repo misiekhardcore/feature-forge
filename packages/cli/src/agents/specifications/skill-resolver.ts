@@ -5,32 +5,23 @@ import { fileURLToPath } from "node:url";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-/**
- * Candidate locations of the bundled default skills shipped with the CLI
- * package. The tsup build emits a single `dist/index.js`, so `import.meta.url`
- * resolves to `dist` in the built bundle and to the source module directory
- * when running from source (vitest / tsx). At most one candidate exists per
- * layout; missing directories are skipped by the scanner.
- */
-export function bundledSkillDirectories(): string[] {
-  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-  return [
-    // Source layout: <pkg>/src/agents/specifications/../../skills
-    path.resolve(moduleDir, "..", "..", "skills"),
-    // Built bundle layout: <pkg>/dist/skills
-    path.resolve(moduleDir, "skills"),
-  ];
-}
+/** Default forge directory used when no explicit forgeDir is provided. */
+const DEFAULT_FORGE_DIR = ".forge";
+
+/** Per-user skill directory under `~/.agents/skills`. */
+const AGENTS_SKILLS_RELATIVE_DIR = path.join(".agents", "skills");
+
+/** pi agent skill directory under `~/.pi/agent/skills`. */
+const PI_AGENT_SKILLS_RELATIVE_DIR = path.join(".pi", "agent", "skills");
 
 interface SkillMetadata extends Record<string, unknown> {
   name?: string;
 }
 
 /**
- * Resolves skill names to absolute SKILL.md paths by scanning well-known
- * skill directories.
+ * Skill name discovery and allowlist/denylist resolution (no instance state).
  *
- * Scans `~/.agents/skills/`, `~/.pi/agent/skills/`, `.forge/skills/`, and
+ * Scans `~/.agents/skills/`, `~/.pi/agent/skills/`, `<forgeDir>/skills/`, and
  * the CLI package's bundled `skills/` directory in priority order. Earlier
  * directories take precedence if names collide.
  *
@@ -38,8 +29,45 @@ interface SkillMetadata extends Record<string, unknown> {
  * `--skill <path>` flags to load only the required skills.
  */
 export class SkillResolver {
+  /** Static utility class - not instantiable. */
+  private constructor() {}
+
   /**
-   * Resolve skill names to absolute SKILL.md paths.
+   * Candidate locations of the bundled default skills shipped with the CLI
+   * package. The tsup build emits a single `dist/index.js`, so `import.meta.url`
+   * resolves to `dist` in the built bundle and to the source module directory
+   * when running from source (vitest / tsx). At most one candidate exists per
+   * layout; missing directories are skipped by the scanner.
+   */
+  static bundledSkillDirectories(): string[] {
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    return [
+      // Source layout: <pkg>/src/agents/specifications/../../skills
+      path.resolve(moduleDir, "..", "..", "skills"),
+      // Built bundle layout: <pkg>/dist/skills
+      path.resolve(moduleDir, "skills"),
+    ];
+  }
+
+  /**
+   * Build the candidate skill directories in priority order.
+   *
+   * Earlier directories take precedence if names collide. Home-based paths are
+   * resolved at call time so `os.homedir()` honors a runtime HOME override.
+   */
+  private static skillDirectories(forgeDir: string): string[] {
+    return [
+      path.join(os.homedir(), AGENTS_SKILLS_RELATIVE_DIR),
+      path.join(os.homedir(), PI_AGENT_SKILLS_RELATIVE_DIR),
+      path.resolve(forgeDir, "skills"),
+      // Bundled default skills (lowest priority - user/project skills override)
+      ...this.bundledSkillDirectories(),
+    ];
+  }
+
+  /**
+   * Resolve skill names to absolute SKILL.md paths by scanning well-known
+   * skill directories.
    *
    * @param skills — Allowlist of skill names to include. Empty = include all discovered.
    * @param excludedSkills — Denylist of skill names to exclude. Overrides `skills`.
@@ -47,13 +75,13 @@ export class SkillResolver {
    *   `<forgeDir>/skills/` instead of the hardcoded `.forge/skills/`.
    * @returns Absolute paths to the effective set of SKILL.md files.
    */
-  static resolvePaths(
+  static resolveSkillPaths(
     skills: readonly string[],
     excludedSkills: readonly string[],
     forgeDir?: string,
   ): string[] {
-    const allSkills = this.discoverAll(forgeDir);
-    const names = this.resolveEffectiveNames(allSkills, skills, excludedSkills);
+    const allSkills = this.discoverAllSkills(forgeDir);
+    const names = this.resolveEffectiveSkillNames(allSkills, skills, excludedSkills);
 
     return names.map((name) => allSkills.get(name)).filter((p): p is string => p !== undefined);
   }
@@ -64,12 +92,11 @@ export class SkillResolver {
    * @param forgeDir — Optional forge directory path.
    * @returns A map of all discovered skill names to their SKILL.md paths.
    */
-  static discoverAll(forgeDir?: string): Map<string, string> {
+  static discoverAllSkills(forgeDir?: string): Map<string, string> {
     const nameMap = new Map<string, string>();
-    const resolver = new SkillResolver(forgeDir);
 
-    for (const dir of resolver.skillDirectories()) {
-      resolver.scanDirectory(dir, nameMap);
+    for (const dir of this.skillDirectories(forgeDir ?? DEFAULT_FORGE_DIR)) {
+      this.scanDirectory(dir, nameMap);
     }
 
     return nameMap;
@@ -87,7 +114,7 @@ export class SkillResolver {
    * @param excludedSkills — Denylist (overrides allowlist).
    * @returns Effective skill names.
    */
-  static resolveEffectiveNames(
+  static resolveEffectiveSkillNames(
     allSkills: Map<string, string>,
     skills: readonly string[],
     excludedSkills: readonly string[],
@@ -101,22 +128,6 @@ export class SkillResolver {
     return effectiveFrom.filter((name) => !excludedSet.has(name));
   }
 
-  private forgeDir: string;
-
-  constructor(forgeDir?: string) {
-    this.forgeDir = forgeDir ?? ".forge";
-  }
-
-  private skillDirectories(): string[] {
-    return [
-      path.join(os.homedir(), ".agents", "skills"),
-      path.join(os.homedir(), ".pi", "agent", "skills"),
-      path.resolve(this.forgeDir, "skills"),
-      // Bundled default skills (lowest priority — user/project skills override)
-      ...bundledSkillDirectories(),
-    ];
-  }
-
   /**
    * Parse the frontmatter `name` field from a SKILL.md file.
    *
@@ -124,7 +135,7 @@ export class SkillResolver {
    * the `name` from YAML frontmatter. Returns `null` if no SKILL.md exists
    * or it has no frontmatter name.
    */
-  private parseSkillName(skillDir: string): string | null {
+  private static parseSkillName(skillDir: string): string | null {
     const skillMdPath = path.join(skillDir, "SKILL.md");
     try {
       const content = fs.readFileSync(skillMdPath, "utf-8");
@@ -149,12 +160,12 @@ export class SkillResolver {
    * In `~/.pi/agent/skills/`, also checks for root `.md` files whose
    * stem matches a skill name (filename-based resolution).
    */
-  private scanDirectory(dirPath: string, nameMap: Map<string, string>): void {
+  private static scanDirectory(dirPath: string, nameMap: Map<string, string>): void {
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dirPath, { withFileTypes: true });
     } catch {
-      // Directory doesn't exist or inaccessible — skip silently
+      // Directory doesn't exist or inaccessible - skip silently
       return;
     }
 
@@ -170,7 +181,7 @@ export class SkillResolver {
 
     // In ~/.pi/agent/skills/, also scan root .md files as skill definitions
     // (filename stem = skill name, for simple single-file skill specs)
-    const piSkillsDir = path.join(os.homedir(), ".pi", "agent", "skills");
+    const piSkillsDir = path.join(os.homedir(), PI_AGENT_SKILLS_RELATIVE_DIR);
     if (dirPath === piSkillsDir) {
       for (const entry of entries) {
         if (entry.isFile() && entry.name.endsWith(".md") && entry.name !== "SKILL.md") {

@@ -9,7 +9,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-import { ForgeConfig, LogLevel } from "../config";
+import { ForgeConfig } from "../config/ForgeConfig";
+import { LogLevel } from "../config/ForgeConfigSchema";
 import { Logger, logger } from "./Logger";
 
 /** Shape of a single log entry written to the JSON Lines file. */
@@ -50,6 +51,10 @@ export class FileLogger extends Logger {
   static initialize(filePath?: string): FileLogger {
     const logger = new FileLogger(filePath);
     Logger.instance = logger;
+    // Apply the configured level once at initialization - subsequent
+    // filtering reads the instance level (see Logger.getLogLevel), so
+    // the logger never consults ForgeConfig on a per-call basis.
+    Logger.setLogLevel(ForgeConfig.getInstance().getLogLevel());
     FileLogger.pruneOldLogs(ForgeConfig.getInstance().getLogRetentionDays(), logger.filePath);
     return logger;
   }

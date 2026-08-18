@@ -1,4 +1,4 @@
-import { ForgeConfig, LogLevel } from "../config";
+import { LogLevel } from "../config/ForgeConfigSchema";
 import { shouldLog } from "./LogLevel";
 
 /**
@@ -10,6 +10,11 @@ import { shouldLog } from "./LogLevel";
  *
  * Implementations may apply level filtering to suppress entries below
  * a configurable threshold.
+ *
+ * While no concrete logger is initialized, the base instance itself
+ * prints to the console - entries emitted during startup (e.g. config
+ * warnings before {@link FileLogger} initialization) must not be
+ * dropped.
  *
  * @remarks Follows the same abstract base class convention as Agent,
  * WorkspaceProvider, and Tool.
@@ -59,8 +64,17 @@ export class Logger {
     Logger.getInstance().level = level;
   }
 
+  /**
+   * Return the effective log level threshold.
+   *
+   * Prefers an explicitly set level; defaults to {@link LogLevel.INFO}
+   * (the config schema default) when no level is set or no logger
+   * instance exists yet. Concrete loggers apply the configured level
+   * during initialization - the level is never read from ForgeConfig
+   * on a per-call basis.
+   */
   static getLogLevel(): LogLevel {
-    return Logger.getInstance().level ?? ForgeConfig.getInstance().getLogLevel();
+    return Logger.instance?.level ?? LogLevel.INFO;
   }
 
   /**
@@ -69,12 +83,15 @@ export class Logger {
    * When the singleton has been replaced by a concrete subclass
    * (e.g. FileLogger), forwards to the active instance so the
    * module-level `logger` const stays functional throughout the
-   * extension lifecycle.
+   * extension lifecycle. While the base logger is still the active
+   * instance, prints to the console instead (see {@link logToConsole}).
    */
   error(message: string, data?: Record<string, unknown>): void {
     if (Logger.instance && Logger.instance !== this) {
       Logger.instance.error(message, data);
+      return;
     }
+    this.logToConsole(LogLevel.ERROR, console.error, message, data);
   }
 
   /**
@@ -86,7 +103,9 @@ export class Logger {
   warn(message: string, data?: Record<string, unknown>): void {
     if (Logger.instance && Logger.instance !== this) {
       Logger.instance.warn(message, data);
+      return;
     }
+    this.logToConsole(LogLevel.WARN, console.warn, message, data);
   }
 
   /**
@@ -98,7 +117,9 @@ export class Logger {
   info(message: string, data?: Record<string, unknown>): void {
     if (Logger.instance && Logger.instance !== this) {
       Logger.instance.info(message, data);
+      return;
     }
+    this.logToConsole(LogLevel.INFO, console.info, message, data);
   }
 
   /**
@@ -110,6 +131,33 @@ export class Logger {
   debug(message: string, data?: Record<string, unknown>): void {
     if (Logger.instance && Logger.instance !== this) {
       Logger.instance.debug(message, data);
+      return;
+    }
+    this.logToConsole(LogLevel.DEBUG, console.debug, message, data);
+  }
+
+  /**
+   * Print an entry to the console when it meets the effective log
+   * level threshold.
+   *
+   * Shared by the base logger (console fallback while it is the active
+   * instance) and {@link ConsoleLogger}, so the filtering logic lives
+   * in exactly one place. `data` is omitted from the console call when
+   * undefined so plain messages print cleanly.
+   */
+  protected logToConsole(
+    level: LogLevel,
+    consoleMethod: (message?: unknown, ...optionalParams: unknown[]) => void,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
+    if (!this.shouldLog(level, Logger.getLogLevel())) {
+      return;
+    }
+    if (data === undefined) {
+      consoleMethod(message);
+    } else {
+      consoleMethod(message, data);
     }
   }
 

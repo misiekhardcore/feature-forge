@@ -13,6 +13,11 @@ import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);
 
+/** Maximum time (ms) a shell command may run before being aborted. */
+const SHELL_TIMEOUT_MS = 120_000;
+/** Maximum bytes of stdout/stderr buffered per shell command before failure. */
+const SHELL_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
+
 /**
  * Executes a "shell" instruction by running an arbitrary shell command
  * in a specified working directory via system shell (`/bin/sh -c`).
@@ -25,7 +30,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
   readonly type = "shell";
 
   /** Maximum time (ms) a shell command may run before being aborted. */
-  private readonly timeout = 120_000;
+  private readonly timeout = SHELL_TIMEOUT_MS;
 
   async execute(
     instruction: ShellInstruction,
@@ -66,7 +71,7 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
       const { stdout, stderr } = await execFileAsync("/bin/sh", ["-c", resolvedCommand], {
         cwd: resolvedCwd,
         timeout: this.timeout,
-        maxBuffer: 10 * 1024 * 1024,
+        maxBuffer: SHELL_MAX_BUFFER_BYTES,
         signal,
       });
 

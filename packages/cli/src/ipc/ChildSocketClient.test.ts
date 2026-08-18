@@ -279,9 +279,236 @@ describe("ChildSocketClient error handling", () => {
     await expect(client.disconnect()).resolves.toBeUndefined();
   });
 
-  it("request without a connection times out instead of writing", async () => {
+  it("request without a connection rejects immediately instead of waiting out the timeout", async () => {
     const client = new ChildSocketClient("/tmp/never-connected.sock");
-    await expect(client.request("list_agents", {}, 50)).rejects.toThrow(IpcTimeoutError);
+    await expect(client.request("list_agents", {})).rejects.toThrow(IpcConnectionError);
+  });
+
+  it("rejects pending requests when the connection closes", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const closePath = join(tempDir, "close.sock");
+
+    let serverSocket: import("node:net").Socket | undefined;
+    const rawServer = createServer((socket) => {
+      serverSocket = socket;
+    });
+    await new Promise<void>((resolve) => {
+      rawServer.listen(closePath, resolve);
+    });
+
+    const client = new ChildSocketClient(closePath);
+    await client.connect();
+
+    // A request that will never get a response while the transport is up.
+    const requestPromise = client.request(
+      "spawn_agent",
+      { role: "x", systemPrompt: "x", toolRestrictions: {} },
+      2_000,
+    );
+
+    await vi.waitFor(() => {
+      expect(serverSocket).toBeDefined();
+    });
+    serverSocket!.destroy();
+
+    // Must fail fast with a connection error, not after the 2s timeout.
+    await expect(requestPromise).rejects.toThrow(IpcConnectionError);
+
+    await new Promise<void>((resolve) => rawServer.close(() => resolve()));
+  });
+
+  it("rejects pending requests when an error occurs after connection", async () => {
+    // Error events after connection must reject pending requests even if no
+    // close event follows (error-first ordering must not leak them into the
+    // timeout). A raw-server test cannot pin this path: an abrupt server
+    // teardown always emits both error and close, so the close handler alone
+    // would pass it. The mock emits only "error".
+    vi.resetModules();
+    const connectMock = vi.fn();
+    vi.doMock("node:net", async () => {
+      const actual = await vi.importActual<typeof import("node:net")>("node:net");
+      return { ...actual, connect: connectMock };
+    });
+
+    const { ChildSocketClient: MockedChildSocketClient } = await import("./ChildSocketClient");
+
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+    const fakeSocket = {
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        const list = handlers.get(event) ?? [];
+        list.push(handler);
+        handlers.set(event, list);
+        return fakeSocket;
+      }),
+      write: vi.fn(),
+      setTimeout: vi.fn(),
+      end: vi.fn(),
+    };
+    connectMock.mockImplementation((_path: string, onConnect: () => void) => {
+      setTimeout(onConnect, 0);
+      return fakeSocket;
+    });
+
+    const client = new MockedChildSocketClient("/tmp/fake-error.sock");
+    await client.connect();
+
+    // A request that will never get a response while the transport is up.
+    const requestPromise = client.request(
+      "spawn_agent",
+      { role: "x", systemPrompt: "x", toolRestrictions: {} },
+      2_000,
+    );
+
+    const errorHandler = handlers.get("error")?.[0] as (error: Error) => void;
+    expect(errorHandler).toBeDefined();
+    errorHandler(new Error("socket boom"));
+
+    // Must fail fast with a connection error, not after the 2s timeout.
+    // (Assert by name/message: vi.resetModules + dynamic import creates a
+    // second IpcConnectionError class, so instanceof against the top-level
+    // import fails despite the same shape.)
+    await expect(requestPromise).rejects.toMatchObject({
+      name: "IpcConnectionError",
+      message: "Connection to /tmp/fake-error.sock failed",
+    });
+  });
+
+  it("guards against double-connect (concurrent and repeated)", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const doublePath = join(tempDir, "double.sock");
+
+    let connections = 0;
+    const rawServer = createServer(() => {
+      connections += 1;
+    });
+    await new Promise<void>((resolve) => {
+      rawServer.listen(doublePath, resolve);
+    });
+
+    const client = new ChildSocketClient(doublePath);
+    await Promise.all([client.connect(), client.connect()]);
+    await client.connect();
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(connections).toBe(1);
+
+    await client.disconnect();
+    await new Promise<void>((resolve) => rawServer.close(() => resolve()));
+  });
+
+  it("ignores a stale close from a superseded connect attempt", async () => {
+    // Reconnect after a disconnect: the first socket's late close must not
+    // clobber the newer connection (identity guard on the close handler).
+    // Without the guard, the stale close would null this.socket and reject
+    // the new connection's pending requests, killing the reconnected client.
+    vi.resetModules();
+    const connectMock = vi.fn();
+    vi.doMock("node:net", async () => {
+      const actual = await vi.importActual<typeof import("node:net")>("node:net");
+      return { ...actual, connect: connectMock };
+    });
+
+    const { ChildSocketClient: MockedChildSocketClient } = await import("./ChildSocketClient");
+
+    const makeFakeSocket = () => {
+      const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+      const fakeSocket = {
+        on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          const list = handlers.get(event) ?? [];
+          list.push(handler);
+          handlers.set(event, list);
+          return fakeSocket;
+        }),
+        write: vi.fn((data: string) => {
+          const message = jsonParse<{ correlationId: string }>(data);
+          const response =
+            JSON.stringify({ type: "result", correlationId: message.correlationId, result: "ok" }) +
+            "\n";
+          for (const handler of handlers.get("data") ?? []) {
+            (handler as (chunk: Buffer) => void)(Buffer.from(response));
+          }
+        }),
+        setTimeout: vi.fn(),
+        end: vi.fn((callback: () => void) => callback()),
+      };
+      return { handlers, socket: fakeSocket };
+    };
+
+    const first = makeFakeSocket();
+    const second = makeFakeSocket();
+    let callCount = 0;
+    connectMock.mockImplementation((_path: string, onConnect: () => void) => {
+      callCount += 1;
+      setTimeout(onConnect, 0);
+      return callCount === 1 ? first.socket : second.socket;
+    });
+
+    const client = new MockedChildSocketClient("/tmp/fake-reconnect.sock");
+    await client.connect();
+    await client.disconnect();
+    await client.connect();
+
+    // Fire the first socket's close handler after the reconnect: must be ignored.
+    const staleClose = first.handlers.get("close")?.[0] as () => void;
+    expect(staleClose).toBeDefined();
+    staleClose();
+
+    // The newer connection must still serve requests (the stale close did
+    // not reject its pending entries or drop this.socket).
+    await expect(client.request("list_agents", {}, 500)).resolves.toEqual("ok");
+    expect(second.socket.write).toHaveBeenCalled();
+
+    // disconnect() must still find the newer socket (the stale close did
+    // not null it), so the end callback runs on the second socket.
+    await client.disconnect();
+    expect(second.socket.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("registers the pending entry before writing so an immediate response is not lost", async () => {
+    // Replace node:net with a fake whose write() delivers the response
+    // synchronously - as if the answer were already in flight when the
+    // request was being written. Only a pending entry registered before
+    // the write can catch that response; a post-write registration would
+    // drop it as stale and the request would hang until the timeout.
+    vi.resetModules();
+    const connectMock = vi.fn();
+    vi.doMock("node:net", async () => {
+      const actual = await vi.importActual<typeof import("node:net")>("node:net");
+      return { ...actual, connect: connectMock };
+    });
+
+    const { ChildSocketClient: MockedChildSocketClient } = await import("./ChildSocketClient");
+
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+    const fakeSocket = {
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        const list = handlers.get(event) ?? [];
+        list.push(handler);
+        handlers.set(event, list);
+        return fakeSocket;
+      }),
+      write: vi.fn((data: string) => {
+        const message = jsonParse<{ correlationId: string }>(data);
+        const response =
+          JSON.stringify({ type: "result", correlationId: message.correlationId, result: "ok" }) +
+          "\n";
+        for (const handler of handlers.get("data") ?? []) {
+          (handler as (chunk: Buffer) => void)(Buffer.from(response));
+        }
+      }),
+      setTimeout: vi.fn(),
+      end: vi.fn(),
+    };
+    connectMock.mockImplementation((_path: string, onConnect: () => void) => {
+      // Real net.connect never calls back synchronously.
+      setTimeout(onConnect, 0);
+      return fakeSocket;
+    });
+
+    const client = new MockedChildSocketClient("/tmp/fake.sock");
+    await client.connect();
+
+    await expect(client.request("list_agents", {}, 500)).resolves.toEqual("ok");
   });
 
   it("skips malformed JSON, ignores stale responses, and resolves matching ones", async () => {

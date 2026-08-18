@@ -113,22 +113,58 @@ describe("ForgeConfigSchema", () => {
     expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
   });
 
-  it("rejects missing logLevel", () => {
-    const invalid = {
+  it("accepts a config omitting logLevel (default applied at resolution)", () => {
+    const valid = {
       workspaceProvider: "git-worktree",
       agents: {},
       defaultAgent: { model: { model: "gpt-4" } },
     };
-    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
   });
 
-  it("rejects missing defaultAgent", () => {
-    const invalid = {
+  it("accepts a config omitting workspaceProvider", () => {
+    const valid = {
+      logLevel: "info",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("accepts a config omitting agents", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      defaultAgent: { model: { model: "gpt-4" } },
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("accepts a config omitting defaultAgent", () => {
+    const valid = {
       logLevel: "info",
       workspaceProvider: "git-worktree",
       agents: {},
     };
-    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("accepts a config with only logPrefix (all defaulted fields omitted)", () => {
+    const valid = { logPrefix: "x" };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+
+    // Decode must not inject the defaulted fields - they stay absent at
+    // the schema level and are filled later by resolveConfig.
+    const decoded = Value.Decode(ForgeConfigSchema, valid);
+    expect(decoded.logPrefix).toBe("x");
+    expect(decoded).not.toHaveProperty("logLevel");
+    expect(decoded).not.toHaveProperty("workspaceProvider");
+    expect(decoded).not.toHaveProperty("agents");
+    expect(decoded).not.toHaveProperty("defaultAgent");
+  });
+
+  it("accepts an empty config object (no required fields)", () => {
+    expect(Value.Check(ForgeConfigSchema, {})).toBe(true);
   });
 
   it("accepts optional logDir field", () => {

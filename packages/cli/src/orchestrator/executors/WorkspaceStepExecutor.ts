@@ -17,9 +17,9 @@ import { StepExecutor } from "../StepExecutor";
  * via the configured {@link WorkspaceProviderRegistry}.
  *
  * After creation the workspace handle is stored in {@link FlowContext.workspaces}
- * so downstream instructions can resolve its path via `{{workspace.<name>}}`
- * and also registered in the persistent {@link WorktreeRegistry} so
- * commands like `/worktree:list` can surface it.
+ * under the instruction id, so downstream instructions can resolve its path
+ * via `{{workspace.<id>}}` and also registered in the persistent
+ * {@link WorktreeRegistry} so commands like `/worktree:list` can surface it.
  *
  * The path is also tracked in {@link WorkspaceManager} for session-scoped
  * signal-handler cleanup.
@@ -90,7 +90,7 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       details: { path, branch },
     });
 
-    return context.withWorkspace("ws", handle).withResult("ws", {
+    return context.withWorkspace(instruction.id, handle).withResult(instruction.id, {
       raw: JSON.stringify({ path }),
       parsed: { passed: true, summary: `Workspace created at ${path}` },
     });

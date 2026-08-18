@@ -149,19 +149,19 @@ export const DevConfigSchema = Type.Object({
  */
 export const ForgeConfigSchema = Type.Object({
   /** Logging verbosity. Defaults to {@link LogLevel.INFO}. */
-  logLevel: Type.Readonly(Type.Enum(LogLevel)),
+  logLevel: Type.Readonly(Type.Optional(Type.Enum(LogLevel))),
 
   /** Prefix for log filenames to distinguish agent logs. Defaults to `"forge"`. */
   logPrefix: Type.Readonly(Type.Optional(Type.String())),
 
-  /** Workspace provider to use when creating agent workspaces. */
-  workspaceProvider: Type.Readonly(Type.Enum(WorkspaceProviderKind)),
+  /** Workspace provider to use when creating agent workspaces. Defaults to `"git-worktree"`. */
+  workspaceProvider: Type.Readonly(Type.Optional(Type.Enum(WorkspaceProviderKind))),
 
-  /** Per-agent configuration overrides keyed by agent identifier. */
-  agents: Type.Readonly(Type.Record(Type.String(), AgentConfigSchema)),
+  /** Per-agent configuration overrides keyed by agent identifier. Defaults to an empty map. */
+  agents: Type.Readonly(Type.Optional(Type.Record(Type.String(), AgentConfigSchema))),
 
-  /** Default agent configuration applied when no per-agent override exists. */
-  defaultAgent: Type.Readonly(AgentConfigSchema),
+  /** Default agent configuration applied when no per-agent override exists. Defaults to the built-in default agent config. */
+  defaultAgent: Type.Readonly(Type.Optional(AgentConfigSchema)),
 
   /** Directory for log files. Defaults to `.forge/logs` relative to project root. */
   logDir: Type.Readonly(Type.Optional(Type.String())),
@@ -246,12 +246,20 @@ export type DevConfig = Type.Static<typeof DevConfigSchema>;
  *
  * The `agents` field is typed as `ReadonlyMap` rather than `Record`
  * to enforce immutability at runtime.
+ *
+ * Schema-optional fields that are always present after resolution
+ * (`logLevel`, `workspaceProvider`, `agents`, `defaultAgent`) are
+ * re-declared as required: {@link resolveConfig} fills every one of
+ * them from `DEFAULT_FORGE_CONFIG` before a config is exposed.
  */
 export type ForgeConfig = Omit<
   Type.Static<typeof ForgeConfigSchema>,
-  "agents" | "models" | "defaultModel"
+  "agents" | "models" | "defaultModel" | "logLevel" | "workspaceProvider" | "defaultAgent"
 > & {
+  readonly logLevel: LogLevel;
+  readonly workspaceProvider: WorkspaceProviderKind;
   readonly agents: ReadonlyMap<string, AgentConfig>;
+  readonly defaultAgent: AgentConfig;
   readonly models: Readonly<Record<string, AgentModelConfig>>;
   readonly defaultModel: string | undefined;
   readonly forgeDir: string | undefined;
