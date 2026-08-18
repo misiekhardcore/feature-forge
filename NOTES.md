@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 4: ChildSocketClient null-socket rejection (3.13) — reject immediately when socket null, register pending before write, reject pending on close, guard double-connect.
+Subtask 5: Logger/console consistency (3.26 + 3.17#11 + 3.17#26) — ConsoleLogger level filtering, shared manifest yaml/typebox → dependencies + vitest → devDependencies, console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions, DEFAULT_LOG_LEVEL deleted.
 
 ## Next action on resume
-Run build loop for subtask 4 (ChildSocketClient).
+Run build loop for subtask 5 (Logger/console).
 
 ## AC checklist
 
@@ -19,7 +19,7 @@ Run build loop for subtask 4 (ChildSocketClient).
 | 2 | 3.8 (P1-5): FlowStateStore standalone class (get/set/entries/toObject, Map-backed), no `extends Registry` | [x] |
 | 3 | 3.11 (P2-1): WorkspaceStepExecutor stores workspace under `instruction.id`, not `"ws"` | [x] |
 | 4 | 3.12 (P2-2): WorkspaceManager `destroy`/`get` params renamed `path` + doc note (keys are paths) | [x] |
-| 5 | 3.13 (P2-3): ChildSocketClient rejects immediately when socket null; pending registered before write; pending rejected on close; connect() guards double-connect | [ ] |
+| 5 | 3.13 (P2-3): ChildSocketClient rejects immediately when socket null; pending registered before write; pending rejected on close; connect() guards double-connect | [x] |
 | 6 | 3.26 (P2-9): ConsoleLogger level filtering; shared manifest yaml/typebox → dependencies, vitest → devDependencies | [ ] |
 | 7 | 3.17#11: console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions | [ ] |
 | 8 | 3.17#26: DEFAULT_LOG_LEVEL deleted | [ ] |
@@ -77,6 +77,7 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 
 ## Decisions log
 
+- 2026-08-18: ChildSocketClient (3.13) done — `request()` throws IpcConnectionError immediately when disconnected (was: silent no-op write + full timeout wait); pending entry registered before the write; socket `close` rejects all pending (no caller waits out a timeout after transport death); `connect()` stores an in-flight `connectPromise` so concurrent/repeated calls share one connection (reset on close/failure to allow reconnect). Tests: immediate-reject replaces the old "times out instead of writing" test; new close-rejects-pending (raw server, 2s timeout to fail fast on regression); double-connect guard (concurrent + repeated, connection count 1); register-before-write proven with a mock `node:net` whose `write()` delivers the response synchronously. Commit: `refactor: harden ChildSocketClient request lifecycle (3.13)`.
 - 2026-08-18: Workspace fixes (3.11+3.12) done — WorkspaceStepExecutor keys workspace + result by `instruction.id`; WorkspaceManager `destroy`/`get` renamed to `path` (error message now "No workspace found at path"), doc note added (registry keys by path). New regression test "stores each workspace under its own instruction id" (two workspace instructions in one routine no longer overwrite; `mockImplementationOnce` sequence used since the file-level mock returns a constant UUID). Commit: `refactor: fix workspace id keying and WorkspaceManager path naming (3.11+3.12)`.
 - 2026-08-18: FlowStateStore (3.8) done — standalone Map-backed class with exactly get/set/entries/toObject; registry-query tests (has/size/unregister/getAll/where) dropped with the methods. Production callers only used the four kept methods. Commit: `refactor: make FlowStateStore a standalone Map-backed class (3.8)`.
 - 2026-08-18: Phase 0 scope = roadmap Phase 0 headline + gantt items p0a-p0d; all subtasks independent, no file overlaps between them (AgentDetailView/AgentViewerOverlay changes consolidated in subtask 7).
