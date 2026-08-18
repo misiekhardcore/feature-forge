@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 
-import type { AgentViewerEntryStatus } from "../types";
+import type { AgentViewerEntryStatus } from "./AgentViewerEntryStatus";
 
 /**
  * A DTO returned by {@link import("../StepExecutor").StepExecutor.getDisplayContribution}

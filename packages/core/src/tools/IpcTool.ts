@@ -14,7 +14,7 @@ export const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" } a
 /**
  * Structural contract for the IPC client an {@link IpcTool} proxies to.
  *
- * Shared cannot import the cli package's wire types, so any client exposing a
+ * Core cannot import the cli package's wire types, so any client exposing a
  * `request(type, params, timeout?, signal?)` method qualifies. The cli's
  * `ChildSocketClient` satisfies this structurally - method-signature
  * bivariance keeps its generic `request` assignable to this signature.

@@ -16,9 +16,10 @@ interface RoutineResultLike {
   passed?: boolean;
 }
 
-import type { AccumulatedState } from "./AccumulatedState";
-import { createAccumulatedState } from "./AccumulatedState";
-import type { DisplayContributionRegistry } from "./DisplayContributionRegistry";
+import type { AccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
+
 import type { RoutineProgressState } from "./RoutineProgressState";
 
 // ── Theme-like contract (looser than pi's Theme) ────────────

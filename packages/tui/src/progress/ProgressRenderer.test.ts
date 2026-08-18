@@ -4,11 +4,11 @@ import type {
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import { describe, expect, it, vi } from "vitest";
 
-import { createAccumulatedState } from "./AccumulatedState";
-import type { DisplayContribution } from "./DisplayContribution";
-import { DisplayContributionRegistry } from "./DisplayContributionRegistry";
 import { ProgressRenderer } from "./ProgressRenderer";
 import type { RoutineProgressState } from "./RoutineProgressState";
 

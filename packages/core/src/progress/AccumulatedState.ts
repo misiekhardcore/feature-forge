@@ -1,4 +1,4 @@
-import type { AgentViewerEntryStatus } from "../types";
+import type { AgentViewerEntryStatus } from "./AgentViewerEntryStatus";
 
 /**
  * Accumulated, derived progress state consumed by the TUI renderer.

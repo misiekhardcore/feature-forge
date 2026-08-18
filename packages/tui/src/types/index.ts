@@ -12,7 +12,7 @@ export type { RunningAgentEntry } from "./RunningAgentEntry";
 /**
  * Lifecycle statuses an agent entry can take in the viewer.
  */
-export type AgentViewerEntryStatus = "started" | "running" | "done" | "error" | "cancelled";
+export type { AgentViewerEntryStatus } from "@feature-forge/core/src/progress/AgentViewerEntryStatus";
 
 /**
  * Discriminated union of all possible agent entry states.

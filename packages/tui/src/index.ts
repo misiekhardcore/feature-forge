@@ -12,18 +12,6 @@ export type {
 export { BorderedContainer, StaticContent } from "./components/BorderedContainer";
 export { ScrollableBox } from "./components/ScrollableBox";
 export { AgentDisplayHelpers } from "./display";
-export type { AccumulatedState } from "./progress/AccumulatedState";
-export { createAccumulatedState } from "./progress/AccumulatedState";
-export type {
-  AgentContribution,
-  DisplayContribution,
-  LoopContribution,
-  SessionContribution,
-  StatusContribution,
-  WorkspaceContribution,
-} from "./progress/DisplayContribution";
-export type { ContributionHandler } from "./progress/DisplayContributionRegistry";
-export { DisplayContributionRegistry } from "./progress/DisplayContributionRegistry";
 export { NoOpProgressReporter } from "./progress/NoOpProgressReporter";
 export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/ProgressRenderer";
 export { ProgressRenderer } from "./progress/ProgressRenderer";
@@ -44,3 +32,15 @@ export { AgentViewerOverlay } from "./views/AgentViewerOverlay";
 export type { ConversationRendererParams } from "./views/ConversationRenderer";
 export { ConversationRenderer } from "./views/ConversationRenderer";
 export { ToolRenderer } from "./views/ToolRenderer";
+export type { AccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+export { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+export type {
+  AgentContribution,
+  DisplayContribution,
+  LoopContribution,
+  SessionContribution,
+  StatusContribution,
+  WorkspaceContribution,
+} from "@feature-forge/core/src/progress/DisplayContribution";
+export type { ContributionHandler } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
+export { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";

@@ -1,4 +1,4 @@
-import type { DisplayContribution } from "./DisplayContribution";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
 
 /**
  * Live progress state consumed by {@link import("./ProgressRenderer").ProgressRenderer}.
