@@ -1,0 +1,84 @@
+# Phase 0 - Quick wins (architecture-review roadmap)
+
+Base: `main` @ `714c209b` (Phase -1 PR #225 merged). This phase implements the roadmap's
+"Phase 0 - Quick wins": dead code + hygiene (3.17), IpcTool base class (3.4),
+FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
+socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
+
+## Current task
+Subtask 3: Workspace fixes (3.11 WorkspaceStepExecutor `instruction.id` key + 3.12 WorkspaceManager `path` rename/doc note).
+
+## Next action on resume
+Run build loop for subtask 3 (Workspace fixes).
+
+## AC checklist
+
+| # | AC | Status |
+|---|----|--------|
+| 1 | 3.4 (P1-1): IpcTool base class; 5 agent tools shrink to schema + one-line execute | [x] |
+| 2 | 3.8 (P1-5): FlowStateStore standalone class (get/set/entries/toObject, Map-backed), no `extends Registry` | [x] |
+| 3 | 3.11 (P2-1): WorkspaceStepExecutor stores workspace under `instruction.id`, not `"ws"` | [ ] |
+| 4 | 3.12 (P2-2): WorkspaceManager `destroy`/`get` params renamed `path` + doc note (keys are paths) | [ ] |
+| 5 | 3.13 (P2-3): ChildSocketClient rejects immediately when socket null; pending registered before write; pending rejected on close; connect() guards double-connect | [ ] |
+| 6 | 3.26 (P2-9): ConsoleLogger level filtering; shared manifest yaml/typebox → dependencies, vitest → devDependencies | [ ] |
+| 7 | 3.17#11: console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions | [ ] |
+| 8 | 3.17#26: DEFAULT_LOG_LEVEL deleted | [ ] |
+| 9 | 3.17#1: fillTemplate deleted (source + test + exports) | [ ] |
+| 10 | 3.17#4: DynamicAgentSpecification.toJSON override deleted | [ ] |
+| 11 | 3.17#6: duplicated class-level JSDoc in GitWorktreeProvider deduped | [ ] |
+| 12 | 3.17#7: orphaned docstring fragment in AgentViewerOverlay deleted | [ ] |
+| 13 | 3.17#20: dead avgLinesPerMessage map in AgentDetailView deleted | [ ] |
+| 14 | 3.17#15 (3.10#5): GitStepExecutor twin logger.debug dropped (eventBus.emit kept) | [ ] |
+| 15 | 3.17#21: em-dashes in user-facing display strings → hyphens (ProgressRenderer, AgentViewerOverlay, AgentDetailView) | [ ] |
+| 16 | 3.17#22: widget separator width includes icon width | [ ] |
+| 17 | 3.17#9: getOverlayOptions maxHeight typed `string`, no lying cast | [ ] |
+| 18 | 3.17#8: OrchestratorCommand docstring numbering fixed (1-4) | [ ] |
+| 19 | 3.17#10: RoutineTool renderCall context narrowed via local interface (no `any`/eslint-disable) | [ ] |
+| 20 | 3.17#19: TuiProgressReporter.ts renamed TuiRoutineWidget.ts (class name, test file, index) | [ ] |
+| 21 | 3.17#5: TOOL_PRESETS readOnly/reviewOnly deduped (alias) | [ ] |
+| 22 | 3.17#24: sharedStreamDir pruning extracted into one pruneByRetention() | [ ] |
+| 23 | 3.17#25: e2e helper socket setTimeout cleared on resolve; PROJECT_ROOT via fileURLToPath | [ ] |
+| 24 | 3.17#27: ForgeConfigSchema logLevel/workspaceProvider/agents/defaultAgent → Type.Optional (defaults supplied) | [ ] |
+| 25 | 3.17#28: packages/shared `npm run test` works (package-local vitest config) | [ ] |
+| 26 | 3.17#12: magic numbers → named constants (shell 120s, git 60s, maxBuffer 10MB, preconnect 2000) | [ ] |
+| 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [ ] |
+| 28 | 3.17#14: packages/web placeholder deleted | [ ] |
+| 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [ ] |
+| 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [ ] |
+| 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [ ] |
+
+## Deferred (documented rationale)
+
+- 3.17#2 buildEnvOverlay: Phase -1 added tests; kept as tested public API (review allows "test + use").
+- 3.17#3 ConsoleLogger wiring: filtering added per 3.26; no `--console-logs` mode (out of quick-wins scope).
+- 3.17#23 EventSubscriber: kept - Phase 1 (P0-1 fix) uses it at the tui/cli boundary.
+- 3.17#13 pi SDK: attempt 0.79.8 → 0.79.10; revert and defer if the suite breaks.
+
+## Subtask plan
+
+All subtasks are independent (no overlapping files). Sequential execution in the single workspace.
+
+| # | Subtask | Files (create/modify/delete) |
+|---|---------|------------------------------|
+| 1 | IpcTool (3.4) | +shared/src/tools/IpcTool.ts (+test), shared/src/index.ts, 5 tools in cli/src/tools/ |
+| 2 | FlowStateStore (3.8) | FlowStateStore.ts, FlowStateStore.test.ts |
+| 3 | Workspace fixes (3.11+3.12) | WorkspaceStepExecutor.ts (+test), WorkspaceManager.ts (+test) |
+| 4 | ChildSocketClient (3.13) | ChildSocketClient.ts, ChildSocketClient.test.ts |
+| 5 | Logger/console (3.26+#11+#26) | ConsoleLogger.ts (+test), shared/package.json, ConfigLoader.ts, spec-resolution.ts, tool-restrictions.ts, LogLevel.ts (+test), logging/index.ts, shared/index.ts |
+| 6 | Dead code A | templates.ts+test (del), specifications/index.ts, agents/index.ts, DynamicAgentSpecification.ts, GitWorktreeProvider.ts, GitStepExecutor.ts (+test) |
+| 7 | TUI strings B | ProgressRenderer.ts (+test), AgentViewerOverlay.ts (+test), AgentDetailView.ts, OrchestratorCommand.ts, RoutineTool.ts, TuiProgressReporter.ts→TuiRoutineWidget.ts (+test), constants.ts |
+| 8 | Progress/e2e C | sharedStreamDir.ts (+test), e2e/helpers.ts |
+| 9 | Schema + shared test script D | ForgeConfigSchema.ts (+test), ConfigLoader.test.ts, +packages/shared/vitest.config.ts |
+| 10 | Magic numbers (3.17#12) | ShellStepExecutor.ts, GitStepExecutor.ts, registerSignalHandlers.ts |
+| 11 | Manifests (#13+#14) | package.jsons (cli/shared/tui/debug), delete packages/web/, package-lock via npm install |
+| 12 | FlowRegistrar (3.17#16) | FlowRegistrar.ts |
+| 13 | SkillResolver (3.17#17) | skill-resolver.ts (+test), helpers.ts, specifications/index.ts |
+| 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
+
+## Decisions log
+
+- 2026-08-18: FlowStateStore (3.8) done — standalone Map-backed class with exactly get/set/entries/toObject; registry-query tests (has/size/unregister/getAll/where) dropped with the methods. Production callers only used the four kept methods. Commit: `refactor: make FlowStateStore a standalone Map-backed class (3.8)`.
+- 2026-08-18: Phase 0 scope = roadmap Phase 0 headline + gantt items p0a-p0d; all subtasks independent, no file overlaps between them (AgentDetailView/AgentViewerOverlay changes consolidated in subtask 7).
+- 2026-08-18: IpcTool goes in `shared` with a structural `IpcRequestClient` interface (method-signature bivariance keeps `ChildSocketClient` assignable); it moves alongside wire types in Phase 1 if needed.
+- 2026-08-18: IpcTool implements `execute` itself (params `unknown`); only SendTaskTool overrides it to thread `params.timeout` through. A generic `execute<P>` was tried first — TS rejects generic-method overrides with narrower param types, so `unknown` + one override is the shape (why: override compatibility). Per-tool tests kept as-is; error-shape coverage now also centralized in IpcTool.test.ts. Subtask 1 commit: `refactor: extract IpcTool base class for agent IPC tools (3.4)`.
+- 2026-08-18: Review P2 follow-ups from subtask 1 queued for a final cleanup subtask: freeze `NO_CLIENT_ERROR` (as const/Readonly), em-dash → hyphen in IpcTool.ts JSDoc, ADR for the IpcTool/IpcRequestClient abstraction (AGENTS.md requires ADR for new public APIs). Abort-swallow and bivariance findings accepted as behavior-preserving (documented, pre-existing).
