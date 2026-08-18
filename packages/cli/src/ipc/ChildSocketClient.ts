@@ -74,6 +74,13 @@ export class ChildSocketClient {
         socket.on("error", (error) => {
           if (!this.socket) {
             reject(new IpcConnectionError(`Failed to connect to ${this.socketPath}`, error));
+          } else {
+            // Transport error after connection: reject pending requests so no
+            // caller waits out the timeout (error-first ordering must not leak;
+            // the close handler that follows only resets state).
+            this.rejectAllPending(
+              new IpcConnectionError(`Connection to ${this.socketPath} failed`, error),
+            );
           }
         });
 

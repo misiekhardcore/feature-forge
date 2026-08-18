@@ -317,6 +317,62 @@ describe("ChildSocketClient error handling", () => {
     await new Promise<void>((resolve) => rawServer.close(() => resolve()));
   });
 
+  it("rejects pending requests when an error occurs after connection", async () => {
+    // Error events after connection must reject pending requests even if no
+    // close event follows (error-first ordering must not leak them into the
+    // timeout). A raw-server test cannot pin this path: an abrupt server
+    // teardown always emits both error and close, so the close handler alone
+    // would pass it. The mock emits only "error".
+    vi.resetModules();
+    const connectMock = vi.fn();
+    vi.doMock("node:net", async () => {
+      const actual = await vi.importActual<typeof import("node:net")>("node:net");
+      return { ...actual, connect: connectMock };
+    });
+
+    const { ChildSocketClient: MockedChildSocketClient } = await import("./ChildSocketClient");
+
+    const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+    const fakeSocket = {
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        const list = handlers.get(event) ?? [];
+        list.push(handler);
+        handlers.set(event, list);
+        return fakeSocket;
+      }),
+      write: vi.fn(),
+      setTimeout: vi.fn(),
+      end: vi.fn(),
+    };
+    connectMock.mockImplementation((_path: string, onConnect: () => void) => {
+      setTimeout(onConnect, 0);
+      return fakeSocket;
+    });
+
+    const client = new MockedChildSocketClient("/tmp/fake-error.sock");
+    await client.connect();
+
+    // A request that will never get a response while the transport is up.
+    const requestPromise = client.request(
+      "spawn_agent",
+      { role: "x", systemPrompt: "x", toolRestrictions: {} },
+      2_000,
+    );
+
+    const errorHandler = handlers.get("error")?.[0] as (error: Error) => void;
+    expect(errorHandler).toBeDefined();
+    errorHandler(new Error("socket boom"));
+
+    // Must fail fast with a connection error, not after the 2s timeout.
+    // (Assert by name/message: vi.resetModules + dynamic import creates a
+    // second IpcConnectionError class, so instanceof against the top-level
+    // import fails despite the same shape.)
+    await expect(requestPromise).rejects.toMatchObject({
+      name: "IpcConnectionError",
+      message: "Connection to /tmp/fake-error.sock failed",
+    });
+  });
+
   it("guards against double-connect (concurrent and repeated)", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
     const doublePath = join(tempDir, "double.sock");
