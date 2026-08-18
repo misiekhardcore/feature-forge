@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgeConfig, LogLevel } from "../config";
 import { jsonParse } from "../helpers";
 import { FileLogger } from "./FileLogger";
-import { Logger } from "./Logger";
+import { Logger, logger as moduleLogger } from "./Logger";
 
 describe("FileLogger", () => {
   let filePath: string;
@@ -327,6 +327,7 @@ describe("FileLogger", () => {
     });
 
     afterEach(() => {
+      vi.restoreAllMocks();
       getInstanceSpy.mockRestore();
       rmSync(logDir, { recursive: true, force: true });
     });
@@ -421,6 +422,39 @@ describe("FileLogger", () => {
       getInstanceSpy.mockReturnValue({ getLogDir: () => missingDir });
 
       expect(() => FileLogger.pruneOldLogs(1)).not.toThrow();
+    });
+
+    it("swallows ENOTDIR from a log dir path that is a regular file", () => {
+      // getLogDir pointing at a regular file: the top-level readdirSync
+      // throws ENOTDIR and must be caught (warn + return) instead of
+      // escaping pruneOldLogs out of FileLogger.initialize().
+      const filePath = join(logDir, "not-a-dir.log");
+      writeFileSync(filePath, "x\n", "utf-8");
+      getInstanceSpy.mockReturnValue({ getLogDir: () => filePath });
+      const warnSpy = vi.spyOn(moduleLogger, "warn");
+
+      expect(() => FileLogger.pruneOldLogs(7)).not.toThrow();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`Log retention: cannot read log directory ${filePath}`),
+      );
+    });
+
+    it("logs a pruned summary even when nothing is pruned", () => {
+      writeLogFile("forge-recent.log", 3);
+      const infoSpy = vi.spyOn(moduleLogger, "info");
+
+      FileLogger.pruneOldLogs(7);
+
+      expect(infoSpy).toHaveBeenCalledWith("Log retention: pruned 0 of 1 files older than 7 days");
+    });
+
+    it("does not log a summary when retention is disabled", () => {
+      writeLogFile("forge-stale.log", 10);
+      const infoSpy = vi.spyOn(moduleLogger, "info");
+
+      FileLogger.pruneOldLogs(0);
+
+      expect(infoSpy).not.toHaveBeenCalled();
     });
   });
 });
