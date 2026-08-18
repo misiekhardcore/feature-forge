@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/core";
 import type { AgentViewerOverlay } from "@feature-forge/tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

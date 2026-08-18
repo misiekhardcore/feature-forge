@@ -3,8 +3,8 @@ import type {
   BeforeAgentStartEventResult,
   ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { AgentStatus } from "@feature-forge/shared";
-import { logger } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 
 import { activateToolRestrictions } from "../../extensions/tool-restrictions";
 import type { WorkspaceManager } from "../../workspace";

@@ -16,7 +16,7 @@
     "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
-    "@feature-forge/shared": "*"
+    "@feature-forge/core": "*"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "*",

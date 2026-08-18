@@ -57,9 +57,8 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock("@feature-forge/shared", async () => {
-  const actual =
-    await vi.importActual<typeof import("@feature-forge/shared")>("@feature-forge/shared");
+vi.mock("@feature-forge/core", async () => {
+  const actual = await vi.importActual<typeof import("@feature-forge/core")>("@feature-forge/core");
   return {
     ...actual,
     ForgeConfig: {

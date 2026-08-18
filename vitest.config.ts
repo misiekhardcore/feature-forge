@@ -49,15 +49,6 @@ export default defineConfig({
       },
       {
         test: {
-          name: "shared",
-          root: packageRoot("shared"),
-          setupFiles: ["src/test-setup.ts"],
-          globals: true,
-          include: ["src/**/*.test.ts"],
-        },
-      },
-      {
-        test: {
           name: "tui",
           root: packageRoot("tui"),
           globals: true,

@@ -1,6 +1,6 @@
+import { LogLevel } from "@feature-forge/core/src/config/ForgeConfigSchema";
 import { describe, expect, it, vi } from "vitest";
 
-import { LogLevel } from "../config/ForgeConfigSchema";
 import { Logger } from "./Logger";
 
 describe("Logger", () => {

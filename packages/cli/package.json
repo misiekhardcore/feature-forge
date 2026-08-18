@@ -56,7 +56,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@feature-forge/shared": "*",
+    "@feature-forge/core": "*",
     "@feature-forge/tui": "*",
     "@feature-forge/debug": "*",
     "tsup": "^8.0.0",

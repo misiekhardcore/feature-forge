@@ -135,7 +135,7 @@ function computeForgeDir() {
 function resolveDefaultsPath() {
   try {
     // Monorepo dev: resolves via workspace symlink
-    return require.resolve("@feature-forge/shared/src/config/forge-config.defaults.json");
+    return require.resolve("@feature-forge/core/src/config/forge-config.defaults.json");
   } catch {
     const candidates = [
       // Source layout: <pkg>/scripts/forge-config.defaults.json (next to script)

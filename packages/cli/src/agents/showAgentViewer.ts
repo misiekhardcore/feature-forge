@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle } from "@earendil-works/pi-tui";
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/core";
 import type { AgentQuery, ToolFormatter } from "@feature-forge/tui";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 

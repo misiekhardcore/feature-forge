@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentStatus, jsonParse, logger } from "@feature-forge/shared";
+import { AgentStatus, jsonParse, logger } from "@feature-forge/core";
 
 import type { SpecManager } from "../agents";
 import { AgentSupervisor, isSubprocessAgent, type SubprocessAgent } from "../agents";

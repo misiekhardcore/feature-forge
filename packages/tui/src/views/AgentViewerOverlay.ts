@@ -9,7 +9,7 @@ import type {
 } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
 
 import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display";

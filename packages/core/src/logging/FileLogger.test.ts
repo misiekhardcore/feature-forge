@@ -12,10 +12,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { ForgeConfig, LogLevel } from "@feature-forge/core/src/config";
+import { jsonParse } from "@feature-forge/core/src/helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForgeConfig, LogLevel } from "../config";
-import { jsonParse } from "../helpers";
 import { FileLogger } from "./FileLogger";
 import { Logger } from "./Logger";
 

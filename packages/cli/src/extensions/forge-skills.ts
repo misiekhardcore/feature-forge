@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/core";
 
 /**
  * Register a `resources_discover` handler that contributes the forge

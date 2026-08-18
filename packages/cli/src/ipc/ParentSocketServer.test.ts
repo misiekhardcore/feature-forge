@@ -2,7 +2,7 @@ import { connect, type Socket } from "node:net";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentStatus, jsonParse } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";

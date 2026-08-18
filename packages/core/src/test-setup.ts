@@ -1,3 +1,6 @@
-// Vitest setup for @feature-forge/core.
-// Shared harness init lands here as core modules gain tests
-// (mirrors packages/shared/src/test-setup.ts).
+import { ForgeConfig } from "./config";
+
+// Initialize ForgeConfig with built-in defaults before any test runs.
+// This ensures that modules calling ForgeConfig.getInstance() at import
+// time (Logger, FileLogger, AgentViewerOverlay helpers) do not throw.
+await ForgeConfig.create();

@@ -1,5 +1,5 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
 import { describe, expect, it } from "vitest";
 
 import { AgentDisplayHelpers } from "./AgentDisplayHelpers";

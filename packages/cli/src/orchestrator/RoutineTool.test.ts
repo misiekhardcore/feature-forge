@@ -5,7 +5,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, jsonParse, logger } from "@feature-forge/shared";
+import { ForgeConfig, jsonParse, logger } from "@feature-forge/core";
 import type { AgentContribution, DisplayContribution } from "@feature-forge/tui";
 import type { DisplayContributionRegistry } from "@feature-forge/tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

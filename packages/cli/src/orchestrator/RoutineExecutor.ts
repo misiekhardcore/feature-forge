@@ -1,4 +1,4 @@
-import { logger } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
 
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { TypedEventBus } from "./eventBus";

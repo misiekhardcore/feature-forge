@@ -1,7 +1,7 @@
 import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message, TextContent } from "@earendil-works/pi-ai";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
 
 import type { AgentEntryBase, AgentViewerEntry, AgentViewerEntryStatus } from "../types";
 

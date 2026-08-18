@@ -1,4 +1,5 @@
-import { LogLevel } from "../config/ForgeConfigSchema";
+import { LogLevel } from "@feature-forge/core/src/config/ForgeConfigSchema";
+
 import { shouldLog } from "./LogLevel";
 
 /**

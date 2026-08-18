@@ -13,8 +13,8 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/shared";
-import { AgentStatus } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
+import { AgentStatus } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../src/agents";

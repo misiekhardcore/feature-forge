@@ -9,7 +9,7 @@ import { AgentSupervisor } from "@feature-forge/cli/src/agents";
 import type { Agent, AgentKind } from "@feature-forge/cli/src/agents/agents/Agent";
 import type { AgentSpecification } from "@feature-forge/cli/src/agents/specifications";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
-import { AgentStatus, jsonParse } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/core";
 import {
   AgentDisplayHelpers,
   type AgentViewerEntry,

@@ -1,4 +1,4 @@
-import { logger } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
 
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";

@@ -20,7 +20,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";

@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle, TUI } from "@earendil-works/pi-tui";
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/core";
 import type { AgentQuery } from "@feature-forge/tui";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 import { afterEach, describe, expect, it, vi } from "vitest";

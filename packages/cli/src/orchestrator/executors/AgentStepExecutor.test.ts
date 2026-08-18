@@ -1,4 +1,4 @@
-import { logger } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
 import type { AgentContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";

@@ -1,4 +1,4 @@
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
 
 import type { AgentOutput } from "../FlowContext";
 

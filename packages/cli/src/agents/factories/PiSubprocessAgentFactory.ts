@@ -1,8 +1,8 @@
 import { join } from "node:path";
 
 import { getPackageDir, RpcClient, RpcClientOptions } from "@earendil-works/pi-coding-agent";
-import type { AgentModelConfig } from "@feature-forge/shared";
-import { logger, resolveModel } from "@feature-forge/shared";
+import type { AgentModelConfig } from "@feature-forge/core";
+import { logger, resolveModel } from "@feature-forge/core";
 
 import { PiSubprocessAgent, SubprocessAgent } from "../agents";
 import { AgentSpecification } from "../specifications";

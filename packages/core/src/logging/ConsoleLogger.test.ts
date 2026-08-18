@@ -1,6 +1,6 @@
+import { LogLevel } from "@feature-forge/core/src/config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LogLevel } from "../config";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { Logger } from "./Logger";
 

@@ -2,9 +2,9 @@ import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { Logger } from "@feature-forge/core/src/logging/Logger";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Logger } from "../logging/Logger";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";

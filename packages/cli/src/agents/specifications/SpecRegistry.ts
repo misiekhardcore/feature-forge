@@ -1,4 +1,4 @@
-import { Registry } from "@feature-forge/shared";
+import { Registry } from "@feature-forge/core";
 
 import type { AgentSpecification } from "./AgentSpecification";
 

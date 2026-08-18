@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
-import { FileLogger, ForgeConfig, logger } from "@feature-forge/shared";
+import { FileLogger, ForgeConfig, logger } from "@feature-forge/core";
 
 import {
   InMemoryAgentSupervisor,

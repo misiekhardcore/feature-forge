@@ -1,4 +1,4 @@
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
 import { describe, expect, it } from "vitest";
 
 import { makeSpec, MockAgent } from "../../test-utils";

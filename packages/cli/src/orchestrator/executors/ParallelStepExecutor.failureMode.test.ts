@@ -1,4 +1,4 @@
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 

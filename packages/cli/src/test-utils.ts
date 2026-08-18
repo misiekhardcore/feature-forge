@@ -12,7 +12,7 @@ import {
   type ExtensionAPI,
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
 import { vi } from "vitest";
 
 import { SpecManager, type SpecResolutionParams } from "./agents";
@@ -30,8 +30,8 @@ import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
 import { WorktreeRegistry } from "./workspace/WorktreeRegistry";
 
 // Re-export shared RPC mock helpers for backwards compatibility
-export type { RpcClientMock } from "@feature-forge/shared";
-export { createRpcClientMock } from "@feature-forge/shared";
+export type { RpcClientMock } from "@feature-forge/core";
+export { createRpcClientMock } from "@feature-forge/core";
 
 // ---------------------------------------------------------------------------
 // Tool restriction helpers

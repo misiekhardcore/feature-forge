@@ -1,5 +1,5 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { Tool } from "@feature-forge/shared";
+import { Tool } from "@feature-forge/core";
 import { Type } from "typebox";
 
 import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";

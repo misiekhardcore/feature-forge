@@ -3,9 +3,9 @@ import type {
   AgentToolUpdateCallback,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/core/src/logging";
 import type { TSchema } from "typebox";
 
-import { logger } from "../logging";
 import { Tool } from "./Tool";
 
 /** Error details returned when the IPC client is unavailable. */

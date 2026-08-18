@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
 import { promisify } from "node:util";
 
-import { logger } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
 import type { DisplayContribution } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";

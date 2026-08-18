@@ -7,8 +7,8 @@ import {
   type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { logger } from "@feature-forge/shared";
-import { ForgeConfig } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
+import { ForgeConfig } from "@feature-forge/core";
 import type { ProgressWidget } from "@feature-forge/tui";
 import type { DisplayContribution } from "@feature-forge/tui";
 import type { RoutineProgressState } from "@feature-forge/tui";

@@ -15,7 +15,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { deepFreeze } from "../helpers";
+import { deepFreeze } from "@feature-forge/core/src/helpers";
+
 import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";

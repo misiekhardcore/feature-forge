@@ -1,4 +1,4 @@
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus } from "@feature-forge/core";
 
 import { AgentSpecification } from "../specifications";
 

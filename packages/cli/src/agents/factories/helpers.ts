@@ -1,4 +1,4 @@
-import { ForgeConfig } from "@feature-forge/shared";
+import { ForgeConfig } from "@feature-forge/core";
 
 import { AgentSpecification, SkillResolver } from "../specifications";
 

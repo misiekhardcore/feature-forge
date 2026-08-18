@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { AgentStatus, Tool } from "@feature-forge/shared";
+import type { AgentStatus, Tool } from "@feature-forge/core";
 
 import type { AgentViewerEntry } from "./types";
 

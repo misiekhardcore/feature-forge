@@ -40,8 +40,8 @@ const rpcMock = vi.hoisted(() => {
 
 vi.mock("@earendil-works/pi-coding-agent", () => rpcMock.factory());
 
-vi.mock("@feature-forge/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@feature-forge/shared")>();
+vi.mock("@feature-forge/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@feature-forge/core")>();
   return {
     ...actual,
     resolveModel: vi.fn((m: string | undefined, models: Record<string, unknown>) => {

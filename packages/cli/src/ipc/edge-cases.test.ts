@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 
-import { AgentStatus, jsonParse } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";

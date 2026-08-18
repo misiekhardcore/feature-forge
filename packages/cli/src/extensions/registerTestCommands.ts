@@ -2,6 +2,7 @@ import * as path from "node:path";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { ForgeConfig } from "@feature-forge/core";
 import type { ScenarioData } from "@feature-forge/debug";
 import {
   builderScenario,
@@ -13,7 +14,6 @@ import {
   reviewerScenario,
   toolArgsScenario,
 } from "@feature-forge/debug";
-import { ForgeConfig } from "@feature-forge/shared";
 import {
   AgentViewerEntry,
   AgentViewerOverlay,

@@ -7,7 +7,7 @@ import {
   UserMessageComponent,
 } from "@earendil-works/pi-coding-agent";
 import { Container, type MarkdownTheme, Spacer, type TUI } from "@earendil-works/pi-tui";
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
 
 import type { ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display";

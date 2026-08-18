@@ -28,7 +28,7 @@ export default defineConfig({
     await cp("src/skills", "dist/skills", { recursive: true });
     await cp("scripts", "dist/scripts", { recursive: true });
     await cp(
-      "../shared/src/config/forge-config.defaults.json",
+      "../core/src/config/forge-config.defaults.json",
       "dist/scripts/forge-config.defaults.json",
     );
   },

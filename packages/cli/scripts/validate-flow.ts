@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
 
 import { FlowLoader } from "../src/orchestrator/FlowLoader";
 import { FlowValidation } from "../src/orchestrator/flowValidation";

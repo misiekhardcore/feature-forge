@@ -1,8 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import { jsonParse } from "@feature-forge/shared";
-import { logger } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 
 import type { FlowDefinition } from "./FlowInstruction";
 import { FlowValidation } from "./flowValidation";

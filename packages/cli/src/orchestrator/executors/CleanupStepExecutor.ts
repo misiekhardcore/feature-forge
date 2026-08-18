@@ -1,4 +1,4 @@
-import { logger } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";

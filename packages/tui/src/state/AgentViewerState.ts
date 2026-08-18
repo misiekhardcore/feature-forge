@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import { jsonParse, logger } from "@feature-forge/shared";
+import { jsonParse, logger } from "@feature-forge/core";
 
 import type { AgentViewerEntry } from "../types";
 

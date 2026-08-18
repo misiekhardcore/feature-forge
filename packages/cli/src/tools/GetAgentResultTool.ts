@@ -1,4 +1,4 @@
-import { IpcTool } from "@feature-forge/shared";
+import { IpcTool } from "@feature-forge/core";
 import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
 
