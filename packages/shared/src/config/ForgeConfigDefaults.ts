@@ -9,69 +9,14 @@
  * This module maps the JSON's string enum values onto typed constants.
  */
 
+import { cloneReadonlyArray, cloneSpecDirectories, deepFreeze } from "../helpers";
 import defaultsJson from "./forge-config.defaults.json";
-import type { AgentConfig, ForgeConfig, SpecDirectories } from "./ForgeConfigSchema";
+import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
-/**
- * Recursively freeze an object, array, or Map (including nested values).
- *
- * `Object.freeze` is shallow — callers could otherwise mutate nested
- * structures of the frozen defaults (e.g. `worktreeSymlinks.push(...)`
- * or `display.maxAgentEvents = 1`) and corrupt the process-wide defaults.
- *
- * Maps need extra care: `Object.freeze(map)` does NOT block the Map
- * mutators `set`/`delete`/`clear` (they operate on internal slots), so
- * throwing stubs are installed before freezing.
- */
-export function deepFreeze<T>(value: T): T {
-  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
-    return value;
-  }
-  if (value instanceof Map) {
-    // Object.freeze alone does not block Map mutators — install throwing
-    // stubs BEFORE freezing (defineProperties on a frozen object throws),
-    // then recurse into keys and values. Iteration is unaffected by the
-    // stubs, so the recursion below still sees every entry.
-    Object.defineProperties(value, {
-      set: { value: throwFrozenMapMutation("set") },
-      delete: { value: throwFrozenMapMutation("delete") },
-      clear: { value: throwFrozenMapMutation("clear") },
-    });
-    Object.freeze(value);
-    for (const [key, entry] of value) {
-      deepFreeze(key);
-      deepFreeze(entry);
-    }
-    return value;
-  }
-  Object.freeze(value);
-  for (const key of Object.getOwnPropertyNames(value)) {
-    deepFreeze((value as Record<string, unknown>)[key]);
-  }
-  return value;
-}
-
-function throwFrozenMapMutation(method: "set" | "delete" | "clear"): () => never {
-  return () => {
-    throw new TypeError(`Cannot mutate a frozen Map via ${method}()`);
-  };
-}
-
-/**
- * Deep-clone a shared nested structure so a resolved config never shares
- * references with the frozen defaults (or the caller's own overrides).
- */
-function cloneArray<T>(value: readonly T[]): T[] {
-  return [...value];
-}
-
-function cloneSpecDirectories(value: SpecDirectories): SpecDirectories {
-  return {
-    flows: cloneArray(value.flows ?? []),
-    agents: cloneArray(value.agents ?? []),
-  };
-}
+// Re-exported for existing consumers (e.g. ForgeConfig) that import
+// deepFreeze from the config module.
+export { deepFreeze };
 
 /**
  * Default agent configuration.
@@ -178,7 +123,7 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     logPayloads: overrides.logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads,
     // Deep-clone shared nested structures so mutating a resolved config
     // never corrupts DEFAULT_FORGE_CONFIG (or the caller's own overrides).
-    worktreeSymlinks: cloneArray(
+    worktreeSymlinks: cloneReadonlyArray(
       overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
     ),
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,

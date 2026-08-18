@@ -18,7 +18,6 @@ export default defineConfig({
         "**/node_modules/**",
         "**/dist/**",
         "**/coverage/**",
-        "**/*.test.ts",
         "**/test-setup.ts",
         "**/test-utils.ts",
         "**/e2e/**",
