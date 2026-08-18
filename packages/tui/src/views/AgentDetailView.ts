@@ -67,9 +67,6 @@ export class AgentDetailView {
   /** Value of getHideThinkingBlock() at the last conversation render. */
   private cachedHideThinkingBlock = false;
 
-  /** Heuristic: average lines rendered per message, tracked per-agent. */
-  private avgLinesPerMessage = new Map<string, number>();
-
   constructor(
     state: AgentEntryProvider & AgentConversationProvider,
     theme: Theme,
@@ -194,10 +191,6 @@ export class AgentDetailView {
       this.cachedConversationWidth = width;
       this.cachedHideThinkingBlock = hideThinkingBlock;
       this.conversationLinesDirty = false;
-      this.avgLinesPerMessage.set(
-        entry.id,
-        messages.length > 0 ? conversationLines.length / messages.length : 1,
-      );
     } else {
       conversationLines = this.cachedConversationLines;
     }

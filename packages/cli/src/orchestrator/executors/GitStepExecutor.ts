@@ -48,11 +48,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       cwd: resolvedCwd,
     });
 
-    logger.debug("git-start", {
-      phase: "git-start",
-      message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,
-    });
-
     eventBus.emit("feature-forge:git-start", {
       phase: "git-start",
       message: `Git "${instruction.id}": ${instruction.action} in ${resolvedCwd}`,

@@ -37,10 +37,6 @@ function getDisplayMaxPreconnectBuffer(config: DisplayConfig): number {
 }
 
 /**
- * Maximum characters of raw agent output to display per entry.
- */
-
-/**
  * Parameters for constructing an {@link AgentViewerOverlay}.
  */
 export interface AgentViewerOverlayParams {

@@ -19,7 +19,6 @@ export {
   AgentSpecificationParams,
   BUILT_IN_TOOLS,
   DynamicAgentSpecification,
-  fillTemplate,
   SpecRegistry,
   TOOL_PRESETS,
 } from "./specifications";

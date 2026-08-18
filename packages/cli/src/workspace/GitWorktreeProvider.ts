@@ -11,12 +11,6 @@ import {
 } from "./WorkspaceError";
 import { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
 
-/**
- * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
- *
- * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
- * Branch name: `forge/<workspaceId>`
- */
 /** Platform-level symlinks created in every worktree. */
 const PLATFORM_SYMLINKS = [
   ".pi/",

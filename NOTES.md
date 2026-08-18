@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 6: Dead code A (3.17#1/#4/#6/#7/#20/#15 + 3.10#5) — fillTemplate deleted, DynamicAgentSpecification.toJSON override deleted, GitWorktreeProvider JSDoc dedup, AgentViewerOverlay orphaned docstring, avgLinesPerMessage map, GitStepExecutor twin logger.debug.
+Subtask 7: TUI strings B (3.17#21/#22/#9/#8/#10/#19 + #5) — em-dashes → hyphens, separator width, maxHeight typing, OrchestratorCommand numbering, RoutineTool renderCall interface, TuiRoutineWidget rename, TOOL_PRESETS alias.
 
 ## Next action on resume
-Run build loop for subtask 6 (Dead code A).
+Run build loop for subtask 7 (TUI strings B).
 
 ## AC checklist
 
@@ -23,12 +23,12 @@ Run build loop for subtask 6 (Dead code A).
 | 6 | 3.26 (P2-9): ConsoleLogger level filtering; shared manifest yaml/typebox → dependencies, vitest → devDependencies | [x] |
 | 7 | 3.17#11: console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions | [x] |
 | 8 | 3.17#26: DEFAULT_LOG_LEVEL deleted | [x] |
-| 9 | 3.17#1: fillTemplate deleted (source + test + exports) | [ ] |
-| 10 | 3.17#4: DynamicAgentSpecification.toJSON override deleted | [ ] |
-| 11 | 3.17#6: duplicated class-level JSDoc in GitWorktreeProvider deduped | [ ] |
-| 12 | 3.17#7: orphaned docstring fragment in AgentViewerOverlay deleted | [ ] |
-| 13 | 3.17#20: dead avgLinesPerMessage map in AgentDetailView deleted | [ ] |
-| 14 | 3.17#15 (3.10#5): GitStepExecutor twin logger.debug dropped (eventBus.emit kept) | [ ] |
+| 9 | 3.17#1: fillTemplate deleted (source + test + exports) | [x] |
+| 10 | 3.17#4: DynamicAgentSpecification.toJSON override deleted | [x] |
+| 11 | 3.17#6: duplicated class-level JSDoc in GitWorktreeProvider deduped | [x] |
+| 12 | 3.17#7: orphaned docstring fragment in AgentViewerOverlay deleted | [x] |
+| 13 | 3.17#20: dead avgLinesPerMessage map in AgentDetailView deleted | [x] |
+| 14 | 3.17#15 (3.10#5): GitStepExecutor twin logger.debug dropped (eventBus.emit kept) | [x] |
 | 15 | 3.17#21: em-dashes in user-facing display strings → hyphens (ProgressRenderer, AgentViewerOverlay, AgentDetailView) | [ ] |
 | 16 | 3.17#22: widget separator width includes icon width | [ ] |
 | 17 | 3.17#9: getOverlayOptions maxHeight typed `string`, no lying cast | [ ] |
@@ -77,6 +77,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 
 ## Decisions log
 
+- 2026-08-18: Subtask 6 (Dead code A) done — fillTemplate deleted (templates.ts + templates.test.ts + both export barrels), DynamicAgentSpecification.toJSON override deleted (inherits base), GitWorktreeProvider duplicated class JSDoc deduped (kept the one on the class), AgentViewerOverlay orphaned "Maximum characters" docstring deleted, AgentDetailView avgLinesPerMessage map + its per-render `.set` deleted (#154 heuristic comment still accurate for the kept conversation-line cache), GitStepExecutor 3 logger.debug twins dropped (git-start, git-done success/failure — eventBus emits + logger.info/error kept). Commit: `refactor: delete dead code — fillTemplate, toJSON override, twin git debug, docstrings (3.17#1/#4/#6/#7/#15/#20 + 3.10#5)`.
+- 2026-08-18: Subtask 5 review findings (F1-F5) resolved — (F1) base Logger now prints to console while it is the active instance, so the ConfigLoader invalid-JSON warning is visible again during startup (was silently dropped between `Logger.initialize()` at import and `FileLogger.initialize()` at index.ts:111); (F2) ConfigLoader.test now spies on console.warn (observable output) instead of the base logger's warn; (F3) cycle actually broken now — ConfigLoader imports the `../logging/Logger` leaf (not the barrel) AND Logger no longer imports ForgeConfig: `getLogLevel()` = `instance?.level ?? INFO`, with FileLogger.initialize() applying the configured level once (behavior-identical in production; the earlier "permanently breaks the cycle" NOTES.md claim is now true rather than overstated); (F4) `getLogLevel()` is total — no more throw on `ForgeConfig.getInstance()` when config isn't loaded; (F5) the shouldLog guard lives once in `Logger.logToConsole`, shared by the base fallback and ConsoleLogger's four methods; console calls omit `undefined` data. Commit: `fix: restore pre-initialization console logging, total getLogLevel, cycle break (review F1-F5)`.
 - 2026-08-18: Subtask 5 (Logger/console, 3.26 + 3.17#11 + 3.17#26) done — ConsoleLogger now guards every severity method with `shouldLog(level, Logger.getLogLevel())` mirroring FileLogger.writeEntry (tests spy on console methods, incl. SILENT and config-fallback via a ForgeConfig.getInstance stub); shared manifest fixed (yaml ^2.9.0 + typebox 1.3.8 → dependencies, vitest 4.1.9 → devDependencies, lockfile updated); console.warn/error → logger in ConfigLoader (invalid-JSON warning), spec-resolution (FORGE_SPEC deserialize error), tool-restrictions (pattern-match failure) with test spies moved from console to the module-level `logger`; DEFAULT_LOG_LEVEL deleted (LogLevel.ts + test block + logging/index + shared/index exports). The ConfigLoader → ../logging import exposed a config↔logging circular import (config/index exports ConfigLoader before ForgeConfigSchema, so `LogLevel.SILENT` was read before the enum binding initialized — crashed all 121 test files). Fix: logging modules import from leaf modules (`../config/ForgeConfig`, `../config/ForgeConfigSchema`) instead of the `../config` barrel — matches the established leaf-import convention (ConfigLoader, ForgeConfigDefaults) and permanently breaks the cycle. Commit: `refactor: ConsoleLogger level filtering, logger-based warnings, DEFAULT_LOG_LEVEL removal (3.26+3.17#11+#26)`.
 - 2026-08-18: Workspace node_modules incident — a plain `npm install` in the worktree hit ENOTDIR mid-reify and destroyed the symlink-farm node_modules (all 30 scoped @dirs emptied; reify also wrote through the `@earendil-works` symlink into the main checkout's node_modules, deleting pi-*/@vitest/@types/... real-name dirs). Repaired: main's `@earendil-works` and 100+ scoped dirs restored by renaming the content-bearing `.pkg-XXXX` temp dirs to real names (versions verified against package-lock.json); worktree's scoped dirs re-created as symlinks into main's node_modules (the ws-3f25704b pattern). Lesson: do NOT run npm install in forge worktrees — use `npm install --package-lock-only` for lockfile-only changes.
 
