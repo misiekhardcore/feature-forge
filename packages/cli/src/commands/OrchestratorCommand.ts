@@ -135,7 +135,13 @@ export class OrchestratorCommand extends Command {
       }
     }
 
-    if (!this.agent) {
+    // Recreate the cached agent when it is no longer usable: FlowExitCommand
+    // destroys mounted agents via supervisor.destroyAgent(), which unmounts
+    // them AND removes them from the supervisor map. Reusing such an agent
+    // would re-mount a destroyed instance and register yet another
+    // before_agent_start handler pi never removes (no pi.off()) — the
+    // orchestrator persona would then leak into the session permanently.
+    if (!this.agent?.isMounted || !this.supervisor.getAgent(this.agent.id)) {
       this.agent = await this.supervisor.mountInSession(this.spec);
     }
 

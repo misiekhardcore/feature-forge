@@ -24,8 +24,10 @@ async function main(): Promise<void> {
   }
 
   if (args[0] === "--all") {
-    const flowsDir = path.join(scriptDir, "..", "src", "flows");
-    const loader = new FlowLoader({ flowsDir });
+    const flowsRoot = path.join(scriptDir, "..", "src", "flows");
+    // Flows live in subdirectories (src/flows/<name>/flow.json); loadAll
+    // discovers them (mirroring FlowRegistrar) and collects failures.
+    const loader = new FlowLoader({ flowsDir: flowsRoot });
     const { flows, failures } = await loader.loadAll();
 
     if (failures.size > 0) {
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
 
     if (flows.size === 0) {
       console.log("No valid flows found.");
+      if (failures.size > 0) process.exit(1);
       return;
     }
 

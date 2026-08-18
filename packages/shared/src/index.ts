@@ -1,15 +1,19 @@
 export { AgentStatus } from "./agents";
-export {
+export type {
   AgentConfig,
-  AgentConfigSchema,
   AgentModelConfig,
+  ConfigLoaderOptions,
+  DevConfig,
+  ResolvedModelConfig,
+  SpecDirectories,
+} from "./config";
+export {
+  AgentConfigSchema,
   AgentModelConfigSchema,
   ConfigError,
   ConfigLoader,
-  ConfigLoaderOptions,
   DEFAULT_AGENT_CONFIG,
   DEFAULT_FORGE_CONFIG,
-  DevConfig,
   DevConfigSchema,
   ForgeConfig,
   ForgeConfigSchema,
@@ -18,9 +22,7 @@ export {
   MissingConfigError,
   MissingConfigFileError,
   resolveConfig,
-  ResolvedModelConfig,
   resolveModel,
-  SpecDirectories,
   SpecDirectoriesSchema,
   WorkspaceProviderKind,
 } from "./config";

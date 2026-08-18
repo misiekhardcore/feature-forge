@@ -132,4 +132,35 @@ describe("SkillResolver project skill discovery", () => {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("discovers single-file .md skills from ~/.pi/agent/skills", () => {
+    const originalCwd = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-pi-skills-"));
+    const homeDir = path.join(tempDir, "home");
+    try {
+      const piSkillsDir = path.join(homeDir, ".pi", "agent", "skills");
+      fs.mkdirSync(piSkillsDir, { recursive: true });
+      // A nested SKILL.md (directory-form skill) plus single-file skills.
+      fs.mkdirSync(path.join(piSkillsDir, "nested-skill"));
+      fs.writeFileSync(path.join(piSkillsDir, "nested-skill", "SKILL.md"), "# nested\n");
+      fs.writeFileSync(path.join(piSkillsDir, "single-skill.md"), "# single\n");
+      // SKILL.md at the root is not a skill definition itself.
+      fs.writeFileSync(path.join(piSkillsDir, "SKILL.md"), "# root\n");
+      process.chdir(tempDir);
+      const originalHome = process.env.HOME;
+      process.env.HOME = homeDir;
+      try {
+        const allSkills = SkillResolver.discoverAll();
+        expect(allSkills.has("nested-skill")).toBe(true);
+        expect(allSkills.has("single-skill")).toBe(true);
+        expect(allSkills.get("single-skill")).toBe(path.join(piSkillsDir, "single-skill.md"));
+        expect(allSkills.has("SKILL")).toBe(false);
+      } finally {
+        process.env.HOME = originalHome;
+      }
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

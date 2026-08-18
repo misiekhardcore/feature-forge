@@ -1,14 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SessionAgent } from "../agents/agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import { InMemoryAgentSupervisor } from "../agents/supervisors/InMemoryAgentSupervisor";
 import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
 import { FlowStateStore } from "../orchestrator/FlowStateStore";
+import { makeMockFactory } from "../test-utils";
 import { makeMockCtx, makeMockPi, makeMockToolRegistry } from "../test-utils";
+import { FlowExitCommand } from "./FlowExitCommand";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 // ── Mocks ────────────────────────────────────────────────────
@@ -35,6 +39,9 @@ const hoisted = vi.hoisted(() => {
   } as unknown as AgentSpecification;
   const agentMock = {
     mount: vi.fn(),
+    // A mounted agent must report itself as mounted so the command does not
+    // recreate it on every handler call (see the mount→exit→re-mount test).
+    isMounted: true,
   };
   const forgeConfigMock = {
     getConfig: vi.fn(),
@@ -103,6 +110,8 @@ describe("OrchestratorCommand", () => {
   function makeSupervisor() {
     return {
       mountInSession: vi.fn().mockResolvedValue(hoisted.agentMock),
+      // The cached agent stays registered in the supervisor map while alive.
+      getAgent: vi.fn().mockReturnValue(hoisted.agentMock),
     } as unknown as AgentSupervisor;
   }
 
@@ -390,5 +399,109 @@ describe("OrchestratorCommand", () => {
 
     expect(pi.setModel).not.toHaveBeenCalled();
     expect(pi.setThinkingLevel).not.toHaveBeenCalled();
+  });
+
+  // ── Mount → flow:exit → re-mount → flow:exit regression (3.18) ───────────
+
+  /**
+   * Tracked pi that records before_agent_start handlers and keeps a real
+   * active-tools array so persona injection and tool restoration are
+   * observable across mount/unmount cycles.
+   */
+  function makeTrackedPi(defaultTools: string[]) {
+    const handlers: Array<(event: { systemPrompt: string }) => unknown> = [];
+    const activeTools = [...defaultTools];
+    const base = makeMockPi();
+    return {
+      ...base,
+      on: vi.fn((event: string, handler: (event: { systemPrompt: string }) => unknown) => {
+        if (event === "before_agent_start") handlers.push(handler);
+      }),
+      getActiveTools: vi.fn(() => [...activeTools]),
+      setActiveTools: vi.fn((tools: string[]) => {
+        activeTools.length = 0;
+        activeTools.push(...tools);
+      }),
+      getHandlers: () => handlers,
+    } as unknown as ExtensionAPI & {
+      getHandlers: () => Array<(event: { systemPrompt: string }) => unknown>;
+    };
+  }
+
+  it("recreates the agent after flow:exit so re-mount restores persona and tools", async () => {
+    const flow: FlowDefinition = {
+      ...baseFlow,
+      orchestrator: { systemPrompt: "implement", prompt: "{{prompt}}" },
+    };
+    const supervisor = new InMemoryAgentSupervisor(makeMockFactory());
+    const trackedPi = makeTrackedPi(["read", "bash"]);
+    const ctx = makeMockCtx();
+    const cmd = new OrchestratorCommand({
+      supervisor,
+      pi: trackedPi,
+      specManager,
+      toolRegistry: makeMockToolRegistry(),
+      flow,
+      store: new FlowStateStore(),
+      activeFlow: new ActiveFlowRegistry(),
+    });
+    const exitCmd = new FlowExitCommand({ supervisor, pi: trackedPi });
+    const personaEvent = { systemPrompt: "base prompt" };
+
+    // Mount #1: one fresh handler injects the persona; tools untouched yet.
+    await cmd.handler("first", ctx);
+    const firstAgent = supervisor.getAllAgents()[0] as SessionAgent;
+    expect(firstAgent.isMounted).toBe(true);
+    const handlersAfterMount1 = trackedPi.getHandlers();
+    expect(handlersAfterMount1).toHaveLength(1);
+    expect(
+      (handlersAfterMount1[0](personaEvent) as { systemPrompt?: string }).systemPrompt,
+    ).toContain("# persona");
+
+    // Exit #1: agent destroyed + de-registered; persona suppressed; tools restored.
+    await exitCmd.handler("", ctx);
+    expect(supervisor.getAllAgents()).toHaveLength(0);
+    expect(firstAgent.isMounted).toBe(false);
+    expect(handlersAfterMount1[0](personaEvent)).toEqual({});
+    expect(trackedPi.setActiveTools).toHaveBeenCalledWith(["read", "bash"]);
+    expect(trackedPi.getActiveTools()).toEqual(["read", "bash"]);
+
+    // Mount #2: the DESTROYED agent must not be re-mounted — a fresh agent
+    // is created, registering exactly one new handler (no stacking).
+    await cmd.handler("second", ctx);
+    const secondAgent = supervisor.getAllAgents()[0] as SessionAgent;
+    expect(secondAgent).not.toBe(firstAgent);
+    expect(secondAgent.isMounted).toBe(true);
+    const handlersAfterMount2 = trackedPi.getHandlers();
+    expect(handlersAfterMount2).toHaveLength(2);
+    // Old handler stays inert; the new handler injects the persona again.
+    expect(handlersAfterMount2[0](personaEvent)).toEqual({});
+    expect(
+      (handlersAfterMount2[1](personaEvent) as { systemPrompt?: string }).systemPrompt,
+    ).toContain("# persona");
+
+    // Exit #2: torn down again — persona suppressed and tools restored.
+    await exitCmd.handler("", ctx);
+    expect(supervisor.getAllAgents()).toHaveLength(0);
+    expect(secondAgent.isMounted).toBe(false);
+    expect(handlersAfterMount2[1](personaEvent)).toEqual({});
+    expect(trackedPi.setActiveTools).toHaveBeenLastCalledWith(["read", "bash"]);
+    expect(trackedPi.getActiveTools()).toEqual(["read", "bash"]);
+  });
+
+  it("recreates the agent when the cached agent is missing from the supervisor", async () => {
+    const supervisor = makeSupervisor();
+    // Simulate a destroyed agent: still mounted per its own state, but no
+    // longer registered with the supervisor (FlowExitCommand removes it).
+    (supervisor.getAgent as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+    const cmd = makeCmd(supervisor, baseFlow);
+
+    const ctx = makeMockCtx();
+    await cmd.handler("first", ctx);
+    expect(supervisor.mountInSession).toHaveBeenCalledTimes(1);
+
+    await cmd.handler("second", ctx);
+    expect(supervisor.mountInSession).toHaveBeenCalledTimes(2);
+    expect(hoisted.agentMock.mount).toHaveBeenCalledTimes(2);
   });
 });

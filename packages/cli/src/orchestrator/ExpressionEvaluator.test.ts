@@ -254,6 +254,52 @@ describe("evaluateExpression", () => {
         false,
       );
     });
+
+    it("optional chain returns falsy when an intermediate value is null", () => {
+      const ctx = makeCtx({
+        review: null as unknown as { raw: string },
+      });
+      expect(ExpressionEvaluator.evaluateExpression("results.review?.parsed?.passed", ctx)).toBe(
+        false,
+      );
+    });
+
+    it("optional chain returns falsy when walking into a non-object", () => {
+      const ctx = makeCtx({
+        review: { raw: "just a string" },
+      });
+      expect(ExpressionEvaluator.evaluateExpression("results.review.raw?.length", ctx)).toBe(false);
+    });
+
+    it("required chain throws when walking into a non-object", () => {
+      const ctx = makeCtx({
+        review: { raw: "just a string" },
+      });
+      expect(() =>
+        ExpressionEvaluator.evaluateExpression("results.review.raw.length", ctx),
+      ).toThrow(/Cannot access property/);
+    });
+
+    it("required chain throws for a missing property", () => {
+      const ctx = makeCtx({
+        review: { raw: "ok" },
+      });
+      expect(() => ExpressionEvaluator.evaluateExpression("results.review.missing", ctx)).toThrow(
+        /Property "missing" not found/,
+      );
+    });
+
+    it("throws for a path with no id segment", () => {
+      expect(() => ExpressionEvaluator.evaluateExpression("results", makeCtx())).toThrow(
+        /Path too short/,
+      );
+    });
+
+    it("throws for an unknown root", () => {
+      expect(() => ExpressionEvaluator.evaluateExpression("params.foo", makeCtx())).toThrow(
+        /Unknown root/,
+      );
+    });
   });
 
   describe("the implement expression", () => {

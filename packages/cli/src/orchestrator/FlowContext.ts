@@ -282,4 +282,10 @@ export interface InstructionResult {
   parsed?: AgentOutput;
   /** Set by executors that produce a "skipped" outcome (e.g. a loop skipped by its while-guard). Drives the routine-level "skipped" status structurally. */
   skipped?: boolean;
+  /**
+   * Namespaced step outputs produced by a routine-ref instruction
+   * (inlined step id → raw output). Lets loop feedback surface the
+   * inlined agents' actual findings instead of the routine-ref envelope.
+   */
+  results?: Record<string, string>;
 }

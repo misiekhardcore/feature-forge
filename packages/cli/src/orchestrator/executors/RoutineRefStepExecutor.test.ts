@@ -305,6 +305,79 @@ describe("RoutineRefStepExecutor", () => {
       expect(resultCtx.results.get("review_result")!.parsed?.passed).toBe(true);
     });
 
+    it("carries the inlined steps' namespaced outputs in results", async () => {
+      RecordExecutor.reset();
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+
+      const targetFlow = makeTargetFlow();
+      const flowMap = new Map([[targetFlow.name, targetFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({ results: new Map(), prompt: "test" });
+
+      const resultCtx = await executor.execute(
+        makeRefInstruction(),
+        context,
+        makeDispatch(registry, eventBus),
+        eventBus,
+      );
+
+      const result = resultCtx.results.get("call-review")!;
+      // The envelope stays for backward compat (continueWhile reads parsed.passed).
+      const raw = JSON.parse(result.raw) as { passed: boolean; routines: string[] };
+      expect(raw.passed).toBe(true);
+      expect(raw.routines).toEqual(["inspect"]);
+      // The namespaced step raws are attached for loop feedback.
+      expect(result.results).toEqual({
+        "call-review.review.check_a": "done:call-review.review.check_a",
+        "call-review.review.check_b": "done:call-review.review.check_b",
+      });
+    });
+
+    it("carries partial step results on failure", async () => {
+      const registry = new StepExecutorRegistry();
+      registry.register(() => new RecordExecutor());
+      registry.register(() => new FailingExecutor());
+
+      const targetFlow = makeTargetFlow({
+        routines: [
+          {
+            id: "inspect",
+            params: [],
+            steps: [
+              { type: "record", id: "ok_step" } as unknown as FlowInstruction,
+              { type: "fail", id: "bad_step" } as unknown as FlowInstruction,
+            ],
+          },
+        ],
+      });
+      const flowMap = new Map([[targetFlow.name, targetFlow]]);
+
+      const executor = new RoutineRefStepExecutor();
+      executor.setFlowMap(flowMap);
+
+      const eventBus = makeMockTypedEventBus();
+      const context = new FlowContext({ results: new Map(), prompt: "test" });
+
+      const resultCtx = await executor.execute(
+        makeRefInstruction(),
+        context,
+        makeDispatch(registry, eventBus),
+        eventBus,
+      );
+
+      const result = resultCtx.results.get("call-review")!;
+      expect(result.parsed?.passed).toBe(false);
+      // The step that completed before the failure is still surfaced.
+      expect(result.results).toEqual({
+        "call-review.review.ok_step": "done:call-review.review.ok_step",
+      });
+    });
+
     it("executes all routines when target flow has multiple routines", async () => {
       RecordExecutor.reset();
       const registry = new StepExecutorRegistry();

@@ -76,6 +76,17 @@ describe("ResearchCommand", () => {
     expect(ctx.ui.notify).toHaveBeenCalledWith("Usage: /forge:research <topic>", "error");
   });
 
+  it("notifies error when specManager is unavailable", async () => {
+    const runAgentSpy = vi.spyOn(supervisor, "runAgent").mockResolvedValue(undefined);
+    const noSpecManager = new ResearchCommand({ supervisor, pi });
+    await noSpecManager.handler("topic", ctx);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      "SpecManager not available — research spec cannot be loaded.",
+      "error",
+    );
+    expect(runAgentSpy).not.toHaveBeenCalled();
+  });
+
   it("triggers supervisor.runAgent with trimmed topic", async () => {
     vi.spyOn(supervisor, "runAgent").mockResolvedValue(undefined);
     await cmd.handler("  quantum computing  ", ctx);

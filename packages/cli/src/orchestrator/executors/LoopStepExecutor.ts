@@ -127,7 +127,15 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
         lines.push(`--- iteration ${iteration + 1} ---`);
         for (const id of accumulateFrom) {
           const result = current.results.get(id);
-          if (result) {
+          if (!result) continue;
+          const nested = result.results;
+          if (nested && Object.keys(nested).length > 0) {
+            // Routine-ref result: surface the inlined steps' actual outputs
+            // (e.g. the reviewer's P0/P1 findings) instead of the envelope.
+            for (const [stepId, raw] of Object.entries(nested)) {
+              lines.push(`${stepId}: ${raw}`);
+            }
+          } else {
             lines.push(`${id}: ${result.raw}`);
           }
         }

@@ -854,6 +854,16 @@ describe("FlowLoader", () => {
     expect(flow.routines.length).toBeGreaterThan(0);
   });
 
+  it("loadAll discovers the real shipped flows (validate-flow --all path)", async () => {
+    const realLoader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows") });
+    const { flows, failures } = await realLoader.loadAll();
+    expect(failures.size).toBe(0);
+    expect(flows.size).toBeGreaterThanOrEqual(4);
+    for (const name of ["implement", "review", "verify", "resolve-pr-feedback"]) {
+      expect(flows.has(name)).toBe(true);
+    }
+  });
+
   it("throws for non-existent flow", async () => {
     await expect(loader.load("nonexistent")).rejects.toThrow("not found");
   });
@@ -885,9 +895,11 @@ describe("FlowLoader", () => {
     await expect(loader.load("dup")).rejects.toThrow("Duplicate instruction id");
   });
 
-  it("loadAll returns all .json files", async () => {
+  it("loadAll discovers flow subdirectories", async () => {
+    await fs.mkdir(path.join(tempDir, "a"));
+    await fs.mkdir(path.join(tempDir, "b"));
     await fs.writeFile(
-      path.join(tempDir, "a.json"),
+      path.join(tempDir, "a", "flow.json"),
       JSON.stringify(
         makeValidFlow({
           name: "a",
@@ -902,7 +914,7 @@ describe("FlowLoader", () => {
       ),
     );
     await fs.writeFile(
-      path.join(tempDir, "b.json"),
+      path.join(tempDir, "b", "flow.json"),
       JSON.stringify(
         makeValidFlow({
           name: "b",
@@ -927,9 +939,10 @@ describe("FlowLoader", () => {
     expect(failures.size).toBe(0);
   });
 
-  it("loadAll ignores non-JSON files", async () => {
+  it("loadAll skips non-directories and flow-schema.json", async () => {
+    await fs.mkdir(path.join(tempDir, "a"));
     await fs.writeFile(
-      path.join(tempDir, "a.json"),
+      path.join(tempDir, "a", "flow.json"),
       JSON.stringify(
         makeValidFlow({
           name: "a",
@@ -947,15 +960,19 @@ describe("FlowLoader", () => {
       ),
     );
     await fs.writeFile(path.join(tempDir, "readme.md"), "# docs");
+    await fs.writeFile(path.join(tempDir, "flow-schema.json"), "{}");
 
-    const { flows } = await loader.loadAll();
+    const { flows, failures } = await loader.loadAll();
     expect(flows.size).toBe(1);
+    expect(failures.size).toBe(0);
   });
 
   it("loadAll collects failures instead of aborting", async () => {
+    await fs.mkdir(path.join(tempDir, "good"));
+    await fs.mkdir(path.join(tempDir, "bad"));
     // Valid flow
     await fs.writeFile(
-      path.join(tempDir, "good.json"),
+      path.join(tempDir, "good", "flow.json"),
       JSON.stringify(
         makeValidFlow({
           name: "good",
@@ -974,7 +991,7 @@ describe("FlowLoader", () => {
     );
     // Invalid flow — duplicate ids
     await fs.writeFile(
-      path.join(tempDir, "bad.json"),
+      path.join(tempDir, "bad", "flow.json"),
       JSON.stringify({
         $schema: FLOW_SCHEMA_URL,
         name: "bad",
@@ -1001,7 +1018,7 @@ describe("FlowLoader", () => {
     expect(failures.get("bad")!.message).toContain("Duplicate instruction id");
   });
 
-  it("loadAll returns empty when no json files present", async () => {
+  it("loadAll returns empty when no flow directories present", async () => {
     const { flows, failures } = await loader.loadAll();
     expect(flows.size).toBe(0);
     expect(failures.size).toBe(0);

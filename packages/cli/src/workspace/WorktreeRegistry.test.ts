@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { logger } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceHandle } from "./WorkspaceHandle";
@@ -393,6 +394,33 @@ describe("WorktreeRegistry", () => {
       expect(report.staleRegistryEntries).toEqual([]);
       expect(report.orphanedWorktrees).toEqual([]);
       expect(report.orphanedBranches).toEqual([]);
+    });
+
+    it("reconcileAndLog stays silent when everything is in sync", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      const registry = makeRegistry();
+      await registry.load();
+
+      await registry.reconcileAndLog(tmpDir);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it("reconcileAndLog warns when mismatches are found", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      const registry = makeRegistry();
+      await registry.load();
+      const stalePath = join(tmpDir, "stale-ws");
+      await registry.register(makeHandle(stalePath));
+
+      await registry.reconcileAndLog(tmpDir);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[feature-forge] Worktree registry reconciliation found issues",
+        expect.objectContaining({ staleRegistryEntries: [stalePath] }),
+      );
+      warnSpy.mockRestore();
     });
   });
 });

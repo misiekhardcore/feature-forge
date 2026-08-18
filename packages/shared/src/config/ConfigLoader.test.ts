@@ -711,4 +711,99 @@ describe("ConfigLoader", () => {
       }
     });
   });
+
+  describe("resolveForgeEnvOverlay", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("returns an empty overlay when no forge env vars are set", () => {
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("derives logPrefix from the FORGE_SPEC id", () => {
+      vi.stubEnv("FORGE_SPEC", JSON.stringify({ id: "builder-abc123" }));
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ logPrefix: "builder-abc123" });
+    });
+
+    it("ignores malformed FORGE_SPEC", () => {
+      vi.stubEnv("FORGE_SPEC", "not-json{");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("ignores FORGE_SPEC without an id", () => {
+      vi.stubEnv("FORGE_SPEC", JSON.stringify({ role: "builder" }));
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("accepts a valid FORGE_TASK_TIMEOUT_MS", () => {
+      vi.stubEnv("FORGE_TASK_TIMEOUT_MS", "5000");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ taskTimeoutMs: 5000 });
+    });
+
+    it("ignores an invalid FORGE_TASK_TIMEOUT_MS", () => {
+      vi.stubEnv("FORGE_TASK_TIMEOUT_MS", "abc");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("ignores a zero FORGE_TASK_TIMEOUT_MS", () => {
+      vi.stubEnv("FORGE_TASK_TIMEOUT_MS", "0");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("accepts a valid FORGE_LOG_LEVEL", () => {
+      vi.stubEnv("FORGE_LOG_LEVEL", "debug");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ logLevel: "debug" });
+    });
+
+    it("ignores an unknown FORGE_LOG_LEVEL", () => {
+      vi.stubEnv("FORGE_LOG_LEVEL", "verbose");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("accepts FORGE_LOG_DIR", () => {
+      vi.stubEnv("FORGE_LOG_DIR", "/tmp/logs");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ logDir: "/tmp/logs" });
+    });
+
+    it("splits FORGE_WORKTREE_SYMLINKS into trimmed entries", () => {
+      vi.stubEnv("FORGE_WORKTREE_SYMLINKS", "config, secrets");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ worktreeSymlinks: ["config", "secrets"] });
+    });
+
+    it("ignores an empty FORGE_WORKTREE_SYMLINKS", () => {
+      vi.stubEnv("FORGE_WORKTREE_SYMLINKS", "");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({});
+    });
+
+    it("accepts FORGE_DEV numeric true", () => {
+      vi.stubEnv("FORGE_DEV", "1");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ dev: { enabled: true } });
+    });
+
+    it("accepts FORGE_DEV case-insensitive true", () => {
+      vi.stubEnv("FORGE_DEV", "TRUE");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ dev: { enabled: true } });
+    });
+
+    it("accepts FORGE_DEV false", () => {
+      vi.stubEnv("FORGE_DEV", "false");
+      const loader = new ConfigLoader();
+      expect(loader.resolveForgeEnvOverlay()).toEqual({ dev: { enabled: false } });
+    });
+  });
 });

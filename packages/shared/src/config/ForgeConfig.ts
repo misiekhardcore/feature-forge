@@ -14,6 +14,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { deepFreeze } from "../helpers";
 import { ConfigError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
@@ -63,7 +64,9 @@ export class ForgeConfig {
 
     this.cwd = params.cwd;
     const loader = new ConfigLoader();
-    this._config = Object.freeze(await loader.forRoot(params));
+    // Deep-freeze: Object.freeze alone would leave nested structures
+    // (display, dev, worktreeSymlinks, ...) mutable by reference holders.
+    this._config = deepFreeze(await loader.forRoot(params));
     this._instance = new ForgeConfig();
 
     // Install SIGHUP handler only once
@@ -101,7 +104,7 @@ export class ForgeConfig {
   static async reload(params: { cwd?: string } = {}): Promise<void> {
     const loader = new ConfigLoader();
     const resolvedCwd = params.cwd ?? this.cwd;
-    this._config = Object.freeze(await loader.forRoot({ cwd: resolvedCwd }));
+    this._config = deepFreeze(await loader.forRoot({ cwd: resolvedCwd }));
   }
 
   // ── Singleton access ────────────────────────────────────────────────

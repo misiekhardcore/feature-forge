@@ -1,4 +1,5 @@
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -142,6 +143,48 @@ describe("ForgeConfig", () => {
       const config = instance.getConfig();
 
       expect(Object.isFrozen(config)).toBe(true);
+    });
+
+    it("returns a deep-frozen object — nested structures cannot be mutated", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      const config = instance.getConfig();
+
+      expect(Object.isFrozen(config.display!)).toBe(true);
+      expect(Object.isFrozen(config.dev!)).toBe(true);
+      expect(Object.isFrozen(config.worktreeSymlinks!)).toBe(true);
+      expect(Object.isFrozen(config.specDirectories!)).toBe(true);
+      expect(Object.isFrozen(config.agents)).toBe(true);
+      expect(Object.isFrozen(config.defaultAgent)).toBe(true);
+    });
+
+    // Regression (3.21): the frozen config used to expose mutable nested
+    // structures by reference — mutating them corrupted DEFAULT_FORGE_CONFIG.
+    it("mutating the handed-out config never corrupts DEFAULT_FORGE_CONFIG", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      const config = instance.getConfig() as unknown as {
+        worktreeSymlinks: string[];
+        display: { maxAgentEvents: number };
+        dev: { enabled: boolean };
+        specDirectories: { flows: string[] };
+      };
+
+      expect(() => {
+        config.worktreeSymlinks.push("hack");
+      }).toThrow(TypeError);
+      expect(() => {
+        config.display.maxAgentEvents = 1;
+      }).toThrow(TypeError);
+      expect(() => {
+        config.dev.enabled = true;
+      }).toThrow(TypeError);
+      expect(() => {
+        config.specDirectories.flows.push("hack");
+      }).toThrow(TypeError);
+
+      expect(DEFAULT_FORGE_CONFIG.worktreeSymlinks).toEqual([]);
+      expect(DEFAULT_FORGE_CONFIG.display.maxAgentEvents).toBe(200);
+      expect(DEFAULT_FORGE_CONFIG.dev.enabled).toBe(false);
+      expect(DEFAULT_FORGE_CONFIG.specDirectories.flows).toEqual([]);
     });
 
     it("throws ConfigError when create has not been called", async () => {
@@ -420,6 +463,112 @@ describe("ForgeConfig", () => {
     it("returns empty array when agent spec directories not configured", async () => {
       const instance = await ForgeConfig.create({ cwd: tempDir });
       expect(instance.getAgentSpecDirectories()).toEqual([]);
+    });
+
+    it("returns the configured log prefix", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          logPrefix: "my-forge",
+        }),
+      );
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogPrefix()).toBe("my-forge");
+    });
+
+    it("falls back to the default log prefix when not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogPrefix()).toBe("forge");
+    });
+
+    it("returns the display config from the loaded config", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          display: { maxAgentEvents: 50, maxPreconnectBuffer: 500, maxOverlayHeight: 60 },
+        }),
+      );
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getDisplayConfig()).toEqual({
+        maxAgentEvents: 50,
+        maxPreconnectBuffer: 500,
+        maxOverlayHeight: 60,
+      });
+      expect(instance.getDisplayMaxAgentEvents()).toBe(50);
+      expect(instance.getDisplayMaxPreconnectBuffer()).toBe(500);
+      expect(instance.getDisplayMaxOverlayHeight()).toBe("60");
+    });
+
+    it("falls back to the default display config when not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getDisplayMaxAgentEvents()).toBe(200);
+      expect(instance.getDisplayMaxPreconnectBuffer()).toBe(2000);
+      expect(instance.getDisplayMaxOverlayHeight()).toBe("85%");
+    });
+
+    it("keeps a percentage overlay height as-is", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          display: { maxOverlayHeight: "70%" },
+        }),
+      );
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getDisplayMaxOverlayHeight()).toBe("70%");
+    });
+
+    it("returns the dev config from the loaded config", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          dev: { enabled: true },
+        }),
+      );
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getDevConfig()).toEqual({ enabled: true });
+      expect(instance.getDevEnabled()).toBe(true);
+    });
+
+    it("falls back to the default dev config when not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getDevConfig()).toEqual({ enabled: false });
+      expect(instance.getDevEnabled()).toBe(false);
+    });
+
+    it("resolves the forge dir relative to the project root", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getForgeDir()).toBe(join(tempDir, ".forge"));
+    });
+
+    it("expands a tilde-prefixed forge dir against the home directory", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          forgeDir: "~/.forge",
+        }),
+      );
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getForgeDir()).toBe(join(os.homedir(), ".forge"));
     });
   });
 

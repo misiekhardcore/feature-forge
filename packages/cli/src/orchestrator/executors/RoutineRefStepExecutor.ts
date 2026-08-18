@@ -112,6 +112,25 @@ export class RoutineRefStepExecutor
     let allPassed = true;
     const inlinedRoutineIds: string[] = [];
 
+    /**
+     * Collect every inlined step's raw output under its namespaced id
+     * (e.g. "call_review.review.review"). Loop feedback built from a
+     * routine ref then sees the reviewer's actual findings, not just the
+     * envelope JSON.
+     */
+    const collectStepResults = (): Record<string, string> => {
+      const stepResults: Record<string, string> = {};
+      for (const routine of routinesToInline) {
+        const routineSteps = routine.steps as FlowInstruction[];
+        for (const step of routineSteps) {
+          const nsId = `${instruction.id}.${instruction.target}.${step.id}`;
+          const result = current.results.get(nsId);
+          if (result) stepResults[nsId] = result.raw;
+        }
+      }
+      return stepResults;
+    };
+
     try {
       for (const routine of routinesToInline) {
         const routineSteps = routine.steps as FlowInstruction[];
@@ -180,6 +199,7 @@ export class RoutineRefStepExecutor
           passed: false,
           summary: `Flow "${instruction.target}" failed`,
         },
+        results: collectStepResults(),
       };
 
       const resultKey = instruction.output_as ?? instruction.id;
@@ -210,6 +230,7 @@ export class RoutineRefStepExecutor
           ? `Flow "${instruction.target}" inlined ${routineCount} routine(s) — all passed`
           : `Flow "${instruction.target}" — some steps did not pass`,
       },
+      results: collectStepResults(),
     };
 
     const resultKey = instruction.output_as ?? instruction.id;
