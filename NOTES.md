@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 9 verification pass done (3.17#27/#28 re-verified green). Next: subtask 12 (FlowRegistrar, 3.17#16).
+Subtask 12 (FlowRegistrar, 3.17#16) done. Next: subtask 13 (SkillResolver, 3.17#17).
 
 ## Next action on resume
-Run build loop for subtask 12 (FlowRegistrar: single context object, no double destructuring).
+Run build loop for subtask 13 (SkillResolver → plain functions + module-level constants).
 
 ## AC checklist
 
@@ -43,7 +43,7 @@ Run build loop for subtask 12 (FlowRegistrar: single context object, no double d
 | 26 | 3.17#12: magic numbers → named constants (shell 120s, git 60s, maxBuffer 10MB, preconnect 2000) | [x] |
 | 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [x] |
 | 28 | 3.17#14: packages/web placeholder deleted | [x] |
-| 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [ ] |
+| 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [x] |
 | 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [ ] |
 | 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [ ] |
 
@@ -74,6 +74,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Subtask 12 (FlowRegistrar, 3.17#16) done — the anonymous 11-field constructor bag became a named module-local `FlowRegistrarContext` interface (follows the `FlowContextParams` precedent; NOT exported — constructor shape unchanged so no public API/ADR), constructor stores it as `context`, `registerAll` passes `this.context` straight to `registerFlow` (the 10-field object rebuild between them is gone) and only destructures `flowDirs` for the loop, and `registerFlow` reads `ctx.` fields directly — the second 11-field destructure is deleted. Bonus on touched lines: `let flow` (evolving implicit) now `let flow: FlowDefinition`. Behavior-identical — the 25 existing FlowRegistrar tests passed unchanged (structural typing). Full loop green: fix/lint/typecheck clean, 121 files/2354 tests, coverage unchanged 96.59% stmts/96.99% lines. Commit: `refactor: FlowRegistrar single context object, drop double destructuring (3.17#16)`.
 
 - 2026-08-18: Subtask 9 verification pass (3.17#27/#28 re-run) — prior commit `ed2bfe41` already held the full implementation; re-verified every gate green and strengthened the tests to the AC verbatim: minimal-config scenario now uses a config with ONLY `{ logPrefix: "x" }` (was `{}`) at both schema level (new `Value.Decode` case asserting the four defaulted fields stay absent post-decode — `logPayloads` IS injected by Decode via its schema `default`, which is expected and not one of the four) and ConfigLoader level (logPrefix passthrough + INFO/git-worktree/empty-Map/DEFAULT_AGENT_CONFIG). Full loop re-run: fix/lint/typecheck clean, root suite 121 files/2354 tests green (incl. cli-e2e 12 files/73 tests), coverage ≥90% (96.59% stmts), `cd packages/shared && npm run test` green (15 files/356 tests) with config-conflict check: package dir picks local vitest.config.ts, root picks root config. Commit: `test: pin logPrefix-only minimal-config scenario for optional schema defaults (3.17#27/#28 verify)`.
 
