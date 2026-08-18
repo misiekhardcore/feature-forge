@@ -22,18 +22,34 @@ import { Logger } from "./Logger";
 describe("FileLogger", () => {
   let filePath: string;
   let logger: FileLogger;
+  let configSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     filePath = join(
       tmpdir(),
       `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
     );
+    // Force retention to 0 so initialize()'s pruneOldLogs call returns before
+    // touching any log dir, while keeping the initialize -> pruneOldLogs
+    // wiring (with the configured retention and current file path) covered.
+    // Dir/prefix still delegate to the real config. Without this, the
+    // always-on retention summary would be forwarded to this test's own log
+    // file whenever a real log dir exists, polluting the exact-content
+    // assertions below. The pruneOldLogs describe replaces this spy.
+    const realConfig = ForgeConfig.getInstance();
+    configSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
+      getLogRetentionDays: () => 0,
+      getLogLevel: () => realConfig.getLogLevel(),
+      getLogDir: () => realConfig.getLogDir(),
+      getLogPrefix: () => realConfig.getLogPrefix(),
+    } as unknown as ForgeConfig);
     logger = FileLogger.initialize(filePath);
     Logger.setLogLevel(LogLevel.DEBUG);
   });
 
   afterEach(async () => {
     // Level filtering is set via Logger.setLogLevel() in individual tests
+    configSpy.mockRestore();
     await logger.close();
     if (existsSync(filePath)) {
       unlinkSync(filePath);
@@ -301,8 +317,10 @@ describe("FileLogger", () => {
 
     beforeEach(() => {
       logDir = mkdtempSync(join(tmpdir(), "forge-prune-test-"));
-      // Point the config at the temp dir so pruning never touches the real
-      // log directory (the worktree's .forge/logs symlinks to shared logs).
+      // Replace the top-level config spy with one pointing at the temp dir so
+      // pruning never touches the real log directory (the worktree's
+      // .forge/logs symlinks to shared logs). The afterEach restore order
+      // unwinds this back to the top-level spy, then to the real instance.
       getInstanceSpy = vi
         .spyOn(ForgeConfig, "getInstance")
         .mockReturnValue({ getLogDir: () => logDir } as unknown as ForgeConfig);

@@ -45,11 +45,14 @@ Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your pr
 ```json
 {
   "logLevel": "info",
+  "logRetentionDays": 7,
   "workspaceProvider": "git-worktree",
   "worktreeSymlinks": ["node_modules", ".env"],
   "specDirectories": { "flows": [], "agents": [] }
 }
 ```
+
+`logRetentionDays` controls how long session log files are kept before startup pruning (set to 0 to disable pruning).
 
 Environment variables override config: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
 
