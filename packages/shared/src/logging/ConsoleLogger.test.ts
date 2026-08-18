@@ -99,6 +99,19 @@ describe("ConsoleLogger", () => {
       expect(consoleSpies.error).toHaveBeenCalledWith("e");
     });
 
+    it("suppresses warn/info/debug but logs errors at ERROR level", () => {
+      Logger.setLogLevel(LogLevel.ERROR);
+      logger.debug("d");
+      logger.info("i");
+      logger.warn("w");
+      logger.error("e");
+
+      expect(consoleSpies.debug).not.toHaveBeenCalled();
+      expect(consoleSpies.info).not.toHaveBeenCalled();
+      expect(consoleSpies.warn).not.toHaveBeenCalled();
+      expect(consoleSpies.error).toHaveBeenCalledWith("e");
+    });
+
     it("suppresses everything at SILENT level", () => {
       Logger.setLogLevel(LogLevel.SILENT);
       logger.error("e");
