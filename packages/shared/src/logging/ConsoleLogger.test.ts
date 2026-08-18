@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForgeConfig, LogLevel } from "../config";
+import { LogLevel } from "../config";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { Logger } from "./Logger";
 
@@ -81,9 +81,9 @@ describe("ConsoleLogger", () => {
       logger.debug("d");
 
       expect(consoleSpies.error).toHaveBeenCalledWith("e", { n: 1 });
-      expect(consoleSpies.warn).toHaveBeenCalledWith("w", undefined);
-      expect(consoleSpies.info).toHaveBeenCalledWith("i", undefined);
-      expect(consoleSpies.debug).toHaveBeenCalledWith("d", undefined);
+      expect(consoleSpies.warn).toHaveBeenCalledWith("w");
+      expect(consoleSpies.info).toHaveBeenCalledWith("i");
+      expect(consoleSpies.debug).toHaveBeenCalledWith("d");
     });
 
     it("suppresses entries below the configured threshold", () => {
@@ -95,8 +95,8 @@ describe("ConsoleLogger", () => {
 
       expect(consoleSpies.debug).not.toHaveBeenCalled();
       expect(consoleSpies.info).not.toHaveBeenCalled();
-      expect(consoleSpies.warn).toHaveBeenCalledWith("w", undefined);
-      expect(consoleSpies.error).toHaveBeenCalledWith("e", undefined);
+      expect(consoleSpies.warn).toHaveBeenCalledWith("w");
+      expect(consoleSpies.error).toHaveBeenCalledWith("e");
     });
 
     it("suppresses everything at SILENT level", () => {
@@ -112,20 +112,14 @@ describe("ConsoleLogger", () => {
       expect(consoleSpies.debug).not.toHaveBeenCalled();
     });
 
-    it("falls back to the configured log level when none is set", () => {
-      const configStub = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-        getLogLevel: () => LogLevel.WARN,
-      } as unknown as ForgeConfig);
-
+    it("defaults to INFO when no level is set", () => {
       Logger.resetForTest();
       logger = ConsoleLogger.initialize();
       logger.debug("d");
       logger.warn("w");
 
       expect(consoleSpies.debug).not.toHaveBeenCalled();
-      expect(consoleSpies.warn).toHaveBeenCalledWith("w", undefined);
-
-      configStub.mockRestore();
+      expect(consoleSpies.warn).toHaveBeenCalledWith("w");
     });
   });
 });

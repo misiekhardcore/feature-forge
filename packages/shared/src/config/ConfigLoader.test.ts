@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logger } from "../logging";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
@@ -721,15 +720,17 @@ describe("ConfigLoader", () => {
     it("returns defaults when config file has invalid JSON and logs a warning", async () => {
       await fs.writeFile(join(tempDir, "forge.config.json"), "not valid json at all");
 
-      const loggerWarnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      // Before a concrete logger is initialized, the base logger prints to
+      // the console — the warning must be observable, not silently dropped.
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const loader = new ConfigLoader();
       const config = await loader.forRoot({ cwd: tempDir });
 
       expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
-      expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
 
-      loggerWarnSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
     });
 
     it("prefers .forge/config.json even when forge.config.json has invalid JSON", async () => {

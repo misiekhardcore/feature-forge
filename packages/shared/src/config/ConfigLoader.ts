@@ -14,7 +14,7 @@ import type { Type } from "typebox";
 import { Value } from "typebox/value";
 import { parse as parseYaml } from "yaml";
 
-import { logger } from "../logging";
+import { logger } from "../logging/Logger";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { resolveConfig } from "./ForgeConfigDefaults";
 import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
