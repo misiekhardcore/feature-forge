@@ -575,6 +575,47 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
+  describe("getOverlayOptions", () => {
+    function makeHeightConfig(height: string) {
+      return { ...mockConfig, getDisplayMaxOverlayHeight: () => height };
+    }
+
+    it("returns the default options without a config", () => {
+      expect(AgentViewerOverlay.getOverlayOptions()).toEqual({
+        anchor: "center",
+        width: "100%",
+        maxHeight: "85%",
+        margin: 1,
+      });
+    });
+
+    it("returns a fresh copy on every call", () => {
+      const first = AgentViewerOverlay.getOverlayOptions();
+      const second = AgentViewerOverlay.getOverlayOptions();
+      expect(first).not.toBe(second);
+    });
+
+    it("keeps the default height when the config returns '85%'", () => {
+      const options = AgentViewerOverlay.getOverlayOptions(makeHeightConfig("85%"));
+      expect(options.maxHeight).toBe("85%");
+    });
+
+    it("forwards a percentage height from the config", () => {
+      const options = AgentViewerOverlay.getOverlayOptions(makeHeightConfig("40%"));
+      expect(options.maxHeight).toBe("40%");
+    });
+
+    it("converts a numeric pixel-count height from the config", () => {
+      const options = AgentViewerOverlay.getOverlayOptions(makeHeightConfig("30"));
+      expect(options.maxHeight).toBe(30);
+    });
+
+    it("falls back to the default height for invalid config values", () => {
+      const options = AgentViewerOverlay.getOverlayOptions(makeHeightConfig("not-a-size"));
+      expect(options.maxHeight).toBe("85%");
+    });
+  });
+
   describe("formatStreamEvent", () => {
     it("formats tool_execution_start events as '<toolName>'", () => {
       const line = AgentViewerOverlay.formatStreamEvent({
@@ -1790,7 +1831,7 @@ describe("AgentViewerOverlay", () => {
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
-      expect(joined).toContain("builder — claude-sonnet-4-5 (high)");
+      expect(joined).toContain("builder - claude-sonnet-4-5 (high)");
 
       unsubs.forEach((u) => u());
       overlay.dispose();
@@ -1830,7 +1871,7 @@ describe("AgentViewerOverlay", () => {
 
       const lines = overlay.render(80);
       const joined = lines.join("\n");
-      expect(joined).toContain("builder — claude-sonnet-4-5 (high)");
+      expect(joined).toContain("builder - claude-sonnet-4-5 (high)");
 
       unsubs.forEach((u) => u());
       overlay.dispose();
@@ -2070,7 +2111,7 @@ describe("AgentViewerOverlay", () => {
       // "error". (A plain substring check for "cancelled" is vacuous because
       // the agent id "cancelled-agent" already contains it.)
       const clean = lines.map(stripAnsiForTest).join("\n");
-      expect(clean).toMatch(/○ .*cancelled-agent .*— .*cancelled/);
+      expect(clean).toMatch(/○ .*cancelled-agent .*- .*cancelled/);
       expect(clean).not.toMatch(/error/);
       expect(clean).not.toContain("✗");
 
@@ -2112,7 +2153,7 @@ describe("AgentViewerOverlay", () => {
       // resolve to the "cancelled" label (via the query's Cancelled status),
       // not "error".
       const clean = lines.map(stripAnsiForTest).join("\n");
-      expect(clean).toMatch(/○ .*cancelled-agent .*— .*cancelled/);
+      expect(clean).toMatch(/○ .*cancelled-agent .*- .*cancelled/);
       expect(clean).not.toMatch(/error/);
       expect(clean).not.toContain("✗");
 

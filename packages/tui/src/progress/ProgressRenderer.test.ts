@@ -3,6 +3,7 @@ import type {
   Theme,
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { createAccumulatedState } from "./AccumulatedState";
@@ -121,9 +122,9 @@ describe("ProgressRenderer", () => {
       expect(result).toBe("  ✓ builder");
     });
 
-    it("appends annotation after an em-dash", () => {
+    it("appends annotation after a hyphen", () => {
       const result = ProgressRenderer.formatAgentRow("→", "tester", "in progress");
-      expect(result).toBe("  → tester — in progress");
+      expect(result).toBe("  → tester - in progress");
     });
   });
 
@@ -223,6 +224,25 @@ describe("ProgressRenderer", () => {
       });
       expect(lines[2]).toBe("  ✓ builder");
       expect(lines[3]).toBe("  ✗ tester");
+    });
+
+    it("separator width includes the icon and matches the header", () => {
+      const lines = ProgressRenderer.buildWidgetLines({
+        theme,
+        title: "build",
+        subtitle: "iteration 2/3",
+        rows: [],
+      });
+      expect(visibleWidth(lines[1])).toBe(visibleWidth(lines[0]));
+    });
+
+    it("separator width matches the header without a subtitle", () => {
+      const lines = ProgressRenderer.buildWidgetLines({
+        theme,
+        title: "build",
+        rows: [],
+      });
+      expect(visibleWidth(lines[1])).toBe(visibleWidth(lines[0]));
     });
   });
 

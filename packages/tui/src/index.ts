@@ -29,7 +29,7 @@ export type { BuildStatusLineParams, BuildWidgetLinesParams } from "./progress/P
 export { ProgressRenderer } from "./progress/ProgressRenderer";
 export type { ProgressWidget } from "./progress/ProgressWidget";
 export type { RoutineProgressState } from "./progress/RoutineProgressState";
-export { TuiRoutineWidget } from "./progress/TuiProgressReporter";
+export { TuiRoutineWidget } from "./progress/TuiRoutineWidget";
 export { AgentViewerState } from "./state/AgentViewerState";
 export type { AgentViewerEntry, AgentViewerEntryStatus } from "./types";
 export type { AgentEntryBase } from "./types/AgentEntryBase";

@@ -11,9 +11,10 @@ import { shouldLog } from "./LogLevel";
  * Implementations may apply level filtering to suppress entries below
  * a configurable threshold.
  *
- * While no concrete logger is initialized, the base instance prints to
- * the console — entries emitted during startup (e.g. config warnings
- * before {@link FileLogger} initialization) must not be dropped.
+ * While no concrete logger is initialized, the base instance itself
+ * prints to the console - entries emitted during startup (e.g. config
+ * warnings before {@link FileLogger} initialization) must not be
+ * dropped.
  *
  * @remarks Follows the same abstract base class convention as Agent,
  * WorkspaceProvider, and Tool.
@@ -69,7 +70,7 @@ export class Logger {
    * Prefers an explicitly set level; defaults to {@link LogLevel.INFO}
    * (the config schema default) when no level is set or no logger
    * instance exists yet. Concrete loggers apply the configured level
-   * during initialization — the level is never read from ForgeConfig
+   * during initialization - the level is never read from ForgeConfig
    * on a per-call basis.
    */
   static getLogLevel(): LogLevel {

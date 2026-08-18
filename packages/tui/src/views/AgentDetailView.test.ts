@@ -218,7 +218,7 @@ describe("AgentDetailView", () => {
 
       const lines = view.render(100);
       const joined = lines.join("\n");
-      expect(joined).toContain("builder — claude-sonnet-4-5 (high)");
+      expect(joined).toContain("builder - claude-sonnet-4-5 (high)");
     });
 
     it("renders dynamic title with model only", () => {
@@ -233,7 +233,7 @@ describe("AgentDetailView", () => {
 
       const lines = view.render(100);
       const joined = lines.join("\n");
-      expect(joined).toContain("builder — claude-sonnet-4-5");
+      expect(joined).toContain("builder - claude-sonnet-4-5");
       expect(joined).not.toContain("(");
     });
 
@@ -260,7 +260,7 @@ describe("AgentDetailView", () => {
       const joined = lines.join("\n");
       // Title (top border) shows just the agent id — no model/effort suffix.
       expect(lines[0]).toContain("builder");
-      expect(lines[0]).not.toContain(" — ");
+      expect(lines[0]).not.toContain(" - ");
       expect(joined).not.toContain("claude");
       expect(joined).not.toContain("(high)");
     });

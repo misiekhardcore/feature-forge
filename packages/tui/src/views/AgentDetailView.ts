@@ -118,14 +118,14 @@ export class AgentDetailView {
 
     const entry = this.selectedAgentId ? this.state.getAgentEntry(this.selectedAgentId) : undefined;
 
-    // Dynamic title: `<agent> — <model> (<thinkingLevel>)` when present.
+    // Dynamic title: `<agent> - <model> (<thinkingLevel>)` when present.
     // Gracefully degrades to just the agent id (or the default title) when
     // model/thinkingLevel are missing.
     let title = "Agent Detail";
     if (entry) {
       title = entry.id;
       if (entry.model) {
-        title += ` — ${entry.model}`;
+        title += ` - ${entry.model}`;
       }
       if (entry.thinkingLevel) {
         title += ` (${entry.thinkingLevel})`;
@@ -153,7 +153,7 @@ export class AgentDetailView {
     // Header
     this.scrollableBox.addChild(
       new Text(
-        `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} — ${theme.fg(statusColor, label)}`,
+        `${theme.fg(iconColor, icon)} ${theme.fg("accent", entry.id)} - ${theme.fg(statusColor, label)}`,
         0,
         0,
       ),

@@ -93,11 +93,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
         },
       };
 
-      logger.debug("git-done", {
-        phase: "git-done",
-        message: `Git "${instruction.id}": ${instruction.action} complete`,
-      });
-
       eventBus.emit("feature-forge:git-done", {
         phase: "git-done",
         message: `Git "${instruction.id}": ${instruction.action} complete`,
@@ -120,11 +115,6 @@ export class GitStepExecutor extends StepExecutor<GitInstruction> {
       if (instruction.action === "add-and-commit") {
         throw err;
       }
-
-      logger.debug("git-done", {
-        phase: "git-done",
-        message: `Git "${instruction.id}": ${instruction.action} failed`,
-      });
 
       eventBus.emit("feature-forge:git-done", {
         phase: "git-done",

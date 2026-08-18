@@ -1,6 +1,6 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@earendil-works/pi-coding-agent";
-import type { Component, TUI } from "@earendil-works/pi-tui";
+import type { Component, OverlayOptions, TUI } from "@earendil-works/pi-tui";
 
 import type { ScenarioData } from "../scenarios/index.js";
 
@@ -53,7 +53,7 @@ export interface TestLoopDeps {
     theme: Theme;
     onDone: () => void;
   }) => ViewerHandle & Component;
-  overlayOptions: Record<string, unknown>;
+  overlayOptions: OverlayOptions;
   renderHelpers: RenderHelpers;
 }
 

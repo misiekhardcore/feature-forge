@@ -18,11 +18,11 @@ import { Command, type CommandDeps } from "./Command";
  *
  * Each loaded flow gets one `OrchestratorCommand` registered under the flow's
  * slash-command name (e.g. `/implement`). The command:
- * The {@code systemPrompt} field in the orchestrator config is **not** raw
- * prompt text — it is a spec identifier (e.g. {@code "implement-orchestrator"})
- * resolved through {@link SpecManager}. The actual markdown content lives in
- * the flow's {@code orchestrator.md} file, whose frontmatter {@code id} matches
- * the {@code systemPrompt} value. See ADR 0007.
+ * 1. resolves the orchestrator spec identifier (`systemPrompt`) through
+ *    {@link SpecManager} - the field is **not** raw prompt text (e.g.
+ *    {@code "implement-orchestrator"}). The actual markdown content lives in
+ *    the flow's {@code orchestrator.md} file, whose frontmatter {@code id}
+ *    matches the {@code systemPrompt} value. See ADR 0007.
  * 2. resolves `flow.orchestrator.prompt` against the user's slash-command args
  *    (trivial `{{prompt}}` substitution, plus `promptParams`) into a final
  *    `task` string;
@@ -30,7 +30,7 @@ import { Command, type CommandDeps } from "./Command";
  *    `supervisor.mountInSession(spec)`; then
  * 4. `agent.mount(pi, task)` drives the live session.
  *
- * The routine engine's `FlowContext` does not appear here — the prompt template
+ * The routine engine's `FlowContext` does not appear here - the prompt template
  * is resolved inline so only a plain `task` string reaches the agent (ADR 0007).
  */
 /**

@@ -1,6 +1,12 @@
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import type { Component, MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import type {
+  Component,
+  MarkdownTheme,
+  OverlayOptions,
+  SizeValue,
+  TUI,
+} from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
 import { AgentStatus } from "@feature-forge/shared";
@@ -62,12 +68,32 @@ export interface AgentViewerOverlayParams {
  * {@link import("../RoutineTool").RoutineTool} and
  * {@link import("../../commands/AgentListCommand").AgentListCommand}.
  */
-const OVERLAY_OPTIONS = {
-  anchor: "center" as const,
-  width: "100%" as const,
-  maxHeight: "85%" as const,
+const OVERLAY_OPTIONS: OverlayOptions = {
+  anchor: "center",
+  width: "100%",
+  maxHeight: "85%",
   margin: 1,
 };
+
+/**
+ * True when `value` is a percentage string pi-tui accepts as a {@link SizeValue}.
+ */
+function isPercentageHeight(value: string): value is `${number}%` {
+  return /^\d+(?:\.\d+)?%$/.test(value);
+}
+
+/**
+ * Parse a configured overlay height into a pi-tui {@link SizeValue}.
+ *
+ * The config accepts a percentage string (e.g. `"85%"`) or a pixel
+ * count (e.g. `"30"`). Invalid values return `undefined` so callers
+ * can fall back to the default height.
+ */
+function parseOverlayHeight(value: string): SizeValue | undefined {
+  if (isPercentageHeight(value)) return value;
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined;
+}
 
 /**
  * TUI component that renders agent execution details in an overlay widget.
@@ -232,13 +258,17 @@ export class AgentViewerOverlay implements Component {
    * {@link import("../RoutineTool").RoutineTool} and
    * {@link import("../../commands/AgentListCommand").AgentListCommand}.
    *
-   * Returns a fresh copy so callers can mutate without affecting shared state.
+   * Returns a fresh copy so callers can mutate without affecting shared
+   * state. The configured height is validated by {@link parseOverlayHeight}
+   * - invalid values keep the `"85%"` default.
    */
-  static getOverlayOptions(config?: DisplayConfig): typeof OVERLAY_OPTIONS {
+  static getOverlayOptions(config?: DisplayConfig): OverlayOptions {
     if (!config) return { ...OVERLAY_OPTIONS };
     const configHeight = config.getDisplayMaxOverlayHeight();
-    if (configHeight === "85%") return { ...OVERLAY_OPTIONS };
-    return { ...OVERLAY_OPTIONS, maxHeight: configHeight as "85%" };
+    return {
+      ...OVERLAY_OPTIONS,
+      maxHeight: parseOverlayHeight(configHeight) ?? OVERLAY_OPTIONS.maxHeight,
+    };
   }
 
   /**
@@ -441,8 +471,8 @@ export class AgentViewerOverlay implements Component {
       if (!summary && agent) {
         summary =
           passed === false
-            ? `${agent.specification.role} — failed`
-            : `${agent.specification.role} — ${agent.status}`;
+            ? `${agent.specification.role} - failed`
+            : `${agent.specification.role} - ${agent.status}`;
       } else if (!summary) {
         summary = "Agent disconnected";
       }
@@ -536,7 +566,7 @@ export class AgentViewerOverlay implements Component {
           AgentDisplayHelpers.buildEntry({
             id: agent.id,
             status: AgentViewerOverlay.mapStatus(agent.status),
-            summary: `${agent.specification.role} — ${agent.status}`,
+            summary: `${agent.specification.role} - ${agent.status}`,
             role: agent.specification.role,
             model: agent.specification.model,
             thinkingLevel: agent.specification.thinkingLevel,
