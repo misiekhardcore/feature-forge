@@ -6,18 +6,61 @@
  * GraphQL query gh refuses to run). These tests exercise the real `gh` binary
  * to validate the field list and round-trip the public functions.
  *
- * Skipped when `gh` is not installed or not authenticated.
+ * Skipped when `gh` is not installed or not authenticated, and (like the
+ * auth guard) when the live API is unavailable: calls are retried on
+ * transient 5xx outages, and a test that still cannot reach GitHub after
+ * the retry budget is skipped rather than failed — an outage neither
+ * exercises nor disproves the gh contract drift these tests exist to catch.
  *
  * Run via: `npm run test:e2e` (also included in the root `npm run test`).
  */
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
 import { GitHubService } from "../src/github";
 
 const gh = new GitHubService();
+
+// ── transient-outage guard ────────────────────────────────────────────────
+
+/** Matches gh CLI failures caused by transient GitHub API outages (HTTP 5xx). */
+const TRANSIENT_5XX = /HTTP 5\d\d|no server is currently available|try resubmitting/i;
+
+function isTransient5xx(error: unknown): boolean {
+  return error instanceof Error && TRANSIENT_5XX.test(error.message);
+}
+
+/**
+ * Retry a live API call on transient 5xx outages (gh reports HTTP 503 during
+ * brief GitHub incidents). Returns null when every attempt hit the outage.
+ */
+async function retryOnTransient5xx<T>(fn: () => T, attempts = 4): Promise<T | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return fn();
+    } catch (error) {
+      if (!isTransient5xx(error)) throw error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
+      }
+    }
+  }
+  return null;
+}
+
+/** Run `gh` via spawnSync, retrying while the failure is a transient 5xx outage. */
+async function spawnGhRetry(args: string[], attempts = 4): Promise<SpawnSyncReturns<string>> {
+  let result = spawnSync("gh", args, { encoding: "utf8" });
+  let attempt = 0;
+  while (attempt < attempts - 1 && (result.stderr ?? "").match(TRANSIENT_5XX)) {
+    await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
+    result = spawnSync("gh", args, { encoding: "utf8" });
+    attempt += 1;
+  }
+  return result;
+}
 
 // ── gh availability guard ──────────────────────────────────────────────────
 
@@ -68,15 +111,21 @@ const isGhReady = ghReady();
 const pr = findAnyPr();
 
 describe.skipIf(!isGhReady)("github e2e", () => {
-  it("gh pr view accepts the getPullRequest --json field list", () => {
+  it("gh pr view accepts the getPullRequest --json field list", async (ctx) => {
     // gh validates --json fields before resolving the branch, so a
     // nonexistent branch still proves the field names are supported.
-    const result = spawnSync(
-      "gh",
-      ["pr", "view", "forge/e2e-no-such-branch", "--json", PR_VIEW_JSON_FIELDS],
-      { encoding: "utf8" },
-    );
+    const result = await spawnGhRetry([
+      "pr",
+      "view",
+      "forge/e2e-no-such-branch",
+      "--json",
+      PR_VIEW_JSON_FIELDS,
+    ]);
     const stderr = result.stderr ?? "";
+    if (TRANSIENT_5XX.test(stderr)) {
+      ctx.skip("GitHub API unavailable (transient 5xx)");
+      return;
+    }
     expect(stderr).not.toMatch(/Unknown JSON field/);
     expect(stderr).toMatch(/no pull requests found/);
   });
@@ -85,8 +134,12 @@ describe.skipIf(!isGhReady)("github e2e", () => {
 describe.skipIf(!isGhReady || pr === null)("github e2e with real PR", () => {
   const realPr = pr as OpenPr;
 
-  it("getPullRequest resolves a real PR identity", () => {
-    const resolved = gh.getPullRequest(String(realPr.number));
+  it("getPullRequest resolves a real PR identity", async (ctx) => {
+    const resolved = await retryOnTransient5xx(() => gh.getPullRequest(String(realPr.number)));
+    if (resolved === null) {
+      ctx.skip("GitHub API unavailable (transient 5xx)");
+      return;
+    }
 
     expect(resolved.number).toBe(realPr.number);
     expect(resolved.url).toMatch(/^https:\/\/github\.com\//);
@@ -95,10 +148,18 @@ describe.skipIf(!isGhReady || pr === null)("github e2e with real PR", () => {
     expect(resolved.headBranch.length).toBeGreaterThan(0);
   });
 
-  it("getUnresolvedComments runs the GraphQL query and REST call against a real PR", () => {
-    const pullRequest = gh.getPullRequest(String(realPr.number));
+  it("getUnresolvedComments runs the GraphQL query and REST call against a real PR", async (ctx) => {
+    const pullRequest = await retryOnTransient5xx(() => gh.getPullRequest(String(realPr.number)));
+    if (pullRequest === null) {
+      ctx.skip("GitHub API unavailable (transient 5xx)");
+      return;
+    }
 
-    const comments = gh.getUnresolvedComments(pullRequest);
+    const comments = await retryOnTransient5xx(() => gh.getUnresolvedComments(pullRequest));
+    if (comments === null) {
+      ctx.skip("GitHub API unavailable (transient 5xx)");
+      return;
+    }
 
     expect(Array.isArray(comments)).toBe(true);
     for (const comment of comments) {

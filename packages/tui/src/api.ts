@@ -64,6 +64,14 @@ export interface DisplayConfig {
   getDisplayMaxAgentEvents(): number;
   getDisplayMaxPreconnectBuffer(): number;
   getDisplayMaxOverlayHeight(): string;
+  /**
+   * Whether pi's thinking blocks should be collapsed to the "Thinking..."
+   * label instead of rendering the full reasoning text.
+   *
+   * Re-read on every render — pi exposes no settings-change event, so the
+   * Ctrl+T toggle takes effect on the next re-render.
+   */
+  getHideThinkingBlock(): boolean;
 }
 
 /** Tool lookup — satisfied by ToolRegistry (extends Registry<Tool>). */

@@ -143,6 +143,7 @@ export class AgentViewerOverlay implements Component {
       params.tui,
       params.cwd,
       params.toolRegistry,
+      () => this.config.getHideThinkingBlock(),
     );
   }
 

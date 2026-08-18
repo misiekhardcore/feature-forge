@@ -252,6 +252,33 @@ describe("ForgeConfig", () => {
       await ForgeConfig.reload({ cwd: tempDir });
       expect(instance.getConfig().logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
     });
+    it("reload without params reuses the cwd captured at create time", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "error",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getConfig().logLevel).toBe(LogLevel.ERROR);
+
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "debug",
+          workspaceProvider: "current-dir",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      await ForgeConfig.reload();
+      expect(instance.getConfig().logLevel).toBe(LogLevel.DEBUG);
+    });
   });
 
   describe("typed accessor methods", () => {
@@ -570,8 +597,294 @@ describe("ForgeConfig", () => {
       const instance = await ForgeConfig.create({ cwd: tempDir });
       expect(instance.getForgeDir()).toBe(join(os.homedir(), ".forge"));
     });
+    it("falls back to process.cwd() for flow directories when no cwd was captured", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          specDirectories: { flows: ["extra-flows"], agents: [] },
+        }),
+      );
+
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempDir);
+      try {
+        const instance = await ForgeConfig.create();
+        expect(instance.getFlowDirectories()).toEqual([join(tempDir, "extra-flows")]);
+      } finally {
+        cwdSpy.mockRestore();
+      }
+    });
+
+    it("falls back to process.cwd() for agent spec directories when no cwd was captured", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          specDirectories: { flows: [], agents: ["extra-agent-specs"] },
+        }),
+      );
+
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempDir);
+      try {
+        const instance = await ForgeConfig.create();
+        expect(instance.getAgentSpecDirectories()).toEqual([join(tempDir, "extra-agent-specs")]);
+      } finally {
+        cwdSpy.mockRestore();
+      }
+    });
   });
 
+  describe("getHideThinkingBlock", () => {
+    /** Isolated fake home so tests never touch the real ~/.pi/agent. */
+    let fakeHome: string;
+
+    beforeEach(() => {
+      fakeHome = join(tempDir, "home");
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("returns false when no pi settings files exist", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("returns true when the global settings file hides thinking blocks", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("resolves the global settings dir from PI_CODING_AGENT_DIR", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", join(fakeHome, "custom-agent"));
+      await fs.mkdir(join(fakeHome, "custom-agent"), { recursive: true });
+      await fs.writeFile(
+        join(fakeHome, "custom-agent", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("tilde-expands PI_CODING_AGENT_DIR", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "~/custom-agent");
+      await fs.mkdir(join(fakeHome, "custom-agent"), { recursive: true });
+      await fs.writeFile(
+        join(fakeHome, "custom-agent", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("treats a bare tilde PI_CODING_AGENT_DIR as the home dir", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "~");
+      await fs.mkdir(fakeHome, { recursive: true });
+      await fs.writeFile(
+        join(fakeHome, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("returns true when the project settings file hides thinking blocks", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".pi", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("prefers the project settings value over the global one", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".pi", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: false }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("falls back to the global value when the project file is missing", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(
+        join(globalDir, "settings.json"),
+        JSON.stringify({ hideThinkingBlock: true }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+    });
+
+    it("tolerates malformed settings files", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      await fs.writeFile(join(globalDir, "settings.json"), "{ not valid json");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(join(tempDir, ".pi", "settings.json"), "{ not valid json");
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("tolerates non-boolean hideThinkingBlock values", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".pi", "settings.json"),
+        JSON.stringify({ hideThinkingBlock: "yes" }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("tolerates non-object settings files", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      await fs.mkdir(join(tempDir, ".pi"), { recursive: true });
+      await fs.writeFile(join(tempDir, ".pi", "settings.json"), "[1, 2, 3]");
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+
+    it("re-reads settings fresh on every call", async () => {
+      vi.stubEnv("HOME", fakeHome);
+      vi.stubEnv("PI_CODING_AGENT_DIR", "");
+      const globalDir = join(fakeHome, ".pi", "agent");
+      await fs.mkdir(globalDir, { recursive: true });
+      const settingsPath = join(globalDir, "settings.json");
+      await fs.writeFile(settingsPath, JSON.stringify({ hideThinkingBlock: true }));
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getHideThinkingBlock()).toBe(true);
+
+      // Toggle on disk — the next call must observe it (no caching).
+      await fs.writeFile(settingsPath, JSON.stringify({ hideThinkingBlock: false }));
+      expect(instance.getHideThinkingBlock()).toBe(false);
+    });
+  });
+
+  describe("fallback defaults via the public API", () => {
+    it("returns the default display and dev blocks when not configured", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+
+      expect(instance.getDisplayConfig()).toEqual(DEFAULT_FORGE_CONFIG.display);
+      expect(instance.getDevConfig()).toEqual(DEFAULT_FORGE_CONFIG.dev);
+      expect(instance.getDisplayMaxAgentEvents()).toBe(DEFAULT_FORGE_CONFIG.display.maxAgentEvents);
+      expect(instance.getDisplayMaxPreconnectBuffer()).toBe(
+        DEFAULT_FORGE_CONFIG.display.maxPreconnectBuffer,
+      );
+      expect(instance.getDisplayMaxOverlayHeight()).toBe(
+        String(DEFAULT_FORGE_CONFIG.display.maxOverlayHeight),
+      );
+      expect(instance.getDevEnabled()).toBe(false);
+      expect(instance.getLogPrefix()).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
+      expect(instance.getForgeDir()).toBe(join(tempDir, ".forge"));
+    });
+
+    it("applies schema defaults to a partial display block and an empty dev block", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          display: { maxAgentEvents: 300 },
+          dev: {},
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+
+      // maxAgentEvents comes from the user; maxPreconnectBuffer from the
+      // schema default; maxOverlayHeight has no schema default, so the
+      // accessor falls back to the hard-coded default.
+      expect(instance.getDisplayMaxAgentEvents()).toBe(300);
+      expect(instance.getDisplayMaxPreconnectBuffer()).toBe(
+        DEFAULT_FORGE_CONFIG.display.maxPreconnectBuffer,
+      );
+      expect(instance.getDisplayMaxOverlayHeight()).toBe(
+        String(DEFAULT_FORGE_CONFIG.display.maxOverlayHeight),
+      );
+      expect(instance.getDevEnabled()).toBe(false);
+    });
+
+    it("returns empty arrays when specDirectories lacks nested keys", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          specDirectories: {},
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getFlowDirectories()).toEqual([]);
+      expect(instance.getAgentSpecDirectories()).toEqual([]);
+    });
+  });
   describe("static instance getter", () => {
     it("returns the singleton instance when initialized", async () => {
       await fs.writeFile(

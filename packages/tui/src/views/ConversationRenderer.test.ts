@@ -50,13 +50,17 @@ function makeMarkdownTheme(): MarkdownTheme {
   };
 }
 
-function makeRenderer(): ConversationRenderer {
+function makeRenderer(
+  overrides: { getHideThinkingBlock?: () => boolean } = {},
+): ConversationRenderer {
   return new ConversationRenderer({
     theme: makeTheme(),
     markdownTheme: makeMarkdownTheme(),
     tui: makeTui(),
     cwd: "/test/cwd",
     toolRegistry: makeMockToolFormatter(),
+    getHideThinkingBlock: () => false,
+    ...overrides,
   });
 }
 
@@ -75,6 +79,17 @@ function makeAssistantMessage(overrides: Partial<AgentMessage> = {}): AgentMessa
     content: [{ type: "text" as const, text: "assistant response" }],
     timestamp: Date.now(),
     ...overrides,
+  } as unknown as AgentMessage;
+}
+
+function makeAssistantMessageWithThinking(thinking: string, text: string): AgentMessage {
+  return {
+    role: "assistant",
+    content: [
+      { type: "thinking" as const, thinking },
+      { type: "text" as const, text },
+    ],
+    timestamp: Date.now(),
   } as unknown as AgentMessage;
 }
 
@@ -143,6 +158,75 @@ describe("ConversationRenderer", () => {
       expect(result.length).not.toBe(0);
       const joined = result.join(" ");
       expect(joined).toContain("assistant response");
+    });
+
+    it("keeps thinking visible when getHideThinkingBlock returns false (default)", () => {
+      const getHideThinkingBlock = vi.fn(() => false);
+      const renderer = new ConversationRenderer({
+        theme: makeTheme(),
+        markdownTheme: makeMarkdownTheme(),
+        tui: makeTui(),
+        cwd: "/test/cwd",
+        toolRegistry: makeMockToolFormatter(),
+        getHideThinkingBlock,
+      });
+      const messages = [
+        makeAssistantMessageWithThinking("internal reasoning trace", "final answer"),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      // The required getter is consulted on every render; its default value
+      // (false, matching ForgeConfig) keeps the reasoning text visible.
+      expect(getHideThinkingBlock).toHaveBeenCalled();
+      expect(joined).toContain("internal reasoning trace");
+    });
+
+    it("collapses thinking blocks to a label when getHideThinkingBlock returns true", () => {
+      const renderer = makeRenderer({ getHideThinkingBlock: () => true });
+      const messages = [
+        makeAssistantMessageWithThinking("internal reasoning trace", "final answer"),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      // Hidden: only the collapsed "Thinking..." label renders, the reasoning text is absent.
+      expect(joined).toContain("Thinking...");
+      expect(joined).not.toContain("internal reasoning trace");
+      // Regular assistant text still renders alongside the collapsed label.
+      expect(joined).toContain("final answer");
+    });
+
+    it("renders thinking text when getHideThinkingBlock returns false", () => {
+      const renderer = makeRenderer({ getHideThinkingBlock: () => false });
+      const messages = [
+        makeAssistantMessageWithThinking("internal reasoning trace", "final answer"),
+      ];
+      const result = renderer.render(messages, 80);
+      expect(result.length).not.toBe(0);
+      const joined = result.join(" ");
+      // Visible: the full reasoning text renders instead of the collapsed label.
+      expect(joined).toContain("internal reasoning trace");
+      expect(joined).toContain("final answer");
+      expect(joined).not.toContain("Thinking...");
+    });
+
+    it("re-reads the hide-thinking getter on each render so Ctrl+T lands on the next render", () => {
+      let hideThinking = true;
+      const renderer = makeRenderer({ getHideThinkingBlock: () => hideThinking });
+      const messages = [
+        makeAssistantMessageWithThinking("internal reasoning trace", "final answer"),
+      ];
+
+      const first = renderer.render(messages, 80).join(" ");
+      expect(first).toContain("Thinking...");
+      expect(first).not.toContain("internal reasoning trace");
+
+      // Simulate pi's Ctrl+T toggle flipping the setting between renders.
+      hideThinking = false;
+      const second = renderer.render(messages, 80).join(" ");
+      expect(second).toContain("internal reasoning trace");
+      expect(second).not.toContain("Thinking...");
     });
 
     it("skips toolResult messages without producing output", () => {
@@ -299,6 +383,7 @@ describe("ConversationRenderer", () => {
         tui: makeTui(),
         cwd: "/test/cwd",
         toolRegistry: { get: getMock },
+        getHideThinkingBlock: () => false,
       });
 
       const messages = [

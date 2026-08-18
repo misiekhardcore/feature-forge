@@ -176,13 +176,19 @@ export class AgentViewerState {
       createdAt: entry.createdAt ?? existing?.createdAt ?? new Date(),
     };
 
-    // Stamp finishedAt for terminal statuses so elapsed displays correctly
-    // across overlay close/reopen cycles without pre-computing strings.
-    if (
-      !merged.finishedAt &&
-      (merged.status === "done" || merged.status === "error" || merged.status === "cancelled")
-    ) {
-      merged.finishedAt = new Date();
+    // Timestamp lifecycle: terminal entries (done/error) always carry a
+    // finishedAt — a caller-provided stamp wins (e.g. prepopulateStreamFiles
+    // mtime seeding) and an existing stamp is preserved (same-run
+    // re-delivery: overlay reopen, restart redelivery after prepopulate,
+    // duplicate terminal events), otherwise a fresh stamp is written (first
+    // terminal transition or a new run whose started/running cleared it).
+    // Non-terminal entries (started/running/cancelled) clear the stamp so
+    // loop iterations that re-run the same agent id never inherit a stale
+    // one (which would render negative or frozen elapsed time).
+    if (merged.status === "done" || merged.status === "error") {
+      merged.finishedAt = entry.finishedAt ?? existing?.finishedAt ?? new Date();
+    } else {
+      delete merged.finishedAt;
     }
 
     this.agents.set(entry.id, merged);

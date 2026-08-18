@@ -1,4 +1,11 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
+
+// vitest resolves inline project `root` paths against the working directory
+// (vitest-dev/vitest#6855), but npm runs lifecycle scripts with the package
+// as cwd. Anchor the roots at this config file so discovery works from any cwd.
+const packageRoot = (name: string) => fileURLToPath(new URL(`./packages/${name}`, import.meta.url));
 
 export default defineConfig({
   test: {
@@ -34,7 +41,7 @@ export default defineConfig({
       {
         test: {
           name: "shared",
-          root: "./packages/shared",
+          root: packageRoot("shared"),
           setupFiles: ["src/test-setup.ts"],
           globals: true,
           include: ["src/**/*.test.ts"],
@@ -43,7 +50,7 @@ export default defineConfig({
       {
         test: {
           name: "tui",
-          root: "./packages/tui",
+          root: packageRoot("tui"),
           globals: true,
           setupFiles: ["src/test-setup.ts"],
           include: ["src/**/*.test.ts"],
@@ -53,7 +60,7 @@ export default defineConfig({
       {
         test: {
           name: "cli",
-          root: "./packages/cli",
+          root: packageRoot("cli"),
           globals: true,
           include: ["src/**/*.test.ts"],
           setupFiles: ["src/test-setup.ts"],
@@ -63,7 +70,7 @@ export default defineConfig({
       {
         test: {
           name: "cli-e2e",
-          root: "./packages/cli",
+          root: packageRoot("cli"),
           globals: true,
           include: ["e2e/**/*.test.ts"],
           setupFiles: ["src/test-setup.ts"],

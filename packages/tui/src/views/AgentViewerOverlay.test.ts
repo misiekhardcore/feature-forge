@@ -25,6 +25,7 @@ const mockConfig = {
   getDisplayMaxAgentEvents: () => 200,
   getDisplayMaxPreconnectBuffer: () => 100,
   getDisplayMaxOverlayHeight: () => "85%",
+  getHideThinkingBlock: () => false,
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -1408,6 +1409,46 @@ describe("AgentViewerOverlay", () => {
       expect(joined).toContain("Conversation:");
       expect(joined).toContain("Done.");
       expect(joined).not.toContain("Last event:");
+    });
+
+    it("derives hide-thinking visibility from DisplayConfig in detail view", () => {
+      let hideThinking = false;
+      const overlay = makeOverlay({
+        config: {
+          getDisplayMaxAgentEvents: () => 200,
+          getDisplayMaxPreconnectBuffer: () => 100,
+          getDisplayMaxOverlayHeight: () => "85%",
+          getHideThinkingBlock: () => hideThinking,
+        },
+      });
+      overlay.update(makeEntry("builder", "started"));
+      overlay.pushStreamEvent("builder", {
+        type: "message_start",
+        message: { role: "assistant", content: [] },
+      } as unknown as AgentEvent);
+      overlay.pushStreamEvent("builder", {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "internal reasoning trace" },
+            { type: "text", text: "final answer" },
+          ],
+        },
+      } as unknown as AgentEvent);
+      overlay.viewMode = "detail";
+      overlay.selectedAgentId = "builder";
+
+      // Thinking visible while the config getter returns false.
+      const visible = overlay.render(80).join("\n");
+      expect(visible).toContain("internal reasoning trace");
+      expect(visible).not.toContain("Thinking...");
+
+      // Config flip lands on the next render (no settings-change event).
+      hideThinking = true;
+      const hidden = overlay.render(80).join("\n");
+      expect(hidden).toContain("Thinking...");
+      expect(hidden).not.toContain("internal reasoning trace");
     });
 
     it("shows failed status for agent with error status in detail view", () => {

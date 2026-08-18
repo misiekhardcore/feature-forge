@@ -72,6 +72,44 @@ or destroys agents is a **subprocess-agent surface**. In-session personas
   reaches destroy is guarded, so in-session personas are torn down only through
   their own path (flow exit).
 
+## Amendment 2026-08-16 — flow execution model: every flow is orchestrator-driven
+
+The flow-execution model is pinned: **every flow is driven by an in-session
+orchestrator persona that invokes deterministic routines via routine tools**.
+The headless execution path (routines run with no LLM intermediary) is
+deleted, and the flow schema enforces the model.
+
+- **Headless execution removed.** `HeadlessFlowCommand` is deleted outright
+  (`packages/cli/src/commands/HeadlessFlowCommand.ts`; its export is dropped
+  from `commands/index.ts`). `FlowRegistrar` no longer probes for
+  `orchestrator.md` with `fs.access` and forks registration into orchestrated
+  vs headless commands — every flow unconditionally loads its orchestrator
+  specs (`SpecManager.loadFromDirectory(flowDir)`), registers its routine
+  tools, and registers an `OrchestratorCommand` under the flow's slash-command
+  name.
+- **Schema-enforced.** `orchestrator` is required on `FlowDefinitionSchema`
+  (`FlowInstruction.ts`), mirrored in the regenerated `flow-schema.json`
+  (`required: ["$schema", "name", "command", "orchestrator", "routines"]`).
+  A flow without an orchestrator block is rejected at registration — the flow
+  is skipped with a warning — instead of silently falling back to headless
+  mode. The now-unreachable `OrchestratorCommand` guards ("no orchestrator —
+  use a headless command", `!specManager`) and its `config?.` optional
+  chaining were removed.
+- **Review/verify personas match implement.** `review/orchestrator.md`
+  (`id: "review-orchestrator"`) and `verify/orchestrator.md`
+  (`id: "verify-orchestrator"`) ship alongside implement's persona, and the
+  review/verify `flow.json` each declare a minimal orchestrator block
+  (`systemPrompt` spec name + `prompt: "{{prompt}}"`). Each persona documents
+  its routine-tool param mapping — review drives `inspect(changes, workspace?)`,
+  verify drives `check(changes, workspace?)` — because routine params follow a
+  strict TypeBox schema and invented params are rejected.
+- **The `{{changes}}` channel is re-established.** implement's `call_verify`
+  routine ref now passes `"changes": "{{task}}"`, restoring the channel #207
+  removed alongside its `{{changes}}` prompt swap — without the input,
+  `FlowContext.resolvePlaceholder` leaves the literal `{{changes}}` token in
+  the verify prompt. The task string feeds the agent instead of `builder.raw`,
+  preserving #207's decoupling intent: verify sees only the task string.
+
 The original decision record below is left intact as history.
 
 ## Amendment 2026-08-03 — remove the `InSessionAgent` intermediate
