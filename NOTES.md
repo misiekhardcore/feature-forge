@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 5: Logger/console consistency (3.26 + 3.17#11 + 3.17#26) — ConsoleLogger level filtering, shared manifest yaml/typebox → dependencies + vitest → devDependencies, console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions, DEFAULT_LOG_LEVEL deleted.
+Subtask 6: Dead code A (3.17#1/#4/#6/#7/#20/#15 + 3.10#5) — fillTemplate deleted, DynamicAgentSpecification.toJSON override deleted, GitWorktreeProvider JSDoc dedup, AgentViewerOverlay orphaned docstring, avgLinesPerMessage map, GitStepExecutor twin logger.debug.
 
 ## Next action on resume
-Run build loop for subtask 5 (Logger/console).
+Run build loop for subtask 6 (Dead code A).
 
 ## AC checklist
 
@@ -20,9 +20,9 @@ Run build loop for subtask 5 (Logger/console).
 | 3 | 3.11 (P2-1): WorkspaceStepExecutor stores workspace under `instruction.id`, not `"ws"` | [x] |
 | 4 | 3.12 (P2-2): WorkspaceManager `destroy`/`get` params renamed `path` + doc note (keys are paths) | [x] |
 | 5 | 3.13 (P2-3): ChildSocketClient rejects immediately when socket null; pending registered before write; pending rejected on close; connect() guards double-connect | [x] |
-| 6 | 3.26 (P2-9): ConsoleLogger level filtering; shared manifest yaml/typebox → dependencies, vitest → devDependencies | [ ] |
-| 7 | 3.17#11: console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions | [ ] |
-| 8 | 3.17#26: DEFAULT_LOG_LEVEL deleted | [ ] |
+| 6 | 3.26 (P2-9): ConsoleLogger level filtering; shared manifest yaml/typebox → dependencies, vitest → devDependencies | [x] |
+| 7 | 3.17#11: console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions | [x] |
+| 8 | 3.17#26: DEFAULT_LOG_LEVEL deleted | [x] |
 | 9 | 3.17#1: fillTemplate deleted (source + test + exports) | [ ] |
 | 10 | 3.17#4: DynamicAgentSpecification.toJSON override deleted | [ ] |
 | 11 | 3.17#6: duplicated class-level JSDoc in GitWorktreeProvider deduped | [ ] |
@@ -76,6 +76,9 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Subtask 5 (Logger/console, 3.26 + 3.17#11 + 3.17#26) done — ConsoleLogger now guards every severity method with `shouldLog(level, Logger.getLogLevel())` mirroring FileLogger.writeEntry (tests spy on console methods, incl. SILENT and config-fallback via a ForgeConfig.getInstance stub); shared manifest fixed (yaml ^2.9.0 + typebox 1.3.8 → dependencies, vitest 4.1.9 → devDependencies, lockfile updated); console.warn/error → logger in ConfigLoader (invalid-JSON warning), spec-resolution (FORGE_SPEC deserialize error), tool-restrictions (pattern-match failure) with test spies moved from console to the module-level `logger`; DEFAULT_LOG_LEVEL deleted (LogLevel.ts + test block + logging/index + shared/index exports). The ConfigLoader → ../logging import exposed a config↔logging circular import (config/index exports ConfigLoader before ForgeConfigSchema, so `LogLevel.SILENT` was read before the enum binding initialized — crashed all 121 test files). Fix: logging modules import from leaf modules (`../config/ForgeConfig`, `../config/ForgeConfigSchema`) instead of the `../config` barrel — matches the established leaf-import convention (ConfigLoader, ForgeConfigDefaults) and permanently breaks the cycle. Commit: `refactor: ConsoleLogger level filtering, logger-based warnings, DEFAULT_LOG_LEVEL removal (3.26+3.17#11+#26)`.
+- 2026-08-18: Workspace node_modules incident — a plain `npm install` in the worktree hit ENOTDIR mid-reify and destroyed the symlink-farm node_modules (all 30 scoped @dirs emptied; reify also wrote through the `@earendil-works` symlink into the main checkout's node_modules, deleting pi-*/@vitest/@types/... real-name dirs). Repaired: main's `@earendil-works` and 100+ scoped dirs restored by renaming the content-bearing `.pkg-XXXX` temp dirs to real names (versions verified against package-lock.json); worktree's scoped dirs re-created as symlinks into main's node_modules (the ws-3f25704b pattern). Lesson: do NOT run npm install in forge worktrees — use `npm install --package-lock-only` for lockfile-only changes.
 
 - 2026-08-18: Subtask 4 verify follow-up — verify of `293fb16c` failed on AC 3.28/P2-11 #2: the socket `error` handler only rejected the connect promise during the connect phase; after connection, an error rejected nothing, so pending requests leaked into the timeout (error-first ordering). Fix: `socket.on("error")` now calls `rejectAllPending(new IpcConnectionError(...))` when connected (close handler still owns state reset). Regression test uses the mock-`node:net` pattern and emits only `error` (no `close`) so the error path alone must satisfy the assertion — a raw-server test couldn't pin it because abrupt teardown always emits both. Assertion is by name/message because `vi.resetModules` + dynamic import breaks `instanceof` against the top-level class. Commit: `refactor: reject pending IPC requests on post-connection socket error (3.28)`.
 - 2026-08-18: ChildSocketClient (3.13) done — `request()` throws IpcConnectionError immediately when disconnected (was: silent no-op write + full timeout wait); pending entry registered before the write; socket `close` rejects all pending (no caller waits out a timeout after transport death); `connect()` stores an in-flight `connectPromise` so concurrent/repeated calls share one connection (reset on close/failure to allow reconnect). Tests: immediate-reject replaces the old "times out instead of writing" test; new close-rejects-pending (raw server, 2s timeout to fail fast on regression); double-connect guard (concurrent + repeated, connection count 1); register-before-write proven with a mock `node:net` whose `write()` delivers the response synchronously. Commit: `refactor: harden ChildSocketClient request lifecycle (3.13)`.

@@ -5,10 +5,7 @@
  * Use {@link levelSeverity} for comparison-based filtering.
  */
 
-import { LogLevel } from "../config";
-
-/** Default log level when no configuration is provided — logs everything. */
-export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.DEBUG;
+import { LogLevel } from "../config/ForgeConfigSchema";
 
 /** Log levels ordered from most to least severe. */
 export const LOG_LEVEL_ORDER: readonly LogLevel[] = [

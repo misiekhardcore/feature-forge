@@ -29,7 +29,6 @@ export {
 export { jsonParse } from "./helpers";
 export {
   ConsoleLogger,
-  DEFAULT_LOG_LEVEL,
   FileLogger,
   levelSeverity,
   LOG_LEVEL_ORDER,

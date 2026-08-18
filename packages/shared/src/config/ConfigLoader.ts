@@ -14,6 +14,7 @@ import type { Type } from "typebox";
 import { Value } from "typebox/value";
 import { parse as parseYaml } from "yaml";
 
+import { logger } from "../logging";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { resolveConfig } from "./ForgeConfigDefaults";
 import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
@@ -272,7 +273,7 @@ export class ConfigLoader {
       try {
         return JSON.parse(content) as Record<string, unknown>;
       } catch (parseError) {
-        console.warn(
+        logger.warn(
           `[feature-forge] Invalid JSON in ${filePath}: ${(parseError as Error).message}. ` +
             "Falling back to default configuration.",
         );
