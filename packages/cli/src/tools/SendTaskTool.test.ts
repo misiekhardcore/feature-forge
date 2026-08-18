@@ -51,7 +51,7 @@ describe("SendTaskTool", () => {
 
     beforeEach(() => {
       client = makeMockSocketClient();
-      tool = new SendTaskTool(client as never);
+      tool = new SendTaskTool(client);
     });
 
     it("sends request with await: true and returns result", async () => {

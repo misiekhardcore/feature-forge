@@ -40,4 +40,5 @@ export {
 export { Registry } from "./registry";
 export type { RpcClientMock } from "./test-utils";
 export { createRpcClientMock } from "./test-utils";
-export { Tool } from "./tools";
+export type { IpcRequestClient } from "./tools";
+export { IpcTool, NO_CLIENT_ERROR, Tool } from "./tools";

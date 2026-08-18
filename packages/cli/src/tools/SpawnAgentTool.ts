@@ -1,12 +1,8 @@
-import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { logger, Tool } from "@feature-forge/shared";
+import { IpcTool } from "@feature-forge/shared";
 import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
 
-import type { ChildSocketClient } from "../ipc/ChildSocketClient";
-import { SpawnAgentParams, SpawnAgentResult } from "../ipc/messages";
-
-const NO_CLIENT_ERROR = { error: "Not available in orchestrator mode" };
+import { SpawnAgentResult } from "../ipc/messages";
 
 /**
  * Schema for the spawn_agent tool — single unambiguous mode.
@@ -60,7 +56,7 @@ export const SpawnAgentParameters = Type.Object({
   ),
 });
 
-export class SpawnAgentTool extends Tool {
+export class SpawnAgentTool extends IpcTool<typeof SpawnAgentParameters, SpawnAgentResult> {
   readonly name = "spawn_agent";
   readonly label = "Spawn Agent";
   readonly description =
@@ -68,47 +64,9 @@ export class SpawnAgentTool extends Tool {
     "Returns an agentId for use with send_task, get_agent_result, and destroy_agent.";
 
   readonly parameters = SpawnAgentParameters;
+  protected readonly messageType = "spawn_agent";
 
   renderShell = "self";
   renderCall = ToolRenderer.spawnAgentCall;
   renderResult = ToolRenderer.spawnAgentResult;
-
-  constructor(private client: ChildSocketClient | null) {
-    super();
-  }
-
-  async execute(
-    _toolCallId: string,
-    params: SpawnAgentParams,
-    signal: AbortSignal | undefined,
-  ): Promise<AgentToolResult<SpawnAgentResult | { error: string }>> {
-    if (!this.client) {
-      signal?.throwIfAborted();
-      return {
-        content: [{ type: "text", text: JSON.stringify(NO_CLIENT_ERROR) }],
-        details: NO_CLIENT_ERROR,
-      };
-    }
-
-    signal?.throwIfAborted();
-
-    try {
-      const result = await this.client.request("spawn_agent", params, undefined, signal);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        details: result,
-      };
-    } catch (error) {
-      logger.error("Tool execution failed", { toolName: this.name, error });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-          },
-        ],
-        details: { error: error instanceof Error ? error.message : String(error) },
-      };
-    }
-  }
 }
