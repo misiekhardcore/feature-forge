@@ -6,10 +6,7 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 13 (SkillResolver, 3.17#17) done. Next: subtask 14 (FlowLoader split, 3.17#18).
-
-## Next action on resume
-Run build loop for subtask 14 (FlowLoader → instance load/loadAll + flowValidation.ts pure functions).
+Subtask 14 (FlowLoader split, 3.17#18) done. All 14 subtasks complete — next: final cleanup subtask (IpcTool P2 follow-ups: freeze NO_CLIENT_ERROR, em-dash in IpcTool.ts JSDoc, IpcTool ADR) then close the phase.
 
 ## AC checklist
 
@@ -45,7 +42,7 @@ Run build loop for subtask 14 (FlowLoader → instance load/loadAll + flowValida
 | 28 | 3.17#14: packages/web placeholder deleted | [x] |
 | 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [x] |
 | 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [x] |
-| 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [ ] |
+| 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [x] |
 
 ## Deferred (documented rationale)
 
@@ -74,6 +71,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Subtask 14 (FlowLoader split, 3.17#18) done — `FlowLoader` is now instance-only (`load`/`loadAll`, I/O + logging) with the two validation layers extracted verbatim into `flowValidation.ts` as pure module functions: `validateStructure` (public, `asserts value is FlowDefinition`) + `validateSemantics` (public) with `validateRoutineSteps`/`checkDuplicateIds`/`collectIds`/`walkInstructions`/`checkAgentWorkspaceRef`/`checkLoopExpression`/`checkAccumulateFrom`/`collectAllIds`/`collectIdsByFlag`/`collectIdsByType` module-private (all `FlowLoader.` statics → direct calls, no `this` plumbing). `discoverFlowDirectories` stays in FlowLoader.ts (already a standalone function). Callers updated: `FlowLoader.load` imports the two functions; `scripts/validate-flow.ts` (both single-file + `--all` paths; `--all` keeps `new FlowLoader(...)` for loading); `FlowLoader.test.ts` and `FlowInstruction.test.ts` re-pointed from `FlowLoader.validate*` to the pure functions (all 187 orchestrator tests preserved verbatim, receivers renamed — the skill-resolver precedent). No index.ts export added: the statics were never part of the public API (grep confirmed no consumer outside tests + script; validate-flow imports from src directly). Full loop green: fix/lint/typecheck clean, 121 files/2354 tests, coverage unchanged 96.59% stmts/96.99% lines, `flow:validate` + `flow:validate:all` smoke-tested (4/4 shipped flows valid). Commit: `refactor: split FlowLoader validation into pure flowValidation functions (3.17#18)`.
 
 - 2026-08-18: Subtask 13 (SkillResolver, 3.17#17) done — the class (3 statics + instance `forgeDir`/`skillDirectories`, with `discoverAll` static constructing `new SkillResolver(...)` just to call private instance methods) is now plain module functions + module-level constants: `resolveSkillPaths`/`discoverAllSkills`/`resolveEffectiveSkillNames` exported, `skillDirectories`/`parseSkillName`/`scanDirectory` module-private (no more `this` plumbing), `bundledSkillDirectories` unchanged. Constants: `DEFAULT_FORGE_DIR = ".forge"`, `AGENTS_SKILLS_RELATIVE_DIR`/`PI_AGENT_SKILLS_RELATIVE_DIR` (home paths still resolved at call time so runtime `HOME` overrides in tests keep working). Callers updated: `helpers.ts` imports `resolveSkillPaths` (was `SkillResolver.resolvePaths`), `specifications/index.ts` re-exports the four functions. All 15 existing test cases preserved verbatim, only the receiver names updated (`resolveEffectiveSkillNames`, `discoverAllSkills`). Full loop green: fix/lint/typecheck clean, 121 files/2354 tests, coverage unchanged 96.59% stmts/96.99% lines. Commit: `refactor: SkillResolver to plain functions + module-level constants (3.17#17)`.
 
