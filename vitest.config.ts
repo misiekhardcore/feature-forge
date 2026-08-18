@@ -40,6 +40,15 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: "core",
+          root: packageRoot("core"),
+          setupFiles: ["src/test-setup.ts"],
+          globals: true,
+          include: ["src/**/*.test.ts"],
+        },
+      },
+      {
+        test: {
           name: "shared",
           root: packageRoot("shared"),
           setupFiles: ["src/test-setup.ts"],
