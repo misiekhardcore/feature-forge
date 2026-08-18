@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { AgentCreationError } from "./AgentFactory";
 
-describe("AgentCreationError", () => {
+// Trivial synchronous assertions; generous timeout guards against worker-scheduling
+// delays under full-suite load (observed hitting the 5000ms default once).
+describe("AgentCreationError", { timeout: 15_000 }, () => {
   it("creates an error with the specification id in the message", () => {
     const error = new AgentCreationError("agent-1", "Network timeout");
     expect(error.message).toContain("agent-1");

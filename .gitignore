@@ -19,6 +19,8 @@ coverage-single/
 !.forge/flows
 !.forge/agents
 !.forge/config.json
+# nested .forge dirs created by package test runs (logger writes)
+**/packages/*/.forge/
 coverage-single/
 
 # pi coding agent runtime
