@@ -1,4 +1,3 @@
-import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -11,7 +10,7 @@ import { WorkspaceManager } from "../workspace";
 import type { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
-import { FlowLoader } from "./FlowLoader";
+import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 import { RoutineExecutor } from "./RoutineExecutor";
 import { RoutineTool } from "./RoutineTool";
@@ -66,7 +65,7 @@ export class FlowRegistrar {
     } = this.params;
 
     for (const flowDir of flowDirs) {
-      const flowNames = await this.discoverFlowDirectories(flowDir);
+      const flowNames = await discoverFlowDirectories(flowDir);
       for (const flowName of flowNames) {
         await this.registerFlow(flowName, path.join(flowDir, flowName), {
           pi,
@@ -86,15 +85,6 @@ export class FlowRegistrar {
     // Thread the fully populated flowMap to executors that need it
     // for cross-flow routine ref resolution.
     stepExecutorRegistry.setFlowMap(this.flowMap);
-  }
-
-  private async discoverFlowDirectories(flowsDir: string): Promise<string[]> {
-    try {
-      const entries = await fs.readdir(flowsDir, { withFileTypes: true });
-      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-    } catch {
-      return [];
-    }
   }
 
   private async registerFlow(

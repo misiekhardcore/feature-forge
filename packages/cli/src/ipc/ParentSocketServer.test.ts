@@ -1180,11 +1180,13 @@ describe("ParentSocketServer", () => {
 
     it("ignores unknown message types", async () => {
       const client = connect(socketPath);
+      const received: Buffer[] = [];
+      client.on("data", (chunk: Buffer) => received.push(chunk));
       client.write(JSON.stringify({ type: "mystery_message", correlationId: "u-1" }) + "\n");
       // No response expected — give the server a tick and assert nothing arrived.
       await new Promise((resolve) => setTimeout(resolve, 50));
       client.end();
-      expect(true).toBe(true);
+      expect(received).toEqual([]);
     });
 
     it("sends an error response when a message handler throws", async () => {

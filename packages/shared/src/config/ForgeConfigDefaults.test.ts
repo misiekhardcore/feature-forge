@@ -101,6 +101,15 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     }).toThrow(TypeError);
   });
 
+  it("blocks Map mutators on frozen defaults", () => {
+    // Object.freeze does not block Map.set/delete/clear (internal slots) —
+    // deepFreeze must install throwing stubs (regression for F1).
+    const agents = DEFAULT_FORGE_CONFIG.agents as unknown as Map<string, { maxTurns: number }>;
+    expect(() => agents.set("x", { maxTurns: 1 })).toThrow(TypeError);
+    expect(() => agents.delete("x")).toThrow(TypeError);
+    expect(() => agents.clear()).toThrow(TypeError);
+  });
+
   it("mirrors the canonical forge-config.defaults.json", () => {
     expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(defaultsJson.logLevel as LogLevel);
     expect(DEFAULT_FORGE_CONFIG.logPrefix).toBe(defaultsJson.logPrefix);
@@ -260,6 +269,16 @@ describe("resolveConfig", () => {
     expect(config1.specDirectories).not.toBe(config2.specDirectories);
     expect(config1.display).not.toBe(config2.display);
     expect(config1.dev).not.toBe(config2.dev);
+  });
+
+  // Regression (F2): the defaults fallback handed out DEFAULT_FORGE_CONFIG.models
+  // by reference when overrides.models was absent — mutating the resolved
+  // config's models corrupted the process-wide defaults.
+  it("mutating a resolved config's models never corrupts DEFAULT_FORGE_CONFIG.models", () => {
+    const config = resolveConfig({}) as unknown as { models: Record<string, { model: string }> };
+    expect(config.models).not.toBe(DEFAULT_FORGE_CONFIG.models);
+    config.models.smart = { model: "hacked" };
+    expect(DEFAULT_FORGE_CONFIG.models).toEqual({});
   });
 
   it("deep-clones override-provided nested structures", () => {

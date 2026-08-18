@@ -1,5 +1,5 @@
 import { AgentStatus } from "@feature-forge/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockPi } from "../test-utils";
 import { connectChildClient } from "./connectChildClient";
@@ -23,6 +23,12 @@ vi.mock("./ChildSocketClient", () => ({
 }));
 
 describe("connectChildClient", () => {
+  // The shared hoisted.instance mock accumulates call counts across tests;
+  // clear between tests so toHaveBeenCalledTimes assertions are order-independent.
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("connects to the given socket path and returns the client", async () => {
     const pi = makeMockPi();
     const client = await connectChildClient("/tmp/forge-parent.sock", pi);

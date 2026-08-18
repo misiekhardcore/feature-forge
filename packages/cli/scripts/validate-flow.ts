@@ -25,28 +25,10 @@ async function main(): Promise<void> {
 
   if (args[0] === "--all") {
     const flowsRoot = path.join(scriptDir, "..", "src", "flows");
-    // Flows live in subdirectories (src/flows/<name>/flow.json) — mirror the
-    // FlowRegistrar discovery so --all actually validates the shipped flows.
-    const { readdir } = await import("node:fs/promises");
-    let flowDirs: string[] = [];
-    try {
-      const entries = await readdir(flowsRoot, { withFileTypes: true });
-      flowDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-    } catch {
-      // falls through to the empty-report below
-    }
-
+    // Flows live in subdirectories (src/flows/<name>/flow.json); loadAll
+    // discovers them (mirroring FlowRegistrar) and collects failures.
     const loader = new FlowLoader({ flowsDir: flowsRoot });
-    const flows = new Map<string, import("../src/orchestrator/FlowInstruction").FlowDefinition>();
-    const failures = new Map<string, Error>();
-    for (const dir of flowDirs) {
-      try {
-        const flow = await loader.load(path.join(dir, "flow"));
-        flows.set(flow.name, flow);
-      } catch (error) {
-        failures.set(dir, error instanceof Error ? error : new Error(String(error)));
-      }
-    }
+    const { flows, failures } = await loader.loadAll();
 
     if (failures.size > 0) {
       console.error(`✗ ${failures.size} flow(s) failed validation:`);

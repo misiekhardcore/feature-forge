@@ -16,6 +16,21 @@ import {
 } from "./FlowInstruction";
 
 /**
+ * Discover flow subdirectories in a flows root (`src/flows/<name>/flow.json`
+ * layout). Returns directory names in readdir order; non-directories (e.g.
+ * the root-level `flow-schema.json`) are skipped. Missing/unreadable roots
+ * yield an empty list.
+ */
+export async function discoverFlowDirectories(flowsDir: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(flowsDir, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Loads and validates declarative routine-based flow JSON files.
  *
  * Validation layers:
@@ -81,21 +96,21 @@ export class FlowLoader {
   async loadAll(): Promise<{ flows: Map<string, FlowDefinition>; failures: Map<string, Error> }> {
     const flows = new Map<string, FlowDefinition>();
     const failures = new Map<string, Error>();
-    const files = await fs.readdir(this.params.flowsDir);
-    const jsonFiles = files.filter((f) => f.endsWith(".json") && f !== "flow-schema.json");
+    // Flows live in subdirectories (src/flows/<name>/flow.json); a flat
+    // `*.json` scan no longer matches the layout.
+    const dirs = await discoverFlowDirectories(this.params.flowsDir);
 
     logger.info("Loading all flows from directory", {
       dir: this.params.flowsDir,
-      count: jsonFiles.length,
+      count: dirs.length,
     });
 
-    for (const file of jsonFiles) {
-      const name = path.basename(file, ".json");
+    for (const dir of dirs) {
       try {
-        flows.set(name, await this.load(name));
+        flows.set(dir, await this.load(path.join(dir, "flow")));
       } catch (error) {
-        logger.warn("Skipping invalid flow", { name, error: (error as Error).message });
-        failures.set(name, error instanceof Error ? error : new Error(String(error)));
+        logger.warn("Skipping invalid flow", { name: dir, error: (error as Error).message });
+        failures.set(dir, error instanceof Error ? error : new Error(String(error)));
       }
     }
 

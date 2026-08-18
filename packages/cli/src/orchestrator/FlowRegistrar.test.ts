@@ -19,6 +19,7 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 const {
   readdirMock,
+  discoverFlowDirsMock,
   flowLoaderLoadMock,
   flowLoaderCtorMock,
   orchestratorCtorMock,
@@ -26,8 +27,25 @@ const {
   specManagerLoadFromDirectoryMock,
   specManagerSpecNamesMock,
 } = vi.hoisted(() => {
-  const readdir = vi.fn<() => Promise<{ name: string; isDirectory: () => boolean }[]>>();
+  const readdir =
+    vi.fn<
+      (
+        flowsDir: string,
+        options?: { withFileTypes?: boolean },
+      ) => Promise<{ name: string; isDirectory: () => boolean }[]>
+    >();
   const load = vi.fn<() => Promise<FlowDefinition>>();
+
+  // Mirror the real discoverFlowDirectories helper: delegate to readdirMock
+  // so existing assertions about readdir calls and directory filtering hold.
+  const discoverFlowDirs = vi.fn(async (flowsDir: string) => {
+    try {
+      const entries = await readdir(flowsDir, { withFileTypes: true });
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  });
 
   // Must use named functions — arrow functions are not constructable
   function FlowLoaderMock() {
@@ -57,6 +75,7 @@ const {
 
   return {
     readdirMock: readdir,
+    discoverFlowDirsMock: discoverFlowDirs,
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
     orchestratorCtorMock: orchestratorCtor,
@@ -72,6 +91,7 @@ vi.mock("node:fs/promises", () => ({
 
 vi.mock("./FlowLoader", () => ({
   FlowLoader: flowLoaderCtorMock,
+  discoverFlowDirectories: discoverFlowDirsMock,
 }));
 
 vi.mock("../commands", () => ({
