@@ -520,6 +520,15 @@ describe("ConfigLoader", () => {
   });
 
   describe("resolveForgeEnvOverlay", () => {
+    // Point HOME at an empty dir so forRoot never falls through to a real
+    // global ~/.forge/config.json — the default-asserting tests below must
+    // not depend on the machine's ambient config.
+    beforeEach(async () => {
+      const fakeHome = join(tempDir, "empty-home");
+      await fs.mkdir(fakeHome, { recursive: true });
+      vi.stubEnv("HOME", fakeHome);
+    });
+
     afterEach(() => {
       vi.unstubAllEnvs();
     });
