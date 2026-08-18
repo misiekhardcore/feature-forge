@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 9 done. Next: subtask 10 (Magic numbers, 3.17#12).
+Subtask 11 done. Next: subtask 12 (FlowRegistrar, 3.17#16).
 
 ## Next action on resume
-Run build loop for subtask 10 (Magic numbers: shell 120s, git 60s, maxBuffer 10MB, preconnect 2000 → ForgeConfigDefaults / named constants).
+Run build loop for subtask 12 (FlowRegistrar: single context object, no double destructuring).
 
 ## AC checklist
 
@@ -41,8 +41,8 @@ Run build loop for subtask 10 (Magic numbers: shell 120s, git 60s, maxBuffer 10M
 | 24 | 3.17#27: ForgeConfigSchema logLevel/workspaceProvider/agents/defaultAgent → Type.Optional (defaults supplied) | [x] |
 | 25 | 3.17#28: packages/shared `npm run test` works (package-local vitest config) | [x] |
 | 26 | 3.17#12: magic numbers → named constants (shell 120s, git 60s, maxBuffer 10MB, preconnect 2000) | [x] |
-| 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [ ] |
-| 28 | 3.17#14: packages/web placeholder deleted | [ ] |
+| 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [x] |
+| 28 | 3.17#14: packages/web placeholder deleted | [x] |
 | 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [ ] |
 | 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [ ] |
 | 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [ ] |
@@ -52,7 +52,6 @@ Run build loop for subtask 10 (Magic numbers: shell 120s, git 60s, maxBuffer 10M
 - 3.17#2 buildEnvOverlay: Phase -1 added tests; kept as tested public API (review allows "test + use").
 - 3.17#3 ConsoleLogger wiring: filtering added per 3.26; no `--console-logs` mode (out of quick-wins scope).
 - 3.17#23 EventSubscriber: kept - Phase 1 (P0-1 fix) uses it at the tui/cli boundary.
-- 3.17#13 pi SDK: attempt 0.79.8 → 0.79.10; revert and defer if the suite breaks.
 
 ## Subtask plan
 
@@ -70,13 +69,13 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 8 | Progress/e2e C | sharedStreamDir.ts (+test), e2e/helpers.ts |
 | 9 | Schema + shared test script D | ForgeConfigSchema.ts (+test), ConfigLoader.test.ts, +packages/shared/vitest.config.ts |
 | 10 | Magic numbers (3.17#12) | ShellStepExecutor.ts, GitStepExecutor.ts, registerSignalHandlers.ts |
-| 11 | Manifests (#13+#14) | package.jsons (cli/shared/tui/debug), delete packages/web/, package-lock via npm install |
-| 12 | FlowRegistrar (3.17#16) | FlowRegistrar.ts |
+| 11 | Manifests (#13+#14) | package.jsons (cli/shared/tui/debug), delete packages/web/, package-lock via npm install || 12 | FlowRegistrar (3.17#16) | FlowRegistrar.ts |
 | 13 | SkillResolver (3.17#17) | skill-resolver.ts (+test), helpers.ts, specifications/index.ts |
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
 
+- 2026-08-18: Subtask 11 (Manifests, 3.17#13/#14) done — version drift fixed via single source: root devDeps now pin all four pi SDK packages at `0.79.10` (typebox 1.3.8 + typescript 6.0.3 were already there), and cli/shared/tui/debug declare pi SDK + typebox as `*` devDeps (cli keeps its `*` peerDeps for the host-provided runtime; tsup keeps them `external`). debug's `typescript ^5.0.0` dropped (root 6.0.3 single source); shared's typebox/pi-coding-agent moved deps→devDeps; cli's typebox `1.3.0` → `*` (was nested 1.3.0 vs root 1.3.8). `packages/web/` deleted (echo-only placeholder; git history preserves it). Lockfile regenerated via `npm install --package-lock-only` (incident lesson) + manual pruning of two stale entries npm's incremental diff kept: `packages/cli/node_modules/typebox` (1.3.0, no longer on disk — cli's node_modules only has `.vite`) and `packages/web` (`extraneous: true` — npm refuses to drop removed-workspace entries; also removed the stale `node_modules/@feature-forge/web` symlink + `packages/web/.turbo` residue so the next regen stays clean). `npm ls typebox` → exit 0: 1.3.8 single source (only 1.1.38 nests inside the pi SDKs' own node_modules, their internal pins). pi bump 0.79.8 → 0.79.10 verified non-breaking by diffing the published tarballs: pi-coding-agent's .d.ts delta is additive-only (compaction event `reason`/`willRetry` fields; `getSelfUpdate*` param renamed — unused here), pi-tui's types are byte-identical. Note: the worktree's shared node_modules farm still has 0.79.8 installed for coding-agent/tui, so `npm ls @earendil-works/*` flags `invalid` locally — CI's `npm ci` installs 0.79.10 per the lockfile; local suite (2353 tests) green against installed 0.79.8, typecheck/lint clean, coverage unchanged 96.59%. Commit: `refactor: single-source manifest pins, drop web placeholder (3.17#13/#14)`.
 - 2026-08-18: Subtask 10 (Magic numbers, 3.17#12) done — module-level named constants with JSDoc in the consuming files, following the `MAX_REVIEW_THREAD_PAGES` precedent in github.ts (which was already a named constant - no change needed there): `SHELL_TIMEOUT_MS` 120s + `SHELL_MAX_BUFFER_BYTES` 10MB in ShellStepExecutor, `GIT_TIMEOUT_MS` 60s in GitStepExecutor, `CLEANUP_TIMEOUT_MS` 2000 in registerSignalHandlers (workspace-cleanup race timeout). Not moved to ForgeConfigDefaults: these are operational constants, not user-configurable settings - the schema has no fields for them and adding schema fields would be a config-surface change, not a hygiene fix (the roadmap fix column says "ForgeConfigDefaults / named constants" - either satisfies it). All four replaced usages are covered by existing tests (execFile timeouts in executor suites, fake-timer cleanup timeout in registerSignalHandlers.test). Commit: `refactor: name the magic numbers - shell/git/cleanup timeouts, maxBuffer (3.17#12)`.
 
 - 2026-08-18: Subtask 9 (Schema + shared test script D, 3.17#27/#28) done — ForgeConfigSchema `logLevel`/`workspaceProvider`/`agents`/`defaultAgent` are now `Type.Optional` (defaults already supplied by `resolveConfig`/`DEFAULT_FORGE_CONFIG`); the derived `ForgeConfig` type re-declares the four as required (added to the `Omit` + intersection) since resolution always fills them — zero ripple into consumers (`ForgeConfig.getLogLevel()` keeps its plain `LogLevel` return). Field JSDoc now states defaults. Tests: 5 new schema acceptance cases (per-field omission + empty `{}` object) replace the two "rejects missing" cases; ConfigLoader test flipped from "throws InvalidConfigError when required fields are missing" to "loads a minimal config, filling defaults" (`{}` → INFO/git-worktree/empty Map/DEFAULT_AGENT_CONFIG). Bonus: the old "invalid YAML" test input `key: value\n  bad indent` is actually VALID YAML (plain scalar continuation — it only failed via missing-required-fields before); replaced with an unclosed flow sequence `key: [1, 2` (verified to throw in the yaml package). AC #28: new `packages/shared/vitest.config.ts` (root anchored at config file, setupFiles/globals/include mirroring the root config's shared project) — `npm run test` in packages/shared now runs only its 15 files/355 tests (~1.3s) instead of find-up'ing the root config and running the whole 121-file workspace; root `npm run test` still runs all projects (nearest-config-wins verified in vitest's `any(configFiles, { cwd: root })` walk-up). eslint: `vitest.config.ts` ignored in packages/shared/eslint.config.js (cli's `tsup.config.ts` precedent — root-level config files are outside the src-only tsconfig project). Verified: full suite 121 files/2353 tests green (+3 net tests), coverage unchanged 96.59% lines 96.98%. Commit: `refactor: schema defaults via Type.Optional, shared package-local vitest config (3.17#27/#28)`.
