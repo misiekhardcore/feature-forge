@@ -37,7 +37,7 @@ function createMockAgent(): SubprocessAgent {
   };
 }
 
-function createMockInSessionAgent(): Agent {
+function createMockInSessionAgent(overrides: { status?: AgentStatus } = {}): Agent {
   return {
     kind: "in-session",
     id: "session-agent",
@@ -47,7 +47,7 @@ function createMockInSessionAgent(): Agent {
       toolRestrictions: { read: [] },
       id: "session-agent",
     } as never,
-    status: AgentStatus.Running,
+    status: overrides.status ?? AgentStatus.Running,
     createdAt: new Date(),
     destroy: vi.fn().mockResolvedValue(undefined),
   };
@@ -979,6 +979,285 @@ describe("ParentSocketServer", () => {
       );
 
       client.end();
+      await localServer.stop();
+    });
+  });
+
+  describe("lifecycle and edge paths", () => {
+    it("stop() on a never-started server is a no-op", async () => {
+      const localServer = new ParentSocketServer(
+        createMockSupervisor(),
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      await expect(localServer.stop()).resolves.toBeUndefined();
+      expect(localServer.path).toBeNull();
+    });
+
+    it("stop() can be called twice (second call is a no-op)", async () => {
+      const localServer = new ParentSocketServer(
+        createMockSupervisor(),
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+      expect(localServer.path).toBe(localPath);
+
+      await localServer.stop();
+      expect(localServer.path).toBeNull();
+      await expect(localServer.stop()).resolves.toBeUndefined();
+    });
+
+    it("session_shutdown stops the server", async () => {
+      const localPi = makeMockPi();
+      const localServer = new ParentSocketServer(
+        createMockSupervisor(),
+        localPi,
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+      expect(localServer.path).toBe(localPath);
+
+      const shutdownHandler = (localPi.on as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call) => call[0] === "session_shutdown",
+      )?.[1] as () => Promise<void>;
+      expect(shutdownHandler).toBeDefined();
+      await shutdownHandler();
+
+      expect(localServer.path).toBeNull();
+    });
+
+    it("destroys the agent when the client disconnects mid-await", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localServer = new ParentSocketServer(
+        localSupervisor,
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "dc-1",
+        params: { role: "hanging", systemPrompt: "hangs forever", toolRestrictions: {} },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("hanging") as SubprocessAgent;
+      vi.mocked(agent.executeTask).mockReturnValue(new Promise(() => {}));
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "dc-2",
+        params: { agentId: "hanging", prompt: "never finishes", await: true },
+      });
+
+      // Give the server a tick to register the close listener, then drop
+      // the connection — the pending await must destroy the agent.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      client.destroy();
+      await vi.waitFor(() => {
+        expect(localSupervisor.destroyAgent).toHaveBeenCalledWith("hanging");
+      });
+
+      await localServer.stop();
+    });
+
+    it("refuses send_task for an in-session agent", async () => {
+      const localAgents = new Map<string, Agent>();
+      localAgents.set("session-agent", createMockInSessionAgent());
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localServer = new ParentSocketServer(
+        localSupervisor,
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "st-1",
+        params: { agentId: "session-agent", prompt: "x", await: false },
+      });
+
+      const response = await readResponse(client);
+      expect(response).toEqual({
+        type: "error",
+        correlationId: "st-1",
+        error: "Agent not a subprocess agent: session-agent",
+      });
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("responds with an error for an unknown get_agent_result agent", async () => {
+      const client = connect(socketPath);
+      await sendJson(client, {
+        type: "get_agent_result",
+        correlationId: "gr-1",
+        params: { agentId: "non-existent" },
+      });
+
+      const response = await readResponse(client);
+      expect(response).toEqual({
+        type: "error",
+        correlationId: "gr-1",
+        error: "Agent not found: non-existent",
+      });
+      client.end();
+    });
+
+    it("returns the result for a completed subprocess agent via get_agent_result", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localServer = new ParentSocketServer(
+        localSupervisor,
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "gr-2",
+        params: { role: "done-worker", systemPrompt: "done", toolRestrictions: {} },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("done-worker") as SubprocessAgent;
+      (agent as { status: AgentStatus }).status = AgentStatus.Completed;
+
+      await sendJson(client, {
+        type: "get_agent_result",
+        correlationId: "gr-3",
+        params: { agentId: "done-worker" },
+      });
+
+      const response = await readResponse(client);
+      expect(response).toEqual({
+        type: "result",
+        correlationId: "gr-3",
+        result: { status: "Completed", result: "task result" },
+      });
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("returns a null result for a completed in-session agent via get_agent_result", async () => {
+      const localAgents = new Map<string, Agent>();
+      localAgents.set("session-agent", createMockInSessionAgent({ status: AgentStatus.Completed }));
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localServer = new ParentSocketServer(
+        localSupervisor,
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+      await sendJson(client, {
+        type: "get_agent_result",
+        correlationId: "gr-4",
+        params: { agentId: "session-agent" },
+      });
+
+      const response = await readResponse(client);
+      expect(response).toEqual({
+        type: "result",
+        correlationId: "gr-4",
+        result: { status: "Completed", result: null },
+      });
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("ignores unknown message types", async () => {
+      const client = connect(socketPath);
+      client.write(JSON.stringify({ type: "mystery_message", correlationId: "u-1" }) + "\n");
+      // No response expected — give the server a tick and assert nothing arrived.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      client.end();
+      expect(true).toBe(true);
+    });
+
+    it("sends an error response when a message handler throws", async () => {
+      const localSupervisor = createMockSupervisor();
+      const throwingSpecManager = createMockSpecManager();
+      throwingSpecManager.createDynamic = vi.fn().mockImplementation(() => {
+        throw new Error("spec boom");
+      });
+      const localServer = new ParentSocketServer(
+        localSupervisor,
+        makeMockPi(),
+        throwingSpecManager,
+      );
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "th-1",
+        params: { role: "x", systemPrompt: "x", toolRestrictions: {} },
+      });
+
+      const response = await readResponse(client);
+      expect(response).toEqual({
+        type: "error",
+        correlationId: "th-1",
+        error: "spec boom",
+      });
+
+      client.end();
+      await localServer.stop();
+    });
+
+    it("skips the error response when the client disconnects before the failure lands", async () => {
+      const localAgents = new Map<string, Agent>();
+      const localSupervisor = createMockSupervisor(localAgents);
+      const localServer = new ParentSocketServer(
+        localSupervisor,
+        makeMockPi(),
+        createMockSpecManager(),
+      );
+      const localPath = await localServer.start();
+
+      const client = connect(localPath);
+      await sendJson(client, {
+        type: "spawn_agent",
+        correlationId: "sd-1",
+        params: { role: "late-fail", systemPrompt: "x", toolRestrictions: {} },
+      });
+      await readResponse(client);
+
+      const agent = localAgents.get("late-fail") as SubprocessAgent;
+      vi.mocked(agent.executeTask).mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            setTimeout(() => reject(new Error("late failure")), 60);
+          }),
+      );
+
+      await sendJson(client, {
+        type: "send_task",
+        correlationId: "sd-2",
+        params: { agentId: "late-fail", prompt: "work", await: true },
+      });
+
+      // Drop the connection before the task fails — the failure must be
+      // swallowed (socketClosed) and the agent destroyed.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      client.destroy();
+      await vi.waitFor(() => {
+        expect(localSupervisor.destroyAgent).toHaveBeenCalledWith("late-fail");
+      });
+
       await localServer.stop();
     });
   });

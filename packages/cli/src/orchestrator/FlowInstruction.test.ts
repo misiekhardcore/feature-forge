@@ -982,6 +982,11 @@ describe("makeParallelInstruction", () => {
     expect(instr.type).toBe("parallel");
     expect(instr.steps).toEqual([]);
   });
+
+  it("attaches the failure mode when provided", () => {
+    const instr = makeParallelInstruction("p1", [], "fail_fast");
+    expect(instr.failureMode).toBe("fail_fast");
+  });
 });
 
 describe("makeLoopInstruction", () => {

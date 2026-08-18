@@ -344,6 +344,74 @@ describe("GitStepExecutor", () => {
       ).rejects.toThrow("nothing to commit");
     });
 
+    it("normalizes a non-Error commit failure and re-throws", async () => {
+      // git add succeeds, git commit rejects with a non-Error value
+      // (promisify rejects with whatever the callback receives).
+      execFileRaw
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: null, stdout: string, stderr: string) => void,
+          ) => {
+            cb(null, "", "");
+          },
+        )
+        .mockImplementationOnce((...args: unknown[]) => {
+          const cb = args[args.length - 1] as (
+            err: unknown,
+            stdout: string,
+            stderr: string,
+          ) => void;
+          cb("boom without error object", "", "");
+        });
+
+      const executor = new GitStepExecutor();
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-non-error",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
+      ).rejects.toThrow("boom without error object");
+    });
+
+    it("re-throws when the commit failure has no stderr field", async () => {
+      // git add succeeds, git commit rejects with a bare Error (no stderr).
+      execFileRaw
+        .mockImplementationOnce(
+          (
+            _cmd: string,
+            _args: string[],
+            _opts: unknown,
+            cb: (err: null, stdout: string, stderr: string) => void,
+          ) => {
+            cb(null, "", "");
+          },
+        )
+        .mockImplementationOnce(() => {
+          throw new Error("commit exploded");
+        });
+
+      const executor = new GitStepExecutor();
+      const instruction: GitInstruction = {
+        type: "git",
+        id: "git-no-stderr",
+        action: "add-and-commit",
+        cwd: "/tmp/ws",
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      await expect(
+        executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus()),
+      ).rejects.toThrow("commit exploded");
+    });
+
     it("emits git-start/git-done with correct phase and message for push-current", async () => {
       mockExecSuccess("pushed ok\n", "");
       const executor = new GitStepExecutor();
@@ -399,6 +467,32 @@ describe("GitStepExecutor", () => {
     });
 
     describe("signal", () => {
+      it("propagates AbortError when the signal is already aborted", async () => {
+        mockExecSuccess();
+        const executor = new GitStepExecutor();
+        const controller = new AbortController();
+        controller.abort();
+
+        const instruction: GitInstruction = {
+          type: "git",
+          id: "git-abort",
+          action: "add-and-commit",
+          cwd: "/tmp/ws",
+        };
+        const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+        await expect(
+          executor.execute(
+            instruction,
+            context,
+            vi.fn(),
+            makeMockTypedEventBus(),
+            controller.signal,
+          ),
+        ).rejects.toThrow();
+        expect(execFileRaw).not.toHaveBeenCalled();
+      });
+
       it("passes signal to execFile options for add-and-commit", async () => {
         mockExecSuccess();
         const executor = new GitStepExecutor();

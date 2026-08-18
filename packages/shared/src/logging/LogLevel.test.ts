@@ -21,6 +21,11 @@ describe("LogLevel", () => {
       expect(levelSeverity(LogLevel.INFO)).toBe(3);
       expect(levelSeverity(LogLevel.DEBUG)).toBe(4);
     });
+
+    it("returns -1 for unknown levels so they pass any threshold filter", () => {
+      expect(levelSeverity("bogus" as LogLevel)).toBe(-1);
+      expect(levelSeverity(undefined as unknown as LogLevel)).toBe(-1);
+    });
   });
 
   describe("shouldLog", () => {

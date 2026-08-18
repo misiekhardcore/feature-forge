@@ -67,6 +67,40 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     expect(Object.isFrozen(DEFAULT_FORGE_CONFIG)).toBe(true);
   });
 
+  it("is deep-frozen — nested structures cannot be mutated", () => {
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.worktreeSymlinks)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.specDirectories)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.specDirectories.flows)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.display)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.dev)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.models)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.agents)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_FORGE_CONFIG.defaultAgent)).toBe(true);
+  });
+
+  it("nested mutation attempts on the defaults throw", () => {
+    // Cast through unknown: the readonly types prevent direct mutation
+    // at compile time, but the regression is about runtime corruption.
+    const mutable = DEFAULT_FORGE_CONFIG as unknown as {
+      worktreeSymlinks: string[];
+      display: { maxAgentEvents: number };
+      dev: { enabled: boolean };
+      specDirectories: { flows: string[] };
+    };
+    expect(() => {
+      mutable.worktreeSymlinks.push("hack");
+    }).toThrow(TypeError);
+    expect(() => {
+      mutable.display.maxAgentEvents = 1;
+    }).toThrow(TypeError);
+    expect(() => {
+      mutable.dev.enabled = true;
+    }).toThrow(TypeError);
+    expect(() => {
+      mutable.specDirectories.flows.push("hack");
+    }).toThrow(TypeError);
+  });
+
   it("mirrors the canonical forge-config.defaults.json", () => {
     expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(defaultsJson.logLevel as LogLevel);
     expect(DEFAULT_FORGE_CONFIG.logPrefix).toBe(defaultsJson.logPrefix);
@@ -190,6 +224,69 @@ describe("resolveConfig", () => {
     const config = resolveConfig({ logLevel: LogLevel.DEBUG });
     expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(LogLevel.INFO);
     expect(config.logLevel).toBe(LogLevel.DEBUG);
+  });
+
+  // Regression (3.21): resolveConfig used to hand out worktreeSymlinks,
+  // specDirectories, display, and dev by reference from the defaults —
+  // mutating the resolved config corrupted DEFAULT_FORGE_CONFIG.
+  it("mutating a resolved config never corrupts DEFAULT_FORGE_CONFIG", () => {
+    const config = resolveConfig({}) as unknown as {
+      worktreeSymlinks: string[];
+      display: { maxAgentEvents: number };
+      dev: { enabled: boolean };
+      specDirectories: { flows: string[]; agents: string[] };
+    };
+    config.worktreeSymlinks.push("hack");
+    config.display.maxAgentEvents = 1;
+    config.dev.enabled = true;
+    config.specDirectories.flows.push("hack");
+    config.specDirectories.agents.push("hack");
+
+    expect(DEFAULT_FORGE_CONFIG.worktreeSymlinks).toEqual([]);
+    expect(DEFAULT_FORGE_CONFIG.display.maxAgentEvents).toBe(200);
+    expect(DEFAULT_FORGE_CONFIG.dev.enabled).toBe(false);
+    expect(DEFAULT_FORGE_CONFIG.specDirectories.flows).toEqual([]);
+    expect(DEFAULT_FORGE_CONFIG.specDirectories.agents).toEqual([]);
+  });
+
+  it("resolved nested structures are fresh objects, not defaults by reference", () => {
+    const config1 = resolveConfig({});
+    const config2 = resolveConfig({});
+    expect(config1.worktreeSymlinks).not.toBe(DEFAULT_FORGE_CONFIG.worktreeSymlinks);
+    expect(config1.specDirectories).not.toBe(DEFAULT_FORGE_CONFIG.specDirectories);
+    expect(config1.display).not.toBe(DEFAULT_FORGE_CONFIG.display);
+    expect(config1.dev).not.toBe(DEFAULT_FORGE_CONFIG.dev);
+    expect(config1.worktreeSymlinks).not.toBe(config2.worktreeSymlinks);
+    expect(config1.specDirectories).not.toBe(config2.specDirectories);
+    expect(config1.display).not.toBe(config2.display);
+    expect(config1.dev).not.toBe(config2.dev);
+  });
+
+  it("deep-clones override-provided nested structures", () => {
+    const worktreeSymlinks = ["config"];
+    const display = { maxAgentEvents: 5 };
+    const dev = { enabled: true };
+    const specDirectories = { flows: ["./f"], agents: ["./a"] };
+    const config = resolveConfig({ worktreeSymlinks, display, dev, specDirectories });
+
+    worktreeSymlinks.push("hack");
+    display.maxAgentEvents = 1;
+    dev.enabled = false;
+    specDirectories.flows.push("hack");
+
+    expect(config.worktreeSymlinks).toEqual(["config"]);
+    expect(config.display?.maxAgentEvents).toBe(5);
+    expect(config.dev?.enabled).toBe(true);
+    expect(config.specDirectories?.flows).toEqual(["./f"]);
+    expect(config.specDirectories?.agents).toEqual(["./a"]);
+  });
+
+  it("deep-clones override model presets", () => {
+    const preset = { model: "claude-sonnet-4-5" };
+    const config = resolveConfig({ models: { smart: preset } });
+    preset.model = "hacked";
+    expect(config.models.smart?.model).toBe("claude-sonnet-4-5");
+    expect(config.models.smart).not.toBe(preset);
   });
 
   it("creates a fresh agents map each call", () => {

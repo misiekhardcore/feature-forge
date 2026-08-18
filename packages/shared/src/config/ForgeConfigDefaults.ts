@@ -10,8 +10,47 @@
  */
 
 import defaultsJson from "./forge-config.defaults.json";
-import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
+import type { AgentConfig, ForgeConfig, SpecDirectories } from "./ForgeConfigSchema";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
+
+/**
+ * Recursively freeze an object, array, or Map (including nested values).
+ *
+ * `Object.freeze` is shallow — callers could otherwise mutate nested
+ * structures of the frozen defaults (e.g. `worktreeSymlinks.push(...)`
+ * or `display.maxAgentEvents = 1`) and corrupt the process-wide defaults.
+ */
+export function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  Object.freeze(value);
+  if (value instanceof Map) {
+    for (const entry of value.values()) {
+      deepFreeze(entry);
+    }
+  } else {
+    for (const key of Object.getOwnPropertyNames(value)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
+/**
+ * Deep-clone a shared nested structure so a resolved config never shares
+ * references with the frozen defaults (or the caller's own overrides).
+ */
+function cloneArray<T>(value: readonly T[]): T[] {
+  return [...value];
+}
+
+function cloneSpecDirectories(value: SpecDirectories): SpecDirectories {
+  return {
+    flows: cloneArray(value.flows ?? []),
+    agents: cloneArray(value.agents ?? []),
+  };
+}
 
 /**
  * Default agent configuration.
@@ -19,7 +58,7 @@ import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
  * The `model` field provides a sensible fallback when no model override
  * is specified for a particular agent.
  */
-export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
+export const DEFAULT_AGENT_CONFIG: AgentConfig = deepFreeze({
   maxToolCalls: defaultsJson.defaultAgent.maxToolCalls,
   maxTurns: defaultsJson.defaultAgent.maxTurns,
 });
@@ -29,12 +68,13 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = Object.freeze({
  *
  * String enum values in the JSON are cast to their typed enum members
  * and the `agents` record is converted to a `Map` (the runtime shape
- * of {@link ForgeConfig}).
+ * of {@link ForgeConfig}). The result is deep-frozen — nested arrays,
+ * objects, and map values are frozen too.
  */
 function createDefaultConfig(): Required<ForgeConfig> {
   const agents = new Map<string, AgentConfig>(Object.entries(defaultsJson.agents));
 
-  return Object.freeze({
+  return deepFreeze({
     logLevel: defaultsJson.logLevel as LogLevel,
     logPrefix: defaultsJson.logPrefix,
     workspaceProvider: defaultsJson.workspaceProvider as WorkspaceProviderKind,
@@ -115,15 +155,25 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     logDir: overrides.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
     logRetentionDays: overrides.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
     logPayloads: overrides.logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads,
-    worktreeSymlinks: overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
+    // Deep-clone shared nested structures so mutating a resolved config
+    // never corrupts DEFAULT_FORGE_CONFIG (or the caller's own overrides).
+    worktreeSymlinks: cloneArray(
+      overrides.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
+    ),
     taskTimeoutMs: overrides.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
     jsonRetryMaxAttempts:
       overrides.jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts,
-    specDirectories: overrides.specDirectories ?? DEFAULT_FORGE_CONFIG.specDirectories,
-    models: overrides.models ? { ...overrides.models } : DEFAULT_FORGE_CONFIG.models,
+    specDirectories: cloneSpecDirectories(
+      overrides.specDirectories ?? DEFAULT_FORGE_CONFIG.specDirectories,
+    ),
+    models: overrides.models
+      ? Object.fromEntries(
+          Object.entries(overrides.models).map(([key, modelCfg]) => [key, { ...modelCfg }]),
+        )
+      : DEFAULT_FORGE_CONFIG.models,
     defaultModel: overrides.defaultModel ?? DEFAULT_FORGE_CONFIG.defaultModel,
-    display: overrides.display ?? DEFAULT_FORGE_CONFIG.display,
-    dev: overrides.dev ?? DEFAULT_FORGE_CONFIG.dev,
+    display: { ...(overrides.display ?? DEFAULT_FORGE_CONFIG.display) },
+    dev: { ...(overrides.dev ?? DEFAULT_FORGE_CONFIG.dev) },
     forgeDir: overrides.forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir,
   };
 }

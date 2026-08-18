@@ -11,6 +11,21 @@ export default defineConfig({
         branches: 90,
         statements: 90,
       },
+      // Test-support files are excluded from the global threshold: they are
+      // harness code (not shipped surface) and their low ratios would drag
+      // the gate below 90% without adding signal.
+      exclude: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/coverage/**",
+        "**/*.test.ts",
+        "**/test-setup.ts",
+        "**/test-utils.ts",
+        "**/e2e/**",
+        // The debug package has no vitest project — its scenario helpers are
+        // test-support only and would drag the gate down with no signal.
+        "**/packages/debug/**",
+      ],
     },
     projects: [
       {

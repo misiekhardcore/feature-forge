@@ -47,4 +47,29 @@ describe("resolveModel", () => {
     const models: Record<string, AgentModelConfig> = {};
     expect(resolveModel("any-model", models)).toEqual({ model: "any-model", resolved: false });
   });
+
+  // Regression: the `in` operator walks the prototype chain, so preset
+  // names that collide with Object.prototype keys used to "resolve" to a
+  // config without a `model` field, violating ResolvedModelConfig.
+  it.each(["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"])(
+    "never resolves prototype-chain key %s as a preset",
+    (key) => {
+      const models: Record<string, AgentModelConfig> = {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic" },
+      };
+      const result = resolveModel(key, models);
+      expect(result).toEqual({ model: key, resolved: false });
+    },
+  );
+
+  it("resolves a preset that shadows a prototype key when it is an own property", () => {
+    // An own "constructor" preset must still resolve normally.
+    const models: Record<string, AgentModelConfig> = {
+      constructor: { model: "claude-sonnet-4-5" },
+    };
+    expect(resolveModel("constructor", models)).toEqual({
+      model: "claude-sonnet-4-5",
+      resolved: true,
+    });
+  });
 });

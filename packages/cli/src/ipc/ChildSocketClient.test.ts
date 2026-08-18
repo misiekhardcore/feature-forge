@@ -3,7 +3,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { AgentStatus } from "@feature-forge/shared";
+import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentSpecification } from "../agents";
@@ -272,5 +272,88 @@ describe("ChildSocketClient error handling", () => {
     await expect(requestPromise).rejects.toThrow("The operation was aborted");
 
     silentServer.close();
+  });
+
+  it("disconnect before connect is a no-op", async () => {
+    const client = new ChildSocketClient("/tmp/never-connected.sock");
+    await expect(client.disconnect()).resolves.toBeUndefined();
+  });
+
+  it("request without a connection times out instead of writing", async () => {
+    const client = new ChildSocketClient("/tmp/never-connected.sock");
+    await expect(client.request("list_agents", {}, 50)).rejects.toThrow(IpcTimeoutError);
+  });
+
+  it("skips malformed JSON, ignores stale responses, and resolves matching ones", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const rawPath = join(tempDir, "raw.sock");
+
+    const rawServer = createServer((socket) => {
+      socket.on("data", (chunk: Buffer) => {
+        const message = jsonParse<{ correlationId: string }>(chunk.toString("utf-8"));
+        // Malformed line first (skipped by the client), then a stale response
+        // for an unknown correlation id, then the real answer.
+        socket.write("this is not json\n");
+        socket.write(
+          JSON.stringify({ type: "result", correlationId: "stale-correlation", result: "x" }) +
+            "\n",
+        );
+        socket.write(
+          JSON.stringify({ type: "result", correlationId: message.correlationId, result: "ok" }) +
+            "\n",
+        );
+      });
+    });
+
+    await new Promise<void>((resolve) => {
+      rawServer.listen(rawPath, resolve);
+    });
+
+    const client = new ChildSocketClient(rawPath);
+    await client.connect();
+
+    await expect(client.request("list_agents", {})).resolves.toEqual("ok");
+
+    await client.disconnect();
+    await new Promise<void>((resolve) => rawServer.close(() => resolve()));
+  });
+
+  it("isolates a throwing push handler", async () => {
+    const localServer = new ParentSocketServer(
+      createMockSupervisor(),
+      makeMockPi(),
+      makeMockSpecManager(),
+    );
+    const localPath = await localServer.start();
+    const client = new ChildSocketClient(localPath);
+    const seen: unknown[] = [];
+    client.onPush(() => {
+      throw new Error("handler boom");
+    });
+    client.onPush((event) => {
+      seen.push(event);
+    });
+
+    await client.connect();
+
+    // Spawn an agent and fire a non-awaited task to trigger a push.
+    const spawnResult = await client.request("spawn_agent", {
+      role: "push-thrower",
+      systemPrompt: "push-thrower",
+      toolRestrictions: { read: [] },
+    });
+    await client.request("send_task", {
+      agentId: spawnResult.agentId,
+      prompt: "background work",
+      await: false,
+    });
+
+    await vi.waitFor(() => {
+      expect(seen.length).toBeGreaterThanOrEqual(1);
+    });
+    expect(seen[0]).toHaveProperty("type", "agent_update");
+
+    await client.disconnect();
+    await localServer.stop();
   });
 });

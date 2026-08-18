@@ -483,10 +483,18 @@ describe("flow round-trip", () => {
       expect(steps.map((s) => s.id)).toEqual(["post_reply", "resolve_thread"]);
       const postReply = steps[0] as { command?: string };
       expect(postReply.command).toContain("addPullRequestReviewThreadReply");
-      expect((steps[0] as { failFast?: boolean }).failFast).toBe(false);
+      // Reply goes through a temp file + --field body=@file — never inline
+      // (apostrophes in an LLM reply would break/escape an inline shell arg).
+      expect(postReply.command).toContain("body=@/tmp/ff-reply-$$.md");
+      expect(postReply.command).not.toContain("-f body='");
+      // A failed post must fail the routine — the disposition must not be
+      // silently swallowed.
+      expect((steps[0] as { failFast?: boolean }).failFast).toBe(true);
       const resolveThread = steps[1] as { command?: string };
       expect(resolveThread.command).toContain("resolveReviewThread");
       expect(resolveThread.command).toContain("fixed|fixed-differently|not-addressing");
+      // The verdict word is quoted in the case pattern (injection surface).
+      expect(resolveThread.command).toContain('case "{{verdict}}"');
       expect((steps[1] as { failFast?: boolean }).failFast).toBe(false);
     });
 

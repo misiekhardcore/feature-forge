@@ -148,4 +148,16 @@ describe("registerDevTestCommands", () => {
 
     expect(showAgentViewerMock).not.toHaveBeenCalled();
   });
+
+  it.each(["test-scroll", "test-tool-args", "test-stream-replay"])(
+    "does nothing without UI for %s",
+    async (command) => {
+      const pi = registerCommands();
+      const handler = getHandler(pi, withForgePrefix(command));
+
+      await handler("", { ...makeMockCtx(), hasUI: false });
+
+      expect(showAgentViewerMock).not.toHaveBeenCalled();
+    },
+  );
 });

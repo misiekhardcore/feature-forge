@@ -7,8 +7,10 @@ export function resolveModel(
 ): ResolvedModelConfig | undefined {
   if (rawModel === undefined) return undefined;
 
-  // Check if rawModel is a preset alias
-  if (rawModel in models) {
+  // Check if rawModel is a preset alias — own-property lookup only so
+  // prototype-chain keys ("constructor", "toString", "__proto__") never
+  // resolve to a config without a `model` field.
+  if (Object.hasOwn(models, rawModel)) {
     return { ...models[rawModel], resolved: true };
   }
 

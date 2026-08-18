@@ -4,11 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { FlowContext } from "../FlowContext";
-import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import type { FlowDefinition, FlowInstruction, LoopInstruction } from "../FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../FlowInstruction";
 import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { LoopStepExecutor } from "./LoopStepExecutor";
+import { RoutineRefStepExecutor } from "./RoutineRefStepExecutor";
 
 // Build a dispatch callback that delegates through a StepExecutorRegistry.
 function makeDispatch(
@@ -212,6 +214,164 @@ describe("LoopStepExecutor", () => {
     );
 
     expect(result.results.get("step")!.raw).toBe("build-round-2");
+  });
+
+  it("derives feedback from a routine-ref result's nested step outputs", async () => {
+    const registry = new StepExecutorRegistry();
+    registry.register(() => new IncrementingExecutor("build"));
+    const executor = new LoopStepExecutor();
+
+    const instruction: LoopInstruction = {
+      type: "loop",
+      id: "l",
+      maxIterations: 2,
+      accumulateFrom: ["call_review"],
+      steps: [{ type: "inc", id: "step" } as unknown as FlowInstruction],
+    };
+
+    // Simulate a routine-ref result: envelope in raw, findings under results.
+    const initial = new FlowContext({ results: new Map(), prompt: "task" }).withResult(
+      "call_review",
+      {
+        raw: JSON.stringify({ passed: false, flow: "review", routines: ["inspect"] }),
+        parsed: { passed: false, summary: "some steps did not pass" },
+        results: {
+          "call_review.review.review":
+            '{"passed":false,"findings":[{"severity":"P0","issue":"Null deref"}]}',
+        },
+      },
+    );
+
+    const result = await executor.execute(
+      instruction,
+      initial,
+      makeDispatch(registry),
+      makeMockTypedEventBus(),
+    );
+
+    // The reviewer's actual findings text is fed back — not the envelope JSON.
+    expect(result.feedback).toContain('"P0"');
+    expect(result.feedback).toContain("Null deref");
+    expect(result.feedback).not.toContain('"routines":["inspect"]');
+    expect(result.feedback).not.toContain('"routineCount"');
+  });
+
+  it("falls back to the plain raw when the accumulated result has no nested results", async () => {
+    const registry = new StepExecutorRegistry();
+    registry.register(() => new IncrementingExecutor("build"));
+    const executor = new LoopStepExecutor();
+
+    const instruction: LoopInstruction = {
+      type: "loop",
+      id: "l",
+      maxIterations: 2,
+      accumulateFrom: ["plain"],
+      steps: [{ type: "inc", id: "step" } as unknown as FlowInstruction],
+    };
+
+    const initial = new FlowContext({ results: new Map(), prompt: "task" }).withResult("plain", {
+      raw: "plain-raw-output",
+    });
+
+    const result = await executor.execute(
+      instruction,
+      initial,
+      makeDispatch(registry),
+      makeMockTypedEventBus(),
+    );
+
+    expect(result.feedback).toContain("plain: plain-raw-output");
+  });
+
+  it("feeds the inlined reviewer findings into the builder prompt across rounds", async () => {
+    // End-to-end shape of the implement build_loop: builder + routine ref to
+    // the review flow, accumulateFrom ["call_review"]. The builder's
+    // {{feedback}} must contain the reviewer's actual P0/P1 findings.
+    const capturedBuilderPrompts: string[] = [];
+    class BuilderCaptureExecutor extends StepExecutor {
+      readonly type = "builder-capture";
+      async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+        capturedBuilderPrompts.push(context.resolve("{{feedback}}"));
+        return context.withResult(instruction.id, {
+          raw: JSON.stringify({ passed: false, summary: "build attempt" }),
+          parsed: { passed: false, summary: "build attempt" },
+        });
+      }
+    }
+    class ReviewerExecutor extends StepExecutor {
+      readonly type = "review-agent";
+      async execute(instruction: FlowInstruction, context: FlowContext): Promise<FlowContext> {
+        const findings = JSON.stringify({
+          passed: false,
+          findings: [
+            { severity: "P0", issue: "Unhandled null case in parseConfig", file: "a.ts" },
+            { severity: "P1", issue: "Missing error handling", file: "b.ts" },
+          ],
+        });
+        return context.withResult(instruction.id, {
+          raw: findings,
+          parsed: { passed: false, summary: "2 findings" },
+        });
+      }
+    }
+
+    const registry = new StepExecutorRegistry();
+    registry.register(() => new BuilderCaptureExecutor());
+    registry.register(() => new ReviewerExecutor());
+    const routineExecutor = new RoutineRefStepExecutor();
+    registry.register(() => routineExecutor);
+
+    const reviewFlow: FlowDefinition = {
+      $schema: FLOW_SCHEMA_URL,
+      name: "review",
+      command: "/review",
+      orchestrator: { systemPrompt: "t" },
+      routines: [
+        {
+          id: "inspect",
+          params: [],
+          steps: [{ type: "review-agent", id: "review" } as unknown as FlowInstruction],
+        },
+      ],
+    };
+    registry.setFlowMap(new Map([[reviewFlow.name, reviewFlow]]));
+
+    const loop = new LoopStepExecutor();
+    const instruction: LoopInstruction = {
+      type: "loop",
+      id: "build_loop",
+      maxIterations: 2,
+      accumulateFrom: ["call_review"],
+      steps: [
+        { type: "builder-capture", id: "builder" } as unknown as FlowInstruction,
+        {
+          type: "routine",
+          id: "call_review",
+          target: "review",
+          output_as: "call_review",
+        } as unknown as FlowInstruction,
+      ],
+    };
+
+    const context = new FlowContext({ results: new Map(), prompt: "task" });
+    const result = await loop.execute(
+      instruction,
+      context,
+      makeDispatch(registry),
+      makeMockTypedEventBus(),
+    );
+
+    // Round 1 has no prior findings; round 2 carries the reviewer's output.
+    expect(capturedBuilderPrompts).toHaveLength(2);
+    const round2Feedback = capturedBuilderPrompts[1];
+    expect(round2Feedback).toContain("Unhandled null case in parseConfig");
+    expect(round2Feedback).toContain("Missing error handling");
+    expect(round2Feedback).toContain("P0");
+    // The envelope must not be what the builder sees.
+    expect(round2Feedback).not.toContain('"routineCount"');
+    expect(round2Feedback).not.toContain('"flow":"review"');
+    // The routine ref still reports failure so continueWhile keeps looping.
+    expect(result.results.get("call_review")!.parsed?.passed).toBe(false);
   });
 
   it("clears stale body results between iterations", async () => {
