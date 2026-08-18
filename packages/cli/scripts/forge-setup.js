@@ -290,21 +290,10 @@ function appendGitignoreEntries(sentinel, entries) {
 
 function appendGitignore() {
   appendGitignoreEntries("# Feature Forge runtime", [
-    ".forge/*",
-    "!.forge/config.json",
-    "coverage-single/",
-    "",
-    "# pi coding agent runtime",
-    ".pi",
-    "",
-    "# Environment overrides",
-    ".env",
-    ".env.local",
+    ".forge/worktrees",
+    ".forge/worktrees.json",
+    ".forge/logs",
   ]);
-}
-
-function appendGlobalGitignore() {
-  appendGitignoreEntries("# Feature Forge runtime (global)", [".forge/logs/", ".forge/worktrees/"]);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
@@ -379,11 +368,12 @@ if (!noConfig) {
 // Runtime directories always go under the project's .forge/
 createDirs();
 
-// Gitignore entries: local mode ignores the whole .forge/ except the
-// pointer config; global mode still ignores runtime dirs (logs, nested
-// git worktrees) so `git add .` doesn't stage them as gitlinks.
+// Gitignore entries: ignore only runtime artifacts (nested git worktrees,
+// the worktree registry, logs) so `git add .` doesn't stage them as
+// gitlinks; everything else under .forge/ (config, agents, flows, skills)
+// stays tracked.
 if (!noGitignore) {
-  useGlobal ? appendGlobalGitignore() : appendGitignore();
+  appendGitignore();
 }
 
 logInfo(`Feature Forge initialized successfully in ${cwd}`);

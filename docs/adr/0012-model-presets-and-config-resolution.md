@@ -169,8 +169,10 @@ path checked by `ConfigLoader.forRoot()`. The repo-root `forge.config.json`
 remains as a fallback. This keeps config co-located with other forge
 state (worktrees at `.forge/worktrees/`, logs at `.forge/logs/`).
 
-The `.gitignore` rule `.forge/*` was amended with `!.forge/config.json`
-so the config is tracked while runtime artifacts remain ignored.
+`forge init` appends `# Feature Forge runtime` plus the runtime-artifact
+entries `.forge/worktrees`, `.forge/worktrees.json`, and `.forge/logs` to
+the project's `.gitignore`, so the config, agents, flows, and skills under
+`.forge/` remain tracked while runtime artifacts stay ignored.
 
 ## Consequences
 
