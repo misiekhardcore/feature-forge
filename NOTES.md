@@ -6,7 +6,7 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 8: Progress/e2e C (3.17#24/#25) - sharedStreamDir pruneByRetention extraction, e2e helper socket timeout + PROJECT_ROOT fix.
+Subtask 8 done. Next: subtask 9 (Schema + shared test script D, 3.17#27/#28).
 
 ## Next action on resume
 Run build loop for subtask 8 (Progress/e2e C).
@@ -36,8 +36,8 @@ Run build loop for subtask 8 (Progress/e2e C).
 | 19 | 3.17#10: RoutineTool renderCall context narrowed via local interface (no `any`/eslint-disable) | [x] |
 | 20 | 3.17#19: TuiProgressReporter.ts renamed TuiRoutineWidget.ts (class name, test file, index) | [x] |
 | 21 | 3.17#5: TOOL_PRESETS readOnly/reviewOnly deduped (alias) | [x] |
-| 22 | 3.17#24: sharedStreamDir pruning extracted into one pruneByRetention() | [ ] |
-| 23 | 3.17#25: e2e helper socket setTimeout cleared on resolve; PROJECT_ROOT via fileURLToPath | [ ] |
+| 22 | 3.17#24: sharedStreamDir pruning extracted into one pruneByRetention() | [x] |
+| 23 | 3.17#25: e2e helper socket setTimeout cleared on resolve; PROJECT_ROOT via fileURLToPath | [x] |
 | 24 | 3.17#27: ForgeConfigSchema logLevel/workspaceProvider/agents/defaultAgent → Type.Optional (defaults supplied) | [ ] |
 | 25 | 3.17#28: packages/shared `npm run test` works (package-local vitest config) | [ ] |
 | 26 | 3.17#12: magic numbers → named constants (shell 120s, git 60s, maxBuffer 10MB, preconnect 2000) | [ ] |
@@ -76,6 +76,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Subtask 8 (Progress/e2e C) done — retention pruning extracted into `SharedStreamDir.pruneByRetention(baseDir)` (private, `retentionDays <= 0` early-return + singleton skip + mtime cutoff + rmSync warn), shared by `cleanup()` (which now only guards `existsSync` then delegates) and `sweepAndPrune()` (empty-dir pass, then one prune pass — both synchronous, so the two-pass split is behavior-identical to the old single loop); e2e helpers: `PROJECT_ROOT` now via `fileURLToPath(new URL("../", import.meta.url))` (was `.pathname` — breaks on Windows/percent-encoding), socket roundtrip timeout now `const timer` inside the promise executor with `clearTimeout(timer)` on data (was an unref'd dangling timer that fired `rej` after resolve). Verified: 121 files/2350 tests green, coverage unchanged at 96.59% (the single uncovered line 97 is the pre-existing rmdir-failure warn — no test triggers it in either version), full `forge-spec.e2e.test.ts` (25 tests) green. Note: `forge-subagent.e2e.test.ts` duplicates the same `.pathname` + dangling-timer pattern but is outside this subtask's file list (plan scoped to e2e/helpers.ts) — left as-is.
 
 - 2026-08-18: Subtask 7 (TUI strings B) done — display em-dashes → hyphens (ProgressRenderer.formatAgentRow ` - `, AgentViewerOverlay role summaries, AgentDetailView title/header, tests updated incl. regex + `not.toContain` guards); separator width now = icon (via visibleWidth) + 1 + title + (subtitle ? 1 + subtitle : 0), matching the header; getOverlayOptions re-typed as pi-tui `OverlayOptions` with a validated `parseOverlayHeight` (percentage strings pass through, numeric pixel counts now actually clamp - previously pi-tui silently ignored bare number strings; invalid values fall back to the 85% default) - the lying `configHeight as "85%"` cast is gone and debug's test-loop-routine `overlayOptions` param upgraded from `Record<string, unknown>` to `OverlayOptions`; OrchestratorCommand docstring now numbers items 1-4; RoutineTool renderCall/renderResult context narrowed via local `ToolRowRenderContext` interface (eslint-disable + `any` index signature removed); TuiProgressReporter.ts/test renamed TuiRoutineWidget.ts/test (git mv, index export path); TOOL_PRESETS readOnly/reviewOnly share one `READ_ONLY_TOOLS` const (alias, `reviewOnly` still resolves for persona frontmatter `toolPreset: "reviewOnly"` in review.md) with a new constants.test.ts pinning identity. Commit: `refactor: TUI display strings, overlay height typing, widget rename (3.17#21/#22/#9/#8/#10/#19/#5)`.
 - 2026-08-18: Subtask 7 review-feedback round — resolved iteration-2 findings F1-F4: (F1) the two remaining git-done logger.debug twins deleted (NOTES.md claim "3 dropped" now true; eventBus emits + logger.info/error kept); (F2) em-dashes in new comment lines replaced (Logger.ts docstring + getLogLevel JSDoc, FileLogger.initialize comment, ConfigLoader.test comment); (F3) invalid-JSON test now pins the singleton to the base console fallback (`Logger.resetForTest()` + `Logger.initialize()`) so it no longer depends on whichever logger earlier tests left active, and the base fallback paths gained direct coverage in logger.test.ts (all four severities print at DEBUG threshold, undefined-data omission, ERROR-threshold suppression, total getLogLevel()); (F4) base Logger docstring now states it prints to the console while it is the active instance. Commit: `refactor: drop remaining git-done debug twins, pin logger state in tests (review F1-F4)`.
