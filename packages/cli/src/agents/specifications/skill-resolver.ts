@@ -73,7 +73,7 @@ export function resolveSkillPaths(
   excludedSkills: readonly string[],
   forgeDir?: string,
 ): string[] {
-  const allSkills = discoverSkills(forgeDir);
+  const allSkills = discoverAllSkills(forgeDir);
   const names = resolveEffectiveSkillNames(allSkills, skills, excludedSkills);
 
   return names.map((name) => allSkills.get(name)).filter((p): p is string => p !== undefined);
@@ -85,7 +85,7 @@ export function resolveSkillPaths(
  * @param forgeDir — Optional forge directory path.
  * @returns A map of all discovered skill names to their SKILL.md paths.
  */
-export function discoverSkills(forgeDir?: string): Map<string, string> {
+export function discoverAllSkills(forgeDir?: string): Map<string, string> {
   const nameMap = new Map<string, string>();
 
   for (const dir of skillDirectories(forgeDir ?? DEFAULT_FORGE_DIR)) {

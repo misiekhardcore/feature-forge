@@ -3,7 +3,7 @@ export { BUILT_IN_TOOLS, TOOL_PRESETS } from "./constants";
 export { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 export {
   bundledSkillDirectories,
-  discoverSkills,
+  discoverAllSkills,
   resolveEffectiveSkillNames,
   resolveSkillPaths,
 } from "./skill-resolver";

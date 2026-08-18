@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
-import { discoverSkills, resolveEffectiveSkillNames } from "./skill-resolver";
+import { discoverAllSkills, resolveEffectiveSkillNames } from "./skill-resolver";
 
 describe("resolveEffectiveSkillNames", () => {
   const allSkills = new Map([
@@ -105,7 +105,7 @@ describe("skill discovery", () => {
       );
 
       process.chdir(tempDir);
-      const allSkills = discoverSkills();
+      const allSkills = discoverAllSkills();
       expect(allSkills.has("forge-build")).toBe(true);
       expect(allSkills.get("forge-build")).toContain("SKILL.md");
     } finally {
@@ -119,7 +119,7 @@ describe("skill discovery", () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-bundled-"));
     try {
       process.chdir(tempDir);
-      const allSkills = discoverSkills();
+      const allSkills = discoverAllSkills();
       expect(allSkills.has("forge-build")).toBe(true);
       expect(allSkills.get("forge-build")).toContain("SKILL.md");
       expect(allSkills.get("forge-build")).toMatch(/[\\/]skills[\\/]forge-build[\\/]SKILL[.]md$/);
@@ -146,7 +146,7 @@ describe("skill discovery", () => {
       const originalHome = process.env.HOME;
       process.env.HOME = homeDir;
       try {
-        const allSkills = discoverSkills();
+        const allSkills = discoverAllSkills();
         expect(allSkills.has("nested-skill")).toBe(true);
         expect(allSkills.has("single-skill")).toBe(true);
         expect(allSkills.get("single-skill")).toBe(path.join(piSkillsDir, "single-skill.md"));
