@@ -149,6 +149,20 @@ describe("ForgeConfigSchema", () => {
     expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
   });
 
+  it("accepts a config with only logPrefix (all defaulted fields omitted)", () => {
+    const valid = { logPrefix: "x" };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+
+    // Decode must not inject the defaulted fields - they stay absent at
+    // the schema level and are filled later by resolveConfig.
+    const decoded = Value.Decode(ForgeConfigSchema, valid);
+    expect(decoded.logPrefix).toBe("x");
+    expect(decoded).not.toHaveProperty("logLevel");
+    expect(decoded).not.toHaveProperty("workspaceProvider");
+    expect(decoded).not.toHaveProperty("agents");
+    expect(decoded).not.toHaveProperty("defaultAgent");
+  });
+
   it("accepts an empty config object (no required fields)", () => {
     expect(Value.Check(ForgeConfigSchema, {})).toBe(true);
   });

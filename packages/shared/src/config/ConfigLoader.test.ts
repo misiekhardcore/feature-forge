@@ -222,13 +222,14 @@ describe("ConfigLoader", () => {
       expect((error as InvalidConfigError).cause).toBeInstanceOf(Error);
     });
 
-    it("loads a minimal config, filling defaults for omitted fields", async () => {
+    it("loads a config with only logPrefix, filling defaults for omitted fields", async () => {
       const filePath = join(tempDir, "minimal.json");
-      await fs.writeFile(filePath, "{}");
+      await fs.writeFile(filePath, JSON.stringify({ logPrefix: "x" }));
 
       const loader = new ConfigLoader();
       const config = await loader.loadFromFile(filePath);
 
+      expect(config.logPrefix).toBe("x");
       expect(config.logLevel).toBe(LogLevel.INFO);
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
       expect(config.agents).toBeInstanceOf(Map);
