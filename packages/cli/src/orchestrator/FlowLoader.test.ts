@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
-import { validateSemantics, validateStructure } from "./flowValidation";
+import { FlowValidation } from "./flowValidation";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -42,31 +42,31 @@ function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition 
 
 describe("validateStructure", () => {
   it("accepts a valid flow definition", () => {
-    expect(() => validateStructure(makeValidFlow())).not.toThrow();
+    expect(() => FlowValidation.validateStructure(makeValidFlow())).not.toThrow();
   });
 
   it("throws for missing name", () => {
     const { name: _, ...rest } = makeValidFlow();
-    expect(() => validateStructure(rest)).toThrow("Invalid flow definition");
+    expect(() => FlowValidation.validateStructure(rest)).toThrow("Invalid flow definition");
   });
 
   it("throws for empty name", () => {
-    expect(() => validateStructure(makeValidFlow({ name: "" }))).toThrow();
+    expect(() => FlowValidation.validateStructure(makeValidFlow({ name: "" }))).toThrow();
   });
 
   it("throws for missing orchestrator", () => {
     const { orchestrator: _, ...rest } = makeValidFlow();
-    expect(() => validateStructure(rest)).toThrow("Invalid flow definition");
+    expect(() => FlowValidation.validateStructure(rest)).toThrow("Invalid flow definition");
   });
 
   it("throws for missing routines", () => {
     const { routines: _, ...rest } = makeValidFlow();
-    expect(() => validateStructure(rest)).toThrow();
+    expect(() => FlowValidation.validateStructure(rest)).toThrow();
   });
 
   it("throws for unknown instruction type", () => {
     expect(() =>
-      validateStructure(
+      FlowValidation.validateStructure(
         makeValidFlow({
           routines: [
             {
@@ -87,7 +87,7 @@ describe("validateStructure", () => {
 
   it("throws for agent missing spec", () => {
     expect(() =>
-      validateStructure(
+      FlowValidation.validateStructure(
         makeValidFlow({
           routines: [
             {
@@ -110,7 +110,7 @@ describe("validateStructure", () => {
 
   it("throws for loop missing maxIterations", () => {
     expect(() =>
-      validateStructure(
+      FlowValidation.validateStructure(
         makeValidFlow({
           routines: [
             {
@@ -132,7 +132,7 @@ describe("validateStructure", () => {
 
   it("produces human-readable error messages", () => {
     try {
-      validateStructure({
+      FlowValidation.validateStructure({
         $schema: FLOW_SCHEMA_URL,
         name: "x",
         command: "/x",
@@ -157,7 +157,7 @@ describe("validateStructure", () => {
 
 describe("validateSemantics", () => {
   it("returns no errors for a valid flow", () => {
-    const errors = validateSemantics(makeValidFlow());
+    const errors = FlowValidation.validateSemantics(makeValidFlow());
     expect(errors).toEqual([]);
   });
 
@@ -165,7 +165,7 @@ describe("validateSemantics", () => {
 
   describe("duplicate ids", () => {
     it("detects duplicate top-level ids within a routine", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -185,7 +185,7 @@ describe("validateSemantics", () => {
     });
 
     it("detects duplicate ids across nesting levels", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -210,7 +210,7 @@ describe("validateSemantics", () => {
     });
 
     it("includes path info in duplicate error", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -238,7 +238,7 @@ describe("validateSemantics", () => {
 
   describe("duplicate routine ids", () => {
     it("detects duplicate routine ids within a flow", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -259,7 +259,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts flow with unique routine ids", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -283,7 +283,7 @@ describe("validateSemantics", () => {
 
   describe("continueWhile", () => {
     it("accepts a valid expression", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -306,7 +306,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts the implement expression", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -330,7 +330,7 @@ describe("validateSemantics", () => {
     });
 
     it("rejects a syntactically invalid expression", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -354,7 +354,7 @@ describe("validateSemantics", () => {
     });
 
     it("includes the loop path in the error", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -377,7 +377,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts a loop without continueWhile", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -403,7 +403,7 @@ describe("validateSemantics", () => {
 
   describe("while", () => {
     it("accepts a valid expression", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -426,7 +426,7 @@ describe("validateSemantics", () => {
     });
 
     it("rejects a syntactically invalid expression", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -450,7 +450,7 @@ describe("validateSemantics", () => {
     });
 
     it("includes the loop path in the error", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -473,7 +473,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts a loop without while", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -499,7 +499,7 @@ describe("validateSemantics", () => {
 
   describe("accumulateFrom", () => {
     it("accepts valid direct-child references", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -537,7 +537,7 @@ describe("validateSemantics", () => {
     });
 
     it("rejects reference to non-existent id", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -562,7 +562,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts accumulateFrom referencing id inside nested parallel", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -599,7 +599,7 @@ describe("validateSemantics", () => {
     });
 
     it("rejects accumulateFrom targeting instruction without parseJson", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -631,7 +631,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts a loop without accumulateFrom", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -656,7 +656,7 @@ describe("validateSemantics", () => {
   // ── Multiple errors ─────────────────────────────────────
 
   it("reports multiple semantic errors", () => {
-    const errors = validateSemantics(
+    const errors = FlowValidation.validateSemantics(
       makeValidFlow({
         routines: [
           {
@@ -685,7 +685,7 @@ describe("validateSemantics", () => {
 
   describe("knownSpecs", () => {
     it("rejects unknown spec when knownSpecs is provided", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -703,7 +703,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts known spec when knownSpecs is provided", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -719,7 +719,7 @@ describe("validateSemantics", () => {
     });
 
     it("skips spec check when knownSpecs is omitted", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -734,7 +734,7 @@ describe("validateSemantics", () => {
     });
 
     it("rejects unknown orchestrator spec when knownSpecs is provided", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({ orchestrator: { systemPrompt: "missing-orchestrator" } }),
         new Set(["build", "review", "verify", "test-orchestrator"]),
       );
@@ -743,7 +743,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts known orchestrator spec when knownSpecs is provided", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({ orchestrator: { systemPrompt: "review-orchestrator" } }),
         new Set(["build", "review", "verify", "test-orchestrator", "review-orchestrator"]),
       );
@@ -755,7 +755,7 @@ describe("validateSemantics", () => {
 
   describe("knownProviders", () => {
     it("rejects unknown provider when knownProviders is provided", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -773,7 +773,7 @@ describe("validateSemantics", () => {
     });
 
     it("accepts known provider when knownProviders is provided", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {
@@ -790,7 +790,7 @@ describe("validateSemantics", () => {
     });
 
     it("skips provider check when knownProviders is omitted", () => {
-      const errors = validateSemantics(
+      const errors = FlowValidation.validateSemantics(
         makeValidFlow({
           routines: [
             {

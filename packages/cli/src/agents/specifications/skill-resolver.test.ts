@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
-import { discoverAllSkills, resolveEffectiveSkillNames } from "./skill-resolver";
+import { SkillResolver } from "./skill-resolver";
 
 describe("resolveEffectiveSkillNames", () => {
   const allSkills = new Map([
@@ -17,17 +17,17 @@ describe("resolveEffectiveSkillNames", () => {
 
   describe("effective-set logic", () => {
     it("returns all discovered skills when both skills and excludedSkills are empty", () => {
-      const result = resolveEffectiveSkillNames(allSkills, [], []);
+      const result = SkillResolver.resolveEffectiveSkillNames(allSkills, [], []);
       expect(result).toEqual(["build", "review", "verify", "research"]);
     });
 
     it("returns only allowlisted skills when skills is non-empty", () => {
-      const result = resolveEffectiveSkillNames(allSkills, ["build", "review"], []);
+      const result = SkillResolver.resolveEffectiveSkillNames(allSkills, ["build", "review"], []);
       expect(result).toEqual(["build", "review"]);
     });
 
     it("excludes excludedSkills from the allowlist", () => {
-      const result = resolveEffectiveSkillNames(
+      const result = SkillResolver.resolveEffectiveSkillNames(
         allSkills,
         ["build", "review", "verify"],
         ["review"],
@@ -36,12 +36,12 @@ describe("resolveEffectiveSkillNames", () => {
     });
 
     it("excludes excludedSkills from all discovered skills when skills is empty", () => {
-      const result = resolveEffectiveSkillNames(allSkills, [], ["build", "research"]);
+      const result = SkillResolver.resolveEffectiveSkillNames(allSkills, [], ["build", "research"]);
       expect(result).toEqual(["review", "verify"]);
     });
 
     it("returns empty array when all skills are excluded", () => {
-      const result = resolveEffectiveSkillNames(
+      const result = SkillResolver.resolveEffectiveSkillNames(
         allSkills,
         ["build", "review"],
         ["build", "review"],
@@ -50,7 +50,7 @@ describe("resolveEffectiveSkillNames", () => {
     });
 
     it("excludedSkills overrides skills even when both are specified", () => {
-      const result = resolveEffectiveSkillNames(
+      const result = SkillResolver.resolveEffectiveSkillNames(
         allSkills,
         ["build", "review", "verify", "research"],
         ["build", "research"],
@@ -61,22 +61,26 @@ describe("resolveEffectiveSkillNames", () => {
 
   describe("edge cases", () => {
     it("returns empty when allSkills is empty even if skills are specified", () => {
-      const result = resolveEffectiveSkillNames(new Map(), ["build"], []);
+      const result = SkillResolver.resolveEffectiveSkillNames(new Map(), ["build"], []);
       expect(result).toEqual([]);
     });
 
     it("returns empty when skills is non-empty but none are in the map", () => {
-      const result = resolveEffectiveSkillNames(allSkills, ["unknown-skill"], []);
+      const result = SkillResolver.resolveEffectiveSkillNames(allSkills, ["unknown-skill"], []);
       expect(result).toEqual([]);
     });
 
     it("ignores excludedSkills that are not in skills or discovered set", () => {
-      const result = resolveEffectiveSkillNames(allSkills, ["build", "review"], ["does-not-exist"]);
+      const result = SkillResolver.resolveEffectiveSkillNames(
+        allSkills,
+        ["build", "review"],
+        ["does-not-exist"],
+      );
       expect(result).toEqual(["build", "review"]);
     });
 
     it("handles empty skills with non-empty excludedSkills that don't overlap", () => {
-      const result = resolveEffectiveSkillNames(allSkills, [], ["does-not-exist"]);
+      const result = SkillResolver.resolveEffectiveSkillNames(allSkills, [], ["does-not-exist"]);
       expect(result).toEqual(["build", "review", "verify", "research"]);
     });
   });
@@ -105,7 +109,7 @@ describe("skill discovery", () => {
       );
 
       process.chdir(tempDir);
-      const allSkills = discoverAllSkills();
+      const allSkills = SkillResolver.discoverAllSkills();
       expect(allSkills.has("forge-build")).toBe(true);
       expect(allSkills.get("forge-build")).toContain("SKILL.md");
     } finally {
@@ -119,7 +123,7 @@ describe("skill discovery", () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-bundled-"));
     try {
       process.chdir(tempDir);
-      const allSkills = discoverAllSkills();
+      const allSkills = SkillResolver.discoverAllSkills();
       expect(allSkills.has("forge-build")).toBe(true);
       expect(allSkills.get("forge-build")).toContain("SKILL.md");
       expect(allSkills.get("forge-build")).toMatch(/[\\/]skills[\\/]forge-build[\\/]SKILL[.]md$/);
@@ -146,7 +150,7 @@ describe("skill discovery", () => {
       const originalHome = process.env.HOME;
       process.env.HOME = homeDir;
       try {
-        const allSkills = discoverAllSkills();
+        const allSkills = SkillResolver.discoverAllSkills();
         expect(allSkills.has("nested-skill")).toBe(true);
         expect(allSkills.has("single-skill")).toBe(true);
         expect(allSkills.get("single-skill")).toBe(path.join(piSkillsDir, "single-skill.md"));

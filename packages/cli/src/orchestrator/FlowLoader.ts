@@ -5,7 +5,7 @@ import { jsonParse } from "@feature-forge/shared";
 import { logger } from "@feature-forge/shared";
 
 import type { FlowDefinition } from "./FlowInstruction";
-import { validateSemantics, validateStructure } from "./flowValidation";
+import { FlowValidation } from "./flowValidation";
 
 /**
  * Discover flow subdirectories in a flows root (`src/flows/<name>/flow.json`
@@ -25,8 +25,8 @@ export async function discoverFlowDirectories(flowsDir: string): Promise<string[
 /**
  * Loads and validates declarative routine-based flow JSON files.
  *
- * I/O and loading only; the structural and semantic validation rules live as
- * pure functions in `flowValidation.ts`.
+ * I/O and loading only; the structural and semantic validation rules live in
+ * the `FlowValidation` static class in `flowValidation.ts`.
  */
 export class FlowLoader {
   constructor(
@@ -60,13 +60,13 @@ export class FlowLoader {
     }
 
     try {
-      validateStructure(parsed);
+      FlowValidation.validateStructure(parsed);
     } catch (error) {
       logger.error("Flow structural validation failed", { name, error: (error as Error).message });
       throw error;
     }
 
-    const semanticErrors = validateSemantics(
+    const semanticErrors = FlowValidation.validateSemantics(
       parsed,
       this.params.knownSpecs,
       this.params.knownProviders,

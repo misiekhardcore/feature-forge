@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { jsonParse } from "@feature-forge/shared";
 
 import { FlowLoader } from "../src/orchestrator/FlowLoader";
-import { validateSemantics, validateStructure } from "../src/orchestrator/flowValidation";
+import { FlowValidation } from "../src/orchestrator/flowValidation";
 
 /**
  * Validate a flow JSON file against the structural and semantic rules.
@@ -76,14 +76,14 @@ async function main(): Promise<void> {
 
   // Structural validation
   try {
-    validateStructure(json);
+    FlowValidation.validateStructure(json);
   } catch (cause) {
     console.error(`✗ Structural validation failed:\n${(cause as Error).message}`);
     process.exit(1);
   }
 
   // Semantic validation
-  const errors = validateSemantics(json);
+  const errors = FlowValidation.validateSemantics(json);
   if (errors.length > 0) {
     console.error(`✗ Semantic validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`);
     process.exit(1);

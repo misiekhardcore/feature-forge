@@ -1,6 +1,6 @@
 import { ForgeConfig } from "@feature-forge/shared";
 
-import { AgentSpecification, resolveSkillPaths } from "../specifications";
+import { AgentSpecification, SkillResolver } from "../specifications";
 
 /**
  * Converts an AgentSpecification into pi CLI arguments.
@@ -46,7 +46,7 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
       // ForgeConfig not initialized — use default .forge
     }
 
-    const skillPaths = resolveSkillPaths(
+    const skillPaths = SkillResolver.resolveSkillPaths(
       specification.skills,
       specification.excludedSkills,
       forgeDir,
