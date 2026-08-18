@@ -1,12 +1,12 @@
 import { logger } from "@feature-forge/core";
+import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import type { AgentContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
-import type { AgentSpecification } from "../../agents/specifications/AgentSpecification";
-import type { SpecManager } from "../../agents/SpecManager";
-import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
 import { FlowContext } from "../FlowContext";

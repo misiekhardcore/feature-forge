@@ -21,9 +21,9 @@ import {
   TuiRoutineWidget,
 } from "@feature-forge/tui";
 
-import { showAgentViewer } from "../agents";
 import { withForgePrefix } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
+import { showAgentViewer } from "../tui/showAgentViewer";
 
 // ── Guard ───────────────────────────────────────────────────
 

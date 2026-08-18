@@ -3,9 +3,9 @@ import type {
   ExtensionCommandContext,
   RegisteredCommand,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 
-import type { AgentSupervisor } from "../agents";
-import type { SpecManager } from "../agents/SpecManager";
 import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";

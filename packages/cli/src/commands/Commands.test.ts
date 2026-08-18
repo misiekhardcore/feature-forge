@@ -1,12 +1,15 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
+import {
+  DynamicAgentSpecification,
+  SpecRegistry,
+} from "@feature-forge/core/src/agents/specifications";
+import { TOOL_PRESETS } from "@feature-forge/core/src/agents/specifications/constants";
+import { SpecLoader } from "@feature-forge/core/src/agents/specifications/SpecLoader";
+import { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
-import { TOOL_PRESETS } from "../agents/specifications/constants";
-import { SpecManager } from "../agents/SpecManager";
-import { InMemoryAgentSupervisor } from "../agents/supervisors";
-import { SpecLoader } from "../loaders/SpecLoader";
 import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import { FlowStateStore } from "../orchestrator/FlowStateStore";
 import {

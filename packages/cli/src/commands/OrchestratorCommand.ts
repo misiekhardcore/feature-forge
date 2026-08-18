@@ -1,10 +1,10 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, resolveModel } from "@feature-forge/core";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents";
+import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
+import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 
-import type { AgentSupervisor } from "../agents";
-import { SessionAgent } from "../agents/agents/SessionAgent";
-import type { AgentSpecification } from "../agents/specifications";
-import type { SpecManager } from "../agents/SpecManager";
 import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import type { FlowStateStore } from "../orchestrator/FlowStateStore";

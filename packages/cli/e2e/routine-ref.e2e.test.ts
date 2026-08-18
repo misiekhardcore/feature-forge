@@ -12,9 +12,9 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
 import { describe, expect, it } from "vitest";
 
-import { InMemoryAgentSupervisor } from "../src/agents";
 import {
   createStepExecutorRegistry,
   FLOW_SCHEMA_URL,

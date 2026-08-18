@@ -4,14 +4,14 @@ import { ForgeConfig } from "@feature-forge/core";
 import type { AgentViewerOverlay } from "@feature-forge/tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { showAgentViewer } from "../agents";
 import { withForgePrefix } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import { makeMockCtx, makeMockPi } from "../test-utils";
+import { showAgentViewer } from "../tui/showAgentViewer";
 import { registerDevTestCommands } from "./registerTestCommands";
 
-vi.mock("../agents", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../agents")>();
+vi.mock("../tui/showAgentViewer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../tui/showAgentViewer")>();
   return { ...actual, showAgentViewer: vi.fn() };
 });
 

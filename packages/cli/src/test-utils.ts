@@ -13,15 +13,18 @@ import {
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/core";
-import { vi } from "vitest";
-
-import { SpecManager, type SpecResolutionParams } from "./agents";
-import { type ExecuteTaskOptions, SubprocessAgent } from "./agents/agents/SubprocessAgent";
-import { AgentFactory } from "./agents/factories/AgentFactory";
+import { SpecManager, type SpecResolutionParams } from "@feature-forge/core/src/agents";
+import { AgentFactory } from "@feature-forge/core/src/agents/factories/AgentFactory";
 import {
   AgentSpecification,
   type AgentSpecificationParams,
-} from "./agents/specifications/AgentSpecification";
+} from "@feature-forge/core/src/agents/specifications/AgentSpecification";
+import {
+  type ExecuteTaskOptions,
+  SubprocessAgent,
+} from "@feature-forge/core/src/agents/SubprocessAgent";
+import { vi } from "vitest";
+
 import { TypedEventBus } from "./orchestrator/eventBus";
 import { ToolRegistry } from "./registry/ToolRegistry";
 import { WorkspaceHandle } from "./workspace/WorkspaceHandle";

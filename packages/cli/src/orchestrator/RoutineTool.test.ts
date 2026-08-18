@@ -12,8 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { showAgentViewerMock, realShowAgentViewer } = vi.hoisted(() => {
   type ShowAgentViewer = (
-    params: import("../agents").ShowAgentViewerParams,
-  ) => Promise<import("../agents").AgentViewerHandle>;
+    params: import("../tui/showAgentViewer").ShowAgentViewerParams,
+  ) => Promise<import("../tui/showAgentViewer").AgentViewerHandle>;
   return {
     showAgentViewerMock: vi.fn<ShowAgentViewer>(),
     // Captured from the original module inside the mock factory so tests can
@@ -22,13 +22,14 @@ const { showAgentViewerMock, realShowAgentViewer } = vi.hoisted(() => {
   };
 });
 
-vi.mock("../agents", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../agents")>();
+vi.mock("../tui/showAgentViewer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../tui/showAgentViewer")>();
   realShowAgentViewer.fn = actual.showAgentViewer;
   return { ...actual, showAgentViewer: showAgentViewerMock };
 });
 
-import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+
 import {
   makeMockToolRegistry,
   makeMockTypedEventBus,

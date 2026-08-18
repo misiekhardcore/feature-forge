@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { AgentStatus, jsonParse } from "@feature-forge/core";
+import type { Agent } from "@feature-forge/core/src/agents";
+import { AgentSpecification } from "@feature-forge/core/src/agents";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSpecification } from "../agents";
-import type { Agent } from "../agents/agents";
-import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
-import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";

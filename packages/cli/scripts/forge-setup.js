@@ -83,7 +83,7 @@ function commandAvailable(command) {
 
 /**
  * Resolve the directory that contains the built-in template assets
- * (agents, flows, skills) to scaffold.
+ * (flows, skills) to scaffold.
  *
  * The script can run from three layouts:
  * - `<pkg>/scripts/` (published package, invoked by the extension)
@@ -92,15 +92,15 @@ function commandAvailable(command) {
  *   → assets in `<pkg>/dist/`
  * - `<pkg>/scripts/` in the source tree (dev)
  *   → assets in `<pkg>/src/`
+ *
+ * Agent templates live in `@feature-forge/core` (S4a) and are derived from
+ * the resolved dir via `../../core/src/agents/specifications/templates`.
  */
 function resolveAssetsDir() {
   const scriptDir = path.join(__dirname, "..");
   const candidates = [scriptDir, path.join(scriptDir, "dist"), path.join(scriptDir, "src")];
   for (const dir of candidates) {
-    if (
-      fs.existsSync(path.join(dir, "agents", "declarative-specs")) ||
-      fs.existsSync(path.join(dir, "flows"))
-    ) {
+    if (fs.existsSync(path.join(dir, "flows"))) {
       return dir;
     }
   }
@@ -232,8 +232,18 @@ function copyMissingFiles(src, dest) {
 function scaffoldTemplates(forgeDir) {
   const srcDir = resolveAssetsDir();
 
-  // Agents: copy .md files from <assets>/agents/declarative-specs → forgeDir/agents/
-  const agentsSrc = path.join(srcDir, "agents", "declarative-specs");
+  // Agents: copy .md files from <core>/src/agents/specifications/templates → forgeDir/agents/
+  // (declarative-specs moved to core in S4a; srcDir/../../.. = packages/)
+  const agentsSrc = path.join(
+    srcDir,
+    "..",
+    "..",
+    "core",
+    "src",
+    "agents",
+    "specifications",
+    "templates",
+  );
   const agentsDest = path.join(forgeDir, "agents");
   if (fs.existsSync(agentsSrc)) {
     let created = 0;

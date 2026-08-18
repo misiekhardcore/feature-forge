@@ -5,11 +5,11 @@ import { join } from "node:path";
 import type { AgentEvent, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { AgentSupervisor } from "@feature-forge/cli/src/agents";
-import type { Agent, AgentKind } from "@feature-forge/cli/src/agents/agents/Agent";
-import type { AgentSpecification } from "@feature-forge/cli/src/agents/specifications";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
+import { AgentSupervisor } from "@feature-forge/core/src/agents";
+import type { Agent, AgentKind } from "@feature-forge/core/src/agents/Agent";
+import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
 import {
   AgentDisplayHelpers,
   type AgentViewerEntry,

@@ -9,6 +9,7 @@ import {
 import type { Component } from "@earendil-works/pi-tui";
 import { logger } from "@feature-forge/core";
 import { ForgeConfig } from "@feature-forge/core";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import type { ProgressWidget } from "@feature-forge/tui";
 import type { DisplayContribution } from "@feature-forge/tui";
 import type { RoutineProgressState } from "@feature-forge/tui";
@@ -19,9 +20,8 @@ import { DisplayContributionRegistry } from "@feature-forge/tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
-import type { AgentViewerHandle } from "../agents";
-import { showAgentViewer } from "../agents";
-import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import type { AgentViewerHandle } from "../tui/showAgentViewer";
+import { showAgentViewer } from "../tui/showAgentViewer";
 import type { RoutineDefinition } from "./FlowInstruction";
 import { RoutineExecutor } from "./RoutineExecutor";
 import type { RoutineProgressEvent } from "./RoutineProgress";

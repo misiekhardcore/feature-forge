@@ -1,6 +1,6 @@
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { describe, expect, it } from "vitest";
 
-import { InMemoryAgentSupervisor } from "../agents/supervisors";
 import { MockWorkspaceProvider } from "../test-utils";
 import { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
 import { createStepExecutorRegistry } from "./createStepExecutorRegistry";

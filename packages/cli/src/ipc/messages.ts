@@ -8,8 +8,7 @@
  */
 
 import type { AgentStatus } from "@feature-forge/core";
-
-import type { AgentSpecificationParams } from "../agents";
+import type { AgentSpecificationParams } from "@feature-forge/core/src/agents";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 

@@ -1,9 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
+import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { InMemoryAgentSupervisor } from "../agents";
-import type { SpecManager } from "../agents/SpecManager";
 import type { CommandRegistry, ToolRegistry } from "../registry";
 import { makeMockPi, makeMockTypedEventBus } from "../test-utils";
 import type { WorkspaceManager } from "../workspace";

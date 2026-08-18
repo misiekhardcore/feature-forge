@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 
-import type { AgentSupervisor } from "../agents";
 import { Command } from "./Command";
 
 export class ResearchCommand extends Command {

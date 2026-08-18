@@ -1,11 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
+import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionAgent } from "../agents/agents/SessionAgent";
-import type { AgentSpecification } from "../agents/specifications";
-import type { SpecManager } from "../agents/SpecManager";
-import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { InMemoryAgentSupervisor } from "../agents/supervisors/InMemoryAgentSupervisor";
 import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { FlowDefinition } from "../orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";

@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { ForgeConfig, logger } from "@feature-forge/core";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
-import type { SubprocessAgent } from "../../agents/agents/SubprocessAgent";
-import type { SpecManager } from "../../agents/SpecManager";
-import type { AgentSupervisor } from "../../agents/supervisors/AgentSupervisor";
 import type { TypedEventBus } from "../eventBus";
 import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../eventBus/agentChannels";
 import type { FlowContext, InstructionResult } from "../FlowContext";

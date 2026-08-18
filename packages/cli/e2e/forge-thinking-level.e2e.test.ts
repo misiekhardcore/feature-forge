@@ -12,12 +12,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
+import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import type { AgentSpecification } from "../src/agents/specifications/AgentSpecification";
-import { DynamicAgentSpecification } from "../src/agents/specifications/DynamicAgentSpecification";
-import { InMemoryAgentSupervisor } from "../src/agents/supervisors/InMemoryAgentSupervisor";
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import type { AgentInstruction, FlowDefinition } from "../src/orchestrator/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";

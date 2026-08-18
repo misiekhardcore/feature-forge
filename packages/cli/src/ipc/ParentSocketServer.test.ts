@@ -3,13 +3,13 @@ import { connect, type Socket } from "node:net";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
+import type { Agent } from "@feature-forge/core/src/agents";
+import { AgentSpecification } from "@feature-forge/core/src/agents";
+import { AgentSpecificationParams } from "@feature-forge/core/src/agents";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSpecification } from "../agents";
-import { AgentSpecificationParams } from "../agents";
-import type { Agent } from "../agents/agents";
-import type { SubprocessAgent } from "../agents/agents/SubprocessAgent";
-import type { AgentSupervisor } from "../agents/supervisors";
 import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 

@@ -6,13 +6,14 @@ import { fileURLToPath } from "node:url";
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
 import { FileLogger, ForgeConfig, logger } from "@feature-forge/core";
-
 import {
   InMemoryAgentSupervisor,
   PiSubprocessAgentFactory,
   SpecManager,
   SpecRegistry,
-} from "./agents";
+} from "@feature-forge/core/src/agents";
+import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
+
 import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
@@ -29,7 +30,6 @@ import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
-import { SpecLoader } from "./loaders";
 import { ActiveFlowRegistry } from "./orchestrator/ActiveFlowRegistry";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";

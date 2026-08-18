@@ -2,8 +2,8 @@ import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
+import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
 
-import { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands";
 import { CommandRegistry, ToolRegistry } from "../registry";
 import { WorkspaceManager } from "../workspace";

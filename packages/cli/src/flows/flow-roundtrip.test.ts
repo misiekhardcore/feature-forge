@@ -21,14 +21,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { jsonParse } from "@feature-forge/core";
+import { SpecManager } from "@feature-forge/core/src/agents";
+import { SpecRegistry } from "@feature-forge/core/src/agents/specifications";
+import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { SpecRegistry } from "../agents/specifications/SpecRegistry";
-import { SpecManager } from "../agents/SpecManager";
-import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { SpecLoader } from "../loaders/SpecLoader";
 import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
 import { FlowContext } from "../orchestrator/FlowContext";
 import type {
@@ -162,7 +162,17 @@ function collectShellSteps(
 
 describe("flow round-trip", () => {
   const flowsDir = path.join(__dirname, "implement");
-  const specsDir = path.join(__dirname, "..", "agents", "declarative-specs");
+  const specsDir = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "core",
+    "src",
+    "agents",
+    "specifications",
+    "templates",
+  );
 
   // Load known spec names once for the whole suite.
   let knownSpecs!: ReadonlySet<string>;
@@ -834,7 +844,17 @@ describe("set_flow_param guardrails", () => {
   // global tool (PR #218 rework). These tests keep the flows and their
   // orchestrator personas from regressing to flow-scoped names.
   const guardrailFlowDirs = ["implement", "review", "verify", "resolve-pr-feedback"];
-  const guardrailSpecsDir = path.join(__dirname, "..", "agents", "declarative-specs");
+  const guardrailSpecsDir = path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "core",
+    "src",
+    "agents",
+    "specifications",
+    "templates",
+  );
 
   let loadedFlows: FlowDefinition[] = [];
   let orchestratorDocs: string[] = [];

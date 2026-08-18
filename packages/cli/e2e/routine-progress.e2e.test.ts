@@ -14,10 +14,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Theme } from "@earendil-works/pi-coding-agent";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
 import { DisplayContribution, ProgressRenderer } from "@feature-forge/tui";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { InMemoryAgentSupervisor } from "../src/agents";
 import {
   createStepExecutorRegistry,
   FLOW_SCHEMA_URL,

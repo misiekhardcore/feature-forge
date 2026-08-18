@@ -1,8 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents";
+import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
 
-import type { AgentSupervisor } from "../agents";
-import { SessionAgent } from "../agents/agents/SessionAgent";
 import { Command } from "./Command";
 
 /**

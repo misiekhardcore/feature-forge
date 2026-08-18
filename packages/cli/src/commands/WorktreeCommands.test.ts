@@ -1,6 +1,6 @@
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { InMemoryAgentSupervisor } from "../agents/supervisors";
 import {
   makeMockCtx,
   makeMockFactory,
