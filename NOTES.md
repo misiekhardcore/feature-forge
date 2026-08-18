@@ -6,10 +6,10 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Subtask 12 (FlowRegistrar, 3.17#16) done. Next: subtask 13 (SkillResolver, 3.17#17).
+Subtask 13 (SkillResolver, 3.17#17) done. Next: subtask 14 (FlowLoader split, 3.17#18).
 
 ## Next action on resume
-Run build loop for subtask 13 (SkillResolver → plain functions + module-level constants).
+Run build loop for subtask 14 (FlowLoader → instance load/loadAll + flowValidation.ts pure functions).
 
 ## AC checklist
 
@@ -44,7 +44,7 @@ Run build loop for subtask 13 (SkillResolver → plain functions + module-level 
 | 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [x] |
 | 28 | 3.17#14: packages/web placeholder deleted | [x] |
 | 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [x] |
-| 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [ ] |
+| 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [x] |
 | 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [ ] |
 
 ## Deferred (documented rationale)
@@ -74,6 +74,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Subtask 13 (SkillResolver, 3.17#17) done — the class (3 statics + instance `forgeDir`/`skillDirectories`, with `discoverAll` static constructing `new SkillResolver(...)` just to call private instance methods) is now plain module functions + module-level constants: `resolveSkillPaths`/`discoverSkills`/`resolveEffectiveSkillNames` exported, `skillDirectories`/`parseSkillName`/`scanDirectory` module-private (no more `this` plumbing), `bundledSkillDirectories` unchanged. Constants: `DEFAULT_FORGE_DIR = ".forge"`, `AGENTS_SKILLS_RELATIVE_DIR`/`PI_AGENT_SKILLS_RELATIVE_DIR` (home paths still resolved at call time so runtime `HOME` overrides in tests keep working). Callers updated: `helpers.ts` imports `resolveSkillPaths` (was `SkillResolver.resolvePaths`), `specifications/index.ts` re-exports the four functions. All 15 existing test cases preserved verbatim, only the receiver names updated (`resolveEffectiveSkillNames`, `discoverSkills`). Full loop green: fix/lint/typecheck clean, 121 files/2354 tests, coverage unchanged 96.59% stmts/96.99% lines. Commit: `refactor: SkillResolver to plain functions + module-level constants (3.17#17)`.
 
 - 2026-08-18: Subtask 12 (FlowRegistrar, 3.17#16) done — the anonymous 11-field constructor bag became a named module-local `FlowRegistrarContext` interface (follows the `FlowContextParams` precedent; NOT exported — constructor shape unchanged so no public API/ADR), constructor stores it as `context`, `registerAll` passes `this.context` straight to `registerFlow` (the 10-field object rebuild between them is gone) and only destructures `flowDirs` for the loop, and `registerFlow` reads `ctx.` fields directly — the second 11-field destructure is deleted. Bonus on touched lines: `let flow` (evolving implicit) now `let flow: FlowDefinition`. Behavior-identical — the 25 existing FlowRegistrar tests passed unchanged (structural typing). Full loop green: fix/lint/typecheck clean, 121 files/2354 tests, coverage unchanged 96.59% stmts/96.99% lines. Commit: `refactor: FlowRegistrar single context object, drop double destructuring (3.17#16)`.
 
