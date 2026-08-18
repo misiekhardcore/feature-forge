@@ -93,7 +93,7 @@ describe("skill discovery", () => {
     expect(frontmatter.description).toBeDefined();
   });
 
-  it("discovers forge-build skill via discoverAll when CWD has .forge/skills", () => {
+  it("discovers forge-build skill via discoverAllSkills when CWD has .forge/skills", () => {
     const originalCwd = process.cwd();
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-test-"));
     try {

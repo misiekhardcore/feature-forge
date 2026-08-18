@@ -11,6 +11,7 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
+import { fileURLToPath } from "node:url";
 
 import { jsonParse } from "@feature-forge/shared";
 import { AgentStatus } from "@feature-forge/shared";
@@ -65,7 +66,7 @@ function createMockSupervisor(): AgentSupervisor {
   };
 }
 
-const PROJECT_ROOT = new URL("../", import.meta.url).pathname;
+const PROJECT_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 describe("forge-subagent E2E", () => {
   let server: ParentSocketServer;
@@ -141,7 +142,11 @@ describe("forge-subagent E2E", () => {
     const client = connect(socketPath);
 
     const response = await new Promise<unknown>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error("Timeout waiting for response"));
+      }, 3000);
       client.once("data", (chunk: Buffer) => {
+        clearTimeout(timer);
         try {
           resolve(jsonParse(chunk.toString().trim()));
         } catch (error) {
@@ -156,10 +161,6 @@ describe("forge-subagent E2E", () => {
           params: {},
         }) + "\n",
       );
-
-      setTimeout(() => {
-        reject(new Error("Timeout waiting for response"));
-      }, 3000);
     });
 
     expect(response).toMatchObject({
@@ -203,7 +204,11 @@ describe("forge-subagent E2E", () => {
     // Server should still be operational
     const client = connect(socketPath);
     const response = await new Promise<unknown>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error("Timeout"));
+      }, 3000);
       client.once("data", (chunk: Buffer) => {
+        clearTimeout(timer);
         try {
           resolve(jsonParse(chunk.toString().trim()));
         } catch (error) {
@@ -218,10 +223,6 @@ describe("forge-subagent E2E", () => {
           params: {},
         }) + "\n",
       );
-
-      setTimeout(() => {
-        reject(new Error("Timeout"));
-      }, 3000);
     });
 
     expect(response).toMatchObject({

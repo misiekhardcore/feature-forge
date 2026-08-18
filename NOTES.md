@@ -6,43 +6,20 @@ FlowStateStore de-inheritance (3.8), workspace name/path fixes (3.11/3.12),
 socket null guard (3.13), logger/console consistency (3.26 + 3.17#11).
 
 ## Current task
-Final cleanup subtask (IpcTool P2 follow-ups: freeze NO_CLIENT_ERROR, em-dash in IpcTool.ts JSDoc, IpcTool ADR) done. All phase work complete — close the phase (PR).
+Verify-failed round on the final cleanup subtask (ACs 3-6 of the IpcTool/cleanup follow-ups) - all six ACs now implemented and the full loop is green; close the phase (PR).
 
-## AC checklist
+## AC checklist (final cleanup subtask)
 
 | # | AC | Status |
 |---|----|--------|
-| 1 | 3.4 (P1-1): IpcTool base class; 5 agent tools shrink to schema + one-line execute | [x] |
-| 2 | 3.8 (P1-5): FlowStateStore standalone class (get/set/entries/toObject, Map-backed), no `extends Registry` | [x] |
-| 3 | 3.11 (P2-1): WorkspaceStepExecutor stores workspace under `instruction.id`, not `"ws"` | [x] |
-| 4 | 3.12 (P2-2): WorkspaceManager `destroy`/`get` params renamed `path` + doc note (keys are paths) | [x] |
-| 5 | 3.13 (P2-3): ChildSocketClient rejects immediately when socket null; pending registered before write; pending rejected on close; connect() guards double-connect | [x] |
-| 6 | 3.26 (P2-9): ConsoleLogger level filtering; shared manifest yaml/typebox → dependencies, vitest → devDependencies | [x] |
-| 7 | 3.17#11: console.warn/error → logger in ConfigLoader/spec-resolution/tool-restrictions | [x] |
-| 8 | 3.17#26: DEFAULT_LOG_LEVEL deleted | [x] |
-| 9 | 3.17#1: fillTemplate deleted (source + test + exports) | [x] |
-| 10 | 3.17#4: DynamicAgentSpecification.toJSON override deleted | [x] |
-| 11 | 3.17#6: duplicated class-level JSDoc in GitWorktreeProvider deduped | [x] |
-| 12 | 3.17#7: orphaned docstring fragment in AgentViewerOverlay deleted | [x] |
-| 13 | 3.17#20: dead avgLinesPerMessage map in AgentDetailView deleted | [x] |
-| 14 | 3.17#15 (3.10#5): GitStepExecutor twin logger.debug dropped (eventBus.emit kept) | [x] |
-| 15 | 3.17#21: em-dashes in user-facing display strings → hyphens (ProgressRenderer, AgentViewerOverlay, AgentDetailView) | [x] |
-| 16 | 3.17#22: widget separator width includes icon width | [x] |
-| 17 | 3.17#9: getOverlayOptions maxHeight typed `string`, no lying cast | [x] |
-| 18 | 3.17#8: OrchestratorCommand docstring numbering fixed (1-4) | [x] |
-| 19 | 3.17#10: RoutineTool renderCall context narrowed via local interface (no `any`/eslint-disable) | [x] |
-| 20 | 3.17#19: TuiProgressReporter.ts renamed TuiRoutineWidget.ts (class name, test file, index) | [x] |
-| 21 | 3.17#5: TOOL_PRESETS readOnly/reviewOnly deduped (alias) | [x] |
-| 22 | 3.17#24: sharedStreamDir pruning extracted into one pruneByRetention() | [x] |
-| 23 | 3.17#25: e2e helper socket setTimeout cleared on resolve; PROJECT_ROOT via fileURLToPath | [x] |
-| 24 | 3.17#27: ForgeConfigSchema logLevel/workspaceProvider/agents/defaultAgent → Type.Optional (defaults supplied) | [x] |
-| 25 | 3.17#28: packages/shared `npm run test` works (package-local vitest config) | [x] |
-| 26 | 3.17#12: magic numbers → named constants (shell 120s, git 60s, maxBuffer 10MB, preconnect 2000) | [x] |
-| 27 | 3.17#13: manifest alignment - typebox 1.3.8 everywhere, TS 6.0.3 in debug, pi SDK pins consistent (contingent: revert pi bump if suite breaks) | [x] |
-| 28 | 3.17#14: packages/web placeholder deleted | [x] |
-| 29 | 3.17#16: FlowRegistrar single context object, no double destructuring | [x] |
-| 30 | 3.17#17: SkillResolver → plain functions + module-level constants | [x] |
-| 31 | 3.17#18: FlowLoader split - instance load/loadAll + flowValidation.ts pure functions | [x] |
+| 1 | IpcTool: NO_CLIENT_ERROR frozen (`as const` + expectTypeOf pin); em-dash in JSDoc replaced | [x] |
+| 2 | ADR 0016 (IpcTool base class + structural IpcRequestClient), 0015 template | [x] |
+| 3 | FlowStateStore JSDoc: `{@link Registry}` link syntax dropped (plain text) | [x] |
+| 4 | ChildSocketClient: close-handler identity guard; disconnect() resets connectPromise; stale-close regression test | [x] |
+| 5 | forge-subagent e2e: PROJECT_ROOT via fileURLToPath; roundtrip timers cleared on resolve (helpers.ts parity) | [x] |
+| 6 | skill-resolver: test title `discoverAllSkills`; DEFAULT_FORGE_DIR module-private; bundledSkillDirectories re-export dropped | [x] |
+
+Phase-0 subtask ACs 1-31 from the prior checklist are all complete (see Decisions log).
 
 ## Deferred (documented rationale)
 
@@ -71,6 +48,8 @@ All subtasks are independent (no overlapping files). Sequential execution in the
 | 14 | FlowLoader split (3.17#18) | +flowValidation.ts, FlowLoader.ts, FlowLoader.test.ts, FlowInstruction.test.ts, validate-flow.ts |
 
 ## Decisions log
+
+- 2026-08-18: Final-cleanup verify-failed round (ACs 3-6) done - iteration 1's verify flagged the remaining follow-ups as unmet (build had only committed ACs 1-2). (AC 3) FlowStateStore JSDoc: `{@link Registry}` link syntax dropped - plain text "Registry" (import was removed in the 3.8 refactor). (AC 4) ChildSocketClient: close handler now early-returns `if (this.socket !== socket)` so a stale close from a superseded connect attempt cannot null the active socket or reject its pending requests; `disconnect()`'s end callback also nulls `connectPromise` (a half-open peer previously left the stale resolved promise so the next `connect()` no-op'd into a dead state); new mock-`node:net` regression test drives connect → disconnect → reconnect, fires the old socket's close handler, then asserts a request still roundtrips and `disconnect()` reaches the new socket's `end` (verified the test fails with the guard removed). (AC 5) forge-subagent e2e brought to helpers.ts parity: `PROJECT_ROOT` via `fileURLToPath(new URL(...))` and both roundtrip `setTimeout`s cleared on resolve. (AC 6) skill-resolver: test title `discoverAllSkills`, `DEFAULT_FORGE_DIR` module-private (no consumers), `bundledSkillDirectories` re-export dropped from specifications/index.ts (grep-confirmed no external consumers). Full loop green: fix/lint/typecheck clean, 121 files/2356 tests, coverage unchanged 96.59% stmts/96.99% lines, cli-e2e forge-subagent 2/2. Commit: `fix: stale socket close identity guard, e2e helper parity, skill-resolver export cleanup (ACs 3-6)`.
 
 - 2026-08-18: Subtask 14 (FlowLoader split, 3.17#18) done — `FlowLoader` is now instance-only (`load`/`loadAll`, I/O + logging) with the two validation layers extracted verbatim into `flowValidation.ts` as pure module functions: `validateStructure` (public, `asserts value is FlowDefinition`) + `validateSemantics` (public) with `validateRoutineSteps`/`checkDuplicateIds`/`collectIds`/`walkInstructions`/`checkAgentWorkspaceRef`/`checkLoopExpression`/`checkAccumulateFrom`/`collectAllIds`/`collectIdsByFlag`/`collectIdsByType` module-private (all `FlowLoader.` statics → direct calls, no `this` plumbing). `discoverFlowDirectories` stays in FlowLoader.ts (already a standalone function). Callers updated: `FlowLoader.load` imports the two functions; `scripts/validate-flow.ts` (both single-file + `--all` paths; `--all` keeps `new FlowLoader(...)` for loading); `FlowLoader.test.ts` and `FlowInstruction.test.ts` re-pointed from `FlowLoader.validate*` to the pure functions (all 187 orchestrator tests preserved verbatim, receivers renamed — the skill-resolver precedent). No index.ts export added: the statics were never part of the public API (grep confirmed no consumer outside tests + script; validate-flow imports from src directly). Full loop green: fix/lint/typecheck clean, 121 files/2354 tests, coverage unchanged 96.59% stmts/96.99% lines, `flow:validate` + `flow:validate:all` smoke-tested (4/4 shipped flows valid). Commit: `refactor: split FlowLoader validation into pure flowValidation functions (3.17#18)`.
 

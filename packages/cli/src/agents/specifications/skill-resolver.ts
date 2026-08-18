@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
 /** Default forge directory used when no explicit forgeDir is provided. */
-export const DEFAULT_FORGE_DIR = ".forge";
+const DEFAULT_FORGE_DIR = ".forge";
 
 /** Per-user skill directory under `~/.agents/skills`. */
 const AGENTS_SKILLS_RELATIVE_DIR = path.join(".agents", "skills");

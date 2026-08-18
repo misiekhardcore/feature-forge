@@ -8,7 +8,7 @@ export type FlowParams = Record<string, string>;
  * Owned by {@link RoutineExecutor}, mutated in-place by step executors,
  * and merged into every new {@link FlowContext}.
  *
- * Standalone Map-backed class - deliberately NOT a {@link Registry} subclass:
+ * Standalone Map-backed class - deliberately NOT a Registry subclass:
  * unlike registries, `set()` allows overwrites (flow state values change
  * across routine calls), and registry queries (`where`, `getAll`) make no
  * sense for state.

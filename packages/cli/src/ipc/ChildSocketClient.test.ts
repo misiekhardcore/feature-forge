@@ -396,6 +396,74 @@ describe("ChildSocketClient error handling", () => {
     await new Promise<void>((resolve) => rawServer.close(() => resolve()));
   });
 
+  it("ignores a stale close from a superseded connect attempt", async () => {
+    // Reconnect after a disconnect: the first socket's late close must not
+    // clobber the newer connection (identity guard on the close handler).
+    // Without the guard, the stale close would null this.socket and reject
+    // the new connection's pending requests, killing the reconnected client.
+    vi.resetModules();
+    const connectMock = vi.fn();
+    vi.doMock("node:net", async () => {
+      const actual = await vi.importActual<typeof import("node:net")>("node:net");
+      return { ...actual, connect: connectMock };
+    });
+
+    const { ChildSocketClient: MockedChildSocketClient } = await import("./ChildSocketClient");
+
+    const makeFakeSocket = () => {
+      const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+      const fakeSocket = {
+        on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          const list = handlers.get(event) ?? [];
+          list.push(handler);
+          handlers.set(event, list);
+          return fakeSocket;
+        }),
+        write: vi.fn((data: string) => {
+          const message = jsonParse<{ correlationId: string }>(data);
+          const response =
+            JSON.stringify({ type: "result", correlationId: message.correlationId, result: "ok" }) +
+            "\n";
+          for (const handler of handlers.get("data") ?? []) {
+            (handler as (chunk: Buffer) => void)(Buffer.from(response));
+          }
+        }),
+        setTimeout: vi.fn(),
+        end: vi.fn((callback: () => void) => callback()),
+      };
+      return { handlers, socket: fakeSocket };
+    };
+
+    const first = makeFakeSocket();
+    const second = makeFakeSocket();
+    let callCount = 0;
+    connectMock.mockImplementation((_path: string, onConnect: () => void) => {
+      callCount += 1;
+      setTimeout(onConnect, 0);
+      return callCount === 1 ? first.socket : second.socket;
+    });
+
+    const client = new MockedChildSocketClient("/tmp/fake-reconnect.sock");
+    await client.connect();
+    await client.disconnect();
+    await client.connect();
+
+    // Fire the first socket's close handler after the reconnect: must be ignored.
+    const staleClose = first.handlers.get("close")?.[0] as () => void;
+    expect(staleClose).toBeDefined();
+    staleClose();
+
+    // The newer connection must still serve requests (the stale close did
+    // not reject its pending entries or drop this.socket).
+    await expect(client.request("list_agents", {}, 500)).resolves.toEqual("ok");
+    expect(second.socket.write).toHaveBeenCalled();
+
+    // disconnect() must still find the newer socket (the stale close did
+    // not null it), so the end callback runs on the second socket.
+    await client.disconnect();
+    expect(second.socket.end).toHaveBeenCalledTimes(1);
+  });
+
   it("registers the pending entry before writing so an immediate response is not lost", async () => {
     // Replace node:net with a fake whose write() delivers the response
     // synchronously - as if the answer were already in flight when the

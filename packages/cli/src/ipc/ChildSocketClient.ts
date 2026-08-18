@@ -85,6 +85,9 @@ export class ChildSocketClient {
         });
 
         socket.on("close", () => {
+          if (this.socket !== socket) {
+            return; // Stale close from a superseded connect attempt.
+          }
           this.socket = null;
           this.connectPromise = null;
           this.rejectAllPending(new IpcConnectionError(`Connection to ${this.socketPath} closed`));
@@ -188,6 +191,7 @@ export class ChildSocketClient {
     return new Promise<void>((resolve) => {
       this.socket!.end(() => {
         this.socket = null;
+        this.connectPromise = null;
         resolve();
       });
     });
