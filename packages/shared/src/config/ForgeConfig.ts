@@ -125,6 +125,12 @@ export class ForgeConfig {
 
   // ── Typed accessor methods ──────────────────────────────────────────
 
+  // The frozen config is always fully populated: ConfigLoader resolves
+  // every field against DEFAULT_FORGE_CONFIG before storing it (schema
+  // Decode fills per-field defaults for present blocks). The `!`
+  // assertions below restate that invariant for schema-optional fields
+  // — there is no `?? default` fallback branch to cover.
+
   /**
    * Return the configured log level.
    *
@@ -140,7 +146,7 @@ export class ForgeConfig {
    * Defaults to `"forge"`.
    */
   getLogPrefix(): string {
-    return this.getConfig().logPrefix ?? DEFAULT_FORGE_CONFIG.logPrefix;
+    return this.getConfig().logPrefix!;
   }
 
   /**
@@ -149,7 +155,7 @@ export class ForgeConfig {
    * Defaults to `.forge/logs` when config is loaded with defaults.
    */
   getLogDir(): string {
-    return this.getConfig().logDir ?? DEFAULT_FORGE_CONFIG.logDir;
+    return this.getConfig().logDir!;
   }
 
   /**
@@ -158,7 +164,7 @@ export class ForgeConfig {
    * Defaults to an empty array.
    */
   getWorktreeSymlinks(): readonly string[] {
-    return this.getConfig().worktreeSymlinks ?? [];
+    return this.getConfig().worktreeSymlinks!;
   }
 
   /**
@@ -167,7 +173,7 @@ export class ForgeConfig {
    * Defaults to 3600000 (1 hour).
    */
   getTaskTimeoutMs(): number {
-    return this.getConfig().taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs;
+    return this.getConfig().taskTimeoutMs!;
   }
 
   /**
@@ -177,7 +183,7 @@ export class ForgeConfig {
    * Defaults to 2. Set to 0 to disable retries entirely.
    */
   getJsonRetryMaxAttempts(): number {
-    return this.getConfig().jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts;
+    return this.getConfig().jsonRetryMaxAttempts!;
   }
 
   /**
@@ -185,7 +191,7 @@ export class ForgeConfig {
    * Defaults to 7.
    */
   getLogRetentionDays(): number {
-    return this.getConfig().logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays;
+    return this.getConfig().logRetentionDays!;
   }
 
   /**
@@ -193,7 +199,7 @@ export class ForgeConfig {
    * Defaults to false.
    */
   getLogPayloads(): boolean {
-    return this.getConfig().logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads;
+    return this.getConfig().logPayloads!;
   }
 
   /**
@@ -204,7 +210,7 @@ export class ForgeConfig {
    * with defaults.
    */
   getSpecDirectories(): SpecDirectories {
-    return this.getConfig().specDirectories ?? { flows: [], agents: [] };
+    return this.getConfig().specDirectories!;
   }
 
   /**
@@ -224,7 +230,7 @@ export class ForgeConfig {
    * Defaults to `".forge"` when no forgeDir is configured.
    */
   getForgeDir(): string {
-    const forgeDir = this.getConfig().forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir ?? ".forge";
+    const forgeDir = this.getConfig().forgeDir!;
     if (forgeDir.startsWith("~")) {
       return path.join(os.homedir(), forgeDir.slice(1));
     }
@@ -257,7 +263,10 @@ export class ForgeConfig {
    * Defaults to 200.
    */
   getDisplayMaxAgentEvents(): number {
-    return this.getDisplayConfig().maxAgentEvents ?? DEFAULT_FORGE_CONFIG.display.maxAgentEvents!;
+    // maxAgentEvents carries a schema default (200), so Decode always
+    // populates it for a present display block; the block-level fallback
+    // in getDisplayConfig covers an absent block.
+    return this.getDisplayConfig().maxAgentEvents!;
   }
 
   /**
@@ -266,10 +275,8 @@ export class ForgeConfig {
    * Defaults to 2000.
    */
   getDisplayMaxPreconnectBuffer(): number {
-    return (
-      this.getDisplayConfig().maxPreconnectBuffer ??
-      DEFAULT_FORGE_CONFIG.display.maxPreconnectBuffer!
-    );
+    // Schema default (2000) — see getDisplayMaxAgentEvents.
+    return this.getDisplayConfig().maxPreconnectBuffer!;
   }
 
   /**
@@ -297,7 +304,10 @@ export class ForgeConfig {
    * Defaults to `false`.
    */
   getDevEnabled(): boolean {
-    return this.getDevConfig().enabled ?? DEFAULT_FORGE_CONFIG.dev.enabled!;
+    // `enabled` carries a schema default (false), so Decode always
+    // populates it for a present dev block; the block-level fallback
+    // in getDevConfig covers an absent block.
+    return this.getDevConfig().enabled!;
   }
 
   /**

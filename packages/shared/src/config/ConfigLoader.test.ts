@@ -148,6 +148,57 @@ describe("ConfigLoader", () => {
       await expect(loader.loadFromFile(filePath)).rejects.toThrow(InvalidConfigError);
     });
 
+    it("names 'valid YAML' as the expected format when YAML parsing fails", async () => {
+      const filePath = join(tempDir, "tab-indented.yaml");
+      await fs.writeFile(filePath, "a:\n\tb: c");
+
+      const loader = new ConfigLoader();
+
+      const error: unknown = await loader.loadFromFile(filePath).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(InvalidConfigError);
+      expect((error as InvalidConfigError).message).toContain("valid YAML");
+    });
+
+    it("truncates long invalid JSON content in the error message", async () => {
+      const filePath = join(tempDir, "long-bad.json");
+      await fs.writeFile(filePath, '"' + "x".repeat(300));
+
+      const loader = new ConfigLoader();
+
+      const error: unknown = await loader.loadFromFile(filePath).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(InvalidConfigError);
+      const message = (error as InvalidConfigError).message;
+      expect(message).toContain("...");
+      expect(message).toContain("x".repeat(199));
+      expect(message).not.toContain("x".repeat(300));
+    });
+
+    it("passes undefined cause when a parse error is not an Error instance", async () => {
+      const filePath = join(tempDir, "forge.config.json");
+      await fs.writeFile(
+        filePath,
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      const parseSpy = vi.spyOn(JSON, "parse").mockImplementationOnce(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberate defensive case
+        throw "boom";
+      });
+      try {
+        const loader = new ConfigLoader();
+        const error: unknown = await loader.loadFromFile(filePath).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(InvalidConfigError);
+        expect((error as InvalidConfigError).cause).toBeUndefined();
+      } finally {
+        parseSpy.mockRestore();
+      }
+    });
+
     it("throws InvalidConfigError when config fails schema validation", async () => {
       const filePath = join(tempDir, "invalid.json");
       await fs.writeFile(
@@ -468,6 +519,111 @@ describe("ConfigLoader", () => {
     });
   });
 
+  describe("resolveForgeEnvOverlay", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("extracts logPrefix from a valid FORGE_SPEC", async () => {
+      vi.stubEnv("FORGE_SPEC", JSON.stringify({ id: "builder-a3f8c2" }));
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logPrefix).toBe("builder-a3f8c2");
+    });
+
+    it("ignores FORGE_SPEC without an id", async () => {
+      vi.stubEnv("FORGE_SPEC", JSON.stringify({ name: "builder" }));
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
+    });
+
+    it("ignores malformed FORGE_SPEC", async () => {
+      vi.stubEnv("FORGE_SPEC", "{ not json");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
+    });
+
+    it("parses a valid FORGE_TASK_TIMEOUT_MS", async () => {
+      vi.stubEnv("FORGE_TASK_TIMEOUT_MS", "5000");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.taskTimeoutMs).toBe(5000);
+    });
+
+    it("skips a non-numeric FORGE_TASK_TIMEOUT_MS", async () => {
+      vi.stubEnv("FORGE_TASK_TIMEOUT_MS", "not-a-number");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.taskTimeoutMs).toBe(DEFAULT_FORGE_CONFIG.taskTimeoutMs);
+    });
+
+    it("uses FORGE_LOG_DIR verbatim", async () => {
+      vi.stubEnv("FORGE_LOG_DIR", "custom-logs");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logDir).toBe("custom-logs");
+    });
+
+    it("splits FORGE_WORKTREE_SYMLINKS on commas", async () => {
+      vi.stubEnv("FORGE_WORKTREE_SYMLINKS", "config, secrets");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.worktreeSymlinks).toEqual(["config", "secrets"]);
+    });
+
+    it("ignores an empty FORGE_WORKTREE_SYMLINKS", async () => {
+      vi.stubEnv("FORGE_WORKTREE_SYMLINKS", "");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.worktreeSymlinks).toEqual(DEFAULT_FORGE_CONFIG.worktreeSymlinks);
+    });
+
+    it("sets dev.enabled from FORGE_DEV '1'", async () => {
+      vi.stubEnv("FORGE_DEV", "1");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.dev?.enabled).toBe(true);
+    });
+
+    it("sets dev.enabled from FORGE_DEV 'true'", async () => {
+      vi.stubEnv("FORGE_DEV", "true");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.dev?.enabled).toBe(true);
+    });
+
+    it("sets dev.enabled to false for a non-truthy FORGE_DEV", async () => {
+      vi.stubEnv("FORGE_DEV", "0");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.dev?.enabled).toBe(false);
+    });
+  });
+
   describe("forRoot", () => {
     it("loads a valid .json config file from the search directory", async () => {
       await fs.writeFile(
@@ -708,6 +864,40 @@ describe("ConfigLoader", () => {
         expect((error as Error).message).toContain(fakeHome);
       } finally {
         vi.unstubAllEnvs();
+      }
+    });
+
+    it("resolves a relative forgeDir pointer against process.cwd()", async () => {
+      // Project pointer file with a relative forgeDir — the real config is
+      // resolved against process.cwd(), so mock it to the temp dir.
+      const projectForgeDir = join(tempDir, ".forge");
+      await fs.mkdir(projectForgeDir, { recursive: true });
+      await fs.writeFile(
+        join(projectForgeDir, "config.json"),
+        JSON.stringify({ forgeDir: "custom-forge" }),
+      );
+
+      const customDir = join(tempDir, "custom-forge");
+      await fs.mkdir(customDir, { recursive: true });
+      await fs.writeFile(
+        join(customDir, "config.json"),
+        JSON.stringify({
+          logLevel: "warn",
+          workspaceProvider: "current-dir",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempDir);
+      try {
+        const loader = new ConfigLoader();
+        const config = await loader.forRoot({ cwd: tempDir });
+
+        expect(config.logLevel).toBe(LogLevel.WARN);
+        expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
+      } finally {
+        cwdSpy.mockRestore();
       }
     });
   });
