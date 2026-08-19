@@ -2,12 +2,12 @@ import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
-import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
+import type { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
 import { OrchestratorCommand } from "@feature-forge/core/src/commands/OrchestratorCommand";
 import type { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import type { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
-import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
+import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
+import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { Tool } from "@feature-forge/core/src/tools";
 import type { WorkspaceManager } from "@feature-forge/core/src/workspace";

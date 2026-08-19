@@ -1,5 +1,5 @@
-import { makeSpec, MockAgent } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus } from "@feature-forge/core";
+import { makeSpec, MockAgent } from "@feature-forge/core/src/test-utils";
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "./Agent";

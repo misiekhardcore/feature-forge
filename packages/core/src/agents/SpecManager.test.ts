@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { toolListToRestrictions } from "@feature-forge/cli/src/test-utils";
+import { toolListToRestrictions } from "@feature-forge/core/src/test-utils";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TOOL_PRESETS } from "./specifications/constants";

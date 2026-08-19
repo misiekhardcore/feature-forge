@@ -27,9 +27,9 @@ vi.mock("node:child_process", () => ({
 
 // Test-only value imports from cli: self-heal when cli test-utils
 // moves to core (S6) (#229).
-import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { ShellInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 
 import { ShellStepExecutor } from "./ShellStepExecutor";

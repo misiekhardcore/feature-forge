@@ -22,7 +22,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 // Test-only value imports from cli (mock helpers + RoutineTool): RoutineTool now
 // lives at cli/src/tools (S6); cli test-utils self-heal when it moves (S11).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
@@ -48,6 +47,7 @@ import {
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";

@@ -1,6 +1,5 @@
 // Test-only value imports from cli: self-heal when cli test-utils
 // moves to core (S6) (#229).
-import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { logger } from "@feature-forge/core";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
@@ -8,6 +7,7 @@ import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessA
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { AgentInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { describe, expect, it, vi } from "vitest";
 

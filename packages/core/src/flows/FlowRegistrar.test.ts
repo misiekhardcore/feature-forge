@@ -1,6 +1,5 @@
 // Test-only value imports from cli: RoutineTool now lives at cli/src/tools (S6);
 // cli test-utils self-heal when it moves to core (#229).
-import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
@@ -9,6 +8,7 @@ import { OrchestratorCommand } from "@feature-forge/core/src/commands/Orchestrat
 import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
 import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
 import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
+import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActiveFlowRegistry } from "./ActiveFlowRegistry";

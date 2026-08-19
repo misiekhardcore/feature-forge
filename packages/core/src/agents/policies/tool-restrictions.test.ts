@@ -1,4 +1,4 @@
-import { makeMockPiWithHandlers } from "@feature-forge/cli/src/test-utils";
+import { makeMockPiWithHandlers } from "@feature-forge/core/src/test-utils";
 import { describe, expect, it } from "vitest";
 
 import { activateToolRestrictions } from "./tool-restrictions";

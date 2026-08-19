@@ -27,9 +27,9 @@ export interface CommandDeps {
 }
 
 /**
- * A command shaped like pi's registered-command contract. The `Command`
- * base implements this exactly; the alias is the seam between core's flow
- * engine and the command registry.
+ * A command shaped like pi's registered-command contract. `Command`
+ * implements this exactly; the type is the compile-time contract between
+ * core commands and pi's {@link RegisteredCommand} shape.
  */
 export type FlowCommand = Omit<RegisteredCommand, "sourceInfo">;
 

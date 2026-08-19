@@ -1,6 +1,5 @@
 // Test-only value imports from cli: self-heal when cli test-utils
 // moves to core (S6) (#229).
-import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { jsonParse } from "@feature-forge/core";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import {
@@ -8,6 +7,7 @@ import {
   type ParallelInstruction,
   ParallelInstructionSchema,
 } from "@feature-forge/core/src/flows/FlowInstruction";
+import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 

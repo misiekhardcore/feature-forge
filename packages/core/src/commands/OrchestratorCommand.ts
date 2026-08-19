@@ -13,6 +13,20 @@ import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 import { Command, type CommandDeps } from "./Command";
 
 /**
+ * Dependency bag for {@link OrchestratorCommand}. Extends {@link CommandDeps}
+ * with the dependencies every flow command needs plus the flow itself.
+ */
+export interface OrchestratorCommandDeps extends CommandDeps {
+  supervisor: AgentSupervisor;
+  specManager: SpecManager;
+  toolRegistry: ToolRegistry;
+  workspaceManager?: WorkspaceManager;
+  flow: FlowDefinition;
+  store: FlowStateStore;
+  activeFlow: ActiveFlowRegistry;
+}
+
+/**
  * Generic command that loads a flow's orchestrator persona into the main pi
  * session.
  *
@@ -33,20 +47,6 @@ import { Command, type CommandDeps } from "./Command";
  * The routine engine's `FlowContext` does not appear here - the prompt template
  * is resolved inline so only a plain `task` string reaches the agent (ADR 0007).
  */
-/**
- * Dependency bag for {@link OrchestratorCommand}. Extends {@link CommandDeps}
- * with the dependencies every flow command needs plus the flow itself.
- */
-export interface OrchestratorCommandDeps extends CommandDeps {
-  supervisor: AgentSupervisor;
-  specManager: SpecManager;
-  toolRegistry: ToolRegistry;
-  workspaceManager?: WorkspaceManager;
-  flow: FlowDefinition;
-  store: FlowStateStore;
-  activeFlow: ActiveFlowRegistry;
-}
-
 export class OrchestratorCommand extends Command {
   readonly name: string;
   readonly description: string;

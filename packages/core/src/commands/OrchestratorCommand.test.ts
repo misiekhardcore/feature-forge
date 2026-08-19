@@ -1,23 +1,51 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { FlowExitCommand } from "@feature-forge/cli/src/commands/FlowExitCommand";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
+import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
+import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
+import { Command } from "@feature-forge/core/src/commands/Command";
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 import {
   makeMockCtx,
   makeMockFactory,
   makeMockPi,
   makeMockToolRegistry,
-} from "@feature-forge/cli/src/test-utils";
-import type { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
-import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
-import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+} from "@feature-forge/core/src/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrchestratorCommand } from "./OrchestratorCommand";
+
+/**
+ * Minimal local stand-in for the cli `flow:exit` command (D3: the real
+ * command lives in the cli package). Only the behavior this test observes
+ * is reproduced: destroy every mounted session agent via the supervisor
+ * (which unmounts the agent and restores the saved tools) and clear the
+ * active-flow pointer.
+ */
+class TestFlowExitCommand extends Command {
+  readonly name = "flow:exit";
+  readonly description = "exit the current flow and restore default mode";
+
+  async handler(_args: string, ctx: ExtensionCommandContext): Promise<void> {
+    const mountedAgents = this.supervisor!.getAllAgents().filter(
+      (agent): agent is SessionAgent => agent instanceof SessionAgent && agent.isMounted,
+    );
+    for (const agent of mountedAgents) {
+      await this.supervisor!.destroyAgent(agent.id);
+    }
+    ctx.ui.notify(
+      mountedAgents.length === 0
+        ? "Flow exited. No active flow to exit."
+        : "Flow exited. Default system prompt and tools restored.",
+      "info",
+    );
+    this.activeFlow?.clear();
+  }
+}
 
 // ── Mocks ────────────────────────────────────────────────────
 
@@ -448,7 +476,7 @@ describe("OrchestratorCommand", () => {
       store: new FlowStateStore(),
       activeFlow: new ActiveFlowRegistry(),
     });
-    const exitCmd = new FlowExitCommand({ supervisor, pi: trackedPi });
+    const exitCmd = new TestFlowExitCommand({ supervisor, pi: trackedPi });
     const personaEvent = { systemPrompt: "base prompt" };
 
     // Mount #1: one fresh handler injects the persona; tools untouched yet.

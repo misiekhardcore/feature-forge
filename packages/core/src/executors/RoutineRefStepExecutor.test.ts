@@ -1,6 +1,5 @@
 // Test-only value imports from cli: self-heal when cli test-utils
 // moves to core (S6) (#229).
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type {
   FlowDefinition,
@@ -10,6 +9,7 @@ import type {
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { describe, expect, it } from "vitest";
 
 import { TypedEventBus } from "../event-bus";

@@ -1,5 +1,5 @@
-import { makeMockPi } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus } from "@feature-forge/core";
+import { makeMockPi } from "@feature-forge/core/src/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { connectChildClient } from "./connectChildClient";

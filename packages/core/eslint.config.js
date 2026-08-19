@@ -5,10 +5,10 @@ export default [
   {
     // Layering contract (ADR 0020): core is the engine + platform layer and
     // must never import the cli package or the pi-TUI SDK - not in src, and
-    // not in scripts (flow validation tooling). Test files are exempt: core's
-    // unit tests legitimately use cli's test-utils (documented ADR 0019
-    // interim; the 31 test-file imports self-heal when test-utils moves). The
-    // rule enforces the production graph.
+    // not in scripts (flow validation tooling). Test files are exempt: a
+    // handful of core tests still construct cli production classes (flow
+    // routine tools and session tools, which stay in cli per D3) as
+    // fixtures. The rule enforces the production graph.
     files: ["src/**/*.ts", "scripts/**/*.ts"],
     rules: {
       "no-restricted-imports": [
