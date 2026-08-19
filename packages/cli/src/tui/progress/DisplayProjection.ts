@@ -7,8 +7,8 @@ import type { AccumulatedState } from "./AccumulatedState";
  *
  * This is the single display pipeline entry point: the routine tool forwards
  * every progress event here, and the renderer reads the resulting accumulated
- * state. The projection is a pure function — the only side effects are writes
- * to the passed-in state object.
+ * state. The projection is a deterministic fold over the event stream — the
+ * only mutation is writes to the passed-in state object.
  *
  * Stream-only events ("agent-stream" chunks) are deliberate no-ops: they are
  * high-frequency and carry no structural state transition.

@@ -7,9 +7,9 @@ import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-// Flows moved to core in S4f; script stays in cli until S8 (scripts -> core).
-const packagesDir = path.join(scriptDir, "..", "..");
-const coreFlowsDir = path.join(packagesDir, "core", "src", "flows");
+// Script lives in core/scripts; flows are core-owned.
+const coreDir = path.join(scriptDir, "..");
+const coreFlowsDir = path.join(coreDir, "src", "flows");
 
 const schemaPath = path.join(coreFlowsDir, "flow-schema.json");
 const flowJsonPattern = path.join(coreFlowsDir, "definitions", "**", "flow.json");
@@ -30,7 +30,7 @@ for (const filePath of flowFiles) {
   const dataRaw = fs.readFileSync(filePath, "utf-8");
   const data: Record<string, unknown> = jsonParse<Record<string, unknown>>(dataRaw);
   const valid = validateFunction(data);
-  const relativePath = path.relative(packagesDir, filePath);
+  const relativePath = path.relative(coreDir, filePath);
 
   if (valid) {
     console.log(`✓ ${relativePath}`);

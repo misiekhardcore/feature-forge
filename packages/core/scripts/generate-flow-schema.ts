@@ -110,8 +110,8 @@ const schema: Record<string, unknown> = {
 // ── Write ───────────────────────────────────────────────────
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-// cli/scripts → packages → core/src/flows (schema is core-owned since S4f)
-const outDir = path.join(scriptDir, "..", "..", "core", "src", "flows");
+// scripts → src/flows (schema is core-owned)
+const outDir = path.join(scriptDir, "..", "src", "flows");
 fs.mkdirSync(outDir, { recursive: true });
 
 const outPath = path.join(outDir, "flow-schema.json");

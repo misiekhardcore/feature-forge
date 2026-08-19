@@ -90,7 +90,7 @@ Releases are driven from GitHub — the **Release** workflow handles version bum
 Before releasing, regenerate the flow schema and verify it is in sync:
 
 1. `npm run flow:generate-schema`
-2. `git diff --exit-code -- packages/cli/src/flows/flow-schema.json` — must be clean, no drift
+2. `git diff --exit-code -- packages/core/src/flows/flow-schema.json` — must be clean, no drift
 3. `npm run flow:validate-json`
 
 The CI `schema` job runs exactly these steps on every push to `main` and every pull request targeting it (`.github/workflows/ci.yml`), so a stale schema fails the gate. All four CI jobs (`schema`, `quality`, `build`, `test`) must be green on `main` before triggering a release.
