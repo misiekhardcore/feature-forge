@@ -8,8 +8,6 @@ import type {
   RoutineRefInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { describe, expect, it } from "vitest";
@@ -786,125 +784,6 @@ describe("RoutineRefStepExecutor", () => {
           controller.signal,
         ),
       ).rejects.toThrow();
-    });
-  });
-
-  describe("getDisplayContribution", () => {
-    it("returns RoutineRefContribution for routine-ref events", () => {
-      const executor = new RoutineRefStepExecutor();
-
-      const startEvent: RoutineProgressEvent = {
-        phase: "routine-ref-start",
-        message: "started",
-        details: { instructionId: "r", target: "review", flow: "review" },
-      };
-      expect(executor.getDisplayContribution(startEvent)).toEqual({
-        type: "routine-ref",
-        flow: "review",
-        status: "started",
-        phase: "routine-ref-start",
-        message: "started",
-      });
-
-      const doneEvent: RoutineProgressEvent = {
-        phase: "routine-ref-done",
-        message: "done",
-        details: { instructionId: "r", target: "review", flow: "review", passed: true },
-      };
-      expect(executor.getDisplayContribution(doneEvent)).toEqual({
-        type: "routine-ref",
-        flow: "review",
-        status: "done",
-        phase: "routine-ref-done",
-        message: "done",
-      });
-
-      const errorEvent: RoutineProgressEvent = {
-        phase: "routine-ref-error",
-        message: "error",
-        details: { instructionId: "r", target: "review", flow: "review", stepId: "check_a" },
-      };
-      expect(executor.getDisplayContribution(errorEvent)).toEqual({
-        type: "routine-ref",
-        flow: "review",
-        status: "error",
-        phase: "routine-ref-error",
-        message: "error",
-      });
-    });
-
-    it("returns undefined for non-routine-ref events", () => {
-      const executor = new RoutineRefStepExecutor();
-      expect(
-        executor.getDisplayContribution({
-          phase: "agent-started",
-          message: "x",
-          details: { executionId: "e", agentId: "a" },
-        }),
-      ).toBeUndefined();
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("adds target flows to routineRefs in AccumulatedState", () => {
-      const executor = new RoutineRefStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-
-      registry.apply(state, [
-        {
-          type: "routine-ref",
-          flow: "review",
-          status: "started",
-          phase: "routine-ref-start",
-          message: "starting review",
-        },
-        {
-          type: "routine-ref",
-          flow: "verify",
-          status: "started",
-          phase: "routine-ref-start",
-          message: "starting verify",
-        },
-      ]);
-
-      expect(state.routineRefs).toEqual(["review", "verify"]);
-    });
-
-    it("does not duplicate flow names", () => {
-      const executor = new RoutineRefStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-
-      registry.apply(state, [
-        {
-          type: "routine-ref",
-          flow: "review",
-          status: "started",
-          phase: "routine-ref-start",
-          message: "start",
-        },
-        {
-          type: "routine-ref",
-          flow: "review",
-          status: "done",
-          phase: "routine-ref-done",
-          message: "done",
-        },
-        {
-          type: "routine-ref",
-          flow: "review",
-          status: "error",
-          phase: "routine-ref-error",
-          message: "error",
-        },
-      ]);
-
-      expect(state.routineRefs).toEqual(["review"]);
     });
   });
 });

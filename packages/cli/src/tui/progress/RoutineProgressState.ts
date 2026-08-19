@@ -1,9 +1,9 @@
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import type { AccumulatedState } from "./AccumulatedState";
 
 /**
  * Live progress state consumed by {@link import("./ProgressRenderer").ProgressRenderer}.
  *
- * The owning tool (e.g. {@link import("../RoutineTool").RoutineTool}) implements
+ * The owning tool (e.g. {@link import("../../tools/RoutineTool").RoutineTool}) implements
  * this interface and passes itself to the renderer constructor. All properties
  * are read-only from the renderer's perspective.
  */
@@ -12,9 +12,8 @@ export interface RoutineProgressState {
   readonly routineName: string;
 
   /**
-   * Accumulated {@link DisplayContribution} records from all step executors,
-   * in the order they were received. The renderer derives agent state,
-   * iteration counters, workspace path, and continueWhile from these records.
+   * Live accumulated progress state, folded from the event stream by the
+   * owning tool. The renderer reads it without mutating.
    */
-  readonly contributions: readonly DisplayContribution[];
+  readonly accumulatedState: AccumulatedState;
 }

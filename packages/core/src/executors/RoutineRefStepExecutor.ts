@@ -5,9 +5,6 @@ import type {
   FlowInstruction,
   RoutineRefInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 
 import type { TypedEventBus } from "../event-bus";
 import { FlowMapAware } from "./FlowMapAware";
@@ -240,51 +237,5 @@ export class RoutineRefStepExecutor
 
     const resultKey = instruction.output_as ?? instruction.id;
     return current.withResult(resultKey, result);
-  }
-
-  getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (event.phase === "routine-ref-start") {
-      return {
-        type: "routine-ref",
-        flow: event.details.flow,
-        status: "started",
-        phase: event.phase,
-        message: event.message,
-      };
-    }
-    if (event.phase === "routine-ref-done") {
-      return {
-        type: "routine-ref",
-        flow: event.details.flow,
-        status: "done",
-        phase: event.phase,
-        message: event.message,
-      };
-    }
-    if (event.phase === "routine-ref-error") {
-      return {
-        type: "routine-ref",
-        flow: event.details.flow,
-        status: "error",
-        phase: event.phase,
-        message: event.message,
-      };
-    }
-    return undefined;
-  }
-
-  registerDisplayHandler(registry: DisplayContributionRegistry): void {
-    registry.register("routine-ref", (state, contribution) => {
-      if (contribution.type !== "routine-ref") return;
-      // Defensive: routineRefs may not exist on AccumulatedState from
-      // older core progress versions. Initialise lazily so this executor
-      // works regardless of which progress vocabulary is resolved.
-      if (!state.routineRefs) {
-        state.routineRefs = [];
-      }
-      if (!state.routineRefs.includes(contribution.flow)) {
-        state.routineRefs.push(contribution.flow);
-      }
-    });
   }
 }

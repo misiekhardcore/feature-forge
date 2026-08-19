@@ -11,8 +11,13 @@ export type { RunningAgentEntry } from "./RunningAgentEntry";
 
 /**
  * Lifecycle statuses an agent entry can take in the viewer.
+ *
+ * This is the display-status vocabulary shared by the projection/accumulated
+ * state and the viewer types: {@link AccumulatedState} (in
+ * `tui/progress`) and the agent entry types in this directory key off this
+ * single union.
  */
-export type { AgentViewerEntryStatus } from "@feature-forge/core/src/progress/AgentViewerEntryStatus";
+export type AgentViewerEntryStatus = "started" | "running" | "done" | "error" | "cancelled";
 
 /**
  * Discriminated union of all possible agent entry states.

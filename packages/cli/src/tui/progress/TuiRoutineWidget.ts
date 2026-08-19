@@ -20,7 +20,7 @@ import type { ProgressWidget } from "./ProgressWidget";
  *
  * The class is domain-agnostic — it accepts pre-formatted widget lines
  * and status text. All formatting and state accumulation happens in the
- * caller (typically {@link import("../RoutineTool").RoutineTool}).
+ * caller (typically {@link import("../../tools/RoutineTool").RoutineTool}).
  */
 export class TuiRoutineWidget implements ProgressWidget {
   private readonly ctx: ExtensionContext;

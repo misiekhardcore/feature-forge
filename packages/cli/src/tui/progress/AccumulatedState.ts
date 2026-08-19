@@ -1,11 +1,12 @@
-import type { AgentViewerEntryStatus } from "./AgentViewerEntryStatus";
+import type { AgentViewerEntryStatus } from "../types";
 
 /**
  * Accumulated, derived progress state consumed by the TUI renderer.
  *
- * This is the single contract between step executors (who register handlers
- * on a {@link DisplayContributionRegistry}) and the renderer (who reads
- * these fields). Built from contributions via registered handlers.
+ * This is the single contract between the display projection
+ * ({@link import("./DisplayProjection").applyEvent}) and the renderer
+ * (who reads these fields). Built from routine progress events via
+ * {@link import("./DisplayProjection").applyEvent}.
  */
 export interface AccumulatedState {
   /** Agent ID → current status, summary, and parse result. */
@@ -33,7 +34,7 @@ export interface AccumulatedState {
  * Create a default/empty {@link AccumulatedState}.
  *
  * The returned object is a fresh mutable instance — the caller
- * (or the registry) owns and mutates it.
+ * (the tool or the projection) owns and mutates it.
  */
 export function createAccumulatedState(): AccumulatedState {
   return {

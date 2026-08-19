@@ -6,11 +6,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, jsonParse, logger } from "@feature-forge/core";
-import type {
-  AgentContribution,
-  DisplayContribution,
-} from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { showAgentViewerMock, realShowAgentViewer } = vi.hoisted(() => {
@@ -42,7 +37,6 @@ import type {
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
 import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
@@ -926,7 +920,7 @@ describe("RoutineTool", () => {
       expect(result.content).toHaveLength(1);
     });
 
-    it("tracks agent progress with correct agentId mapping through display contributions", async () => {
+    it("tracks agent progress with correct agentId mapping through the display projection", async () => {
       const mockUi = {
         setWidget: vi.fn(),
         setStatus: vi.fn(),
@@ -936,47 +930,13 @@ describe("RoutineTool", () => {
       };
       const ctx = { ui: mockUi } as unknown as ExtensionContext;
 
-      // Register a fake agent executor that fires started/done events AND
-      // provides getDisplayContribution so RoutineTool can extract agent state.
+      // Register a fake agent executor that fires started/done events with
+      // agentId in the details so the display projection can track agent state.
       const registry = new StepExecutorRegistry();
       registry.register(
         () =>
           new (class extends StepExecutor {
             readonly type = "agent";
-
-            override registerDisplayHandler(registry: DisplayContributionRegistry): void {
-              registry.register("agent", (state, contribution) => {
-                if (contribution.type !== "agent") return;
-                if (contribution.agentId && contribution.agentStatus) {
-                  state.agentMap.set(contribution.agentId, {
-                    status: contribution.agentStatus,
-                    summary: contribution.agentSummary,
-                    passed: contribution.agentPassed,
-                  });
-                }
-              });
-            }
-
-            override getDisplayContribution(
-              event: RoutineProgressEvent,
-            ): DisplayContribution | undefined {
-              if (!event.phase.startsWith("agent-")) return undefined;
-              const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
-              if (!agentId) return undefined;
-              const agentStatus =
-                event.phase === "agent-started"
-                  ? "started"
-                  : event.phase === "agent-done"
-                    ? "done"
-                    : "running";
-              return {
-                type: "agent",
-                agentId,
-                agentStatus,
-                phase: event.phase,
-                message: event.message,
-              };
-            }
 
             async execute(
               instruction: FlowInstruction,
@@ -992,12 +952,12 @@ describe("RoutineTool", () => {
               eventBus.emit("feature-forge:agent-started", {
                 phase: "agent-started",
                 message: `Agent "${instruction.id}" (build) started`,
-                details: {},
+                details: { executionId: "exec-1", agentId: instruction.id },
               });
               eventBus.emit("feature-forge:agent-done", {
                 phase: "agent-done",
                 message: `Agent "${instruction.id}" completed`,
-                details: {},
+                details: { executionId: "exec-1", agentId: instruction.id },
               });
               return context;
             }
@@ -1119,36 +1079,14 @@ describe("RoutineTool", () => {
       expect(eventBus.raw.on).toHaveBeenCalled();
     });
 
-    it("extracts executionId from display contributions and accumulates them", async () => {
-      // Register a fake agent executor that emits events with executionId
-      // and provides getDisplayContribution that returns executionId.
+    it("folds agent lifecycle events into the accumulated state", async () => {
+      // Register a fake agent executor that emits started/done events with
+      // executionId + agentId in the details.
       const registry = new StepExecutorRegistry();
       registry.register(
         () =>
           new (class extends StepExecutor {
             readonly type = "agent";
-
-            override getDisplayContribution(
-              event: RoutineProgressEvent,
-            ): DisplayContribution | undefined {
-              if (!event.phase.startsWith("agent-")) return undefined;
-              const agentId = /Agent "([^"]+)"/.exec(event.message)?.[1];
-              if (!agentId) return undefined;
-              return {
-                type: "agent",
-                executionId: (event.details as { executionId: string }).executionId,
-                agentId,
-                agentStatus:
-                  event.phase === "agent-started"
-                    ? "started"
-                    : event.phase === "agent-done"
-                      ? "done"
-                      : "running",
-                streamEvent: event.phase === "agent-stream" ? event.details.event : undefined,
-                phase: event.phase,
-                message: event.message,
-              };
-            }
 
             async execute(
               instruction: FlowInstruction,
@@ -1165,12 +1103,12 @@ describe("RoutineTool", () => {
               eventBus.emit("feature-forge:agent-started", {
                 phase: "agent-started",
                 message: `Agent "${instruction.id}" (build) started`,
-                details: { executionId: execId },
+                details: { executionId: execId, agentId: instruction.id },
               });
               eventBus.emit("feature-forge:agent-done", {
                 phase: "agent-done",
                 message: `Agent "${instruction.id}" completed`,
-                details: { executionId: execId, summary: "All OK" },
+                details: { executionId: execId, agentId: instruction.id, summary: "All OK" },
               });
               return context;
             }
@@ -1204,22 +1142,11 @@ describe("RoutineTool", () => {
 
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
-      // Contributions should include executionId from the emitted events.
-      const contributions = tool.contributions;
-      const startedContribution = contributions.find(
-        (c): c is AgentContribution => c.type === "agent" && c.agentStatus === "started",
-      );
-      const doneContribution = contributions.find(
-        (c): c is AgentContribution => c.type === "agent" && c.agentStatus === "done",
-      );
-
-      expect(startedContribution).toBeDefined();
-      expect(startedContribution!.executionId).toBe("exec-test-99");
-      expect(startedContribution!.agentId).toBe("builder");
-
-      expect(doneContribution).toBeDefined();
-      expect(doneContribution!.executionId).toBe("exec-test-99");
-      expect(doneContribution!.agentId).toBe("builder");
+      // Accumulated state should reflect the folded agent lifecycle events.
+      const acc = tool.accumulatedState;
+      expect(acc.agentMap.has("builder")).toBe(true);
+      expect(acc.agentMap.get("builder")?.status).toBe("done");
+      expect(acc.agentMap.get("builder")?.summary).toBe("All OK");
     });
 
     it("creates agent viewer overlay via ctx.ui.custom in TUI mode", async () => {

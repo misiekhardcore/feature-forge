@@ -5,10 +5,6 @@ import { randomUUID } from "node:crypto";
 import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { WorkspaceInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "@feature-forge/core/src/workspace/WorkspaceProvider";
@@ -281,78 +277,6 @@ describe("WorkspaceStepExecutor", () => {
     });
   });
 
-  describe("getDisplayContribution", () => {
-    it("returns contribution with workspace path and branch from workspace-ready event", () => {
-      const wm = stubWorkspaceManager(
-        undefined as unknown as WorkspaceProvider,
-        stubWorktreeRegistry(),
-      );
-      const executor = new WorkspaceStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        wm,
-      );
-
-      const event = {
-        phase: "workspace-ready",
-        message: "Workspace created",
-        details: { path: "/test/ws-abc", branch: "forge/ws-abc" },
-      } as unknown as RoutineProgressEvent;
-
-      const contribution = executor.getDisplayContribution(event);
-
-      expect(contribution).toBeDefined();
-      const wsContrib = contribution! as DisplayContribution & {
-        workspace: string;
-        branch: string;
-      };
-      expect(wsContrib.workspace).toBe("/test/ws-abc");
-      expect(wsContrib.branch).toBe("forge/ws-abc");
-      expect(contribution!.phase).toBe("workspace-ready");
-      expect(contribution!.message).toBe("Workspace created");
-    });
-
-    it("returns undefined for non-workspace-ready events", () => {
-      const wm = stubWorkspaceManager(
-        undefined as unknown as WorkspaceProvider,
-        stubWorktreeRegistry(),
-      );
-      const executor = new WorkspaceStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        wm,
-      );
-
-      const event = {
-        phase: "agent-started",
-        message: "Agent started",
-        details: {},
-      } as unknown as RoutineProgressEvent;
-
-      expect(executor.getDisplayContribution(event)).toBeUndefined();
-    });
-
-    it("returns undefined when path is not a string", () => {
-      const wm = stubWorkspaceManager(
-        undefined as unknown as WorkspaceProvider,
-        stubWorktreeRegistry(),
-      );
-      const executor = new WorkspaceStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        wm,
-      );
-
-      const event = {
-        phase: "workspace-ready",
-        message: "Workspace created",
-        details: {},
-      } as unknown as RoutineProgressEvent;
-
-      expect(executor.getDisplayContribution(event)).toBeUndefined();
-    });
-  });
-
   describe("execute — branch", () => {
     it("passes branch to WorkspaceHandle", async () => {
       const provider = new CountingProvider();
@@ -451,58 +375,6 @@ describe("WorkspaceStepExecutor", () => {
       expect(createSpy).toHaveBeenCalledWith(expect.stringContaining("ws-"), {
         branch: "forge/ws-00000000",
       });
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers a workspace handler that updates workspace and branch", () => {
-      const wm = stubWorkspaceManager(
-        undefined as unknown as WorkspaceProvider,
-        new WorktreeRegistry(),
-      );
-      const executor = new WorkspaceStepExecutor(
-        new WorkspaceProviderRegistry(),
-        new WorktreeRegistry(),
-        wm,
-      );
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [
-        {
-          type: "workspace",
-          workspace: "/tmp/ws-123",
-          branch: "feature/test",
-          phase: "test",
-          message: "test",
-        },
-      ]);
-
-      expect(state.workspace).toBe("/tmp/ws-123");
-      expect(state.branch).toBe("feature/test");
-    });
-
-    it("does not set branch when contribution has no branch field", () => {
-      const wm = stubWorkspaceManager(
-        undefined as unknown as WorkspaceProvider,
-        new WorktreeRegistry(),
-      );
-      const executor = new WorkspaceStepExecutor(
-        new WorkspaceProviderRegistry(),
-        new WorktreeRegistry(),
-        wm,
-      );
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [
-        { type: "workspace", workspace: "/tmp/ws-456", phase: "test", message: "test" },
-      ]);
-
-      expect(state.workspace).toBe("/tmp/ws-456");
-      expect(state.branch).toBeUndefined();
     });
   });
 });

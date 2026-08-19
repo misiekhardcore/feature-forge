@@ -8,10 +8,6 @@ import type {
   LoopInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { describe, expect, it } from "vitest";
 
 import { LoopStepExecutor } from "./LoopStepExecutor";
@@ -579,108 +575,6 @@ describe("LoopStepExecutor", () => {
       );
 
       expect(result.results.get("l")!.parsed!.passed).toBe(true);
-    });
-  });
-
-  describe("getDisplayContribution", () => {
-    const executor = new LoopStepExecutor();
-
-    it("returns iteration and maxIterations for loop-round-start events", () => {
-      const contrib = executor.getDisplayContribution({
-        phase: "loop-round-start",
-        message: 'Loop "l" — round 2/5',
-        details: { round: 2, maxIterations: 5 },
-      } satisfies RoutineProgressEvent);
-
-      expect(contrib).toBeDefined();
-      expect(contrib!.type).toBe("loop");
-      const loopContrib = contrib! as DisplayContribution & {
-        type: "loop";
-        iteration: number;
-        maxIterations: number;
-      };
-      expect(loopContrib.iteration).toBe(1); // rounds - 1 (0-based)
-      expect(loopContrib.maxIterations).toBe(5);
-    });
-
-    it("returns iteration and maxIterations for loop-round-complete events", () => {
-      const contrib = executor.getDisplayContribution({
-        phase: "loop-round-complete",
-        message: 'Loop "l" — round 3 complete',
-        details: { round: 3, maxIterations: 3 },
-      } satisfies RoutineProgressEvent);
-
-      expect(contrib).toBeDefined();
-      expect(contrib!.type).toBe("loop");
-      const loopContrib = contrib! as DisplayContribution & {
-        type: "loop";
-        iteration: number;
-        maxIterations: number;
-      };
-      expect(loopContrib.iteration).toBe(2);
-      expect(loopContrib.maxIterations).toBe(3);
-    });
-
-    it("defaults maxIterations to 0 when not present in details", () => {
-      const contrib = executor.getDisplayContribution({
-        phase: "loop-round-start",
-        message: "Loop started",
-        // @ts-expect-error checking edge case
-        details: { round: 1 },
-      } satisfies RoutineProgressEvent);
-
-      expect(contrib).toBeDefined();
-      const loopContrib = contrib! as DisplayContribution & { type: "loop"; maxIterations: number };
-      expect(loopContrib.maxIterations).toBe(0);
-    });
-
-    it("returns undefined for non-loop phase events", () => {
-      const contrib = executor.getDisplayContribution({
-        phase: "agent-started",
-        message: "Agent started",
-        details: { agentId: "", executionId: "" },
-      } satisfies RoutineProgressEvent);
-
-      expect(contrib).toBeUndefined();
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers a loop handler that updates iteration and maxIterations", () => {
-      const executor = new LoopStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [
-        {
-          type: "loop",
-          iteration: 0,
-          maxIterations: 3,
-          continueWhile: "x < 5",
-          phase: "test",
-          message: "test",
-        },
-      ]);
-
-      expect(state.iteration).toBe(0);
-      expect(state.maxIterations).toBe(3);
-      expect(state.continueWhile).toBe("x < 5");
-    });
-
-    it("only sets fields that are present in the contribution", () => {
-      const executor = new LoopStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [
-        { type: "loop", iteration: 1, maxIterations: 0, phase: "test", message: "test" },
-      ]);
-
-      expect(state.iteration).toBe(1);
-      expect(state.maxIterations).toBe(0);
-      expect(state.continueWhile).toBeUndefined();
     });
   });
 });

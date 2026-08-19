@@ -1,8 +1,5 @@
 import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { FlowInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 
 import type { TypedEventBus } from "../event-bus";
 
@@ -37,33 +34,4 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
     eventBus: TypedEventBus,
     signal?: AbortSignal,
   ): Promise<FlowContext>;
-
-  /**
-   * Extract display-relevant fields from a progress event.
-   *
-   * Each concrete executor returns a {@link DisplayContribution} with the
-   * subset of fields it owns (agents return agentId/status, loops return
-   * iteration info, workspaces return the path). The default returns
-   * `undefined`, meaning "no contribution".
-   *
-   * Consumers iterate all executors in the registry, call this for each
-   * event, and merge non-undefined contributions into an accumulated
-   * display snapshot.
-   */
-  getDisplayContribution(_event: RoutineProgressEvent): DisplayContribution | undefined {
-    return undefined;
-  }
-
-  /**
-   * Register a handler on the given registry that applies this executor's
-   * contribution type to an AccumulatedState.
-   *
-   * The default is a no-op. Override in executors that produce
-   * {@link DisplayContribution} instances so consumer code (e.g. a
-   * ProgressRenderer) can build an accumulated snapshot via
-   * {@link DisplayContributionRegistry.apply}.
-   */
-  registerDisplayHandler(_registry: DisplayContributionRegistry): void {
-    // no-op by default
-  }
 }

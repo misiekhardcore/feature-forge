@@ -30,9 +30,6 @@ vi.mock("node:child_process", () => ({
 import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { ShellInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 
 import { ShellStepExecutor } from "./ShellStepExecutor";
@@ -593,66 +590,6 @@ describe("ShellStepExecutor", () => {
           }),
         );
       });
-    });
-
-    describe("getDisplayContribution", () => {
-      it("returns contribution with prUrl from shell-done event", () => {
-        const executor = new ShellStepExecutor();
-
-        const event = {
-          phase: "shell-done",
-          message: "Shell completed",
-          details: { prUrl: "https://github.com/owner/repo/pull/42", passed: true, summary: "" },
-        } satisfies RoutineProgressEvent;
-
-        const contribution = executor.getDisplayContribution(event);
-
-        expect(contribution).toBeDefined();
-        expect(contribution!.phase).toBe("shell-done");
-        expect(contribution!.message).toBe("https://github.com/owner/repo/pull/42");
-      });
-
-      it("returns undefined for shell-done events without prUrl", () => {
-        const executor = new ShellStepExecutor();
-
-        const event = {
-          phase: "shell-done",
-          message: "Shell completed",
-          details: { passed: true, summary: "" },
-        } satisfies RoutineProgressEvent;
-
-        expect(executor.getDisplayContribution(event)).toBeUndefined();
-      });
-
-      it("returns undefined for non-shell-done events", () => {
-        const executor = new ShellStepExecutor();
-
-        const event = {
-          phase: "shell-start",
-          message: "Shell started",
-          details: {},
-        } satisfies RoutineProgressEvent;
-
-        expect(executor.getDisplayContribution(event)).toBeUndefined();
-      });
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers a shell handler that does not modify accumulated state", () => {
-      const executor = new ShellStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [
-        { type: "status", phase: "shell-done", message: "https://github.com/owner/repo/pull/1" },
-      ]);
-
-      // Shell handler is a no-op — state should remain default
-      expect(state.agentMap.size).toBe(0);
-      expect(state.iteration).toBe(0);
-      expect(state.workspace).toBeUndefined();
     });
   });
 });

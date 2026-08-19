@@ -16,10 +16,7 @@ interface RoutineResultLike {
   passed?: boolean;
 }
 
-import type { AccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-
+import type { AccumulatedState } from "./AccumulatedState";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
 // ── Theme-like contract (looser than pi's Theme) ────────────
@@ -205,17 +202,14 @@ export class ProgressRenderer {
   // ── Instance (reads live state) ────────────────────────────
 
   private readonly state: RoutineProgressState;
-  private readonly registry: DisplayContributionRegistry;
 
   /**
    * @param state — Live progress state (typically the {@link RoutineTool} itself).
-   * @param registry — Registry of handlers that apply contributions to an
-   *   {@link AccumulatedState}. Step executors register their handlers via
-   *   {@link registerDisplayHandler} when the registry is wired up.
+   *   Its `accumulatedState` is already folded from the event stream by the
+   *   owning tool — the renderer only reads it.
    */
-  constructor(state: RoutineProgressState, registry: DisplayContributionRegistry) {
+  constructor(state: RoutineProgressState) {
     this.state = state;
-    this.registry = registry;
   }
 
   /**
@@ -228,8 +222,7 @@ export class ProgressRenderer {
     const state = this.state;
     return {
       render: (width: number) => {
-        const acc = createAccumulatedState();
-        this.registry.apply(acc, state.contributions);
+        const acc = this.state.accumulatedState;
         const runningIcon = ProgressRenderer.statusIcon("running", theme);
         const parts = [`${runningIcon} ${state.routineName}`];
         if (acc.maxIterations > 0) {
@@ -273,8 +266,7 @@ export class ProgressRenderer {
 
     const passed = result.details?.passed ?? false;
     const icon = ProgressRenderer.statusIcon("done", theme, passed);
-    const acc = createAccumulatedState();
-    this.registry.apply(acc, this.state.contributions);
+    const acc = this.state.accumulatedState;
     const suffix = ProgressRenderer.buildResultSuffix(acc, result.details);
 
     return {
@@ -297,8 +289,7 @@ export class ProgressRenderer {
   renderToWidget(widget: ProgressWidget, theme: Theme): void {
     const { state } = this;
 
-    const acc = createAccumulatedState();
-    this.registry.apply(acc, state.contributions);
+    const acc = state.accumulatedState;
 
     const rows: string[] = [];
     for (const [label, agent] of acc.agentMap) {

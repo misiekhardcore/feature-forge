@@ -3,10 +3,6 @@
 import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { CleanupInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
@@ -367,118 +363,6 @@ describe("CleanupStepExecutor", () => {
 
       expect(goodProvider.destroyedPaths).toContain("/fake/ws1");
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
-    });
-  });
-
-  describe("getDisplayContribution", () => {
-    it("returns phase, message, and workspace from cleanup-done event", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        undefined as unknown as WorkspaceManager,
-      );
-
-      const event = {
-        phase: "cleanup-done",
-        message: "Cleanup completed",
-        details: { workspace: "/fake/ws1", executionId: "" },
-      } satisfies RoutineProgressEvent;
-
-      const contribution = executor.getDisplayContribution(event);
-
-      expect(contribution).toBeDefined();
-      expect(contribution!.phase).toBe("cleanup-done");
-      expect(contribution!.message).toBe("Cleanup completed");
-      const statusContrib = contribution! as DisplayContribution & { workspace?: string };
-      expect(statusContrib.workspace).toBe("/fake/ws1");
-    });
-
-    it("returns contribution without workspace when details have none", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        undefined as unknown as WorkspaceManager,
-      );
-
-      const event = {
-        phase: "cleanup-done",
-        message: "No workspaces cleaned",
-        details: {},
-      } satisfies RoutineProgressEvent;
-
-      const contribution = executor.getDisplayContribution(event);
-
-      expect(contribution).toBeDefined();
-      expect(contribution!.phase).toBe("cleanup-done");
-      expect(contribution!.message).toBe("No workspaces cleaned");
-      const statusContrib = contribution! as DisplayContribution & { workspace?: string };
-      expect(statusContrib.workspace).toBeUndefined();
-    });
-
-    it("returns undefined for non-cleanup-done events", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        undefined as unknown as WorkspaceManager,
-      );
-
-      const event: RoutineProgressEvent = {
-        phase: "cleanup-start",
-        message: "Cleanup starting",
-        details: {},
-      };
-
-      expect(executor.getDisplayContribution(event)).toBeUndefined();
-    });
-
-    it("returns undefined for unrelated events", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        undefined as unknown as WorkspaceManager,
-      );
-
-      const event = {
-        phase: "agent-started",
-        message: "Agent started",
-        details: { agentId: "", executionId: "" },
-      } satisfies RoutineProgressEvent;
-
-      expect(executor.getDisplayContribution(event)).toBeUndefined();
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("registers a cleanup handler that updates workspace in accumulated state", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        undefined as unknown as WorkspaceManager,
-      );
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [
-        { type: "status", workspace: "/tmp/ws-123", phase: "cleanup-done", message: "done" },
-      ]);
-
-      expect(state.workspace).toBe("/tmp/ws-123");
-    });
-
-    it("does not set workspace when contribution has no workspace field", () => {
-      const executor = new CleanupStepExecutor(
-        new WorkspaceProviderRegistry(),
-        stubWorktreeRegistry(),
-        undefined as unknown as WorkspaceManager,
-      );
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      registry.apply(state, [{ type: "status", phase: "cleanup-done", message: "done" }]);
-
-      expect(state.workspace).toBeUndefined();
     });
   });
 });

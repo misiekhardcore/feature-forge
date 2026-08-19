@@ -8,8 +8,6 @@ import type {
   FlowInstruction,
   ShellInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 
 import type { TypedEventBus } from "../event-bus";
 import { StepExecutor } from "./StepExecutor";
@@ -170,20 +168,5 @@ export class ShellStepExecutor extends StepExecutor<ShellInstruction> {
         `Shell step "${instructionId}": working directory "${cwd}" does not exist or is not a directory.`,
       );
     }
-  }
-
-  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (event.phase !== "shell-done") {
-      return undefined;
-    }
-    const prUrl = event.details.prUrl;
-    if (typeof prUrl !== "string") {
-      return undefined;
-    }
-    return {
-      type: "status",
-      phase: event.phase,
-      message: prUrl,
-    };
   }
 }

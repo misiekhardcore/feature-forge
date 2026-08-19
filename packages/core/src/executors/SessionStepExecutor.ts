@@ -3,10 +3,6 @@ import type {
   FlowInstruction,
   SessionInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { AccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 
 import type { TypedEventBus } from "../event-bus";
 import { StepExecutor } from "./StepExecutor";
@@ -42,26 +38,5 @@ export class SessionStepExecutor extends StepExecutor<SessionInstruction> {
       details: { key: resolvedKey, value: resolvedValue },
     });
     return context;
-  }
-
-  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (event.phase === "session-set") {
-      return {
-        type: "session",
-        params: { [event.details.key]: event.details.value },
-        phase: event.phase,
-        message: event.message,
-      };
-    }
-    return undefined;
-  }
-
-  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
-    registry.register("session", (state: AccumulatedState, contribution) => {
-      if (contribution.type !== "session") return;
-      const entries = Object.entries(contribution.params);
-      const snippet = entries.map(([k, v]) => `${k}: ${v}`).join(", ");
-      state.resultSnippet = state.resultSnippet ? `${state.resultSnippet}, ${snippet}` : snippet;
-    });
   }
 }

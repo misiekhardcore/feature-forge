@@ -4,9 +4,6 @@ import type {
   CleanupInstruction,
   FlowInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type {
   WorkspaceManager,
   WorkspaceProviderRegistry,
@@ -152,30 +149,5 @@ export class CleanupStepExecutor extends StepExecutor<CleanupInstruction> {
       if (handle.path === path) return handle;
     }
     return undefined;
-  }
-
-  /**
-   * Extract display contribution from a cleanup-done event.
-   */
-  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
-    registry.register("status", (state, contribution) => {
-      if (contribution.type !== "status") return;
-      if (contribution.workspace !== undefined) {
-        state.workspace = contribution.workspace;
-      }
-    });
-  }
-
-  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (event.phase !== "cleanup-done") {
-      return undefined;
-    }
-    const workspace = event.details.workspace;
-    return {
-      type: "status",
-      phase: event.phase,
-      message: event.message,
-      ...(typeof workspace === "string" ? { workspace } : {}),
-    };
   }
 }

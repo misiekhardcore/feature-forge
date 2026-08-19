@@ -5,9 +5,6 @@ import type {
   FlowInstruction,
   LoopInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 
 import type { TypedEventBus } from "../event-bus";
 import { collectAllIds } from "./helpers";
@@ -180,45 +177,5 @@ export class LoopStepExecutor extends StepExecutor<LoopInstruction> {
     };
 
     return current.withResult(instruction.id, loopResult);
-  }
-
-  /**
-   * Extract loop iteration info from a progress event.
-   *
-   * Only contributes for {@code loop-round-*} phase events.
-   */
-  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
-    registry.register("loop", (state, contribution) => {
-      if (contribution.type !== "loop") return;
-      if (contribution.iteration !== undefined) {
-        state.iteration = contribution.iteration;
-      }
-      if (contribution.maxIterations !== undefined) {
-        state.maxIterations = contribution.maxIterations;
-      }
-      if (contribution.continueWhile !== undefined) {
-        state.continueWhile = contribution.continueWhile;
-      }
-    });
-  }
-
-  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (!event.phase.startsWith("loop-")) {
-      return undefined;
-    }
-    const details = event.details as {
-      round?: number;
-      maxIterations?: number;
-      continueWhile?: string;
-    };
-    const maxIterations = typeof details.maxIterations === "number" ? details.maxIterations : 0;
-    return {
-      type: "loop",
-      iteration: (details.round ?? 1) - 1,
-      maxIterations,
-      continueWhile: details.continueWhile,
-      phase: event.phase,
-      message: event.message,
-    };
   }
 }

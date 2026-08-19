@@ -4,11 +4,12 @@ import type {
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AccumulatedState } from "./AccumulatedState";
+import { createAccumulatedState } from "./AccumulatedState";
+import { applyEvent } from "./DisplayProjection";
 import { ProgressRenderer } from "./ProgressRenderer";
 import type { RoutineProgressState } from "./RoutineProgressState";
 
@@ -30,6 +31,20 @@ const theme = makeTheme();
 /** Minimal mock widget for renderToWidget tests. */
 function makeMockWidget() {
   return { render: vi.fn(), clear: vi.fn() };
+}
+
+/** Build an accumulated state by folding the given events through the projection. */
+function makeAcc(events: RoutineProgressEvent[]): AccumulatedState {
+  const acc = createAccumulatedState();
+  for (const event of events) {
+    applyEvent(acc, event);
+  }
+  return acc;
+}
+
+/** Build a live RoutineProgressState fixture from folded events. */
+function makeState(routineName: string, events: RoutineProgressEvent[]): RoutineProgressState {
+  return { routineName, accumulatedState: makeAcc(events) };
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -85,34 +100,38 @@ describe("ProgressRenderer", () => {
   });
 
   describe("buildResultSuffix", () => {
-    function makeAcc(snippet?: string) {
+    function makeAccWithSnippet(snippet?: string) {
       const acc = createAccumulatedState();
       acc.resultSnippet = snippet;
       return acc;
     }
 
     it("returns the accumulated resultSnippet when present (wins over failed details)", () => {
-      expect(ProgressRenderer.buildResultSuffix(makeAcc("ws: forge-ws"), { passed: false })).toBe(
-        "ws: forge-ws",
-      );
+      expect(
+        ProgressRenderer.buildResultSuffix(makeAccWithSnippet("ws: forge-ws"), { passed: false }),
+      ).toBe("ws: forge-ws");
     });
 
     it("returns the accumulated resultSnippet when present (wins over passed details)", () => {
-      expect(ProgressRenderer.buildResultSuffix(makeAcc("pr: #42"), { passed: true })).toBe(
-        "pr: #42",
-      );
+      expect(
+        ProgressRenderer.buildResultSuffix(makeAccWithSnippet("pr: #42"), { passed: true }),
+      ).toBe("pr: #42");
     });
 
     it("falls back to 'passed' when no snippet and result passed", () => {
-      expect(ProgressRenderer.buildResultSuffix(makeAcc(), { passed: true })).toBe("passed");
+      expect(ProgressRenderer.buildResultSuffix(makeAccWithSnippet(), { passed: true })).toBe(
+        "passed",
+      );
     });
 
     it("falls back to 'failed' when no snippet and result failed", () => {
-      expect(ProgressRenderer.buildResultSuffix(makeAcc(), { passed: false })).toBe("failed");
+      expect(ProgressRenderer.buildResultSuffix(makeAccWithSnippet(), { passed: false })).toBe(
+        "failed",
+      );
     });
 
     it("falls back to 'failed' when no snippet and details is undefined", () => {
-      expect(ProgressRenderer.buildResultSuffix(makeAcc(), undefined)).toBe("failed");
+      expect(ProgressRenderer.buildResultSuffix(makeAccWithSnippet(), undefined)).toBe("failed");
     });
   });
 
@@ -280,11 +299,10 @@ describe("ProgressRenderer", () => {
 
   describe("buildResultComponent", () => {
     function makeRenderer() {
-      const state: RoutineProgressState = {
+      return new ProgressRenderer({
         routineName: "test-routine",
-        contributions: [],
-      };
-      return new ProgressRenderer(state, new DisplayContributionRegistry());
+        accumulatedState: createAccumulatedState(),
+      });
     }
 
     it("renders running state with started icon in partial mode", () => {
@@ -330,26 +348,19 @@ describe("ProgressRenderer", () => {
     });
 
     it("uses resultSnippet from accumulated state instead of buildResultSuffix", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("session", (state, contribution) => {
-        if (contribution.type === "session") {
-          const entries = Object.entries(contribution.params);
-          state.resultSnippet = entries.map(([k, v]) => `${k}: ${v}`).join(", ");
-        }
-      });
-
-      const state: RoutineProgressState = {
-        routineName: "test-routine",
-        contributions: [
-          {
-            type: "session",
-            params: { ws: "/tmp/forge-ws", branch: "forge/ws-abc" },
-            phase: "session-set",
-            message: "Session param set",
-          },
-        ],
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      const state = makeState("test-routine", [
+        {
+          phase: "session-set",
+          message: "Session param set",
+          details: { key: "ws", value: "/tmp/forge-ws" },
+        },
+        {
+          phase: "session-set",
+          message: "Session param set",
+          details: { key: "branch", value: "forge/ws-abc" },
+        },
+      ]);
+      const renderer = new ProgressRenderer(state);
 
       const result: AgentToolResult<TestResult> = {
         content: [],
@@ -365,12 +376,7 @@ describe("ProgressRenderer", () => {
     });
 
     it("falls back to buildResultSuffix when accumulated state has no resultSnippet", () => {
-      const registry = new DisplayContributionRegistry();
-      const state: RoutineProgressState = {
-        routineName: "test-routine",
-        contributions: [],
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      const renderer = makeRenderer();
 
       const result: AgentToolResult<TestResult> = {
         content: [],
@@ -387,12 +393,10 @@ describe("ProgressRenderer", () => {
 
   describe("buildCallComponent", () => {
     it("renders routine name with pending state when no agents", () => {
-      const registry = new DisplayContributionRegistry();
-      const state: RoutineProgressState = {
+      const renderer = new ProgressRenderer({
         routineName: "build-routine",
-        contributions: [],
-      };
-      const renderer = new ProgressRenderer(state, registry);
+        accumulatedState: createAccumulatedState(),
+      });
       const component = renderer.buildCallComponent(theme);
       const lines = component.render(80);
       expect(lines[0]).toContain("⟳");
@@ -400,51 +404,25 @@ describe("ProgressRenderer", () => {
       expect(lines[0]).toContain("pending");
     });
 
-    it("renders with agent count from registry", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("agent", (state, contribution) => {
-        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
-          state.agentMap.set(contribution.agentId, { status: contribution.agentStatus });
-        }
-      });
-      registry.register("loop", (state, contribution) => {
-        if (contribution.type === "loop") {
-          state.iteration = contribution.iteration;
-          state.maxIterations = contribution.maxIterations;
-        }
-      });
-
-      const contributions: DisplayContribution[] = [
+    it("renders with agent count from accumulated state", () => {
+      const state = makeState("build-routine", [
         {
-          type: "agent",
-          agentId: "builder",
-          agentStatus: "started",
           phase: "agent-started",
           message: "started",
+          details: { executionId: "e1", agentId: "builder" },
         },
         {
-          type: "agent",
-          agentId: "tester",
-          agentStatus: "done",
-          agentPassed: true,
-          agentSummary: "All passed",
           phase: "agent-done",
           message: "completed",
+          details: { executionId: "e1", agentId: "tester", passed: true, summary: "All passed" },
         },
         {
-          type: "loop",
-          iteration: 0,
-          maxIterations: 3,
           phase: "loop-round-start",
           message: "round 1",
+          details: { round: 1, maxIterations: 3 },
         },
-      ];
-
-      const state: RoutineProgressState = {
-        routineName: "build-routine",
-        contributions,
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      ]);
+      const renderer = new ProgressRenderer(state);
       const component = renderer.buildCallComponent(theme);
       const lines = component.render(80);
       expect(lines[0]).toContain("⟳");
@@ -454,26 +432,14 @@ describe("ProgressRenderer", () => {
     });
 
     it("renders with no iteration info when no loop contributions", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("agent", (state, contribution) => {
-        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
-          state.agentMap.set(contribution.agentId, { status: contribution.agentStatus });
-        }
-      });
-      const contributions: DisplayContribution[] = [
+      const state = makeState("build-routine", [
         {
-          type: "agent",
-          agentId: "builder",
-          agentStatus: "started",
           phase: "agent-started",
           message: "started",
+          details: { executionId: "e1", agentId: "builder" },
         },
-      ];
-      const state: RoutineProgressState = {
-        routineName: "build-routine",
-        contributions,
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      ]);
+      const renderer = new ProgressRenderer(state);
       const component = renderer.buildCallComponent(theme);
       const lines = component.render(80);
       expect(lines[0]).toContain("⟳");
@@ -485,67 +451,34 @@ describe("ProgressRenderer", () => {
 
   describe("renderToWidget", () => {
     it("renders to widget with correct lines and status text", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("agent", (state, contribution) => {
-        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
-          state.agentMap.set(contribution.agentId, {
-            status: contribution.agentStatus,
-            summary: contribution.agentSummary,
-            passed: contribution.agentPassed,
-          });
-        }
-      });
-      registry.register("loop", (state, contribution) => {
-        if (contribution.type === "loop") {
-          state.iteration = contribution.iteration;
-          state.maxIterations = contribution.maxIterations;
-        }
-      });
-      registry.register("workspace", (state, contribution) => {
-        if (contribution.type === "workspace") {
-          state.workspace = contribution.workspace;
-          state.branch = contribution.branch;
-        }
-      });
-
-      const contributions: DisplayContribution[] = [
+      const state = makeState("my-routine", [
         {
-          type: "workspace",
-          workspace: "/tmp/my-ws",
-          branch: "forge/ws-abc",
           phase: "workspace-ready",
           message: "ready",
+          details: { path: "/tmp/my-ws", branch: "forge/ws-abc" },
         },
         {
-          type: "agent",
-          agentId: "builder",
-          agentStatus: "started",
           phase: "agent-started",
           message: "started",
+          details: { executionId: "e1", agentId: "builder" },
         },
         {
-          type: "agent",
-          agentId: "tester",
-          agentStatus: "done",
-          agentPassed: true,
-          agentSummary: "All tests passed",
           phase: "agent-done",
           message: "completed",
+          details: {
+            executionId: "e1",
+            agentId: "tester",
+            passed: true,
+            summary: "All tests passed",
+          },
         },
         {
-          type: "loop",
-          iteration: 1,
-          maxIterations: 3,
           phase: "loop-round-start",
           message: "round 2",
+          details: { round: 2, maxIterations: 3 },
         },
-      ];
-
-      const state: RoutineProgressState = {
-        routineName: "my-routine",
-        contributions,
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      ]);
+      const renderer = new ProgressRenderer(state);
       const widget = makeMockWidget();
 
       renderer.renderToWidget(widget, theme);
@@ -577,12 +510,10 @@ describe("ProgressRenderer", () => {
     });
 
     it("renders empty state when no contributions", () => {
-      const registry = new DisplayContributionRegistry();
-      const state: RoutineProgressState = {
+      const renderer = new ProgressRenderer({
         routineName: "empty-routine",
-        contributions: [],
-      };
-      const renderer = new ProgressRenderer(state, registry);
+        accumulatedState: createAccumulatedState(),
+      });
       const widget = makeMockWidget();
 
       renderer.renderToWidget(widget, theme);
@@ -595,31 +526,14 @@ describe("ProgressRenderer", () => {
     });
 
     it("includes continueWhile in metadata when present", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("loop", (state, contribution) => {
-        if (contribution.type === "loop") {
-          state.iteration = contribution.iteration;
-          state.maxIterations = contribution.maxIterations;
-          state.continueWhile = contribution.continueWhile;
-        }
-      });
-
-      const contributions: DisplayContribution[] = [
+      const state = makeState("loop-routine", [
         {
-          type: "loop",
-          iteration: 0,
-          maxIterations: 5,
-          continueWhile: "result.passed",
           phase: "loop-round-start",
           message: "round",
+          details: { round: 1, maxIterations: 5, continueWhile: "result.passed" },
         },
-      ];
-
-      const state: RoutineProgressState = {
-        routineName: "loop-routine",
-        contributions,
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      ]);
+      const renderer = new ProgressRenderer(state);
       const widget = makeMockWidget();
 
       renderer.renderToWidget(widget, theme);
@@ -630,35 +544,20 @@ describe("ProgressRenderer", () => {
     });
 
     it("collapses long multi-line summaries into a single full-text row", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("agent", (state, contribution) => {
-        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
-          state.agentMap.set(contribution.agentId, {
-            status: contribution.agentStatus,
-            summary: contribution.agentSummary,
-            passed: contribution.agentPassed,
-          });
-        }
-      });
-
       const longText = "x".repeat(150);
-      const contributions: DisplayContribution[] = [
+      const state = makeState("my-routine", [
         {
-          type: "agent",
-          agentId: "builder",
-          agentStatus: "done",
-          agentPassed: true,
-          agentSummary: "line one\n\nline two    with  spaces " + longText,
           phase: "agent-done",
           message: "completed",
+          details: {
+            executionId: "e1",
+            agentId: "builder",
+            passed: true,
+            summary: "line one\n\nline two    with  spaces " + longText,
+          },
         },
-      ];
-
-      const state: RoutineProgressState = {
-        routineName: "my-routine",
-        contributions,
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      ]);
+      const renderer = new ProgressRenderer(state);
       const widget = makeMockWidget();
 
       renderer.renderToWidget(widget, theme);
@@ -675,33 +574,14 @@ describe("ProgressRenderer", () => {
     });
 
     it("renders rows without annotation when an agent has no summary", () => {
-      const registry = new DisplayContributionRegistry();
-      registry.register("agent", (state, contribution) => {
-        if (contribution.type === "agent" && contribution.agentId && contribution.agentStatus) {
-          state.agentMap.set(contribution.agentId, {
-            status: contribution.agentStatus,
-            summary: contribution.agentSummary,
-            passed: contribution.agentPassed,
-          });
-        }
-      });
-
-      const contributions: DisplayContribution[] = [
+      const state = makeState("my-routine", [
         {
-          type: "agent",
-          agentId: "builder",
-          agentStatus: "done",
-          agentPassed: true,
           phase: "agent-done",
           message: "completed",
+          details: { executionId: "e1", agentId: "builder", passed: true },
         },
-      ];
-
-      const state: RoutineProgressState = {
-        routineName: "my-routine",
-        contributions,
-      };
-      const renderer = new ProgressRenderer(state, registry);
+      ]);
+      const renderer = new ProgressRenderer(state);
       const widget = makeMockWidget();
 
       renderer.renderToWidget(widget, theme);

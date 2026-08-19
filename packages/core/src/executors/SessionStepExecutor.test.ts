@@ -4,10 +4,6 @@ import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { SessionInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { describe, expect, it, vi } from "vitest";
 
 import { SessionStepExecutor } from "./SessionStepExecutor";
@@ -139,119 +135,6 @@ describe("SessionStepExecutor", () => {
 
     expect(result2.store.get("ws")).toBe("/tmp/ws1");
     expect(result2.store.get("ref")).toBe("main");
-  });
-
-  describe("getDisplayContribution", () => {
-    it("returns SessionContribution for session-set events", () => {
-      const executor = new SessionStepExecutor();
-
-      const event = {
-        phase: "session-set",
-        message: "Session param set: ws: /tmp/forge-ws",
-        details: { key: "ws", value: "/tmp/forge-ws" },
-      } as unknown as RoutineProgressEvent;
-
-      const contribution = executor.getDisplayContribution(event);
-
-      expect(contribution).toBeDefined();
-      expect(contribution!.type).toBe("session");
-      expect(contribution!.phase).toBe("session-set");
-      expect(contribution!.message).toBe("Session param set: ws: /tmp/forge-ws");
-      const sessionContrib = contribution! as DisplayContribution & {
-        params: Record<string, string>;
-      };
-      expect(sessionContrib.params).toEqual({ ws: "/tmp/forge-ws" });
-    });
-
-    it("returns undefined for non-session-set events", () => {
-      const executor = new SessionStepExecutor();
-
-      const event = {
-        phase: "agent-started",
-        message: "Agent started",
-        details: { executionId: "e1", agentId: "a1" },
-      } as unknown as RoutineProgressEvent;
-
-      expect(executor.getDisplayContribution(event)).toBeUndefined();
-    });
-  });
-
-  describe("registerDisplayHandler", () => {
-    it("accumulates resultSnippet across multiple session contributions", () => {
-      const executor = new SessionStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-
-      // Simulate production: getDisplayContribution produces one single-key
-      // contribution per event, so multiple session params arrive as separate
-      // contributions.
-      registry.apply(state, [
-        {
-          type: "session",
-          params: { ws: "/tmp/forge-ws" },
-          phase: "session-set",
-          message: "Session param set",
-        },
-        {
-          type: "session",
-          params: { branch: "forge/ws-abc" },
-          phase: "session-set",
-          message: "Session param set",
-        },
-      ]);
-
-      expect(state.resultSnippet).toBe("ws: /tmp/forge-ws, branch: forge/ws-abc");
-    });
-
-    it("populates resultSnippet with single param", () => {
-      const executor = new SessionStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      const state = createAccumulatedState();
-      const contribution: DisplayContribution = {
-        type: "session",
-        params: { base_branch: "main" },
-        phase: "session-set",
-        message: "Session param set",
-      };
-
-      registry.apply(state, [contribution]);
-
-      expect(state.resultSnippet).toBe("base_branch: main");
-    });
-
-    it("round-trip: getDisplayContribution → handler → resultSnippet", () => {
-      const executor = new SessionStepExecutor();
-      const registry = new DisplayContributionRegistry();
-      executor.registerDisplayHandler(registry);
-
-      // Simulate two events as produced by execute()
-      const event1 = {
-        phase: "session-set",
-        message: "Session param set: ws: /tmp/forge-ws",
-        details: { key: "ws", value: "/tmp/forge-ws" },
-      } as unknown as RoutineProgressEvent;
-
-      const event2 = {
-        phase: "session-set",
-        message: "Session param set: branch: forge/ws-abc",
-        details: { key: "branch", value: "forge/ws-abc" },
-      } as unknown as RoutineProgressEvent;
-
-      const contrib1 = executor.getDisplayContribution(event1);
-      const contrib2 = executor.getDisplayContribution(event2);
-
-      expect(contrib1).toBeDefined();
-      expect(contrib2).toBeDefined();
-
-      const state = createAccumulatedState();
-      registry.apply(state, [contrib1!, contrib2!]);
-
-      expect(state.resultSnippet).toBe("ws: /tmp/forge-ws, branch: forge/ws-abc");
-    });
   });
 
   describe("execute events", () => {

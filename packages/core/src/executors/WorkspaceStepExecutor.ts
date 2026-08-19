@@ -5,9 +5,6 @@ import type {
   FlowInstruction,
   WorkspaceInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type {
   WorkspaceManager,
   WorkspaceProviderRegistry,
@@ -100,37 +97,5 @@ export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
       raw: JSON.stringify({ path }),
       parsed: { passed: true, summary: `Workspace created at ${path}` },
     });
-  }
-
-  /**
-   * Extract workspace path and branch from a workspace-ready event.
-   */
-  override registerDisplayHandler(registry: DisplayContributionRegistry): void {
-    registry.register("workspace", (state, contribution) => {
-      if (contribution.type !== "workspace") return;
-      if (contribution.workspace !== undefined) {
-        state.workspace = contribution.workspace;
-      }
-      if (contribution.branch !== undefined) {
-        state.branch = contribution.branch;
-      }
-    });
-  }
-
-  override getDisplayContribution(event: RoutineProgressEvent): DisplayContribution | undefined {
-    if (event.phase !== "workspace-ready") {
-      return undefined;
-    }
-    const details = event.details;
-    if (typeof details.path !== "string") {
-      return undefined;
-    }
-    return {
-      type: "workspace",
-      workspace: details.path,
-      branch: details.branch,
-      phase: event.phase,
-      message: event.message,
-    };
   }
 }

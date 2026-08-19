@@ -11,14 +11,15 @@ import { logger } from "@feature-forge/core";
 import { ForgeConfig } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import type { RoutineDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
-import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
+import type { AccumulatedState } from "../tui/progress/AccumulatedState";
+import { createAccumulatedState } from "../tui/progress/AccumulatedState";
+import { applyEvent } from "../tui/progress/DisplayProjection";
 import { NoOpProgressReporter } from "../tui/progress/NoOpProgressReporter";
 import { ProgressRenderer } from "../tui/progress/ProgressRenderer";
 import type { ProgressWidget } from "../tui/progress/ProgressWidget";
@@ -102,14 +103,11 @@ export class RoutineTool
   /** Private backing fields — exposed through {@link RoutineProgressState} getters. */
   private readonly _routineName: string;
 
-  /** Accumulated display contributions from all step executors, in arrival order. */
-  private readonly _contributions: DisplayContribution[] = [];
+  /** Live accumulated display state, folded from the event stream via applyEvent. */
+  private _accumulatedState: AccumulatedState = createAccumulatedState();
 
   /** Tool-row invalidation handle for renderCall/renderResult. */
   private readonly toolRowState: ToolRowInvalidation = { invalidate: undefined };
-
-  /** Registry of display contribution handlers for accumulated state. */
-  private readonly displayRegistry: DisplayContributionRegistry;
 
   /** Rendering delegate — builds TUI components and widget content from live state. */
   private readonly renderer: ProgressRenderer;
@@ -126,15 +124,7 @@ export class RoutineTool
     this.description = this.buildDescription(routineDef.id, routineDef);
     this.parameters = RoutineTool.buildParamsSchema(routineDef);
 
-    // Wire the display contribution registry so ProgressRenderer can
-    // build an accumulated snapshot via registry.apply() instead of
-    // iterating contributions manually.
-    this.displayRegistry = new DisplayContributionRegistry();
-    for (const stepExecutor of this.executor.stepRegistry.getAll().values()) {
-      stepExecutor.registerDisplayHandler(this.displayRegistry);
-    }
-
-    this.renderer = new ProgressRenderer(this, this.displayRegistry);
+    this.renderer = new ProgressRenderer(this);
   }
 
   // ── RoutineProgressState getters ───────────────────────────
@@ -144,9 +134,9 @@ export class RoutineTool
     return this._routineName;
   }
 
-  /** Accumulated display contributions from all step executors, in arrival order. */
-  get contributions(): readonly DisplayContribution[] {
-    return this._contributions;
+  /** Accumulated display state folded from the event stream. */
+  get accumulatedState(): AccumulatedState {
+    return this._accumulatedState;
   }
 
   // ── ToolDefinition rendering ───────────────────────────────
@@ -258,18 +248,9 @@ export class RoutineTool
         logPayloads ? { ...event } : { phase: event.phase, message: event.message },
       );
 
-      // Accumulate display contributions from all executors.
-      // Stream-only events (agent-stream chunks with no state transition)
-      // are high-frequency and carry no structural information — skip them
-      // to avoid bloating the contributions array.
-      for (const executor of this.executor.stepRegistry.getAll().values()) {
-        const contrib = executor.getDisplayContribution(event);
-        if (!contrib) continue;
-        const isStreamOnly = contrib.type === "agent" && contrib.streamEvent !== undefined;
-        if (!isStreamOnly) {
-          this._contributions.push(contrib);
-        }
-      }
+      // Fold the event into the accumulated display state. Stream-only
+      // events (agent-stream chunks) are no-ops in the projection.
+      applyEvent(this._accumulatedState, event);
 
       this.renderProgress(widget, ctx);
 
@@ -329,7 +310,7 @@ export class RoutineTool
 
   /** Reset accumulated display state before each execution. */
   private resetState(): void {
-    this._contributions.length = 0;
+    this._accumulatedState = createAccumulatedState();
   }
 
   /** Build and render progress surfaces via the renderer. */

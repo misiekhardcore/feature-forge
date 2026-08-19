@@ -65,7 +65,7 @@ export interface AgentViewerOverlayParams {
 
 /**
  * Standard overlay configuration shared by
- * {@link import("../RoutineTool").RoutineTool} and
+ * {@link import("../../tools/RoutineTool").RoutineTool} and
  * {@link import("../../commands/AgentListCommand").AgentListCommand}.
  */
 const OVERLAY_OPTIONS: OverlayOptions = {
@@ -101,7 +101,7 @@ function parseOverlayHeight(value: string): SizeValue | undefined {
  * Implements the {@link Component} interface for direct use with
  * {@code ctx.ui.custom} overlay APIs.
  *
- * The owning tool (typically {@link import("../RoutineTool").RoutineTool})
+ * The owning tool (typically {@link import("../../tools/RoutineTool").RoutineTool})
  * calls {@link update} as agent events arrive, {@link pushStreamEvent} to
  * forward streaming content, and {@link dispose} when the routine finishes.
  *
@@ -255,7 +255,7 @@ export class AgentViewerOverlay implements Component {
 
   /**
    * Standard overlay configuration consumed by
-   * {@link import("../RoutineTool").RoutineTool} and
+   * {@link import("../../tools/RoutineTool").RoutineTool} and
    * {@link import("../../commands/AgentListCommand").AgentListCommand}.
    *
    * Returns a fresh copy so callers can mutate without affecting shared
