@@ -8,11 +8,11 @@ import { describe, expect, it } from "vitest";
  * Verify that the production orchestrator system prompt resolves cleanly
  * through FlowContext.resolve() with no dead placeholders.
  *
- * The flow content still lives in the cli package (moves to core in S4f),
- * so the fixture directory is resolved across the workspace.
+ * The flow content lives in core at `src/flows/definitions/` (moved from
+ * cli in S4f), so the fixture directory is resolved within the core package.
  */
 const IMPLEMENT_FLOW_DIR = fileURLToPath(
-  new URL("../../../cli/src/flows/implement", import.meta.url),
+  new URL("../flows/definitions/implement", import.meta.url),
 );
 
 describe("orchestrator system prompt", () => {

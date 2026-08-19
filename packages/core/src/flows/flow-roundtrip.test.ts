@@ -2,7 +2,7 @@
  * **Flow round-trip contract test — drift guardrail.**
  *
  * This single test file would have caught flaws 2, 3, 6, and 10 at load time.
- * It validates every shipped flow in `src/flows/` against the live code:
+ * It validates every shipped flow in `src/flows/definitions/` against the live code:
  *
  * 1. Loads via FlowLoader (structural + semantic validation).
  * 2. Resolves every agent task through FlowContext
@@ -13,13 +13,15 @@
  * 5. Asserts every continueWhile parses and evaluates with stubbed results
  *    matching the loop body's parseJson ids (catch expression errors at load time).
  *
- * **When to add a new flow:** after adding a new .json file to `src/flows/`,
- * add a `describe("new-flow-name", ...)` block here. The boilerplate is minimal —
- * the five assertions are the same for every flow.
+ * **When to add a new flow:** after adding a new .json file to
+ * `src/flows/definitions/`, add a `describe("new-flow-name", ...)` block here.
+ * The boilerplate is minimal — the five assertions are the same for every flow.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { jsonParse } from "@feature-forge/core";
 import { SpecManager } from "@feature-forge/core/src/agents";
 import { SpecRegistry } from "@feature-forge/core/src/agents/specifications";
@@ -45,9 +47,6 @@ import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecuto
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-
-import { RoutineTool } from "../orchestrator/RoutineTool";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -161,18 +160,8 @@ function collectShellSteps(
 // ── Tests ────────────────────────────────────────────────────
 
 describe("flow round-trip", () => {
-  const flowsDir = path.join(__dirname, "implement");
-  const specsDir = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "core",
-    "src",
-    "agents",
-    "specifications",
-    "templates",
-  );
+  const flowsDir = path.join(__dirname, "definitions", "implement");
+  const specsDir = path.join(__dirname, "..", "agents", "specifications", "templates");
 
   // Load known spec names once for the whole suite.
   let knownSpecs!: ReadonlySet<string>;
@@ -409,7 +398,7 @@ describe("flow round-trip", () => {
   });
 
   describe("resolve-pr-feedback", () => {
-    const resolvePrFlowDir = path.join(__dirname, "resolve-pr-feedback");
+    const resolvePrFlowDir = path.join(__dirname, "definitions", "resolve-pr-feedback");
 
     let resolvePrFlow!: FlowDefinition;
     let resolvePrSpecs!: SpecManager;
@@ -565,7 +554,7 @@ describe("flow round-trip", () => {
   });
 
   describe("review", () => {
-    const reviewFlowDir = path.join(__dirname, "review");
+    const reviewFlowDir = path.join(__dirname, "definitions", "review");
 
     let reviewFlow!: FlowDefinition;
     let reviewSpecs!: SpecManager;
@@ -644,7 +633,7 @@ describe("flow round-trip", () => {
   });
 
   describe("verify", () => {
-    const verifyFlowDir = path.join(__dirname, "verify");
+    const verifyFlowDir = path.join(__dirname, "definitions", "verify");
 
     let verifyFlow!: FlowDefinition;
     let verifySpecs!: SpecManager;
@@ -844,17 +833,7 @@ describe("set_flow_param guardrails", () => {
   // global tool (PR #218 rework). These tests keep the flows and their
   // orchestrator personas from regressing to flow-scoped names.
   const guardrailFlowDirs = ["implement", "review", "verify", "resolve-pr-feedback"];
-  const guardrailSpecsDir = path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "core",
-    "src",
-    "agents",
-    "specifications",
-    "templates",
-  );
+  const guardrailSpecsDir = path.join(__dirname, "..", "agents", "specifications", "templates");
 
   let loadedFlows: FlowDefinition[] = [];
   let orchestratorDocs: string[] = [];
@@ -865,7 +844,7 @@ describe("set_flow_param guardrails", () => {
     loadedFlows = [];
     orchestratorDocs = [];
     for (const flowName of guardrailFlowDirs) {
-      const flowDir = path.join(__dirname, flowName);
+      const flowDir = path.join(__dirname, "definitions", flowName);
       await specManager.loadFromDirectory(flowDir);
       const loader = new FlowLoader({
         flowsDir: flowDir,

@@ -23,10 +23,14 @@ export default defineConfig({
     await cp("../core/src/agents/specifications/templates", "dist/agents/declarative-specs", {
       recursive: true,
     });
-    await cp("src/flows", "dist/flows", {
+    // Flow definitions + schema are core-owned since S4f; copy from core to
+    // preserve the published dist/flows layout (implement, review, verify,
+    // resolve-pr-feedback, flow-schema.json).
+    await cp("../core/src/flows/definitions", "dist/flows", {
       recursive: true,
       filter: (src) => !src.endsWith(".test.ts"),
     });
+    await cp("../core/src/flows/flow-schema.json", "dist/flows/flow-schema.json");
     await cp("../core/src/skills", "dist/skills", { recursive: true });
     await cp("scripts", "dist/scripts", { recursive: true });
     await cp(

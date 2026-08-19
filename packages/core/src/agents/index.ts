@@ -15,9 +15,9 @@ export {
   DefaultAgentGovernancePolicy,
 } from "./policies";
 export { SessionAgent } from "./SessionAgent";
+export type { AgentSpecificationParams } from "./specifications";
 export {
   AgentSpecification,
-  AgentSpecificationParams,
   BUILT_IN_TOOLS,
   DynamicAgentSpecification,
   SpecRegistry,

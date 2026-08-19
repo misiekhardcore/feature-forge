@@ -12,10 +12,11 @@ import { FlowValidation } from "./flowValidation";
 // ── Helpers ──────────────────────────────────────────────────
 
 /**
- * The shipped flow content still lives in the cli package (moves to core in
- * S4f), so the real-flow fixture directory is resolved across the workspace.
+ * The shipped flow content lives in core at `src/flows/definitions/` (moved
+ * from cli in S4f), so the real-flow fixture directory is resolved within
+ * the core package.
  */
-const CLI_FLOWS_DIR = fileURLToPath(new URL("../../../cli/src/flows", import.meta.url));
+const DEFINITIONS_DIR = fileURLToPath(new URL("./definitions", import.meta.url));
 
 function makeValidFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
   return {
@@ -855,7 +856,7 @@ describe("FlowLoader", () => {
 
   it("loads the real implement flow", async () => {
     const realLoader = new FlowLoader({
-      flowsDir: path.join(CLI_FLOWS_DIR, "implement"),
+      flowsDir: path.join(DEFINITIONS_DIR, "implement"),
     });
     const flow = await realLoader.load("flow");
     expect(flow.name).toBe("implement");
@@ -863,7 +864,7 @@ describe("FlowLoader", () => {
   });
 
   it("loadAll discovers the real shipped flows (validate-flow --all path)", async () => {
-    const realLoader = new FlowLoader({ flowsDir: CLI_FLOWS_DIR });
+    const realLoader = new FlowLoader({ flowsDir: DEFINITIONS_DIR });
     const { flows, failures } = await realLoader.loadAll();
     expect(failures.size).toBe(0);
     expect(flows.size).toBeGreaterThanOrEqual(4);

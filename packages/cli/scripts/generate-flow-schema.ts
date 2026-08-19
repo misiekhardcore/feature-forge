@@ -20,7 +20,7 @@ import {
 import { TObject } from "typebox";
 
 /**
- * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.
+ * Generate `core/src/flows/flow-schema.json` from the TypeBox instruction schemas.
  *
  * Nearly everything is derived directly from the TypeBox schemas. The only
  * manual work is for `$ref` pointers that AJV requires but TypeBox 1.1
@@ -110,7 +110,8 @@ const schema: Record<string, unknown> = {
 // ── Write ───────────────────────────────────────────────────
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const outDir = path.join(scriptDir, "..", "src", "flows");
+// cli/scripts → packages → core/src/flows (schema is core-owned since S4f)
+const outDir = path.join(scriptDir, "..", "..", "core", "src", "flows");
 fs.mkdirSync(outDir, { recursive: true });
 
 const outPath = path.join(outDir, "flow-schema.json");
