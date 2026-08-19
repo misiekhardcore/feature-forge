@@ -19,6 +19,8 @@ import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegi
 import { FlowRegistrar } from "@feature-forge/core/src/flows/FlowRegistrar";
 import { connectChildClient } from "@feature-forge/core/src/ipc/connectChildClient";
 import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
+import { CommandRegistry, ToolRegistry } from "@feature-forge/core/src/registry";
+import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
 import {
   CurrentDirProvider,
   GitWorktreeProvider,
@@ -43,8 +45,6 @@ import {
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
-import { CommandRegistry, ToolRegistry } from "./registry";
-import { withForgePrefix } from "./registry/CommandRegistry";
 import {
   DestroyAgentTool,
   GetAgentResultTool,

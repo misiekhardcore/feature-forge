@@ -1,6 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-
-import { Command } from "./Command";
+import { Command } from "@feature-forge/core/src/commands/Command";
 
 /**
  * Lists all active worktrees tracked by the registry.

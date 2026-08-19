@@ -2,8 +2,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
-
-import { Command } from "./Command";
+import { Command } from "@feature-forge/core/src/commands/Command";
 
 /**
  * Exits the currently active flow, restoring the original system prompt and

@@ -4,8 +4,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-
-import { Command } from "./Command";
+import { Command } from "@feature-forge/core/src/commands/Command";
 
 // ESM polyfill: __dirname is not available in ESM
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

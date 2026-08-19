@@ -4,13 +4,12 @@ import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import { Command, type CommandDeps } from "@feature-forge/core/src/commands/Command";
 import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
 import type { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
-
-import { ToolRegistry } from "../registry/ToolRegistry";
-import { Command, type CommandDeps } from "./Command";
 
 /**
  * Generic command that loads a flow's orchestrator persona into the main pi

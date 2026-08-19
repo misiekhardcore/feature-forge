@@ -24,6 +24,12 @@ describe("Registry", () => {
       const registry = new StringRegistry();
       expect(registry.get("missing")).toBeUndefined();
     });
+
+    it("returns registered item by name", () => {
+      const registry = new StringRegistry();
+      registry.set("foo", "Foo item");
+      expect(registry.get("foo")).toBe("Foo item");
+    });
   });
 
   describe("getAll", () => {
@@ -38,6 +44,14 @@ describe("Registry", () => {
       registry.set("b", "beta");
       expect(registry.getAll()).toEqual(["alpha", "beta"]);
     });
+
+    it("returns a snapshot (mutations don't affect returned array)", () => {
+      const registry = new StringRegistry();
+      registry.set("a", "alpha");
+      const all = registry.getAll();
+      registry.set("b", "beta");
+      expect(all).toHaveLength(1);
+    });
   });
 
   describe("unregister", () => {
@@ -51,6 +65,13 @@ describe("Registry", () => {
     it("returns false for unknown names", () => {
       const registry = new StringRegistry();
       expect(registry.unregister("missing")).toBe(false);
+    });
+
+    it("second unregister returns false", () => {
+      const registry = new StringRegistry();
+      registry.set("foo", "Foo");
+      registry.unregister("foo");
+      expect(registry.unregister("foo")).toBe(false);
     });
   });
 
@@ -82,6 +103,13 @@ describe("Registry", () => {
       const registry = new StringRegistry();
       expect(registry.has("missing")).toBe(false);
     });
+
+    it("returns false after unregister", () => {
+      const registry = new StringRegistry();
+      registry.set("foo", "Foo");
+      registry.unregister("foo");
+      expect(registry.has("foo")).toBe(false);
+    });
   });
 
   describe("size", () => {
@@ -94,6 +122,14 @@ describe("Registry", () => {
       registry.set("a", "alpha");
       registry.set("b", "beta");
       expect(registry.size).toBe(2);
+    });
+
+    it("decrements on unregister", () => {
+      const registry = new StringRegistry();
+      registry.set("a", "alpha");
+      registry.set("b", "beta");
+      registry.unregister("a");
+      expect(registry.size).toBe(1);
     });
   });
 });

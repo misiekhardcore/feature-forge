@@ -4,9 +4,8 @@ import { basename } from "node:path";
 import { promisify } from "node:util";
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Command } from "@feature-forge/core/src/commands/Command";
 import type { ReconciliationReport } from "@feature-forge/core/src/workspace/WorktreeRegistry";
-
-import { Command } from "./Command";
 
 const execFileAsync = promisify(execFile);
 

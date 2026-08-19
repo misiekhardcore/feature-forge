@@ -6,10 +6,9 @@ import type {
 import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
+import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "@feature-forge/core/src/workspace";
-
-import type { CommandRegistry } from "../registry/CommandRegistry";
-import { ToolRegistry } from "../registry/ToolRegistry";
 
 /**
  * Dependency bag for {@link Command}. `pi` is always required; every other
@@ -28,9 +27,16 @@ export interface CommandDeps {
 }
 
 /**
+ * A command shaped like pi's registered-command contract. The `Command`
+ * base implements this exactly; the alias is the seam between core's flow
+ * engine and the command registry.
+ */
+export type FlowCommand = Omit<RegisteredCommand, "sourceInfo">;
+
+/**
  * Command abstraction that follows pi's CommandDefinition shape exactly.
  */
-export abstract class Command implements Omit<RegisteredCommand, "sourceInfo"> {
+export abstract class Command implements FlowCommand {
   protected readonly pi: ExtensionAPI;
   protected readonly supervisor: AgentSupervisor | undefined;
   protected readonly specManager: SpecManager | undefined;

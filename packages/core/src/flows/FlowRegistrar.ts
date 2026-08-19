@@ -1,8 +1,9 @@
 import * as path from "node:path";
 
-import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
 import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
+import type { FlowCommand } from "@feature-forge/core/src/commands";
 import type { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import type { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
@@ -13,21 +14,13 @@ import type { FlowDefinition, RoutineDefinition } from "./FlowInstruction";
 import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 
-/**
- * A command shaped like pi's registered-command contract. cli's `Command`
- * base implements `Omit<RegisteredCommand, "sourceInfo">` exactly, so this
- * is the structural seam between core's flow engine and cli's command
- * registry (which stays in cli per the issue tree).
- */
-type FlowCommand = Omit<RegisteredCommand, "sourceInfo">;
-
-/** Structural surface of cli's `CommandRegistry` (stays in cli per the issue tree). */
+/** Structural surface of core's `CommandRegistry` (moved into core in S1). */
 export interface CommandRegistryLike {
   registerInstance(command: FlowCommand): FlowCommand;
 }
 
 /**
- * Structural surface of cli's `ToolRegistry` (stays in cli per the issue tree).
+ * Structural surface of core's `ToolRegistry` (moved into core in S1).
  *
  * `registerInstance` is used by {@link FlowRegistrar}; `get` is read through
  * {@link RoutineExecutor} by the cli `RoutineTool` (which hands it to the

@@ -1,10 +1,10 @@
 import * as path from "node:path";
 
 import { ForgeConfig } from "@feature-forge/core";
+import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
+import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { withForgePrefix } from "../registry/CommandRegistry";
-import { ToolRegistry } from "../registry/ToolRegistry";
 import { makeMockCtx, makeMockPi } from "../test-utils";
 import { showAgentViewer } from "../tui/showAgentViewer";
 import type { AgentViewerOverlay } from "../tui/views/AgentViewerOverlay";

@@ -1,6 +1,8 @@
 import { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Registry, Tool } from "@feature-forge/core";
 import { ChildSocketClient } from "@feature-forge/core/src/ipc";
+import { Tool } from "@feature-forge/core/src/tools";
+
+import { Registry } from "./Registry";
 
 export class ToolRegistry extends Registry<Tool> {
   constructor(

@@ -1,12 +1,12 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Registry } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import { Command, type CommandDeps } from "@feature-forge/core/src/commands/Command";
 import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "@feature-forge/core/src/workspace";
 
-import { Command, type CommandDeps } from "../commands/Command";
-import { ToolRegistry } from "../registry/ToolRegistry";
+import { Registry } from "./Registry";
+import { ToolRegistry } from "./ToolRegistry";
 
 /**
  * Prefix a command name with `forge:` unless it already carries the prefix.
