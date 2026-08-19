@@ -1,13 +1,13 @@
 import * as path from "node:path";
 
 import { ForgeConfig } from "@feature-forge/core";
-import type { AgentViewerOverlay } from "@feature-forge/tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { withForgePrefix } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import { makeMockCtx, makeMockPi } from "../test-utils";
 import { showAgentViewer } from "../tui/showAgentViewer";
+import type { AgentViewerOverlay } from "../tui/views/AgentViewerOverlay";
 import { registerDevTestCommands } from "./registerTestCommands";
 
 vi.mock("../tui/showAgentViewer", async (importOriginal) => {

@@ -5,18 +5,16 @@ import { join } from "node:path";
 import type { AgentEvent, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
 import { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { Agent, AgentKind } from "@feature-forge/core/src/agents/Agent";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
-import {
-  AgentDisplayHelpers,
-  type AgentViewerEntry,
-  AgentViewerOverlay,
-  AgentViewerOverlayParams,
-} from "@feature-forge/tui";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";
+import { AgentDisplayHelpers } from "../display";
+import type { AgentViewerEntry } from "../types";
+import { AgentViewerOverlay, type AgentViewerOverlayParams } from "./AgentViewerOverlay";
 
 // Re-export constant for test assertions
 const MAX_AGENT_EVENTS = 200;

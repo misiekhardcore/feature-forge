@@ -1,8 +1,9 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
-import { AgentViewerState } from "@feature-forge/tui";
-import { AgentListView } from "@feature-forge/tui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { AgentViewerState } from "../state/AgentViewerState";
+import { AgentListView } from "./AgentListView";
 
 function makeTheme(): Theme {
   return {

@@ -5,9 +5,10 @@ import { join } from "node:path";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { AgentViewerState } from "@feature-forge/tui";
-import { AgentDetailView } from "@feature-forge/tui";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { AgentViewerState } from "../state/AgentViewerState";
+import { AgentDetailView } from "./AgentDetailView";
 
 function makeMockToolFormatter() {
   return { get: vi.fn(() => undefined) };

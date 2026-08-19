@@ -4,8 +4,9 @@ import type { OverlayHandle } from "@earendil-works/pi-tui";
 import { ForgeConfig } from "@feature-forge/core";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { SharedStreamDir } from "@feature-forge/core/src/progress/sharedStreamDir";
-import type { AgentQuery, ToolFormatter } from "@feature-forge/tui";
-import { AgentViewerOverlay } from "@feature-forge/tui";
+
+import type { AgentQuery, ToolFormatter } from "./api";
+import { AgentViewerOverlay } from "./views/AgentViewerOverlay";
 
 /**
  * Parameters for {@link showAgentViewer}.

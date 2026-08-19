@@ -11,19 +11,19 @@ import { logger } from "@feature-forge/core";
 import { ForgeConfig } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import type { RoutineDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
-import type { ProgressWidget } from "@feature-forge/tui";
-import type { DisplayContribution } from "@feature-forge/tui";
-import type { RoutineProgressState } from "@feature-forge/tui";
-import { TuiRoutineWidget } from "@feature-forge/tui";
-import { NoOpProgressReporter } from "@feature-forge/tui";
-import { ProgressRenderer } from "@feature-forge/tui";
-import { DisplayContributionRegistry } from "@feature-forge/tui";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 
+import { NoOpProgressReporter } from "../tui/progress/NoOpProgressReporter";
+import { ProgressRenderer } from "../tui/progress/ProgressRenderer";
+import type { ProgressWidget } from "../tui/progress/ProgressWidget";
+import type { RoutineProgressState } from "../tui/progress/RoutineProgressState";
+import { TuiRoutineWidget } from "../tui/progress/TuiRoutineWidget";
 import type { AgentViewerHandle } from "../tui/showAgentViewer";
 import { showAgentViewer } from "../tui/showAgentViewer";
 

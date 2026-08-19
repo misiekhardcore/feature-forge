@@ -49,16 +49,6 @@ export default defineConfig({
       },
       {
         test: {
-          name: "tui",
-          root: packageRoot("tui"),
-          globals: true,
-          setupFiles: ["src/test-setup.ts"],
-          include: ["src/**/*.test.ts"],
-          exclude: ["node_modules", "**/e2e/**", "**/dist/**"],
-        },
-      },
-      {
-        test: {
           name: "cli",
           root: packageRoot("cli"),
           globals: true,

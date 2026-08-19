@@ -1,8 +1,9 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { ConversationRenderer } from "@feature-forge/tui";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { ConversationRenderer } from "./ConversationRenderer";
 
 function makeMockToolFormatter() {
   return { get: vi.fn(() => undefined) };

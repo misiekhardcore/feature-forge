@@ -1,7 +1,8 @@
 import { IpcTool } from "@feature-forge/core";
 import { GetAgentResultResult } from "@feature-forge/core/src/ipc/messages";
-import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
+
+import { ToolRenderer } from "../tui/views/ToolRenderer";
 
 const GetAgentResultParameters = Type.Object({
   agentId: Type.String({ description: "Agent id returned by spawn_agent" }),

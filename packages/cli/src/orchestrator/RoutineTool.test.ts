@@ -6,8 +6,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, jsonParse, logger } from "@feature-forge/core";
-import type { AgentContribution, DisplayContribution } from "@feature-forge/tui";
-import type { DisplayContributionRegistry } from "@feature-forge/tui";
+import type {
+  AgentContribution,
+  DisplayContribution,
+} from "@feature-forge/core/src/progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { showAgentViewerMock, realShowAgentViewer } = vi.hoisted(() => {

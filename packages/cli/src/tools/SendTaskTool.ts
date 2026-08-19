@@ -1,8 +1,9 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { IpcTool } from "@feature-forge/core";
 import { SendTaskParams, SendTaskResult } from "@feature-forge/core/src/ipc/messages";
-import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
+
+import { ToolRenderer } from "../tui/views/ToolRenderer";
 
 const SendTaskParameters = Type.Object({
   agentId: Type.String({ description: "Agent id returned by spawn_agent" }),

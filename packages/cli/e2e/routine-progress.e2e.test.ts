@@ -20,6 +20,7 @@ import {
   FLOW_SCHEMA_URL,
   type FlowDefinition,
 } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import {
@@ -28,7 +29,6 @@ import {
   WorktreeRegistry,
 } from "@feature-forge/core/src/workspace";
 import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
-import { DisplayContribution, ProgressRenderer } from "@feature-forge/tui";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -38,6 +38,7 @@ import {
   makeMockTypedEventBus,
 } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
+import { ProgressRenderer } from "../src/tui/progress/ProgressRenderer";
 
 function createTempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "forge-e2e-progress-"));
