@@ -22,10 +22,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// Test-only value imports from cli (mock helpers + RoutineTool): self-heal when
-// cli test-utils / RoutineTool move to their final homes (S6/S11).
-import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
+// Test-only value imports from cli (mock helpers + RoutineTool): RoutineTool now
+// lives at cli/src/tools (S6); cli test-utils self-heal when it moves (S11).
+import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { jsonParse } from "@feature-forge/core";
 import { SpecManager } from "@feature-forge/core/src/agents";
 import { SpecRegistry } from "@feature-forge/core/src/agents/specifications";

@@ -1,7 +1,7 @@
-// Test-only value imports from cli: self-heal when RoutineTool (S6)
-// and cli test-utils move to core (#229).
-import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
+// Test-only value imports from cli: RoutineTool now lives at cli/src/tools (S6);
+// cli test-utils self-heal when it moves to core (#229).
 import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
+import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";

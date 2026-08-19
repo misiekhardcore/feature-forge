@@ -43,7 +43,6 @@ import {
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
-import { RoutineTool } from "./orchestrator/RoutineTool";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import { withForgePrefix } from "./registry/CommandRegistry";
 import {
@@ -55,6 +54,7 @@ import {
   SetSessionNameTool,
   SpawnAgentTool,
 } from "./tools";
+import { RoutineTool } from "./tools/RoutineTool";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
