@@ -16,6 +16,7 @@
     "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
+    "minimatch": "^10.2.5",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {

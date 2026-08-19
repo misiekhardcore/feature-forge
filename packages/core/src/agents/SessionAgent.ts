@@ -3,8 +3,9 @@ import type {
   BeforeAgentStartEventResult,
   ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-import { activateToolRestrictions } from "@feature-forge/cli/src/extensions/tool-restrictions";
+// Type-only: elided at emit, zero runtime cost. Self-heals when workspace moves to core in S4e.
 import type { WorkspaceManager } from "@feature-forge/cli/src/workspace";
+import { activateToolRestrictions } from "@feature-forge/core/src/agents/policies/tool-restrictions";
 import { logger } from "@feature-forge/core/src/logging";
 
 import { Agent } from "./Agent";

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+// Type-only: elided at emit, zero runtime cost. Self-heals when ipc moves to core in S4e.
 import type { SpawnAgentParams } from "@feature-forge/cli/src/ipc/messages";
 
 import type {
