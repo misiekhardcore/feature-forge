@@ -25,12 +25,12 @@ import {
 } from "@feature-forge/core/src/agents/SubprocessAgent";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
+import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
+import { WorkspaceProvider } from "@feature-forge/core/src/workspace/WorkspaceProvider";
+import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
 import { vi } from "vitest";
 
 import { ToolRegistry } from "./registry/ToolRegistry";
-import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";
-import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
-import { WorktreeRegistry } from "./workspace/WorktreeRegistry";
 
 // Re-export shared RPC mock helpers for backwards compatibility
 export type { RpcClientMock } from "@feature-forge/core";

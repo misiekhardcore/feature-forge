@@ -10,6 +10,7 @@ import { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -23,7 +24,6 @@ import {
   MockWorktreeRegistry,
   toolListToRestrictions,
 } from "../test-utils";
-import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import { AgentDestroyAllCommand } from "./AgentDestroyAllCommand";
 import { AgentDestroyCommand } from "./AgentDestroyCommand";
 import { AgentListCommand } from "./AgentListCommand";

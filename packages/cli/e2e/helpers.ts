@@ -17,9 +17,9 @@ import type {
 import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
 import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
 import { expect, vi } from "vitest";
 
-import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 import { makeMockPi, makeMockSpecManager } from "../src/test-utils";
 
 /** Absolute path to the CLI package root (where package.json lives). */

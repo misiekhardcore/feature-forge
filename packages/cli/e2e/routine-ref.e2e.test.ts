@@ -21,6 +21,8 @@ import type {
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
+import { WorkspaceProviderRegistry, WorktreeRegistry } from "@feature-forge/core/src/workspace";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -30,8 +32,6 @@ import {
   makeMockTypedEventBus,
 } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
-import { WorkspaceProviderRegistry, WorktreeRegistry } from "../src/workspace";
-import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
 
 // ── Helpers ──────────────────────────────────────────────────
 

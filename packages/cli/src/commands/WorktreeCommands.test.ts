@@ -1,4 +1,5 @@
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -10,7 +11,6 @@ import {
   MockWorkspaceProvider,
   MockWorktreeRegistry,
 } from "../test-utils";
-import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import { WorktreeDestroyCommand } from "./WorktreeDestroyCommand";
 import { WorktreeListCommand } from "./WorktreeListCommand";
 

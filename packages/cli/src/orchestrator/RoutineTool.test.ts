@@ -41,6 +41,11 @@ import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
+import { WorkspaceProvider } from "@feature-forge/core/src/workspace/WorkspaceProvider";
+import { WorkspaceProviderRegistry } from "@feature-forge/core/src/workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
 
 import {
   makeMockToolRegistry,
@@ -48,11 +53,6 @@ import {
   MockWorkspaceProvider,
   MockWorktreeRegistry,
 } from "../test-utils";
-import { WorkspaceManager } from "../workspace/WorkspaceManager";
-import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
-import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
-import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
 import { RoutineTool } from "./RoutineTool";
 
 // ── Helpers ──────────────────────────────────────────────────

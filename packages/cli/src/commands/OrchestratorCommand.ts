@@ -7,9 +7,9 @@ import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
 import type { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 
 import { ToolRegistry } from "../registry/ToolRegistry";
-import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";
 
 /**

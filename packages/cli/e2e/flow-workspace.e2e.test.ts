@@ -17,14 +17,14 @@ import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/cr
 import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import { GitWorktreeProvider } from "@feature-forge/core/src/workspace/GitWorktreeProvider";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+import { WorkspaceProviderRegistry } from "@feature-forge/core/src/workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
-import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
-import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
-import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

@@ -6,10 +6,10 @@ import type {
 import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import type { WorkspaceManager, WorktreeRegistry } from "@feature-forge/core/src/workspace";
 
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
-import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
 /**
  * Dependency bag for {@link Command}. `pi` is always required; every other

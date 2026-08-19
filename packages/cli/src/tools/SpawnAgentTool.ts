@@ -1,8 +1,7 @@
 import { IpcTool } from "@feature-forge/core";
+import { SpawnAgentResult } from "@feature-forge/core/src/ipc/messages";
 import { ToolRenderer } from "@feature-forge/tui";
 import { Type } from "typebox";
-
-import { SpawnAgentResult } from "../ipc/messages";
 
 /**
  * Schema for the spawn_agent tool — single unambiguous mode.

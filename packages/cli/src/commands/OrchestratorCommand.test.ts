@@ -13,12 +13,12 @@ import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegi
 import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ToolRegistry } from "../registry/ToolRegistry";
 import { makeMockFactory } from "../test-utils";
 import { makeMockCtx, makeMockPi, makeMockToolRegistry } from "../test-utils";
-import type { WorkspaceManager } from "../workspace";
 import { FlowExitCommand } from "./FlowExitCommand";
 import {
   OrchestratorCommand,

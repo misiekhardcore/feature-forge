@@ -3,10 +3,9 @@ import type {
   BeforeAgentStartEventResult,
   ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
-// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/workspace moves to core in S4e (#229).
-import type { WorkspaceManager } from "@feature-forge/cli/src/workspace";
 import { activateToolRestrictions } from "@feature-forge/core/src/agents/policies/tool-restrictions";
 import { logger } from "@feature-forge/core/src/logging";
+import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 
 import { Agent } from "./Agent";
 import { AgentStatus } from "./AgentStatus";

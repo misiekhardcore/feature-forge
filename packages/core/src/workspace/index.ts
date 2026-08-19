@@ -6,8 +6,8 @@ export {
   WorktreeBranchExistsError,
   WorktreePathExistsError,
 } from "./WorkspaceError";
+export { WorkspaceHandle } from "./WorkspaceHandle";
 export { WorkspaceManager } from "./WorkspaceManager";
 export { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
 export { WorkspaceProviderRegistry } from "./WorkspaceProviderRegistry";
 export { WorktreeRegistry } from "./WorktreeRegistry";
-export { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";

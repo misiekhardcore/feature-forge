@@ -17,6 +17,16 @@ import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
 import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import { FlowRegistrar } from "@feature-forge/core/src/flows/FlowRegistrar";
+import { connectChildClient } from "@feature-forge/core/src/ipc/connectChildClient";
+import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
+import {
+  CurrentDirProvider,
+  GitWorktreeProvider,
+  WorkspaceManager,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+} from "@feature-forge/core/src/workspace";
+import { registerSignalHandlers } from "@feature-forge/core/src/workspace/registerSignalHandlers";
 
 import {
   AgentDestroyAllCommand,
@@ -33,8 +43,6 @@ import {
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
-import { connectChildClient } from "./ipc/connectChildClient";
-import { ParentSocketServer } from "./ipc/ParentSocketServer";
 import { RoutineTool } from "./orchestrator/RoutineTool";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import { withForgePrefix } from "./registry/CommandRegistry";
@@ -47,14 +55,6 @@ import {
   SetSessionNameTool,
   SpawnAgentTool,
 } from "./tools";
-import {
-  CurrentDirProvider,
-  GitWorktreeProvider,
-  WorkspaceManager,
-  WorkspaceProviderRegistry,
-  WorktreeRegistry,
-} from "./workspace";
-import { registerSignalHandlers } from "./workspace/registerSignalHandlers";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**

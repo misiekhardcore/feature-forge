@@ -2,6 +2,7 @@ import { connect, type Socket } from "node:net";
 
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { makeMockPi, makeMockSpecManager } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
 import type { Agent } from "@feature-forge/core/src/agents";
 import type { AgentSpecificationParams } from "@feature-forge/core/src/agents";
@@ -10,7 +11,6 @@ import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessA
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ParentSocketServer } from "./ParentSocketServer";
 
 function createMockAgent(): SubprocessAgent {

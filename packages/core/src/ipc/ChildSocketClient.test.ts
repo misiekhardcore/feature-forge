@@ -3,6 +3,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { makeMockPi, makeMockSpecManager } from "@feature-forge/cli/src/test-utils";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
 import type { Agent } from "@feature-forge/core/src/agents";
 import { AgentSpecification } from "@feature-forge/core/src/agents";
@@ -10,7 +11,6 @@ import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessA
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";

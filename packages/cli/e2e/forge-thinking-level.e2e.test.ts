@@ -23,13 +23,13 @@ import type {
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+import { WorkspaceProviderRegistry } from "@feature-forge/core/src/workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
-import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
-import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

@@ -25,8 +25,8 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
-// Test-only value imports from cli: self-heal when cli/src/workspace
-// and cli test-utils move to core (S4e) (#229).
+// Test-only value imports from cli: self-heal when cli test-utils
+// moves to core (S6) (#229).
 import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { ShellInstruction } from "@feature-forge/core/src/flows/FlowInstruction";

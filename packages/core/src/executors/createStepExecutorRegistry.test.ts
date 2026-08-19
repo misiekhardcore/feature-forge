@@ -1,12 +1,12 @@
-// Test-only value imports from cli: self-heal when cli/src/workspace
-// and cli test-utils move to core (S4e) (#229).
+// Test-only value imports from cli: self-heal when cli test-utils
+// moves to core (S6) (#229).
 import { MockWorkspaceProvider } from "@feature-forge/cli/src/test-utils";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import {
   WorkspaceManager,
   WorkspaceProviderRegistry,
   WorktreeRegistry,
-} from "@feature-forge/cli/src/workspace";
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+} from "@feature-forge/core/src/workspace";
 import { describe, expect, it } from "vitest";
 
 import { createStepExecutorRegistry } from "./createStepExecutorRegistry";

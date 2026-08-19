@@ -1,4 +1,6 @@
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+import { ReconciliationReport } from "@feature-forge/core/src/workspace/WorktreeRegistry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,8 +12,6 @@ import {
   MockWorkspaceProvider,
   MockWorktreeRegistry,
 } from "../test-utils";
-import { WorkspaceManager } from "../workspace/WorkspaceManager";
-import { ReconciliationReport } from "../workspace/WorktreeRegistry";
 import { WorktreePruneCommand } from "./WorktreePruneCommand";
 
 const pi = makeMockPi();
