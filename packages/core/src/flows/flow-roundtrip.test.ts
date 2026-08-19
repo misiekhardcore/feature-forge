@@ -22,8 +22,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// Test-only value imports from cli (mock helpers + RoutineTool): RoutineTool now
-// lives at cli/src/tools (S6); cli test-utils self-heal when it moves (S11).
+// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D3).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { jsonParse } from "@feature-forge/core";
 import { SpecManager } from "@feature-forge/core/src/agents";

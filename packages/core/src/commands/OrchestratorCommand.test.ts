@@ -523,7 +523,7 @@ describe("OrchestratorCommand", () => {
   it("recreates the agent when the cached agent is missing from the supervisor", async () => {
     const supervisor = makeSupervisor();
     // Simulate a destroyed agent: still mounted per its own state, but no
-    // longer registered with the supervisor (FlowExitCommand removes it).
+    // longer registered with the supervisor (TestFlowExitCommand removes it).
     (supervisor.getAgent as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
     const cmd = makeCmd(supervisor, baseFlow);
 

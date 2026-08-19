@@ -1,5 +1,3 @@
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S6) (#229).
 import { jsonParse } from "@feature-forge/core";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import {

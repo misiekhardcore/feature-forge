@@ -1,5 +1,3 @@
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S6) (#229).
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { SessionInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";

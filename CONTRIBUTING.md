@@ -6,8 +6,8 @@ Feature Forge is an autonomous software engineering platform — idea-to-PR via 
 
 This is a **Turborepo monorepo** with npm workspaces:
 
-- **`@feature-forge/core`** (`packages/core/`) - engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, tool bases, skills, flow definitions (source-only)
-- **`@feature-forge/cli`** (`packages/cli/`) - pi extension + TUI display: composition root, commands, tools, registry, folded TUI views/progress (publishes)
+- **`@feature-forge/core`** (`packages/core/`) - engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, commands, registries, tool bases, skills, flow definitions (source-only)
+- **`@feature-forge/cli`** (`packages/cli/`) - pi extension + TUI display: composition root, cli-owned commands/tools (incl. `RoutineTool`), folded TUI views/progress (publishes)
 - **`@feature-forge/debug`** (`packages/debug/`) - dev-only test scenarios and commands
 - **`@feature-forge/eslint-config`** (`packages/eslint-config/`) — shared ESLint configuration
 

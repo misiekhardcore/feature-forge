@@ -1,5 +1,4 @@
-// Test-only value imports from cli: RoutineTool now lives at cli/src/tools (S6);
-// cli test-utils self-heal when it moves to core (#229).
+// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D3).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";

@@ -57,11 +57,11 @@ Environment variables override config: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORG
 
 The monorepo is layered strictly one-directionally: `core <- cli <- debug`.
 
-| Package                | Role                                                                                                                                                  | Publishes   |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `@feature-forge/core`  | Engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, tool bases, skills, flow definitions. Source-only, no pi-tui. | no (source) |
-| `@feature-forge/cli`   | pi extension + TUI display: composition root, commands, tools, registry, folded TUI views/progress.                                                   | yes (tsup)  |
-| `@feature-forge/debug` | Dev-only test scenarios and commands; accepts cli-shaped components via dependency interfaces.                                                        | no (source) |
+| Package                | Role                                                                                                                                                                        | Publishes   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `@feature-forge/core`  | Engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, commands, registries, tool bases, skills, flow definitions. Source-only, no pi-tui. | no (source) |
+| `@feature-forge/cli`   | pi extension + TUI display: composition root, cli-owned commands/tools (incl. `RoutineTool`), folded TUI views/progress.                                                    | yes (tsup)  |
+| `@feature-forge/debug` | Dev-only test scenarios and commands; accepts cli-shaped components via dependency interfaces.                                                                              | no (source) |
 
 `core` and `debug` are consumed as source via the npm workspace
 (`main: ./src/index.ts`); only `cli` builds with tsup and publishes the pi

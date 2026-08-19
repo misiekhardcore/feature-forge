@@ -1,5 +1,3 @@
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S6) (#229).
 import { logger } from "@feature-forge/core";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";

@@ -1,5 +1,3 @@
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S6) (#229).
 import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { describe, expect, it, vi } from "vitest";
 

@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { WorkspaceInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S6) (#229).
 import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
 import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";

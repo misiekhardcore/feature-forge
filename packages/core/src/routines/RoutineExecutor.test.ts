@@ -1,5 +1,3 @@
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S11) (#229).
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { StepExecutor } from "@feature-forge/core/src/executors/StepExecutor";

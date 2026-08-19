@@ -1,5 +1,3 @@
-// Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S6) (#229).
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
 import { MockWorkspaceProvider } from "@feature-forge/core/src/test-utils";
 import {
