@@ -7,7 +7,7 @@ import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
-import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
+import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "@feature-forge/core/src/workspace";
 
 /**

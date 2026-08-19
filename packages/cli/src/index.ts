@@ -13,6 +13,14 @@ import {
   SpecRegistry,
 } from "@feature-forge/core/src/agents";
 import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
+import {
+  AgentDestroyAllCommand,
+  AgentDestroyCommand,
+  ResearchCommand,
+  WorktreeDestroyCommand,
+  WorktreeListCommand,
+  WorktreePruneCommand,
+} from "@feature-forge/core/src/commands";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
 import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
@@ -30,18 +38,7 @@ import {
 } from "@feature-forge/core/src/workspace";
 import { registerSignalHandlers } from "@feature-forge/core/src/workspace/registerSignalHandlers";
 
-import {
-  AgentDestroyAllCommand,
-  AgentDestroyCommand,
-  AgentListCommand,
-  FlowExitCommand,
-  ForgeInitCommand,
-  OrchestratorCommand,
-  ResearchCommand,
-  WorktreeDestroyCommand,
-  WorktreeListCommand,
-  WorktreePruneCommand,
-} from "./commands";
+import { AgentListCommand, FlowExitCommand, ForgeInitCommand } from "./commands";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
@@ -262,14 +259,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     stepExecutorRegistry,
     eventBus,
     activeFlowRegistry,
-    // The seam factories (issue section 6 D3): FlowRegistrar (core) must not
-    // import cli — the concrete RoutineTool / OrchestratorCommand are wired
-    // here at the composition root. The single `as never` cast is the
-    // documented bridge between core's structural deps and cli's concrete
-    // command deps; the shapes must match at runtime (they do — same fields).
+    // The remaining seam factory (issue section 6 D3): FlowRegistrar (core)
+    // must not import cli — the concrete RoutineTool is wired here at the
+    // composition root.
     createRoutineTool: (flowName, routineDef, routineExecutor, supervisor) =>
       new RoutineTool(flowName, routineDef, routineExecutor, supervisor),
-    createOrchestratorCommand: (deps) => new OrchestratorCommand(deps as never),
   });
   await flowRegistrar.registerAll();
 

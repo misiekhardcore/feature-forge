@@ -5,7 +5,10 @@ import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import { OrchestratorCommand } from "@feature-forge/core/src/commands/OrchestratorCommand";
 import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
+import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
+import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActiveFlowRegistry } from "./ActiveFlowRegistry";
@@ -22,7 +25,6 @@ const {
   discoverFlowDirsMock,
   flowLoaderLoadMock,
   flowLoaderCtorMock,
-  orchestratorCtorMock,
   routineExecutorCtorMock,
   specManagerLoadFromDirectoryMock,
   specManagerSpecNamesMock,
@@ -53,17 +55,6 @@ const {
   }
   const flowLoaderCtor = vi.fn(FlowLoaderMock);
 
-  // The seam injects this as createOrchestratorCommand — FlowRegistrar calls
-  // the factory with the flow's deps bag instead of constructing the command.
-  function OrchestratorCommandMock(_deps: unknown) {
-    return {
-      name: "/cmd",
-      description: "desc",
-      handler: vi.fn(),
-    };
-  }
-  const orchestratorCtor = vi.fn(OrchestratorCommandMock);
-
   // FlowRegistrar only threads the executor into the routine-tool factory
   // (which reads stepRegistry for display handlers) — nothing executes
   // routines here, so a constructable stub is safe.
@@ -80,7 +71,6 @@ const {
     discoverFlowDirsMock: discoverFlowDirs,
     flowLoaderLoadMock: load,
     flowLoaderCtorMock: flowLoaderCtor,
-    orchestratorCtorMock: orchestratorCtor,
     routineExecutorCtorMock: routineExecutorCtor,
     specManagerLoadFromDirectoryMock: specManagerLoadFromDirectory,
     specManagerSpecNamesMock: specManagerSpecNames,
@@ -104,11 +94,13 @@ vi.mock("../routines/RoutineExecutor", () => ({
 
 function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistrarContext {
   const pi = overrides.pi ?? makeMockPi();
-  const cmdRegistry = overrides.cmdRegistry ?? { registerInstance: vi.fn() };
-  const toolRegistry = overrides.toolRegistry ?? {
-    registerInstance: vi.fn(),
-    get: vi.fn(),
-  };
+  // The concrete registries are replaced with structural mocks: registerFlow
+  // only touches registerInstance, so a single-method mock is enough.
+  const cmdRegistry =
+    overrides.cmdRegistry ?? ({ registerInstance: vi.fn() } as unknown as CommandRegistry);
+  const toolRegistry =
+    overrides.toolRegistry ??
+    ({ registerInstance: vi.fn(), get: vi.fn() } as unknown as ToolRegistry);
   return {
     pi,
     cmdRegistry,
@@ -127,9 +119,8 @@ function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistra
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
     activeFlowRegistry: overrides.activeFlowRegistry ?? new ActiveFlowRegistry(),
-    // Mirror the cli composition root: the factories construct the same
-    // classes with the same arguments as the pre-seam registerFlow.
-    createOrchestratorCommand: overrides.createOrchestratorCommand ?? orchestratorCtorMock,
+    // RoutineTool stays cli-owned (S6 seam) — the factory is still provided
+    // by the composition root.
     createRoutineTool:
       overrides.createRoutineTool ??
       ((flowName, routineDef, routineExecutor, supervisor) =>
@@ -284,23 +275,30 @@ describe("FlowRegistrar", () => {
       await registrar.registerAll();
 
       expect(cmdRegistry.registerInstance).toHaveBeenCalledTimes(1);
-      // The command passed to registerInstance has handler method
+      // The command passed to registerInstance is the real core
+      // OrchestratorCommand — constructed directly by FlowRegistrar now that
+      // the command seam is gone (no more factory at the composition root).
       const registeredCmd = (cmdRegistry.registerInstance as ReturnType<typeof vi.fn>).mock
-        .calls[0][0];
-      expect(registeredCmd).toHaveProperty("name", "/cmd");
-      expect(registeredCmd).toHaveProperty("handler");
+        .calls[0][0] as OrchestratorCommand;
+      expect(registeredCmd).toBeInstanceOf(OrchestratorCommand);
+      expect(registeredCmd.name).toBe("test"); // flow.command "/test" minus slash
+      expect(registeredCmd.description).toBe("Run the test-flow orchestrator workflow");
+      expect(registeredCmd.handler).toBeInstanceOf(Function);
       // The OrchestratorCommand receives the flow's store and the shared
       // active-flow registry so set_flow_param routes to this flow.
-      const orchestratorDeps = orchestratorCtorMock.mock.calls[0][0];
-      expect(orchestratorDeps).toHaveProperty("store", expect.any(FlowStateStore));
-      expect(orchestratorDeps).toHaveProperty("activeFlow", params.activeFlowRegistry);
+      expect((registeredCmd as unknown as { store: FlowStateStore }).store).toBeInstanceOf(
+        FlowStateStore,
+      );
+      expect((registeredCmd as unknown as { activeFlow: ActiveFlowRegistry }).activeFlow).toBe(
+        params.activeFlowRegistry,
+      );
       // The SAME store instance must be threaded to RoutineExecutor and
       // OrchestratorCommand so the shared set_flow_param tool and routine
       // session steps write into one FlowStateStore per flow.
       expect(routineExecutorCtorMock).toHaveBeenCalledTimes(1);
       const executorStore = routineExecutorCtorMock.mock.calls[0][4];
       expect(executorStore).toBeInstanceOf(FlowStateStore);
-      expect((orchestratorDeps as { store: FlowStateStore }).store).toBe(executorStore);
+      expect((registeredCmd as unknown as { store: FlowStateStore }).store).toBe(executorStore);
     });
 
     it("loads the orchestrator persona before constructing FlowLoader", async () => {

@@ -1,47 +1,23 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { FlowExitCommand } from "@feature-forge/cli/src/commands/FlowExitCommand";
+import {
+  makeMockCtx,
+  makeMockFactory,
+  makeMockPi,
+  makeMockToolRegistry,
+} from "@feature-forge/cli/src/test-utils";
 import type { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
-import type {
-  OrchestratorCommandDeps as CoreOrchestratorCommandDeps,
-  ToolRegistryLike,
-  WorkspaceManagerLike,
-} from "@feature-forge/core/src/flows";
 import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeMockFactory } from "../test-utils";
-import { makeMockCtx, makeMockPi, makeMockToolRegistry } from "../test-utils";
-import { FlowExitCommand } from "./FlowExitCommand";
-import {
-  OrchestratorCommand,
-  type OrchestratorCommandDeps as CliOrchestratorCommandDeps,
-} from "./OrchestratorCommand";
-
-// ── Compile-time seam guard (S4c) ────────────────────────────────
-// cli/src/index.ts bridges core's structural OrchestratorCommandDeps into
-// cli's concrete OrchestratorCommandDeps with the single documented `as never`
-// cast. These assertions fail to compile the moment the two shapes drift — a
-// new core dep field, a renamed cli dep, or a concrete collaborator losing a
-// member its structural surface declares — keeping the cast's type hole narrow
-// until S4d moves the registries and the cast can be removed.
-type Assert<T extends true> = T;
-type MissingFromCliDeps = Exclude<
-  keyof CoreOrchestratorCommandDeps,
-  keyof CliOrchestratorCommandDeps
->;
-type _SeamFieldCompleteness = Assert<MissingFromCliDeps extends never ? true : false>;
-type _SeamToolRegistrySurface = Assert<ToolRegistry extends ToolRegistryLike ? true : false>;
-type _SeamWorkspaceManagerSurface = Assert<
-  WorkspaceManager extends WorkspaceManagerLike ? true : false
->;
+import { OrchestratorCommand } from "./OrchestratorCommand";
 
 // ── Mocks ────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
-import { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ChildSocketClient } from "@feature-forge/core/src/ipc";
-import { Tool } from "@feature-forge/core/src/tools";
+import type { Tool } from "@feature-forge/core/src/tools";
 
 import { Registry } from "./Registry";
 

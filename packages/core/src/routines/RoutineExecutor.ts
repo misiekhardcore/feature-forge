@@ -9,8 +9,8 @@ import type {
   RoutineDefinition,
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { isContainerInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { ToolRegistryLike } from "@feature-forge/core/src/flows/FlowRegistrar";
 import { FlowParams, FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 
 import type { RoutineResult, RoutineStatus } from "./RoutineResult";
 
@@ -39,7 +39,7 @@ export class RoutineExecutor {
      */
     public readonly stepRegistry: StepExecutorRegistry,
     public readonly eventBus: TypedEventBus,
-    public readonly toolRegistry: ToolRegistryLike,
+    public readonly toolRegistry: ToolRegistry,
     store?: FlowStateStore,
   ) {
     this.store = store ?? new FlowStateStore();

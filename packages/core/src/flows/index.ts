@@ -42,15 +42,7 @@ export {
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
-export {
-  type CreateOrchestratorCommand,
-  type CreateRoutineTool,
-  FlowRegistrar,
-  type FlowRegistrarContext,
-  type OrchestratorCommandDeps,
-  type ToolRegistryLike,
-  type WorkspaceManagerLike,
-} from "./FlowRegistrar";
+export { type CreateRoutineTool, FlowRegistrar, type FlowRegistrarContext } from "./FlowRegistrar";
 export type { FlowParams } from "./FlowStateStore";
 export { FlowStateStore } from "./FlowStateStore";
 
