@@ -38,9 +38,8 @@ async function main(): Promise<void> {
     }
 
     if (flows.size === 0) {
-      console.log("No valid flows found.");
-      if (failures.size > 0) process.exit(1);
-      return;
+      console.error("✗ No valid flows found.");
+      process.exit(1);
     }
 
     console.log(`✓ ${flows.size} flow(s) valid:`);

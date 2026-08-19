@@ -35,7 +35,10 @@ export default defineConfig({
     await cp("scripts", "dist/scripts", { recursive: true });
     // Flow scripts moved to core in S8; keep the published dist/scripts layout
     // (validate-flow was previously shipped from cli/scripts).
-    await cp("../core/scripts", "dist/scripts", { recursive: true });
+    await cp("../core/scripts", "dist/scripts", {
+      recursive: true,
+      filter: (src) => !src.endsWith(".test.ts"),
+    });
     await cp(
       "../core/src/config/forge-config.defaults.json",
       "dist/scripts/forge-config.defaults.json",
