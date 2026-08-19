@@ -8,7 +8,12 @@ export {
 } from "./factories";
 export { isSubprocessAgent } from "./guards";
 export { PiSubprocessAgent } from "./PiSubprocessAgent";
-export { AgentGovernancePolicy, AgentPermissions, DefaultAgentGovernancePolicy } from "./policies";
+export {
+  activateToolRestrictions,
+  AgentGovernancePolicy,
+  AgentPermissions,
+  DefaultAgentGovernancePolicy,
+} from "./policies";
 export { SessionAgent } from "./SessionAgent";
 export {
   AgentSpecification,

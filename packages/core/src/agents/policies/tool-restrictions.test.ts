@@ -214,6 +214,22 @@ describe("activateToolRestrictions", () => {
       ).toBeUndefined();
     });
 
+    it("keeps unspaced pipes in a single segment — documented limitation (no quote-aware split)", () => {
+      const pi = makeMockPiWithHandlers();
+      activateToolRestrictions(pi, { bash: ["cat *"] }, PROJECT_ROOT);
+
+      const handler = pi.getHandler("tool_call")!;
+
+      // `cat file.txt|rm -rf /` stays one segment: the splitter only splits
+      // `|` with surrounding whitespace so `echo "a|b"` survives. A pipe
+      // without surrounding spaces is therefore matched as a single command
+      // and can pass a `cat *` allowlist. Quote-aware splitting is a
+      // deliberate follow-up, not part of this change.
+      expect(
+        handler(makeToolCallEvent("bash", { command: "cat file.txt|rm -rf /" })),
+      ).toBeUndefined();
+    });
+
     it("blocks chained commands when any segment is not in the allowlist", () => {
       const pi = makeMockPiWithHandlers();
       activateToolRestrictions(pi, { bash: ["gh *"] }, PROJECT_ROOT);
@@ -367,6 +383,46 @@ describe("activateToolRestrictions", () => {
           block: true,
           reason: expect.stringContaining("BAD-NOTES.md"),
         });
+      });
+
+      it("uses absolute patterns verbatim without resolving against projectRoot", () => {
+        const pi = makeMockPiWithHandlers();
+        activateToolRestrictions(pi, { write: ["/home/user/proj/src/*"] }, PROJECT_ROOT);
+
+        const handler = pi.getHandler("tool_call")!;
+
+        expect(
+          handler(makeToolCallEvent("write", { path: "/home/user/proj/src/file.ts" })),
+        ).toBeUndefined();
+        expect(
+          handler(makeToolCallEvent("write", { path: "/home/user/proj/docs/file.md" })),
+        ).toEqual({
+          block: true,
+          reason: expect.stringContaining("docs/file.md"),
+        });
+      });
+
+      it("preserves the negation prefix on absolute patterns", () => {
+        const pi = makeMockPiWithHandlers();
+        activateToolRestrictions(
+          pi,
+          {
+            write: ["/home/user/proj/src/*", "!/home/user/proj/src/secret.ts"],
+          },
+          PROJECT_ROOT,
+        );
+
+        const handler = pi.getHandler("tool_call")!;
+
+        expect(
+          handler(makeToolCallEvent("write", { path: "/home/user/proj/src/secret.ts" })),
+        ).toEqual({
+          block: true,
+          reason: expect.stringContaining("secret.ts"),
+        });
+        expect(
+          handler(makeToolCallEvent("write", { path: "/home/user/proj/src/other.ts" })),
+        ).toBeUndefined();
       });
     });
   });
@@ -719,6 +775,25 @@ describe("activateToolRestrictions", () => {
         PROJECT_ROOT,
       );
       expect(pi2.on).not.toHaveBeenCalled();
+    });
+    it("treats per-tool empty pattern arrays as unrestricted", () => {
+      const pi = makeMockPiWithHandlers();
+
+      // All-empty arrays behave like the empty map: no handler registered.
+      activateToolRestrictions(pi, { bash: [] }, PROJECT_ROOT);
+      expect(pi.on).not.toHaveBeenCalled();
+
+      // Mixed map: a tool with an empty array passes through unrestricted
+      // while other tools stay restricted.
+      const pi2 = makeMockPiWithHandlers();
+      activateToolRestrictions(pi2, { bash: ["git *"], write: [] }, PROJECT_ROOT);
+      const handler = pi2.getHandler("tool_call")!;
+
+      expect(handler(makeToolCallEvent("bash", { command: "rm -rf /" }))).toEqual({
+        block: true,
+        reason: expect.stringContaining("rm -rf /"),
+      });
+      expect(handler(makeToolCallEvent("write", { path: "/anything/at/all.ts" }))).toBeUndefined();
     });
   });
 });
