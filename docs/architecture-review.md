@@ -696,7 +696,7 @@ Worst pockets: `connectChildClient.ts` **0%** (33 production lines), `debug/.../
 
 | #   | Finding                                                                                                                                                                                                                           | Location                                                              | Fix                                                                                               |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1   | `validate-flow.ts --all` **exits 0 when every flow fails**: `flows.size === 0` triggers an early return before the `failures.size > 0 → exit(1)` check (currently masked by the 3.22 crash)                                       | `core/scripts/validate-flow.ts`                                       | Check failures before the early return                                                            |
+| 1   | `validate-flow.ts --all` **exits 0 when every flow fails**: `flows.size === 0` triggers an early return before the `failures.size > 0 → exit(1)` check (fixed in Phase -1, #225; 3.22 self-healed by #229)                        | `core/scripts/validate-flow.ts`                                       | Check failures before the early return                                                            |
 | 2   | `ChildSocketClient.connect()` can be called repeatedly, overwriting `this.socket` and leaking the previous socket's handlers; pending requests are never rejected on `close`/`error` after connection                             | `cli/src/ipc/ChildSocketClient.ts`                                    | Guard double-connect; reject all pending on close/error (extends P2-3)                            |
 | 3   | `ParentSocketServer.start()` registers a fresh `session_shutdown` listener per call; the `mkdtempSync` temp dir is never removed in `stop()`                                                                                      | `cli/src/ipc/ParentSocketServer.ts`                                   | Register once; `rmSync` in `stop()`                                                               |
 | 4   | `OrchestratorCommand` swallows model/thinking-level resolution errors without even a `logger.warn`                                                                                                                                | `commands/OrchestratorCommand.ts`                                     | Log the caught error                                                                              |
@@ -795,7 +795,7 @@ gantt
 ```
 
 > **Roadmap status (2026-08-19):** phases **P1a** (3.1) and **P2a** (3.2) were
-> consumed by issue #229's package restructure (ADR 0020) — the gantt rows
+> consumed by issue #229's package restructure (ADR 0020) - the gantt rows
 > below are kept as the original plan, not re-drawn. 3.1's cycle is gone by
 > construction (wire types + `TypedEventBus` in core; `shared` and `tui` no
 > longer exist); 2a's DisplayProjection landed as the final commit group of
@@ -809,10 +809,10 @@ The coverage gate fails today and two verified bugs corrupt session state or def
 **Phase 0 - Quick wins (1 week)**
 Dead code removal, `IpcTool` base, `FlowStateStore` de-inheritance, workspace name/path fixes, socket null guard, logger/console consistency. Pure deletions and extractions with existing tests as the safety net.
 
-**Phase 1 - Contracts (1 week)** — p1a **consumed by #229**:
-Move `TypedEventBus` + IPC wire types to `@feature-forge/shared`; kill the `tui → cli` edge. Unify template resolution; fix the `===`/`!==` doc-vs-lexer mismatch. (The move half is done — wire types + `TypedEventBus` are in core and the cycle is dead; the template/expression half, p1b, is still open.)
+**Phase 1 - Contracts (1 week)** - p1a **consumed by #229**:
+Move `TypedEventBus` + IPC wire types to `@feature-forge/shared`; kill the `tui → cli` edge. Unify template resolution; fix the `===`/`!==` doc-vs-lexer mismatch. (The move half is done - wire types + `TypedEventBus` are in core and the cycle is dead; the template/expression half, p1b, is still open.)
 
-**Phase 2 - Display extraction (1.5 weeks)** — p2a **consumed by #229**:
+**Phase 2 - Display extraction (1.5 weeks)** - p2a **consumed by #229**:
 Replace the dual push/pull display mechanism with the single `DisplayProjection` fold; delete `getDisplayContribution`/`registerDisplayHandler` from all executors; split `RoutineTool`. (The projection fold landed in #229's final commit group; the remaining work is the 2b RoutineTool split on the new layout.)
 
 **Phase 3 - Config de-singleton (1 week)**

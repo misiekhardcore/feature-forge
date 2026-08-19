@@ -1,4 +1,4 @@
-# ADR 0020: Package layering — core / cli / debug
+# ADR 0020: Package layering - core / cli / debug
 
 **Date:** 2026-08-19
 **Status:** Accepted (implemented by #229)
@@ -30,10 +30,10 @@ were coupled inside `cli`. The architecture review prescribed the split
 (D1-D9) in a planning session and executed the restructure in one PR.
 
 ADR 0019's consequences reserved 0018 for these package-layering decisions
-("S10's package-layering decisions (D1-D8)"); the reservation lapsed — no
-0018 was ever written — and numbering landed on 0020 because 0017 was taken
-by static-utility-classes and 0019 by the S4c seam ADR. ADR 0019 covers the
-flow-engine seam; this ADR records the layering decisions themselves.
+("S10's package-layering decisions (D1-D8)"); the reservation lapsed and no
+0018 was ever written, so 0020 was chosen as the next free number after
+0019 (the S4c seam ADR). ADR 0019 covers the flow-engine seam; this ADR
+records the layering decisions themselves.
 
 ## Decision
 
@@ -54,22 +54,21 @@ flow-engine seam; this ADR records the layering decisions themselves.
   rendering must stay out.
 - **D5 - superseded by D9.** The roadmap 3.1 deviation question (wire types +
   `TypedEventBus` in core, not shared) is moot once `shared` merges into
-  `core` — they are core concerns by construction.
+  `core` - they are core concerns by construction.
 - **D6 - DisplayProjection (roadmap 2a) is pulled into the restructure.**
   Executors lose all display methods; the pure projection fold and state
   (`DisplayProjection.applyEvent`, `AccumulatedState`) live in
   `cli/src/tui/progress`. The restructure lands the 2a end state; review and
   restructure each make the other cheaper.
 - **D7 - one PR** with move commits first, the 2a projection commit as the
-  final commit group (no DisplayProjection logic mixed into the mechanical
-  moves).
+  final logic commit group (script moves + surgery land after).
 - **D8 - superseded by D9.** The `shared/src/tools/Tool.ts` type-only
-  `pi-coding-agent` import question disappears — core already has the pi
+  `pi-coding-agent` import question disappears - core already has the pi
   peerDependencies.
 - **D9 - `shared` merges into `core`.** Config, logging, `Registry`,
   helpers, and the tool bases land in core with the same directory names;
   `AgentStatus` joins `core/agents/`. Both layers imported it, cli already
-  depends on core, and no leaf consumer existed — a separate package bought
+  depends on core, and no leaf consumer existed - a separate package bought
   nothing.
 
 ### Target graph and consumption model
@@ -83,14 +82,15 @@ graph TD
     DBG --> CORE
 ```
 
-- `core` — engine mechanics + platform utils: agents, flows, executors,
+- `core` - engine mechanics + platform utils: agents, flows, executors,
   routines, event-bus, ipc, workspace, progress contracts, config, logging,
   registry, helpers, tool bases, skills content, flow definitions. No pi-tui
-  or `@feature-forge/cli` imports.
-- `cli` — the composition root (`index.ts`), commands, tools, extensions,
+  imports; no production `@feature-forge/cli` imports (test files use cli
+  test-utils - see Consequences).
+- `cli` - the composition root (`index.ts`), commands, tools, extensions,
   registry, and the folded TUI display. Builds with tsup and publishes (pi
   extension field + `bin/forge`).
-- `debug` — dev-only test scenarios and commands; accepts cli-shaped
+- `debug` - dev-only test scenarios and commands; accepts cli-shaped
   components via dependency interfaces so it never imports cli directly.
 
 Consumption model matches prior practice: only `cli` builds with tsup and
@@ -101,8 +101,8 @@ publishes; `core` and `debug` are consumed as source via
 
 The flow engine lives in core but depends on cli-owned concretions
 (`RoutineTool`, `OrchestratorCommand`). Two factory types on
-`FlowRegistrarContext` — `CreateRoutineTool` and `CreateOrchestratorCommand`
-— are wired at the cli composition root (`packages/cli/src/index.ts`):
+`FlowRegistrarContext` - `CreateRoutineTool` and `CreateOrchestratorCommand`
+\- are wired at the cli composition root (`packages/cli/src/index.ts`):
 `(…) => new RoutineTool(…)` and `(deps) => new OrchestratorCommand(deps)`.
 Core types cli-owned collaborators structurally by the members actually
 consumed (`CommandRegistryLike`, `ToolRegistryLike`, `WorkspaceManagerLike`),

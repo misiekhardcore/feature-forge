@@ -6,9 +6,9 @@ Feature Forge is an autonomous software engineering platform — idea-to-PR via 
 
 This is a **Turborepo monorepo** with npm workspaces:
 
-- **`@feature-forge/core`** (`packages/core/`) — engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, tool bases, skills, flow definitions (source-only)
-- **`@feature-forge/cli`** (`packages/cli/`) — pi extension + TUI display: composition root, commands, tools, registry, folded TUI views/progress (publishes)
-- **`@feature-forge/debug`** (`packages/debug/`) — dev-only test scenarios and commands
+- **`@feature-forge/core`** (`packages/core/`) - engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, tool bases, skills, flow definitions (source-only)
+- **`@feature-forge/cli`** (`packages/cli/`) - pi extension + TUI display: composition root, commands, tools, registry, folded TUI views/progress (publishes)
+- **`@feature-forge/debug`** (`packages/debug/`) - dev-only test scenarios and commands
 - **`@feature-forge/eslint-config`** (`packages/eslint-config/`) — shared ESLint configuration
 
 The package graph is strictly one-directional (`core <- cli <- debug`); see [ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md).
@@ -92,7 +92,7 @@ Releases are driven from GitHub — the **Release** workflow handles version bum
 Before releasing, regenerate the flow schema and verify it is in sync:
 
 1. `npm run flow:generate-schema`
-2. `git diff --exit-code -- packages/core/src/flows/flow-schema.json` — must be clean, no drift
+2. `git diff --exit-code -- packages/core/src/flows/flow-schema.json` - must be clean, no drift
 3. `npm run flow:validate-json`
 
 The CI `schema` job runs exactly these steps on every push to `main` and every pull request targeting it (`.github/workflows/ci.yml`), so a stale schema fails the gate. All four CI jobs (`schema`, `quality`, `build`, `test`) must be green on `main` before triggering a release.
@@ -110,11 +110,11 @@ The CI `schema` job runs exactly these steps on every push to `main` and every p
 
 ### Rebuild before consumers run `forge:init`
 
-Scaffolding templates (agents, flows, skills) are not shipped as source: `dist/` is git-ignored and produced by `npm run build`. tsup's `onSuccess` copies the templates and flow definitions from `@feature-forge/core` — `src/agents/specifications/templates`, `src/flows/definitions` (test files excluded), `src/flows/flow-schema.json`, `src/skills` — plus the `scripts` dirs from both `cli` (`forge-setup.js`) and `core` (flow validation scripts, test files excluded) into `dist/scripts`, then copies the core `forge-config.defaults.json` (from `@feature-forge/core/src/config`) to `dist/scripts/forge-config.defaults.json` (`packages/cli/tsup.config.ts`).
+Scaffolding templates (agents, flows, skills) are not shipped as source: `dist/` is git-ignored and produced by `npm run build`. tsup's `onSuccess` copies the templates and flow definitions from `@feature-forge/core` - `src/agents/specifications/templates`, `src/flows/definitions` (test files excluded), `src/flows/flow-schema.json`, `src/skills` - plus the `scripts` dirs from both `cli` (`forge-setup.js`) and `core` (flow validation scripts, test files excluded) into `dist/scripts`, then copies the core `forge-config.defaults.json` (from `@feature-forge/core/src/config`) to `dist/scripts/forge-config.defaults.json` (`packages/cli/tsup.config.ts`).
 
-`forge-setup.js` resolves these assets with `resolveAssetsDir`, which checks `<pkg>`, then `<pkg>/dist`, then `<pkg>/src` — so the published layout scaffolds from `<pkg>/dist/`, and an unbuilt source tree falls back to `<pkg>/src/` (`packages/cli/scripts/forge-setup.js`). Flow validation lives in `packages/core/scripts/` (`validate-flow.ts`, `validate-flow-json.ts`, `generate-flow-schema.ts`). Consumers' `forge:init` therefore scaffolds from the published `dist/` — a release that changed flows, specs, or skills must ship a freshly built `dist/`. The Release workflow builds before publishing, but never publish from a stale `dist/`.
+`forge-setup.js` resolves these assets with `resolveAssetsDir`, which checks `<pkg>`, then `<pkg>/dist`, then `<pkg>/src` - so the published layout scaffolds from `<pkg>/dist/`, and an unbuilt source tree falls back to `<pkg>/src/` (`packages/cli/scripts/forge-setup.js`). Flow validation lives in `packages/core/scripts/` (`validate-flow.ts`, `validate-flow-json.ts`, `generate-flow-schema.ts`). Consumers' `forge:init` therefore scaffolds from the published `dist/` - a release that changed flows, specs, or skills must ship a freshly built `dist/`. The Release workflow builds before publishing, but never publish from a stale `dist/`.
 
-The full "re-run `forge:init`" invariant for a flow/asset change is: edit the source (e.g. `FlowInstruction.ts` in `packages/core/src/flows/`) → `npm run flow:generate-schema` → `npm run flow:validate-json` → `npm run build` so the new templates land in `dist/flows` → release → consumers re-run `forge:init` in their projects (scaffolding is non-destructive — only missing files are copied) and restart pi when prompted.
+The full "re-run `forge:init`" invariant for a flow/asset change is: edit the source (e.g. `FlowInstruction.ts` in `packages/core/src/flows/`) → `npm run flow:generate-schema` → `npm run flow:validate-json` → `npm run build` so the new templates land in `dist/flows` → release → consumers re-run `forge:init` in their projects (scaffolding is non-destructive - only missing files are copied) and restart pi when prompted.
 
 ## Design decisions
 

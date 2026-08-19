@@ -36,8 +36,8 @@ lets core depend on structural surfaces while cli supplies the concretions.
 - `OrchestratorCommandDeps` is exported from core: core-owned collaborators
   use concrete types; cli-owned ones (`toolRegistry`, `workspaceManager`) are
   structural, typed by the members the cli `OrchestratorCommand` reads.
-- Two factory types on the context — `CreateRoutineTool` and
-  `CreateOrchestratorCommand` — are wired at the cli composition root
+- Two factory types on the context - `CreateRoutineTool` and
+  `CreateOrchestratorCommand` - are wired at the cli composition root
   (`cli/src/index.ts`): `(…) => new RoutineTool(…)` and
   `(deps) => new OrchestratorCommand(deps)`. The single documented `as never`
   cast there bridges core's structural deps and cli's concrete command deps.
@@ -50,7 +50,7 @@ lets core depend on structural surfaces while cli supplies the concretions.
 
 - The flow engine's production code is cli-agnostic at runtime; cli supplies
   concretions at the composition root (DIP/ISP).
-- The structural surfaces must track cli usage — the `as never` cast is a
+- The structural surfaces must track cli usage - the `as never` cast is a
   latent type hole if the two shapes drift; narrowing it (e.g. having
   `OrchestratorCommand` accept `ToolRegistryLike`) is planned when S4d moves
   the registries.
