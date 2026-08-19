@@ -1,5 +1,6 @@
 export { ActiveFlowRegistry } from "./ActiveFlowRegistry";
-export type { ExpressionEvaluator, FlowContextLike } from "./ExpressionEvaluator";
+export type { FlowContextLike } from "./ExpressionEvaluator";
+export { ExpressionEvaluator } from "./ExpressionEvaluator";
 export { BinaryOp, Expr, ExpressionParser, ParseError, UnaryOp } from "./ExpressionParser";
 export type { InstructionResult } from "./FlowContext";
 export { FlowContext } from "./FlowContext";

@@ -1,3 +1,6 @@
+// Test-only value imports from cli: self-heal when StepExecutor,
+// StepExecutorRegistry and TypedEventBus (S4d), WorkspaceHandle (S4e) and
+// cli test-utils move to core (#229).
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
 import { StepExecutor } from "@feature-forge/cli/src/orchestrator/StepExecutor";

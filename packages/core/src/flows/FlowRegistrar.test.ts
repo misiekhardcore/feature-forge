@@ -1,3 +1,5 @@
+// Test-only value imports from cli: self-heal when RoutineTool (S6),
+// StepExecutorRegistry (S4d) and cli test-utils move to core (#229).
 import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
 import { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
 import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
@@ -416,7 +418,10 @@ describe("FlowRegistrar", () => {
 
       const toolRegistry = {
         registerInstance: vi.fn().mockImplementation(() => {
-          throw Error("raw string failure");
+          // Deliberate non-Error throw: verifies the registration guard
+          // survives unexpected rejection shapes.
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberate defensive case
+          throw "raw string failure";
         }),
         get: vi.fn(),
       } as unknown as FlowRegistrarContext["toolRegistry"];
