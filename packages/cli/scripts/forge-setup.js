@@ -270,8 +270,13 @@ function scaffoldTemplates(forgeDir) {
     logWarn(`flows source directory not found: ${flowsSrc} — skipping`);
   }
 
-  // Skills: copy <assets>/skills → forgeDir/skills (skip existing files)
-  const skillsSrc = path.join(srcDir, "skills");
+  // Skills: prefer the dist copy (built/published layout), fall back to the
+  // core source dir (monorepo dev layout; skills moved to core in S4b).
+  // resolveAssetsDir still probes for `flows`, which stays in cli/src until
+  // S4f — the fallback path needs revisiting when flows move too.
+  const skillsSrc = fs.existsSync(path.join(srcDir, "skills"))
+    ? path.join(srcDir, "skills")
+    : path.join(srcDir, "..", "..", "core", "src", "skills");
   const skillsDest = path.join(forgeDir, "skills");
   if (fs.existsSync(skillsSrc)) {
     const { created, skipped } = copyMissingFiles(skillsSrc, skillsDest);

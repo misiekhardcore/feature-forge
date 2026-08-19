@@ -22,7 +22,7 @@ interface SkillMetadata extends Record<string, unknown> {
  * Skill name discovery and allowlist/denylist resolution (no instance state).
  *
  * Scans `~/.agents/skills/`, `~/.pi/agent/skills/`, `<forgeDir>/skills/`, and
- * the CLI package's bundled `skills/` directory in priority order. Earlier
+ * the core package's bundled `skills/` directory in priority order. Earlier
  * directories take precedence if names collide.
  *
  * The resolved paths can be passed to a pi subprocess via `--no-skills` +
@@ -33,7 +33,7 @@ export class SkillResolver {
   private constructor() {}
 
   /**
-   * Candidate locations of the bundled default skills shipped with the CLI
+   * Candidate locations of the bundled default skills shipped with the core
    * package. The tsup build emits a single `dist/index.js`, so `import.meta.url`
    * resolves to `dist` in the built bundle and to the source module directory
    * when running from source (vitest / tsx). At most one candidate exists per

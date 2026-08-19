@@ -27,7 +27,7 @@ export default defineConfig({
       recursive: true,
       filter: (src) => !src.endsWith(".test.ts"),
     });
-    await cp("src/skills", "dist/skills", { recursive: true });
+    await cp("../core/src/skills", "dist/skills", { recursive: true });
     await cp("scripts", "dist/scripts", { recursive: true });
     await cp(
       "../core/src/config/forge-config.defaults.json",

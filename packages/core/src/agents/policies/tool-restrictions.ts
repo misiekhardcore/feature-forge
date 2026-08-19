@@ -49,6 +49,12 @@ function bashGlobMatch(value: string, pattern: string): boolean {
  * whitespace), then checks that every segment is covered by the
  * allowlist. Pipes inside quoted strings (e.g. `echo "a|b"`) are
  * preserved because there is no whitespace around them.
+ *
+ * This is a heuristic, not a shell parser — same-class bypass surface as
+ * the unspaced pipe: command substitution (`gh pr view $(cat secret)`) is
+ * never split into segments, so the nested command is checked only as part
+ * of the whole string and can pass a `gh *` allowlist. Allowlist authors
+ * must account for both (quote-aware parsing is a deliberate follow-up).
  */
 function splitCommand(command: string): string[] {
   return command

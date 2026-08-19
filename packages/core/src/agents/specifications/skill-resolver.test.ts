@@ -88,20 +88,9 @@ describe("SkillResolver.resolveEffectiveSkillNames", () => {
 
 describe("skill discovery", () => {
   it("discovers forge-build skill from the bundled skills dir", () => {
-    // Bundled skills still ship from packages/cli/src/skills until S4b moves
-    // them to core/src/skills (where skill-resolver already scans for them).
-    const buildSkillPath = path.resolve(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "..",
-      "cli",
-      "src",
-      "skills",
-      "forge-build",
-      "SKILL.md",
-    );
+    // Bundled skills ship from core/src/skills (S4b); skill-resolver scans
+    // them from source via `../../skills` relative to this module dir.
+    const buildSkillPath = path.resolve(__dirname, "..", "..", "skills", "forge-build", "SKILL.md");
     expect(fs.existsSync(buildSkillPath)).toBe(true);
 
     const content = fs.readFileSync(buildSkillPath, "utf-8");
@@ -131,19 +120,22 @@ describe("skill discovery", () => {
     }
   });
 
-  // Bundled skills land in core/src/skills in S4b; until then the resolver's
-  // bundled directories (core/src/skills) are empty, so the bundled-discovery
-  // assertion cannot hold. Re-enable when skills move.
-  it.skip("discovers bundled forge-build skill without a project .forge/skills dir", () => {
+  it("discovers bundled forge-build skill without a project .forge/skills dir", () => {
+    // Isolate HOME so a user-installed forge-build in ~/.agents/skills or
+    // ~/.pi/agent/skills cannot mask a broken bundled-discovery path.
     const originalCwd = process.cwd();
+    const originalHome = process.env.HOME;
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-skills-bundled-"));
+    const homeDir = path.join(tempDir, "home");
     try {
       process.chdir(tempDir);
+      process.env.HOME = homeDir;
       const allSkills = SkillResolver.discoverAllSkills();
       expect(allSkills.has("forge-build")).toBe(true);
       expect(allSkills.get("forge-build")).toContain("SKILL.md");
       expect(allSkills.get("forge-build")).toMatch(/[\\/]skills[\\/]forge-build[\\/]SKILL[.]md$/);
     } finally {
+      process.env.HOME = originalHome;
       process.chdir(originalCwd);
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

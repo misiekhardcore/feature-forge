@@ -12,16 +12,22 @@ import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";
 
 describe("ForgeConfig", () => {
   let tempDir: string;
+  let originalHome: string | undefined;
 
   beforeEach(async () => {
     // Destroy any pre-initialized instance (e.g. from test-setup.ts)
     // so that each test starts with a clean slate.
     ForgeConfig.destroy();
     tempDir = await fs.mkdtemp(join(tmpdir(), "forge-config-test-"));
+    // Isolate HOME so a real global ~/.forge/config.json on the host
+    // cannot leak into the no-config default path (forRoot step 3).
+    originalHome = process.env.HOME;
+    process.env.HOME = join(tempDir, "home");
   });
 
   afterEach(async () => {
     ForgeConfig.destroy();
+    process.env.HOME = originalHome;
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 

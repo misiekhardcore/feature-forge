@@ -126,10 +126,10 @@ one entry per comment with `id`, `body`, `path`, `source: "review"`,
 `isResolved` (from the thread), and `threadId`. Threads with
 `isResolved: false` are the actionable inventory; resolved threads need no
 work. Fall back to the `GitHubService` class in
-`packages/cli/src/github.ts` only when shaping needs fields the routine
+`packages/core/src/github.ts` only when shaping needs fields the routine
 query does not return — `author` login, `line`, `createdAt`, `url`, and
 issue comments. Instantiate it once
-(`import { GitHubService } from './packages/cli/src/github.ts'; const gh = new GitHubService();`)
+(`import { GitHubService } from './packages/core/src/github.ts'; const gh = new GitHubService();`)
 and use `gh.getPullRequest()` / `gh.getUnresolvedComments()`. Run those from
 the main checkout, the one that has `node_modules` (find it with `git worktree
 list`).
