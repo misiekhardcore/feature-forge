@@ -55,8 +55,6 @@
     "@feature-forge/core": "*",
     "@feature-forge/debug": "*",
     "tsup": "^8.0.0",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
     "typebox": "*",
     "@feature-forge/eslint-config": "*"
   },

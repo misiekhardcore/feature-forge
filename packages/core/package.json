@@ -31,6 +31,8 @@
   },
   "devDependencies": {
     "@feature-forge/eslint-config": "*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "typebox": "*",
     "vitest": "4.1.9"
   }
