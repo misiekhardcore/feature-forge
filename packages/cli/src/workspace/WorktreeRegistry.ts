@@ -6,9 +6,9 @@ import { promisify } from "node:util";
 
 import { jsonParse, Registry } from "@feature-forge/core";
 import { logger } from "@feature-forge/core";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 
 import { WorkspaceError } from "./WorkspaceError";
-import { WorkspaceHandle } from "./WorkspaceHandle";
 
 const execFileAsync = promisify(execFile);
 

@@ -4,9 +4,10 @@ import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { SessionInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import type { DisplayContribution } from "@feature-forge/tui";
-import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { SessionStepExecutor } from "./SessionStepExecutor";

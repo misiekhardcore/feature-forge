@@ -5,8 +5,9 @@ import type {
   FlowInstruction,
   RoutineRefInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../event-bus";
 import { FlowMapAware } from "./FlowMapAware";
@@ -275,8 +276,9 @@ export class RoutineRefStepExecutor
   registerDisplayHandler(registry: DisplayContributionRegistry): void {
     registry.register("routine-ref", (state, contribution) => {
       if (contribution.type !== "routine-ref") return;
-      // Defensive: routineRefs may not exist on AccumulatedState from older @feature-forge/tui.
-      // Initialise lazily so this executor works regardless of which tui version is resolved.
+      // Defensive: routineRefs may not exist on AccumulatedState from
+      // older core progress versions. Initialise lazily so this executor
+      // works regardless of which progress vocabulary is resolved.
       if (!state.routineRefs) {
         state.routineRefs = [];
       }

@@ -24,10 +24,10 @@ import {
   SubprocessAgent,
 } from "@feature-forge/core/src/agents/SubprocessAgent";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { vi } from "vitest";
 
 import { ToolRegistry } from "./registry/ToolRegistry";
-import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
 import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
 import { WorktreeRegistry } from "./workspace/WorktreeRegistry";

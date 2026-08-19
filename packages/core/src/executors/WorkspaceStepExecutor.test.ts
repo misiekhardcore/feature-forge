@@ -10,9 +10,10 @@ import { WorkspaceProviderRegistry } from "@feature-forge/cli/src/workspace/Work
 import { WorktreeRegistry } from "@feature-forge/cli/src/workspace/WorktreeRegistry";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { WorkspaceInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import type { DisplayContribution } from "@feature-forge/tui";
-import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { WorkspaceStepExecutor } from "./WorkspaceStepExecutor";

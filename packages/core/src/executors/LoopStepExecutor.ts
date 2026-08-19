@@ -5,8 +5,9 @@ import type {
   FlowInstruction,
   LoopInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../event-bus";
 import { collectAllIds } from "./helpers";

@@ -28,11 +28,12 @@ vi.mock("node:child_process", () => ({
 // Test-only value imports from cli: self-heal when cli/src/workspace
 // and cli test-utils move to core (S4e) (#229).
 import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { ShellInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 
 import { ShellStepExecutor } from "./ShellStepExecutor";
 

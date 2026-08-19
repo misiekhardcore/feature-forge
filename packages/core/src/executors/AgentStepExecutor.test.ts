@@ -1,7 +1,6 @@
 // Test-only value imports from cli: self-heal when cli/src/workspace
 // and cli test-utils move to core (S4e) (#229).
 import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
 import { logger } from "@feature-forge/core";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
@@ -9,8 +8,10 @@ import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessA
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { AgentInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { AgentContribution } from "@feature-forge/tui";
-import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
+import { createAccumulatedState } from "@feature-forge/core/src/progress/AccumulatedState";
+import type { AgentContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";

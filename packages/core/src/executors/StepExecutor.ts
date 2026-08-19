@@ -56,12 +56,11 @@ export abstract class StepExecutor<TInstruction extends FlowInstruction = FlowIn
 
   /**
    * Register a handler on the given registry that applies this executor's
-   * contribution type to an {@link import("./progress/AccumulatedState").AccumulatedState}.
+   * contribution type to an AccumulatedState.
    *
    * The default is a no-op. Override in executors that produce
-   * {@link DisplayContribution} instances so consumer code (e.g.
-   * {@link import("./progress/ProgressRenderer").ProgressRenderer}) can
-   * build an accumulated snapshot via
+   * {@link DisplayContribution} instances so consumer code (e.g. a
+   * ProgressRenderer) can build an accumulated snapshot via
    * {@link DisplayContributionRegistry.apply}.
    */
   registerDisplayHandler(_registry: DisplayContributionRegistry): void {

@@ -1,6 +1,5 @@
 // Type-only: elided at emit, zero runtime edge. Self-heals when
 // cli/src/workspace moves to core in S4e (#229).
-import type { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
 import type { WorkspaceManager } from "@feature-forge/cli/src/workspace/WorkspaceManager";
 import type { WorkspaceProviderRegistry } from "@feature-forge/cli/src/workspace/WorkspaceProviderRegistry";
 import type { WorktreeRegistry } from "@feature-forge/cli/src/workspace/WorktreeRegistry";
@@ -10,8 +9,10 @@ import type {
   CleanupInstruction,
   FlowInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { DisplayContribution } from "@feature-forge/core/src/progress/DisplayContribution";
+import type { DisplayContributionRegistry } from "@feature-forge/core/src/progress/DisplayContributionRegistry";
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
+import type { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 
 import type { TypedEventBus } from "../event-bus";
 import { StepExecutor } from "./StepExecutor";

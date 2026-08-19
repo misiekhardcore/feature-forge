@@ -1,5 +1,4 @@
-// Self-heals when cli/src/workspace moves to core in S4e (#229).
-import { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { describe, expect, it } from "vitest";
 
 import { FlowContext, type InstructionResult } from "./FlowContext";

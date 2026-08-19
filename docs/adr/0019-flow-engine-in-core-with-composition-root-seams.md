@@ -13,7 +13,10 @@ cli until later batches of the same issue:
 - `CommandRegistry`, `ToolRegistry` (stay in cli per the issue tree),
 - `RoutineTool`, `OrchestratorCommand` (cli concretions),
 - `StepExecutorRegistry`, `TypedEventBus`, `WorkspaceManager` (move to core
-  in S4d / S4e).
+  in S4d / S4e). `WorkspaceHandle` moved early, with S4d: it is a zero-import
+  value object and its value import from `WorkspaceStepExecutor` would have
+  been the first production _runtime_ core -> cli edge (cli's workspace barrel
+  re-exports it from core until S4e moves the rest of the dir).
 
 Core must never import cli at runtime, so the relocation needs a seam that
 lets core depend on structural surfaces while cli supplies the concretions.

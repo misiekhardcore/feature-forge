@@ -14,8 +14,8 @@ import { ForgeConfig, logger } from "@feature-forge/core";
 /**
  * Session-persistent shared stream directory.
  *
- * Both {@link import("@feature-forge/cli/src/orchestrator/RoutineTool").RoutineTool} (auto-open overlay
- * for routines) and {@link import("@feature-forge/cli/src/commands/AgentListCommand").AgentListCommand}
+ * Both RoutineTool (auto-open overlay
+ * for routines) and AgentListCommand
  * (manual `/agent:list`) use the same directory so stream files survive
  * overlay close/reopen cycles.
  *

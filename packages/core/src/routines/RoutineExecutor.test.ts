@@ -1,8 +1,7 @@
-// Test-only value imports from cli: self-heal when WorkspaceHandle
-// (S4e) and cli test-utils move to core (#229).
+// Test-only value imports from cli: self-heal when cli test-utils
+// moves to core (S4e) (#229).
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { StepExecutor } from "@feature-forge/core/src/executors/StepExecutor";
 import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
@@ -13,6 +12,7 @@ import type {
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { describe, expect, it, vi } from "vitest";
 
 // ── Helpers ──────────────────────────────────────────────────

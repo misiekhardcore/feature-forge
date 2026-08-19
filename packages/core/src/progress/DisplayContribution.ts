@@ -3,9 +3,9 @@ import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { AgentViewerEntryStatus } from "./AgentViewerEntryStatus";
 
 /**
- * A DTO returned by {@link import("../StepExecutor").StepExecutor.getDisplayContribution}
+ * A DTO returned by {@link StepExecutor.getDisplayContribution}
  * carrying display-relevant fields extracted from a
- * {@link import("../RoutineProgress").RoutineProgressEvent}.
+ * RoutineProgressEvent.
  *
  * Each executor populates only the subset it owns. The consumer merges
  * contributions into an accumulated state snapshot for rendering via a
