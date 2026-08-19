@@ -5,7 +5,7 @@
 `*Like` surfaces, the `CreateOrchestratorCommand` factory, and the `as never`
 cast are dissolved (commands and registries moved to core - R-S1/R-S2); the
 test-utils interim is resolved (R-S3). The `createRoutineTool` seam remains in
-force (`RoutineTool` stays cli-owned, D3). See [Superseded](#superseded).
+force (`RoutineTool` stays cli-owned, D4). See [Superseded](#superseded).
 
 ## Superseded
 
@@ -26,12 +26,12 @@ kept intact. What changed:
 - **R-S3 - test-utils moved to core.** `packages/core/src/test-utils.ts`
   hosts the shared test helpers (cli's file is a re-export shim). The
   "core tests import cli's test-utils until S11" interim is resolved; only
-  three core test files construct cli D3 tool classes as fixtures
+  three core test files construct cli tool classes as fixtures
   (`RoutineTool` in `FlowRegistrar.test.ts` and `flow-roundtrip.test.ts`,
   `SetSessionNameTool` in `SessionAgent.test.ts`), covered by the eslint
   test-file exemption.
 - **What remains** - only the `createRoutineTool` factory seam. `RoutineTool`
-  stays cli-owned because it renders with pi-tui (D3/D4) and is wired at the
+  stays cli-owned because it renders with pi-tui (D4) and is wired at the
   composition root as `(…) => new RoutineTool(…)`. The transient type-only
   production imports named in the Decision also self-healed: `event-bus`,
   executors, and workspace are core since S4d/S4e, so no production
@@ -48,7 +48,7 @@ cli until later batches of the same issue:
   superseded: moved to core in the rework, R-S1),
 - `RoutineTool`, `OrchestratorCommand` (cli concretions - superseded:
   `OrchestratorCommand` moved to core in the rework, R-S2; `RoutineTool`
-  remains cli-owned, D3),
+  remains cli-owned, D4),
 - `StepExecutorRegistry`, `TypedEventBus`, `WorkspaceManager` (move to core
   in S4d / S4e). `WorkspaceHandle` moved early, with S4d: it is a zero-import
   value object and its value import from `WorkspaceStepExecutor` would have
@@ -104,7 +104,7 @@ lets core depend on structural surfaces while cli supplies the concretions.
   cli) once the rules land with this series (issue section 8; not yet present).
   (Superseded: the rules landed with the rework - `packages/core` and
   `packages/debug` `eslint.config.js` forbid `@feature-forge/cli` (core also
-  `@earendil-works/pi-tui`), with a test-file exemption for the three D3
+  `@earendil-works/pi-tui`), with a test-file exemption for the three cli
   tool-class fixtures.)
 - ADR 0018 was reserved by the phase plan for S10's package-layering
   decisions (D1-D8) but was never written; those decisions landed as

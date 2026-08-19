@@ -1,4 +1,4 @@
-// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D3).
+// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D4: renders with pi-tui).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";

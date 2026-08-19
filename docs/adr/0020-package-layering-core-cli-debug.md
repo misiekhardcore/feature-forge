@@ -89,7 +89,7 @@ graph TD
   `Worktree*`, `AgentDestroy*`, `ResearchCommand`; `src/registry/`:
   `CommandRegistry`, `ToolRegistry`, `withForgePrefix` - moved from cli in
   the rework). No pi-tui imports; no production `@feature-forge/cli` imports
-  (three test files construct cli D3 tool classes as fixtures - see
+  (three test files construct cli tool classes as fixtures - see
   Consequences).
 - `cli` - the composition root (`index.ts`), the pi-extension commands and
   tools that stay cli-owned (`AgentList`, `FlowExit`, `ForgeInit`; the tool
@@ -106,7 +106,7 @@ publishes; `core` and `debug` are consumed as source via
 
 The flow engine lives in core; the command layer moved into core with the
 rework, so only the routine-tool seam remains. `RoutineTool` stays cli-owned
-(it renders with pi-tui, D3/D4): one factory type on `FlowRegistrarContext`
+(it renders with pi-tui, D4): one factory type on `FlowRegistrarContext`
 
 - `CreateRoutineTool` - is wired at the cli composition root
   (`packages/cli/src/index.ts`) as `(…) => new RoutineTool(…)`.
@@ -137,7 +137,7 @@ contract:
 - `cli` is unrestricted (top of the stack).
 - `debug` forbids `@feature-forge/cli` (keeps the DI boundary).
 
-The rules exempt test files: three core test files construct cli D3 tool
+The rules exempt test files: three core test files construct cli tool
 classes as fixtures (`RoutineTool` x2, `SetSessionNameTool`) that stay
 cli-owned by design. Test-only imports never ship, and the exemption is the
 documented bridge that keeps the production direction enforced without
@@ -163,7 +163,7 @@ blocking the suite.
 - The shared-barrel runtime crash (architecture-review 3.22) self-heals: the
   `export { ... }` type/value split problem disappears with the merge into
   core, and `flow:validate` runs from `core/scripts`.
-- Core's test-only cli imports shrank to three files (cli D3 tool classes
+- Core's test-only cli imports shrank to three files (cli tool classes
   used as fixtures) once test-utils moved to core; those are exempted from
   the restricted-imports rules. No runtime `core -> cli` edge remains in
   production code.
@@ -180,7 +180,7 @@ unchanged. Corrected in this ADR:
   commands/tools that remain cli-owned (`AgentList`, `FlowExit`, `ForgeInit`,
   the tool classes incl. `RoutineTool`).
 - The seam story: only `createRoutineTool` remains (RoutineTool stays cli,
-  D3); the `*Like` surfaces, `CreateOrchestratorCommand`, and the `as never`
+  D4); the `*Like` surfaces, `CreateOrchestratorCommand`, and the `as never`
   cast are dissolved (see ADR 0019's Superseded section).
 - Test-utils moved to core (R-S3); the enforcement exemption now covers only
-  the three D3 tool-class fixtures, and the rules themselves have landed.
+  the three cli tool-class fixtures, and the rules themselves have landed.

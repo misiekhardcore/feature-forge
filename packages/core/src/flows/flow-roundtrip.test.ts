@@ -22,7 +22,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D3).
+// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D4: renders with pi-tui).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
 import { jsonParse } from "@feature-forge/core";
 import { SpecManager } from "@feature-forge/core/src/agents";
