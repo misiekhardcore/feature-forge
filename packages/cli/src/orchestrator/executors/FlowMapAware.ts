@@ -1,4 +1,4 @@
-import type { FlowDefinition } from "../FlowInstruction";
+import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
 
 /**
  * Interface for step executors that need access to the shared flow map

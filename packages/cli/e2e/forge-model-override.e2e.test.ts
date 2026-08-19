@@ -16,12 +16,12 @@ import type { AgentSpecification } from "@feature-forge/core/src/agents/specific
 import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
 import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
+import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
-import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
-import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
 import { WorkspaceManager } from "../src/workspace/WorkspaceManager";

@@ -13,12 +13,12 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
-import type { FlowDefinition } from "../src/orchestrator/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
-import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
 import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";

@@ -1,17 +1,23 @@
-import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
 import { describe, expect, it } from "vitest";
-
-import { FlowContext } from "./FlowContext";
-import { FlowLoader } from "./FlowLoader";
 
 /**
  * Verify that the production orchestrator system prompt resolves cleanly
  * through FlowContext.resolve() with no dead placeholders.
+ *
+ * The flow content still lives in the cli package (moves to core in S4f),
+ * so the fixture directory is resolved across the workspace.
  */
+const IMPLEMENT_FLOW_DIR = fileURLToPath(
+  new URL("../../../cli/src/flows/implement", import.meta.url),
+);
+
 describe("orchestrator system prompt", () => {
   it("fully resolves with no unresolved {{...}} tokens", async () => {
-    const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
+    const loader = new FlowLoader({ flowsDir: IMPLEMENT_FLOW_DIR });
     const flow = await loader.load("flow");
 
     const systemPrompt = flow.orchestrator?.systemPrompt;
@@ -29,7 +35,7 @@ describe("orchestrator system prompt", () => {
   });
 
   it("contains no uppercase placeholder tokens in raw form", async () => {
-    const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
+    const loader = new FlowLoader({ flowsDir: IMPLEMENT_FLOW_DIR });
     const flow = await loader.load("flow");
     const systemPrompt = flow.orchestrator?.systemPrompt;
 
@@ -40,7 +46,7 @@ describe("orchestrator system prompt", () => {
   });
 
   it("systemPrompt is a non-empty spec name (not a prompt string)", async () => {
-    const loader = new FlowLoader({ flowsDir: path.join(__dirname, "..", "flows", "implement") });
+    const loader = new FlowLoader({ flowsDir: IMPLEMENT_FLOW_DIR });
     const flow = await loader.load("flow");
 
     expect(flow.orchestrator?.systemPrompt).toBeTruthy();

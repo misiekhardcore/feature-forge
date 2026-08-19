@@ -1,12 +1,12 @@
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type { SessionInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
-import { FlowContext } from "../FlowContext";
-import type { SessionInstruction } from "../FlowInstruction";
-import { FlowStateStore } from "../FlowStateStore";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { SessionStepExecutor } from "./SessionStepExecutor";
 
 describe("SessionStepExecutor", () => {

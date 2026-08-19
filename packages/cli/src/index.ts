@@ -13,6 +13,8 @@ import {
   SpecRegistry,
 } from "@feature-forge/core/src/agents";
 import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import { FlowRegistrar } from "@feature-forge/core/src/flows/FlowRegistrar";
 
 import {
   AgentDestroyAllCommand,
@@ -20,6 +22,7 @@ import {
   AgentListCommand,
   FlowExitCommand,
   ForgeInitCommand,
+  OrchestratorCommand,
   ResearchCommand,
   WorktreeDestroyCommand,
   WorktreeListCommand,
@@ -30,10 +33,9 @@ import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
-import { ActiveFlowRegistry } from "./orchestrator/ActiveFlowRegistry";
 import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
 import { TypedEventBus } from "./orchestrator/eventBus";
-import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
+import { RoutineTool } from "./orchestrator/RoutineTool";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import { withForgePrefix } from "./registry/CommandRegistry";
 import {
@@ -260,6 +262,14 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     stepExecutorRegistry,
     eventBus,
     activeFlowRegistry,
+    // The seam factories (issue section 6 D3): FlowRegistrar (core) must not
+    // import cli — the concrete RoutineTool / OrchestratorCommand are wired
+    // here at the composition root. The single `as never` cast is the
+    // documented bridge between core's structural deps and cli's concrete
+    // command deps; the shapes must match at runtime (they do — same fields).
+    createRoutineTool: (flowName, routineDef, routineExecutor, supervisor) =>
+      new RoutineTool(flowName, routineDef, routineExecutor, supervisor),
+    createOrchestratorCommand: (deps) => new OrchestratorCommand(deps as never),
   });
   await flowRegistrar.registerAll();
 

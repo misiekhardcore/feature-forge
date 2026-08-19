@@ -4,10 +4,10 @@ import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
 import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 
-import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
-import type { FlowDefinition } from "../orchestrator/FlowInstruction";
-import type { FlowStateStore } from "../orchestrator/FlowStateStore";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";

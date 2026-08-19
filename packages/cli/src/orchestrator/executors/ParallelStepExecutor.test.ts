@@ -1,9 +1,12 @@
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  ParallelInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
 import { describe, expect, it } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
-import { FlowContext } from "../FlowContext";
-import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";

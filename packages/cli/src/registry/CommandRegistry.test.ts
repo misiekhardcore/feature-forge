@@ -1,9 +1,9 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { AgentSupervisor } from "@feature-forge/core/src/agents";
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Command } from "../commands/Command";
-import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import { makeMockPi, makeMockSpecManager, makeMockToolRegistry } from "../test-utils";
 import { CommandRegistry, withForgePrefix } from "./CommandRegistry";
 

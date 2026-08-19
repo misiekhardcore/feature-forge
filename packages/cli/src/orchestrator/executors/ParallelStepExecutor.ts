@@ -1,8 +1,11 @@
 import { logger } from "@feature-forge/core";
+import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  ParallelInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
 
 import type { TypedEventBus } from "../eventBus";
-import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { FlowInstruction, ParallelInstruction } from "../FlowInstruction";
 import { StepExecutor } from "../StepExecutor";
 import { isAbortError } from "./isAbortError";
 

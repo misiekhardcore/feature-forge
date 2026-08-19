@@ -1,11 +1,14 @@
 import { logger } from "@feature-forge/core";
+import { ExpressionEvaluator } from "@feature-forge/core/src/flows/ExpressionEvaluator";
+import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  LoopInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";
-import { ExpressionEvaluator } from "../ExpressionEvaluator";
-import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { FlowInstruction, LoopInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { collectAllIds } from "./helpers";
 

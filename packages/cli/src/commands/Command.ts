@@ -5,8 +5,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 
-import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";

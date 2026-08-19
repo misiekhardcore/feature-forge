@@ -1,15 +1,17 @@
 import type { EventBus } from "@earendil-works/pi-coding-agent";
+import { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
+import { StepExecutor } from "@feature-forge/cli/src/orchestrator/StepExecutor";
+import { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
+import { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowDefinition,
+  FlowInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import { describe, expect, it, vi } from "vitest";
-
-import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
-import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
-import { TypedEventBus } from "./eventBus";
-import { FlowContext } from "./FlowContext";
-import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
-import { FLOW_SCHEMA_URL } from "./FlowInstruction";
-import { RoutineExecutor } from "./RoutineExecutor";
-import { StepExecutor } from "./StepExecutor";
-import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Helpers ──────────────────────────────────────────────────
 

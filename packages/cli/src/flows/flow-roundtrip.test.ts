@@ -25,26 +25,26 @@ import { SpecManager } from "@feature-forge/core/src/agents";
 import { SpecRegistry } from "@feature-forge/core/src/agents/specifications";
 import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import Ajv from "ajv/dist/2020";
-import addFormats from "ajv-formats";
-import { beforeAll, describe, expect, it, vi } from "vitest";
-
-import { ExpressionEvaluator } from "../orchestrator/ExpressionEvaluator";
-import { FlowContext } from "../orchestrator/FlowContext";
+import { ExpressionEvaluator } from "@feature-forge/core/src/flows/ExpressionEvaluator";
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type {
   FlowDefinition,
   FlowInstruction,
   LoopInstruction,
   RoutineRefInstruction,
   ShellInstruction,
-} from "../orchestrator/FlowInstruction";
+} from "@feature-forge/core/src/flows/FlowInstruction";
 import {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
-} from "../orchestrator/FlowInstruction";
-import { FlowLoader } from "../orchestrator/FlowLoader";
-import { RoutineExecutor } from "../orchestrator/RoutineExecutor";
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import Ajv from "ajv/dist/2020";
+import addFormats from "ajv-formats";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
 import { RoutineTool } from "../orchestrator/RoutineTool";
 import { StepExecutorRegistry } from "../orchestrator/StepExecutorRegistry";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";

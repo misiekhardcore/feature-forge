@@ -1,10 +1,13 @@
+import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  SessionInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { AccumulatedState } from "@feature-forge/tui";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";
-import type { FlowContext } from "../FlowContext";
-import type { FlowInstruction, SessionInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**

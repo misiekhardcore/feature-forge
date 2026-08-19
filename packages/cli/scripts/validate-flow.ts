@@ -3,9 +3,8 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { jsonParse } from "@feature-forge/core";
-
-import { FlowLoader } from "../src/orchestrator/FlowLoader";
-import { FlowValidation } from "../src/orchestrator/flowValidation";
+import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
+import { FlowValidation } from "@feature-forge/core/src/flows/flowValidation";
 
 /**
  * Validate a flow JSON file against the structural and semantic rules.

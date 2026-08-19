@@ -3,12 +3,15 @@ import { statSync } from "node:fs";
 import { promisify } from "node:util";
 
 import { logger } from "@feature-forge/core";
+import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  ShellInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";
-import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { FlowInstruction, ShellInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 const execFileAsync = promisify(execFile);

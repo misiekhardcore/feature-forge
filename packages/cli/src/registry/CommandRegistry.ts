@@ -2,9 +2,9 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { Registry } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 
 import { Command, type CommandDeps } from "../commands/Command";
-import type { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 

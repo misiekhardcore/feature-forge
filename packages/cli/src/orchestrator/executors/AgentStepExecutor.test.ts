@@ -3,14 +3,14 @@ import type { AgentSpecification } from "@feature-forge/core/src/agents/specific
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type { AgentInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 import type { AgentContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
-import { FlowContext } from "../FlowContext";
-import type { AgentInstruction } from "../FlowInstruction";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 

@@ -1,6 +1,5 @@
 import { jsonParse } from "@feature-forge/core";
-
-import type { AgentOutput } from "../FlowContext";
+import type { AgentOutput } from "@feature-forge/core/src/flows/FlowContext";
 
 /**
  * Extract a JSON block from an agent's raw output.

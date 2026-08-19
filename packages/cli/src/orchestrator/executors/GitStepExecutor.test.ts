@@ -21,10 +21,11 @@ vi.mock("node:child_process", () => ({
   }),
 }));
 
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type { GitInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+
 import { makeMockTypedEventBus } from "../../test-utils";
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
-import { FlowContext } from "../FlowContext";
-import type { GitInstruction } from "../FlowInstruction";
 import { GitStepExecutor } from "./GitStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────

@@ -5,13 +5,16 @@ import { ForgeConfig, logger } from "@feature-forge/core";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  AgentInstruction,
+  FlowInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "../eventBus";
 import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../eventBus/agentChannels";
-import type { FlowContext, InstructionResult } from "../FlowContext";
-import type { AgentInstruction, FlowInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";

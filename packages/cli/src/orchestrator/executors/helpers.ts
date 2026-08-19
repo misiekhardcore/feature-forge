@@ -1,4 +1,4 @@
-import type { FlowInstruction } from "../FlowInstruction";
+import type { FlowInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 
 /**
  * Access the `steps` array of a container instruction (parallel / loop).

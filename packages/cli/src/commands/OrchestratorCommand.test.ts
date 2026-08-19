@@ -4,12 +4,12 @@ import type { AgentSpecification } from "@feature-forge/core/src/agents/specific
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
-import type { FlowDefinition } from "../orchestrator/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "../orchestrator/FlowInstruction";
-import { FlowStateStore } from "../orchestrator/FlowStateStore";
 import { makeMockFactory } from "../test-utils";
 import { makeMockCtx, makeMockPi, makeMockToolRegistry } from "../test-utils";
 import { FlowExitCommand } from "./FlowExitCommand";

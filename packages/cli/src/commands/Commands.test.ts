@@ -8,10 +8,10 @@ import { TOOL_PRESETS } from "@feature-forge/core/src/agents/specifications/cons
 import { SpecLoader } from "@feature-forge/core/src/agents/specifications/SpecLoader";
 import { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
-import { FlowStateStore } from "../orchestrator/FlowStateStore";
 import {
   makeMockCtx,
   makeMockFactory,

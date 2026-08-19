@@ -15,16 +15,16 @@ import { join } from "node:path";
 
 import { Theme } from "@earendil-works/pi-coding-agent";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
+import {
+  FLOW_SCHEMA_URL,
+  type FlowDefinition,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { DisplayContribution, ProgressRenderer } from "@feature-forge/tui";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  createStepExecutorRegistry,
-  FLOW_SCHEMA_URL,
-  FlowDefinition,
-  RoutineExecutor,
-  RoutineProgressEvent,
-} from "../src/orchestrator";
+import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import {
   makeMockFactory,
   makeMockSpecManager,

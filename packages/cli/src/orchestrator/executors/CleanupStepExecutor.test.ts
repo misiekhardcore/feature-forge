@@ -1,3 +1,6 @@
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type { CleanupInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
@@ -9,9 +12,6 @@ import type { CreateWorkspaceOptions } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
-import { FlowContext } from "../FlowContext";
-import type { CleanupInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────

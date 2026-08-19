@@ -1,14 +1,4 @@
-export { createStepExecutorRegistry } from "./createStepExecutorRegistry";
-export {
-  AgentStepExecutor,
-  CleanupStepExecutor,
-  GitStepExecutor,
-  LoopStepExecutor,
-  ParallelStepExecutor,
-  SessionStepExecutor,
-  ShellStepExecutor,
-  WorkspaceStepExecutor,
-} from "./executors";
+export { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 export type { ExpressionEvaluator, FlowContextLike } from "./ExpressionEvaluator";
 export { BinaryOp, Expr, ExpressionParser, ParseError, UnaryOp } from "./ExpressionParser";
 export type { InstructionResult } from "./FlowContext";
@@ -50,13 +40,16 @@ export {
   WorkspaceInstructionSchema,
 } from "./FlowInstruction";
 export { FlowLoader } from "./FlowLoader";
-export { FlowRegistrar } from "./FlowRegistrar";
-export { RoutineExecutor } from "./RoutineExecutor";
-export type { RoutineProgressEvent } from "./RoutineProgress";
-export type { RoutineResult } from "./RoutineResult";
-export { RoutineTool } from "./RoutineTool";
-export { StepExecutor } from "./StepExecutor";
-export { StepExecutorRegistry } from "./StepExecutorRegistry";
+export {
+  type CreateOrchestratorCommand,
+  type CreateRoutineTool,
+  FlowRegistrar,
+  type FlowRegistrarContext,
+  type OrchestratorCommandDeps,
+  type ToolRegistryLike,
+  type WorkspaceManagerLike,
+} from "./FlowRegistrar";
+export { FlowParams, FlowStateStore } from "./FlowStateStore";
 
 import {
   FlowInstructionSchema,

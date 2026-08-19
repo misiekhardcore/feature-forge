@@ -2,8 +2,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { TObject } from "typebox";
-
 import {
   AgentInstructionSchema,
   CleanupInstructionSchema,
@@ -18,7 +16,8 @@ import {
   SessionInstructionSchema,
   ShellInstructionSchema,
   WorkspaceInstructionSchema,
-} from "../src/orchestrator/FlowInstruction.js";
+} from "@feature-forge/core/src/flows/FlowInstruction.js";
+import { TObject } from "typebox";
 
 /**
  * Generate `src/flows/flow-schema.json` from the TypeBox instruction schemas.

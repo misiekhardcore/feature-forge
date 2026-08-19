@@ -1,14 +1,20 @@
+// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/orchestrator/eventBus moves to core in S4d (#229).
+import type { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
+// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/orchestrator/StepExecutorRegistry moves to core in S4d (#229).
+import type { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
 import { logger } from "@feature-forge/core";
+import type { InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowDefinition,
+  FlowInstruction,
+  RoutineDefinition,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { isContainerInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { ToolRegistryLike } from "@feature-forge/core/src/flows/FlowRegistrar";
+import { FlowParams, FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 
-import { ToolRegistry } from "../registry/ToolRegistry";
-import type { TypedEventBus } from "./eventBus";
-import type { InstructionResult } from "./FlowContext";
-import { FlowContext } from "./FlowContext";
-import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "./FlowInstruction";
-import { isContainerInstruction } from "./FlowInstruction";
-import { FlowParams, FlowStateStore } from "./FlowStateStore";
 import type { RoutineResult, RoutineStatus } from "./RoutineResult";
-import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**
  * Runs one routine's steps to completion using a
@@ -35,7 +41,7 @@ export class RoutineExecutor {
      */
     public readonly stepRegistry: StepExecutorRegistry,
     public readonly eventBus: TypedEventBus,
-    public readonly toolRegistry: ToolRegistry,
+    public readonly toolRegistry: ToolRegistryLike,
     store?: FlowStateStore,
   ) {
     this.store = store ?? new FlowStateStore();

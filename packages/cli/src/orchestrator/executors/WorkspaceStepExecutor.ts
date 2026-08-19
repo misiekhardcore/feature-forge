@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 
+import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  WorkspaceInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
@@ -7,9 +13,6 @@ import { WorkspaceManager } from "../../workspace/WorkspaceManager";
 import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
 import type { TypedEventBus } from "../eventBus";
-import type { FlowContext } from "../FlowContext";
-import type { FlowInstruction, WorkspaceInstruction } from "../FlowInstruction";
-import type { RoutineProgressEvent } from "../RoutineProgress";
 import { StepExecutor } from "../StepExecutor";
 
 /**

@@ -29,6 +29,15 @@ vi.mock("../tui/showAgentViewer", async (importOriginal) => {
 });
 
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowDefinition,
+  FlowInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
+import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
 
 import {
   makeMockToolRegistry,
@@ -42,12 +51,6 @@ import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
 import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
-import { FlowContext } from "./FlowContext";
-import type { FlowDefinition, FlowInstruction } from "./FlowInstruction";
-import { FLOW_SCHEMA_URL } from "./FlowInstruction";
-import { RoutineExecutor } from "./RoutineExecutor";
-import type { RoutineProgressEvent } from "./RoutineProgress";
-import type { RoutineResult } from "./RoutineResult";
 import { RoutineTool } from "./RoutineTool";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";

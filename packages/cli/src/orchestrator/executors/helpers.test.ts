@@ -1,6 +1,6 @@
+import { makeParallelInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 import { describe, expect, it } from "vitest";
 
-import { makeParallelInstruction } from "../FlowInstruction";
 import { collectAllIds, containerSteps } from "./helpers";
 
 describe("helpers (executors)", () => {

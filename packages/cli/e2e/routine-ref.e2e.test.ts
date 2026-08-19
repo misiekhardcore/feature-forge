@@ -13,16 +13,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
+import type {
+  FlowDefinition,
+  FlowInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { describe, expect, it } from "vitest";
 
-import {
-  createStepExecutorRegistry,
-  FLOW_SCHEMA_URL,
-  type FlowDefinition,
-  type FlowInstruction,
-  RoutineExecutor,
-  type RoutineProgressEvent,
-} from "../src/orchestrator";
+import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import {
   makeMockFactory,
   makeMockSpecManager,

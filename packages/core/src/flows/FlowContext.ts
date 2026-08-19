@@ -1,6 +1,7 @@
+// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/workspace moves to core in S4e (#229).
+import type { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
 import { logger } from "@feature-forge/core";
 
-import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
 
 type FlowContextParams = {

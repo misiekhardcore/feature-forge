@@ -1,19 +1,17 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
+import { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
+import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CommandRegistry, ToolRegistry } from "../registry";
-import { makeMockPi, makeMockTypedEventBus } from "../test-utils";
-import type { WorkspaceManager } from "../workspace";
 import { ActiveFlowRegistry } from "./ActiveFlowRegistry";
-import type { TypedEventBus } from "./eventBus";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
+import type { FlowRegistrarContext } from "./FlowRegistrar";
 import { FlowRegistrar } from "./FlowRegistrar";
 import { FlowStateStore } from "./FlowStateStore";
-import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Hoisted mock state ───────────────────────────────────────
 
@@ -53,6 +51,8 @@ const {
   }
   const flowLoaderCtor = vi.fn(FlowLoaderMock);
 
+  // The seam injects this as createOrchestratorCommand — FlowRegistrar calls
+  // the factory with the flow's deps bag instead of constructing the command.
   function OrchestratorCommandMock(_deps: unknown) {
     return {
       name: "/cmd",
@@ -62,9 +62,9 @@ const {
   }
   const orchestratorCtor = vi.fn(OrchestratorCommandMock);
 
-  // FlowRegistrar only threads the executor into RoutineTool (which reads
-  // stepRegistry for display handlers) — nothing executes routines here, so
-  // a constructable stub is safe.
+  // FlowRegistrar only threads the executor into the routine-tool factory
+  // (which reads stepRegistry for display handlers) — nothing executes
+  // routines here, so a constructable stub is safe.
   function RoutineExecutorMock(...args: unknown[]) {
     return { stepRegistry: args[1] };
   }
@@ -94,38 +94,19 @@ vi.mock("./FlowLoader", () => ({
   discoverFlowDirectories: discoverFlowDirsMock,
 }));
 
-vi.mock("../commands", () => ({
-  OrchestratorCommand: orchestratorCtorMock,
-}));
-
-vi.mock("./RoutineExecutor", () => ({
+vi.mock("../routines/RoutineExecutor", () => ({
   RoutineExecutor: routineExecutorCtorMock,
 }));
 
 // ── Helpers ──────────────────────────────────────────────────
 
-interface FlowRegistrarParams {
-  pi: ExtensionAPI;
-  cmdRegistry: CommandRegistry;
-  toolRegistry: ToolRegistry;
-  supervisor: InMemoryAgentSupervisor;
-  specManager: SpecManager;
-  workspaceManager: WorkspaceManager;
-  flowDirs: readonly string[];
-  knownProviders: ReadonlySet<string>;
-  stepExecutorRegistry: StepExecutorRegistry;
-  eventBus: TypedEventBus;
-  activeFlowRegistry: ActiveFlowRegistry;
-}
-
-function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrarParams {
+function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistrarContext {
   const pi = overrides.pi ?? makeMockPi();
-  const cmdRegistry =
-    overrides.cmdRegistry ??
-    ({ registerInstance: vi.fn().mockReturnValue(undefined) } as unknown as CommandRegistry);
-  const toolRegistry =
-    overrides.toolRegistry ??
-    ({ registerInstance: vi.fn().mockReturnValue(undefined) } as unknown as ToolRegistry);
+  const cmdRegistry = overrides.cmdRegistry ?? { registerInstance: vi.fn() };
+  const toolRegistry = overrides.toolRegistry ?? {
+    registerInstance: vi.fn(),
+    get: vi.fn(),
+  };
   return {
     pi,
     cmdRegistry,
@@ -137,12 +118,20 @@ function makeParams(overrides: Partial<FlowRegistrarParams> = {}): FlowRegistrar
         loadFromDirectory: specManagerLoadFromDirectoryMock,
         specNames: specManagerSpecNamesMock,
       } as unknown as SpecManager),
-    workspaceManager: overrides.workspaceManager ?? ({} as WorkspaceManager),
+    workspaceManager:
+      overrides.workspaceManager ?? ({} as FlowRegistrarContext["workspaceManager"]),
     flowDirs: overrides.flowDirs ?? ["/flows"],
     knownProviders: overrides.knownProviders ?? new Set(),
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
     activeFlowRegistry: overrides.activeFlowRegistry ?? new ActiveFlowRegistry(),
+    // Mirror the cli composition root: the factories construct the same
+    // classes with the same arguments as the pre-seam registerFlow.
+    createOrchestratorCommand: overrides.createOrchestratorCommand ?? orchestratorCtorMock,
+    createRoutineTool:
+      overrides.createRoutineTool ??
+      ((flowName, routineDef, routineExecutor, supervisor) =>
+        new RoutineTool(flowName, routineDef, routineExecutor, supervisor)),
   };
 }
 
@@ -197,8 +186,8 @@ describe("FlowRegistrar", () => {
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -221,8 +210,8 @@ describe("FlowRegistrar", () => {
         );
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -244,8 +233,8 @@ describe("FlowRegistrar", () => {
       flowLoaderLoadMock.mockRejectedValue("raw string error");
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -266,8 +255,8 @@ describe("FlowRegistrar", () => {
       flowLoaderLoadMock.mockRejectedValue(new Error("Invalid JSON"));
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -285,8 +274,8 @@ describe("FlowRegistrar", () => {
       setupSingleFlow();
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const pi = makeMockPi();
       const params = makeParams({ pi, cmdRegistry });
       const registrar = new FlowRegistrar(params);
@@ -342,11 +331,12 @@ describe("FlowRegistrar", () => {
       specManagerLoadFromDirectoryMock.mockRejectedValue(new Error("spec load boom"));
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const toolRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as ToolRegistry;
+        registerInstance: vi.fn(),
+        get: vi.fn(),
+      } as unknown as FlowRegistrarContext["toolRegistry"];
       const params = makeParams({ cmdRegistry, toolRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -384,8 +374,9 @@ describe("FlowRegistrar", () => {
       setupSingleFlow();
 
       const toolRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as ToolRegistry;
+        registerInstance: vi.fn(),
+        get: vi.fn(),
+      } as unknown as FlowRegistrarContext["toolRegistry"];
       const params = makeParams({ toolRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -400,8 +391,9 @@ describe("FlowRegistrar", () => {
       );
 
       const toolRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as ToolRegistry;
+        registerInstance: vi.fn(),
+        get: vi.fn(),
+      } as unknown as FlowRegistrarContext["toolRegistry"];
       const params = makeParams({ toolRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -426,7 +418,8 @@ describe("FlowRegistrar", () => {
         registerInstance: vi.fn().mockImplementation(() => {
           throw Error("raw string failure");
         }),
-      } as unknown as ToolRegistry;
+        get: vi.fn(),
+      } as unknown as FlowRegistrarContext["toolRegistry"];
       const params = makeParams({ toolRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -459,7 +452,8 @@ describe("FlowRegistrar", () => {
           if (callCount === 1) throw new Error("Duplicate tool");
           return undefined;
         }),
-      } as unknown as ToolRegistry;
+        get: vi.fn(),
+      } as unknown as FlowRegistrarContext["toolRegistry"];
       const params = makeParams({ toolRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -478,8 +472,8 @@ describe("FlowRegistrar", () => {
       readdirMock.mockRejectedValue(new Error("ENOENT"));
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -493,8 +487,8 @@ describe("FlowRegistrar", () => {
       flowLoaderLoadMock.mockResolvedValue(makeFlow({ routines: [] }));
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -511,8 +505,8 @@ describe("FlowRegistrar", () => {
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry, flowDirs: ["/builtin/flows", "/extra/flows"] });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -528,8 +522,8 @@ describe("FlowRegistrar", () => {
       readdirMock.mockResolvedValue([]);
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({ cmdRegistry, flowDirs: [] });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
@@ -546,8 +540,8 @@ describe("FlowRegistrar", () => {
       flowLoaderLoadMock.mockResolvedValue(makeFlow());
 
       const cmdRegistry = {
-        registerInstance: vi.fn().mockReturnValue(undefined),
-      } as unknown as CommandRegistry;
+        registerInstance: vi.fn(),
+      } as unknown as FlowRegistrarContext["cmdRegistry"];
       const params = makeParams({
         cmdRegistry,
         flowDirs: ["/builtin", "/addons/one", "/addons/two"],

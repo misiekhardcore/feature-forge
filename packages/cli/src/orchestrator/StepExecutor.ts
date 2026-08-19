@@ -1,9 +1,9 @@
+import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type { FlowInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
+import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
 import type { TypedEventBus } from "./eventBus";
-import type { FlowContext } from "./FlowContext";
-import type { FlowInstruction } from "./FlowInstruction";
-import type { RoutineProgressEvent } from "./RoutineProgress";
 
 /**
  * Executes a single deterministic flow instruction against an immutable context,

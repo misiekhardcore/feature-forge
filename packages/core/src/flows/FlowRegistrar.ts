@@ -1,20 +1,86 @@
 import * as path from "node:path";
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
+// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/orchestrator/eventBus moves to core in S4d (#229).
+import type { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
+// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/orchestrator/StepExecutorRegistry moves to core in S4d (#229).
+import type { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
 import { logger } from "@feature-forge/core";
 import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
+import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
+import type { Tool } from "@feature-forge/core/src/tools";
 
-import { OrchestratorCommand } from "../commands";
-import { CommandRegistry, ToolRegistry } from "../registry";
-import { WorkspaceManager } from "../workspace";
 import type { ActiveFlowRegistry } from "./ActiveFlowRegistry";
-import type { TypedEventBus } from "./eventBus";
-import type { FlowDefinition } from "./FlowInstruction";
+import type { FlowDefinition, RoutineDefinition } from "./FlowInstruction";
 import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
-import { RoutineExecutor } from "./RoutineExecutor";
-import { RoutineTool } from "./RoutineTool";
-import { StepExecutorRegistry } from "./StepExecutorRegistry";
+
+/**
+ * A command shaped like pi's registered-command contract. cli's `Command`
+ * base implements `Omit<RegisteredCommand, "sourceInfo">` exactly, so this
+ * is the structural seam between core's flow engine and cli's command
+ * registry (which stays in cli per the issue tree).
+ */
+type FlowCommand = Omit<RegisteredCommand, "sourceInfo">;
+
+/** Structural surface of cli's `CommandRegistry` (stays in cli per the issue tree). */
+export interface CommandRegistryLike {
+  registerInstance(command: FlowCommand): FlowCommand;
+}
+
+/**
+ * Structural surface of cli's `ToolRegistry` (stays in cli per the issue tree).
+ *
+ * `registerInstance` is used by {@link FlowRegistrar}; `get` is read through
+ * {@link RoutineExecutor} by the cli `RoutineTool` (which hands it to the
+ * agent viewer as a `ToolFormatter`).
+ */
+export interface ToolRegistryLike {
+  registerInstance(tool: Tool): Tool;
+  get(name: string): Tool | undefined;
+}
+
+/**
+ * Structural surface of cli's `WorkspaceManager` (stays in cli until S4e).
+ *
+ * Only threaded through to the orchestrator command factory — the minimal
+ * surface is the member the cli `OrchestratorCommand` actually reads when
+ * snapshotting pre-existing workspaces before mounting the session agent.
+ */
+export interface WorkspaceManagerLike {
+  list(): readonly { path: string }[];
+}
+
+/**
+ * Dependency bag for the flow's orchestrator slash command.
+ *
+ * Core-owned collaborators use their concrete types; cli-owned
+ * collaborators (`toolRegistry`, `workspaceManager`) are structural —
+ * typed by the members the cli `OrchestratorCommand` actually uses. The
+ * cli composition root wires this into the concrete command (the single
+ * documented cast lives there).
+ */
+export interface OrchestratorCommandDeps {
+  pi: ExtensionAPI;
+  supervisor: InMemoryAgentSupervisor;
+  specManager: SpecManager;
+  toolRegistry: ToolRegistryLike;
+  workspaceManager?: WorkspaceManagerLike;
+  flow: FlowDefinition;
+  store: FlowStateStore;
+  activeFlow: ActiveFlowRegistry;
+}
+
+/** Factory for one flow's routine tool — provided by the cli composition root (S6 seam). */
+export type CreateRoutineTool = (
+  flowName: string,
+  routineDef: RoutineDefinition,
+  routineExecutor: RoutineExecutor,
+  supervisor: InMemoryAgentSupervisor,
+) => Tool;
+
+/** Factory for one flow's orchestrator command — provided by the cli composition root. */
+export type CreateOrchestratorCommand = (deps: OrchestratorCommandDeps) => FlowCommand;
 
 /**
  * Shared context threaded through flow registration: the pi extension
@@ -23,18 +89,22 @@ import { StepExecutorRegistry } from "./StepExecutorRegistry";
  * Passed as a single object so fields never get destructured and rebuilt
  * at every call boundary.
  */
-interface FlowRegistrarContext {
+export interface FlowRegistrarContext {
   pi: ExtensionAPI;
-  cmdRegistry: CommandRegistry;
-  toolRegistry: ToolRegistry;
+  cmdRegistry: CommandRegistryLike;
+  toolRegistry: ToolRegistryLike;
   supervisor: InMemoryAgentSupervisor;
   specManager: SpecManager;
-  workspaceManager: WorkspaceManager;
+  workspaceManager: OrchestratorCommandDeps["workspaceManager"];
   flowDirs: readonly string[];
   knownProviders: ReadonlySet<string>;
   stepExecutorRegistry: StepExecutorRegistry;
   eventBus: TypedEventBus;
   activeFlowRegistry: ActiveFlowRegistry;
+  /** Constructs a cli `RoutineTool` for one routine of a registered flow. */
+  createRoutineTool: CreateRoutineTool;
+  /** Constructs the cli `OrchestratorCommand` for a registered flow. */
+  createOrchestratorCommand: CreateOrchestratorCommand;
 }
 
 /**
@@ -121,7 +191,12 @@ export class FlowRegistrar {
       store,
     );
     for (const routineDef of flow.routines) {
-      const routineTool = new RoutineTool(flowName, routineDef, routineExecutor, ctx.supervisor);
+      const routineTool = ctx.createRoutineTool(
+        flowName,
+        routineDef,
+        routineExecutor,
+        ctx.supervisor,
+      );
       try {
         ctx.toolRegistry.registerInstance(routineTool);
       } catch (error) {
@@ -132,7 +207,7 @@ export class FlowRegistrar {
     }
 
     // ── Command registration ──
-    const orchestratorCommand = new OrchestratorCommand({
+    const orchestratorCommand = ctx.createOrchestratorCommand({
       supervisor: ctx.supervisor,
       pi: ctx.pi,
       specManager: ctx.specManager,

@@ -1,14 +1,14 @@
 import { jsonParse } from "@feature-forge/core";
-import { Value } from "typebox/value";
-import { describe, expect, it } from "vitest";
-
-import { makeMockTypedEventBus } from "../../test-utils";
-import { FlowContext } from "../FlowContext";
+import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import {
   type FlowInstruction,
   type ParallelInstruction,
   ParallelInstructionSchema,
-} from "../FlowInstruction";
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import { Value } from "typebox/value";
+import { describe, expect, it } from "vitest";
+
+import { makeMockTypedEventBus } from "../../test-utils";
 import { StepExecutor } from "../StepExecutor";
 import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
