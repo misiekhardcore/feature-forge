@@ -64,6 +64,10 @@ export class RoutineExecutor {
     signal?: AbortSignal,
     routineDefOverride?: RoutineDefinition,
   ): Promise<RoutineResult> {
+    // The schema-static routine shape (Type.Static<FlowDefinitionSchema>) types
+    // `steps` as the loose instruction union, wider than the explicit
+    // `RoutineDefinition` contract (container steps: FlowInstruction[]) — the
+    // cast narrows it; undefined is handled by the guard below.
     const routine: RoutineDefinition | undefined =
       routineDefOverride ??
       (this.flow.routines.find((r) => r.id === routineName) as RoutineDefinition);
