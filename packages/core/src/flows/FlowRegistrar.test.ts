@@ -1,11 +1,11 @@
-// Test-only value imports from cli: self-heal when RoutineTool (S6),
-// StepExecutorRegistry (S4d) and cli test-utils move to core (#229).
+// Test-only value imports from cli: self-heal when RoutineTool (S6)
+// and cli test-utils move to core (#229).
 import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
-import { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
 import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { logger } from "@feature-forge/core";
 import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
+import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActiveFlowRegistry } from "./ActiveFlowRegistry";

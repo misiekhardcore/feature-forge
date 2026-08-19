@@ -29,6 +29,9 @@ vi.mock("../tui/showAgentViewer", async (importOriginal) => {
 });
 
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import { StepExecutor } from "@feature-forge/core/src/executors/StepExecutor";
+import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
+import { WorkspaceStepExecutor } from "@feature-forge/core/src/executors/WorkspaceStepExecutor";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type {
   FlowDefinition,
@@ -50,10 +53,7 @@ import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
 import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
 import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
-import { WorkspaceStepExecutor } from "./executors/WorkspaceStepExecutor";
 import { RoutineTool } from "./RoutineTool";
-import { StepExecutor } from "./StepExecutor";
-import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // ── Helpers ──────────────────────────────────────────────────
 

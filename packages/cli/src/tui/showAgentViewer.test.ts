@@ -2,11 +2,11 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle, TUI } from "@earendil-works/pi-tui";
 import { ForgeConfig } from "@feature-forge/core";
+import { SharedStreamDir } from "@feature-forge/core/src/progress/sharedStreamDir";
 import type { AgentQuery } from "@feature-forge/tui";
 import { AgentViewerOverlay } from "@feature-forge/tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SharedStreamDir } from "../orchestrator/progress/sharedStreamDir";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { showAgentViewer } from "./showAgentViewer";
 

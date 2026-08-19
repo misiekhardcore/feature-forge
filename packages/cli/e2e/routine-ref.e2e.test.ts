@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
 import type {
   FlowDefinition,
   FlowInstruction,
@@ -22,7 +23,6 @@ import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecuto
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import { describe, expect, it } from "vitest";
 
-import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import {
   makeMockFactory,
   makeMockSpecManager,

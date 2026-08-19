@@ -7,8 +7,8 @@ import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/Rout
 import type { AccumulatedState } from "@feature-forge/tui";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "./StepExecutor";
 
 /**
  * Executes a `session` instruction by writing a key/value pair into

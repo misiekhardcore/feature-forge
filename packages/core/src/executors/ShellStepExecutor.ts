@@ -11,8 +11,8 @@ import type {
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution } from "@feature-forge/tui";
 
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "./StepExecutor";
 
 const execFileAsync = promisify(execFile);
 

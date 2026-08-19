@@ -1,3 +1,6 @@
+// Test-only value imports from cli: self-heal when cli/src/workspace
+// and cli test-utils move to core (S4e) (#229).
+import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type { SessionInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
 import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
@@ -6,7 +9,6 @@ import type { DisplayContribution } from "@feature-forge/tui";
 import { createAccumulatedState, DisplayContributionRegistry } from "@feature-forge/tui";
 import { describe, expect, it, vi } from "vitest";
 
-import { makeMockTypedEventBus } from "../../test-utils";
 import { SessionStepExecutor } from "./SessionStepExecutor";
 
 describe("SessionStepExecutor", () => {

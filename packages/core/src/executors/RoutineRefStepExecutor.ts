@@ -8,11 +8,11 @@ import type {
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
 import { FlowMapAware } from "./FlowMapAware";
 import { isAbortError } from "./isAbortError";
 import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededError";
+import { StepExecutor } from "./StepExecutor";
 
 /**
  * Executes a `routine` instruction by inlining all routines from the

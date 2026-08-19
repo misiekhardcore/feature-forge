@@ -15,6 +15,7 @@ import { join } from "node:path";
 
 import { Theme } from "@earendil-works/pi-coding-agent";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
 import {
   FLOW_SCHEMA_URL,
   type FlowDefinition,
@@ -24,7 +25,6 @@ import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/Rout
 import { DisplayContribution, ProgressRenderer } from "@feature-forge/tui";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
 import {
   makeMockFactory,
   makeMockSpecManager,

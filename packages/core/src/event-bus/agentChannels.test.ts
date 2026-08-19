@@ -1,6 +1,8 @@
+// Test-only value imports from cli: self-heal when cli/src/workspace
+// and cli test-utils move to core (S4e) (#229).
+import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
-import { makeMockTypedEventBus } from "../../test-utils";
 import {
   type AgentChannelEmitter,
   type AgentChannelEmitterLike,

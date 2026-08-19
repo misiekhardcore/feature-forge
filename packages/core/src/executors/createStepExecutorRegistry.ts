@@ -1,6 +1,12 @@
+// Type-only: elided at emit, zero runtime edge. Self-heals when
+// cli/src/workspace moves to core in S4e (#229).
+import type {
+  WorkspaceManager,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+} from "@feature-forge/cli/src/workspace";
 import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
 
-import { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
 import {
   AgentStepExecutor,
   CleanupStepExecutor,
@@ -11,7 +17,7 @@ import {
   SessionStepExecutor,
   ShellStepExecutor,
   WorkspaceStepExecutor,
-} from "./executors";
+} from "./index";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 /**

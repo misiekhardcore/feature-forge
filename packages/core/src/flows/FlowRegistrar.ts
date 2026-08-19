@@ -1,12 +1,10 @@
 import * as path from "node:path";
 
 import type { ExtensionAPI, RegisteredCommand } from "@earendil-works/pi-coding-agent";
-// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/orchestrator/eventBus moves to core in S4d (#229).
-import type { TypedEventBus } from "@feature-forge/cli/src/orchestrator/eventBus";
-// Type-only: elided at emit, zero runtime edge. Self-heals when cli/src/orchestrator/StepExecutorRegistry moves to core in S4d (#229).
-import type { StepExecutorRegistry } from "@feature-forge/cli/src/orchestrator/StepExecutorRegistry";
 import { logger } from "@feature-forge/core";
 import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
+import type { TypedEventBus } from "@feature-forge/core/src/event-bus";
+import type { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
 import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
 import type { Tool } from "@feature-forge/core/src/tools";
 

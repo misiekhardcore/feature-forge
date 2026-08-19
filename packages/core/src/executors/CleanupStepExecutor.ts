@@ -1,3 +1,9 @@
+// Type-only: elided at emit, zero runtime edge. Self-heals when
+// cli/src/workspace moves to core in S4e (#229).
+import type { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
+import type { WorkspaceManager } from "@feature-forge/cli/src/workspace/WorkspaceManager";
+import type { WorkspaceProviderRegistry } from "@feature-forge/cli/src/workspace/WorkspaceProviderRegistry";
+import type { WorktreeRegistry } from "@feature-forge/cli/src/workspace/WorktreeRegistry";
 import { logger } from "@feature-forge/core";
 import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
 import type {
@@ -7,12 +13,8 @@ import type {
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
-import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
-import { WorkspaceManager } from "../../workspace/WorkspaceManager";
-import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "./StepExecutor";
 
 /**
  * Executes a "cleanup" instruction by destroying named workspaces.

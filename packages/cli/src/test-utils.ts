@@ -23,9 +23,9 @@ import {
   type ExecuteTaskOptions,
   SubprocessAgent,
 } from "@feature-forge/core/src/agents/SubprocessAgent";
+import { TypedEventBus } from "@feature-forge/core/src/event-bus";
 import { vi } from "vitest";
 
-import { TypedEventBus } from "./orchestrator/eventBus";
 import { ToolRegistry } from "./registry/ToolRegistry";
 import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
 import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";

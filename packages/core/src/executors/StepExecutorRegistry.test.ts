@@ -6,7 +6,7 @@ import type {
 } from "@feature-forge/core/src/flows/FlowInstruction";
 import { describe, expect, it } from "vitest";
 
-import { isFlowMapAware } from "./executors/FlowMapAware";
+import { isFlowMapAware } from "./FlowMapAware";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";
 

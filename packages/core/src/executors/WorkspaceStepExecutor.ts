@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
 
+// Transient runtime import: self-heals when cli/src/workspace moves to
+// core in S4e (#229).
+import { WorkspaceHandle } from "@feature-forge/cli/src/workspace/WorkspaceHandle";
+// Type-only: elided at emit, zero runtime edge. Self-heals when
+// cli/src/workspace moves to core in S4e (#229).
+import type { WorkspaceManager } from "@feature-forge/cli/src/workspace/WorkspaceManager";
+import type { WorkspaceProviderRegistry } from "@feature-forge/cli/src/workspace/WorkspaceProviderRegistry";
+import type { WorktreeRegistry } from "@feature-forge/cli/src/workspace/WorktreeRegistry";
 import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type {
   FlowInstruction,
@@ -8,12 +16,8 @@ import type {
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
-import { WorkspaceHandle } from "../../workspace/WorkspaceHandle";
-import { WorkspaceManager } from "../../workspace/WorkspaceManager";
-import { WorkspaceProviderRegistry } from "../../workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../../workspace/WorktreeRegistry";
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "./StepExecutor";
 
 /**
  * Executes a "workspace" instruction by creating an isolated workspace

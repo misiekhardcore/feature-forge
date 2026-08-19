@@ -8,8 +8,8 @@ import type {
   GitInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
 
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "./StepExecutor";
 
 const execFileAsync = promisify(execFile);
 

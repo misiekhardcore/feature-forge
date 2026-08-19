@@ -5,9 +5,9 @@ import type {
   ParallelInstruction,
 } from "@feature-forge/core/src/flows/FlowInstruction";
 
-import type { TypedEventBus } from "../eventBus";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
 import { isAbortError } from "./isAbortError";
+import { StepExecutor } from "./StepExecutor";
 
 /**
  * Executes a `parallel` instruction by running all child steps concurrently

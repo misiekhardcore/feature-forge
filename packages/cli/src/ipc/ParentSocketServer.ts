@@ -11,12 +11,12 @@ import {
   isSubprocessAgent,
   type SubprocessAgent,
 } from "@feature-forge/core/src/agents";
-
 import {
   emitAgentDone,
   emitAgentStarted,
   emitAgentStream,
-} from "../orchestrator/eventBus/agentChannels";
+} from "@feature-forge/core/src/event-bus/agentChannels";
+
 import {
   type SendTaskParams,
   type SocketMessage,

@@ -25,6 +25,7 @@ import { SpecManager } from "@feature-forge/core/src/agents";
 import { SpecRegistry } from "@feature-forge/core/src/agents/specifications";
 import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
 import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
+import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
 import { ExpressionEvaluator } from "@feature-forge/core/src/flows/ExpressionEvaluator";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import type {
@@ -46,7 +47,6 @@ import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { RoutineTool } from "../orchestrator/RoutineTool";
-import { StepExecutorRegistry } from "../orchestrator/StepExecutorRegistry";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 
 // ── Helpers ──────────────────────────────────────────────────

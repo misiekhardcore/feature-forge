@@ -1,3 +1,6 @@
+// Test-only value imports from cli: self-heal when cli/src/workspace
+// and cli test-utils move to core (S4e) (#229).
+import { makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { jsonParse } from "@feature-forge/core";
 import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
 import {
@@ -8,10 +11,9 @@ import {
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
-import { makeMockTypedEventBus } from "../../test-utils";
-import { StepExecutor } from "../StepExecutor";
-import { StepExecutorRegistry } from "../StepExecutorRegistry";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
+import { StepExecutor } from "./StepExecutor";
+import { StepExecutorRegistry } from "./StepExecutorRegistry";
 
 // Build a dispatch callback that delegates through a StepExecutorRegistry.
 function makeDispatch(

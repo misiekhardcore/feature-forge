@@ -13,12 +13,12 @@ import type {
 import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
 import type { DisplayContribution, DisplayContributionRegistry } from "@feature-forge/tui";
 
-import type { TypedEventBus } from "../eventBus";
-import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../eventBus/agentChannels";
-import { StepExecutor } from "../StepExecutor";
+import type { TypedEventBus } from "../event-bus";
+import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../event-bus/agentChannels";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";
 import { isAbortError } from "./isAbortError";
+import { StepExecutor } from "./StepExecutor";
 
 /**
  * Executes an "agent" instruction by spawning an agent via

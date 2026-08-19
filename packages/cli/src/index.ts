@@ -13,6 +13,8 @@ import {
   SpecRegistry,
 } from "@feature-forge/core/src/agents";
 import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
+import { TypedEventBus } from "@feature-forge/core/src/event-bus";
+import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
 import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
 import { FlowRegistrar } from "@feature-forge/core/src/flows/FlowRegistrar";
 
@@ -33,8 +35,6 @@ import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import { connectChildClient } from "./ipc/connectChildClient";
 import { ParentSocketServer } from "./ipc/ParentSocketServer";
-import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
-import { TypedEventBus } from "./orchestrator/eventBus";
 import { RoutineTool } from "./orchestrator/RoutineTool";
 import { CommandRegistry, ToolRegistry } from "./registry";
 import { withForgePrefix } from "./registry/CommandRegistry";
