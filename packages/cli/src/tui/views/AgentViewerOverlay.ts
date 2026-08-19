@@ -1,0 +1,645 @@
+import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import type {
+  Component,
+  MarkdownTheme,
+  OverlayOptions,
+  SizeValue,
+  TUI,
+} from "@earendil-works/pi-tui";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
+import { AgentStatus } from "@feature-forge/core";
+import { TypedEventBus } from "@feature-forge/core/src/event-bus";
+
+import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
+import { AgentDisplayHelpers } from "../display";
+import { AgentViewerState } from "../state/AgentViewerState";
+import type { AgentViewerEntry, AgentViewerEntryStatus } from "../types";
+import { AgentDetailView } from "./AgentDetailView";
+import { AgentListView } from "./AgentListView";
+
+/**
+ * View mode for the overlay.
+ *
+ * - `"list"`: shows all agent entries and their statuses.
+ * - `"detail"`: shows detailed information for a single selected agent.
+ */
+export type ViewMode = "list" | "detail";
+
+/**
+ * Maximum events kept in memory per agent (sliding window FIFO).
+ * Older events are evicted but persist on disk via JSONL for lazy loading.
+ */
+function getDisplayMaxAgentEvents(config: DisplayConfig): number {
+  return config.getDisplayMaxAgentEvents();
+}
+
+/**
+ * Maximum events buffered before {@link connect} is called.
+ * Prevents unbounded memory from a burst of pre-connect events.
+ */
+function getDisplayMaxPreconnectBuffer(config: DisplayConfig): number {
+  return config.getDisplayMaxPreconnectBuffer();
+}
+
+/**
+ * Parameters for constructing an {@link AgentViewerOverlay}.
+ */
+export interface AgentViewerOverlayParams {
+  /** TUI instance used to request re-renders. */
+  tui: TUI;
+  /** Theme for colouring UI elements. */
+  theme: Theme;
+  /** Callback invoked when the user presses Escape in list view. */
+  onDone: () => void;
+
+  /** Markdown theme for rendering markdown content. */
+  markdownTheme: MarkdownTheme;
+  /** Current working directory — used by {@link ConversationRenderer} for tool execution display. */
+  cwd: string;
+  /** Registry for resolving tool definitions to restore argument formatting. */
+  toolRegistry: ToolFormatter;
+  /** Display configuration for overlay sizing and event caps. */
+  config: DisplayConfig;
+}
+
+/**
+ * Standard overlay configuration shared by
+ * {@link import("../../tools/RoutineTool").RoutineTool} and
+ * {@link import("../../commands/AgentListCommand").AgentListCommand}.
+ */
+const OVERLAY_OPTIONS: OverlayOptions = {
+  anchor: "center",
+  width: "100%",
+  maxHeight: "85%",
+  margin: 1,
+};
+
+/**
+ * True when `value` is a percentage string pi-tui accepts as a {@link SizeValue}.
+ */
+function isPercentageHeight(value: string): value is `${number}%` {
+  return /^\d+(?:\.\d+)?%$/.test(value);
+}
+
+/**
+ * Parse a configured overlay height into a pi-tui {@link SizeValue}.
+ *
+ * The config accepts a percentage string (e.g. `"85%"`) or a pixel
+ * count (e.g. `"30"`). Invalid values return `undefined` so callers
+ * can fall back to the default height.
+ */
+function parseOverlayHeight(value: string): SizeValue | undefined {
+  if (isPercentageHeight(value)) return value;
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined;
+}
+
+/**
+ * TUI component that renders agent execution details in an overlay widget.
+ *
+ * Implements the {@link Component} interface for direct use with
+ * {@code ctx.ui.custom} overlay APIs.
+ *
+ * The owning tool (typically {@link import("../../tools/RoutineTool").RoutineTool})
+ * calls {@link update} as agent events arrive, {@link pushStreamEvent} to
+ * forward streaming content, and {@link dispose} when the routine finishes.
+ *
+ * Architecture note: State is delegated to {@link AgentViewerState},
+ * list rendering to {@link AgentListView} (SelectList + BorderedContainer),
+ * and detail rendering to {@link AgentDetailView} (ScrollableBox + BorderedContainer).
+ * Static methods for event wiring and formatting remain on this class.
+ */
+export class AgentViewerOverlay implements Component {
+  // ── State and views ──────────────────────────────────────
+
+  /** State management delegated to AgentViewerState. */
+  private readonly state = new AgentViewerState();
+
+  /** TUI instance for requesting re-renders. */
+  private readonly tui: TUI;
+
+  /** Theme for colouring UI elements. */
+  private readonly theme: Theme;
+
+  /** Called when the user presses Escape in list view. */
+  private readonly onDone: () => void;
+
+  /** Markdown theme — passed through to detail view. */
+  private readonly markdownTheme: MarkdownTheme;
+
+  /** Current working directory — passed through to detail view. */
+  private readonly cwd: string;
+  private readonly config: DisplayConfig;
+
+  /** View classes. */
+  private readonly listView: AgentListView;
+  private readonly detailView: AgentDetailView;
+
+  /** Current view mode. */
+  viewMode: ViewMode = "list";
+
+  /**
+   * @param params — Configuration object with tui, theme, onDone, markdownTheme, and cwd.
+   */
+  constructor(params: AgentViewerOverlayParams) {
+    this.tui = params.tui;
+    this.theme = params.theme;
+    this.onDone = params.onDone;
+    this.markdownTheme = params.markdownTheme;
+    this.cwd = params.cwd;
+    this.config = params.config;
+
+    this.listView = new AgentListView(
+      this.state,
+      params.theme,
+      params.tui,
+      (agentId) => this.openDetail(agentId),
+      () => this.onDone(),
+    );
+
+    this.detailView = new AgentDetailView(
+      this.state,
+      params.theme,
+      params.markdownTheme,
+      params.tui,
+      params.cwd,
+      params.toolRegistry,
+      () => this.config.getHideThinkingBlock(),
+    );
+  }
+
+  // ── Properties delegating to views ───────────────────────
+
+  get selectedIndex(): number {
+    return this.listView.selectedIndex;
+  }
+
+  set selectedIndex(v: number) {
+    this.listView.selectedIndex = v;
+  }
+
+  get selectedAgentId(): string | undefined {
+    return this.detailView.selectedAgentId;
+  }
+
+  set selectedAgentId(v: string | undefined) {
+    this.detailView.selectedAgentId = v;
+  }
+
+  get scrollOffsetEnd(): number {
+    return this.detailView.scrollOffsetEnd;
+  }
+
+  set scrollOffsetEnd(v: number) {
+    this.detailView.scrollOffsetEnd = v;
+  }
+
+  get autoScroll(): boolean {
+    return this.detailView.autoScroll;
+  }
+
+  set autoScroll(v: boolean) {
+    this.detailView.autoScroll = v;
+  }
+
+  // ── Component interface ───────────────────────────────────
+
+  render(width: number): string[] {
+    if (this.viewMode === "detail" && this.detailView.selectedAgentId) {
+      return this.detailView.render(width);
+    }
+    return this.listView.render(width);
+  }
+
+  handleInput(data: string): void {
+    if (matchesKey(data, Key.escape)) {
+      if (this.viewMode === "detail") {
+        this.viewMode = "list";
+        this.detailView.selectedAgentId = undefined;
+        this.detailView.scrollOffsetEnd = 0;
+        this.detailView.autoScroll = false;
+        this.tui.requestRender();
+        return;
+      }
+      this.onDone();
+      return;
+    }
+
+    if (this.viewMode === "detail") {
+      this.detailView.handleInput(data);
+      return;
+    }
+
+    this.listView.handleInput(data);
+  }
+
+  invalidate(): void {
+    /* Stateless render — no cached state to clear. */
+  }
+
+  // ── Public data methods ───────────────────────────────────
+
+  /**
+   * Configure the stream file directory.
+   *
+   * When set, every {@link pushStreamEvent} call persists the formatted
+   * event line to an append-only log file named
+   * `{agentId}.stream` under the given directory.
+   *
+   * @param streamDir — Directory for filesystem-backed stream buffers.
+   */
+  setStreamDir(streamDir: string): void {
+    this.state.setStreamDir(streamDir);
+  }
+
+  /**
+   * Standard overlay configuration consumed by
+   * {@link import("../../tools/RoutineTool").RoutineTool} and
+   * {@link import("../../commands/AgentListCommand").AgentListCommand}.
+   *
+   * Returns a fresh copy so callers can mutate without affecting shared
+   * state. The configured height is validated by {@link parseOverlayHeight}
+   * - invalid values keep the `"85%"` default.
+   */
+  static getOverlayOptions(config?: DisplayConfig): OverlayOptions {
+    if (!config) return { ...OVERLAY_OPTIONS };
+    const configHeight = config.getDisplayMaxOverlayHeight();
+    return {
+      ...OVERLAY_OPTIONS,
+      maxHeight: parseOverlayHeight(configHeight) ?? OVERLAY_OPTIONS.maxHeight,
+    };
+  }
+
+  /**
+   * Push or update a single agent entry.
+   *
+   * Later calls for the same agent id merge with and overwrite prior state
+   * so the overlay always reflects the most recent lifecycle status.
+   */
+  update(entry: AgentViewerEntry): void {
+    this.state.update(entry);
+    this.tui.requestRender();
+  }
+
+  /**
+   * Remove all in-memory agent entries and reset view state.
+   *
+   * Does NOT clean up filesystem stream files — use {@link dispose}
+   * for full cleanup when stream file persistence was configured via
+   * {@link setStreamDir}.
+   */
+  clearMemory(): void {
+    this.state.clearMemory();
+    this.viewMode = "list";
+    this.listView.selectedIndex = 0;
+    this.detailView.selectedAgentId = undefined;
+    this.detailView.scrollOffsetEnd = 0;
+    this.detailView.autoScroll = false;
+  }
+
+  /** Number of agent entries currently tracked. */
+  get entryCount(): number {
+    return this.state.entryCount;
+  }
+
+  /**
+   * Push a streaming event for an agent.
+   *
+   * Formats the event into a human-readable line (kept in memory as the
+   * most recent stream line) and, when {@link streamDir} is
+   * configured, appends it to a per-agent log file on disk.
+   */
+  pushStreamEvent(agentId: string, event: AgentEvent): void {
+    this.state.pushStreamEvent(agentId, event, (e) => AgentViewerOverlay.formatStreamEvent(e));
+    this.detailView.markDirty();
+    this.detailView.onStreamEvent(agentId);
+
+    // Auto-scroll to the bottom when in detail view with autoScroll enabled.
+    if (
+      this.detailView.autoScroll &&
+      this.viewMode === "detail" &&
+      this.detailView.selectedAgentId === agentId
+    ) {
+      this.detailView.scrollOffsetEnd = 0;
+    }
+
+    this.tui.requestRender();
+  }
+
+  /**
+   * Return the raw stream events for an agent, in insertion order.
+   *
+   * Only returns events currently held in the in-memory sliding window
+   * (up to {@link getDisplayMaxAgentEvents} per agent). Use
+   * {@link loadConversationEvents} for disk-backed history beyond the
+   * window.
+   */
+  getConversation(agentId: string): AgentEvent[] {
+    return this.state.getConversation(agentId);
+  }
+
+  /**
+   * Return the cached {@link AgentMessage} objects for an agent, in order.
+   *
+   * Messages are populated live from {@link pushStreamEvent} on each
+   * {@code message_end} event, and loaded from {@code messages.jsonl} at
+   * startup by {@link prepopulateStreamFiles}.
+   *
+   * @param agentId — The agent to get messages for.
+   * @returns An array of messages, most recent last. Empty array for unknown agents.
+   */
+  getConversationMessages(agentId: string): AgentMessage[] {
+    return this.state.getConversationMessages(agentId);
+  }
+
+  /**
+   * Load conversation events from the on-disk JSONL file for the given agent.
+   *
+   * Streams the file line-by-line via {@code createReadStream} +
+   * {@code createInterface}, keeping a ring buffer of the last {@code count}
+   * lines in memory.
+   *
+   * @param agentId — The agent to load events for.
+   * @param count — Maximum number of events to return.
+   * @returns A promise that resolves to an array of events, most recent last.
+   */
+  async loadConversationEvents(
+    agentId: string,
+    count: number = getDisplayMaxAgentEvents(this.config),
+  ): Promise<AgentEvent[]> {
+    return this.state.loadConversationEvents(agentId, count);
+  }
+
+  /**
+   * Return the most recent formatted stream line for an agent.
+   */
+  getLastStreamLine(agentId: string): string | undefined {
+    return this.state.getLastLine(agentId);
+  }
+
+  /**
+   * Return the most recently recorded stream line across all agents.
+   */
+  get lastStreamLine(): string {
+    return this.state.lastStreamLine;
+  }
+
+  /**
+   * Scan the stream directory for existing per-agent files and pre-populate
+   * the overlay's state.
+   */
+  async prepopulateStreamFiles(streamDir: string): Promise<void> {
+    this.state.setStreamDir(streamDir);
+    await this.state.prepopulateStreamFiles(streamDir);
+  }
+
+  /**
+   * Clean up stream files written to disk and reset view state.
+   */
+  dispose(): void {
+    this.state.dispose();
+    this.clearMemory();
+  }
+
+  // ── Static helpers ────────────────────────────────────────
+
+  /**
+   * Map an {@link AgentStatus} enum value to a viewer entry status.
+   *
+   * Delegates to {@link AgentDisplayHelpers.mapAgentStatus} so the overlay
+   * and the display helpers share a single status vocabulary.
+   */
+  static mapStatus(status: AgentStatus): AgentViewerEntryStatus {
+    return AgentDisplayHelpers.mapAgentStatus(status);
+  }
+
+  /**
+   * Format a stream event into a single-line human-readable description.
+   */
+  static formatStreamEvent(event: AgentEvent): string {
+    return AgentViewerOverlay.formatDetail(event) || event.type;
+  }
+
+  // ── Event wiring ──────────────────────────────────────────
+
+  /**
+   * Create event subscriptions that feed an overlay with live agent data.
+   *
+   * Returns subscriptions and a {@code connect} callback.  Callers construct the
+   * overlay after subscriptions are established and then call {@code connect}
+   * to replay buffered events, set the stream directory, and populate initial
+   * agent entries from the agentQuery.
+   */
+  static wireOverlayEvents(params: {
+    eventBus: TypedEventBus;
+    agentQuery: AgentQuery;
+    config: DisplayConfig;
+    toolRegistry: ToolFormatter;
+  }): {
+    connect: (viewer: AgentViewerOverlay, streamDir: string) => void;
+    unsubs: Array<() => void>;
+  } {
+    const { eventBus, agentQuery, config } = params;
+
+    const eventBuffer: Array<{
+      agentId: string;
+      event?: AgentEvent;
+      status?: AgentViewerEntryStatus;
+      passed?: boolean;
+      summary?: string;
+    }> = [];
+
+    const capEventBuffer = (): void => {
+      const maxPreconnectBuffer = getDisplayMaxPreconnectBuffer(config);
+      if (eventBuffer.length > maxPreconnectBuffer) {
+        eventBuffer.splice(0, eventBuffer.length - maxPreconnectBuffer);
+      }
+    };
+
+    let connected = false;
+
+    const deliverStatusEvent = (
+      viewer: AgentViewerOverlay,
+      agentId: string,
+      mappedStatus: AgentViewerEntryStatus,
+      passed?: boolean,
+      eventSummary?: string,
+    ) => {
+      const agent = agentQuery.getAgent(agentId);
+      let summary = eventSummary;
+      if (!summary && agent) {
+        summary =
+          passed === false
+            ? `${agent.specification.role} - failed`
+            : `${agent.specification.role} - ${agent.status}`;
+      } else if (!summary) {
+        summary = "Agent disconnected";
+      }
+      viewer.update(
+        AgentDisplayHelpers.buildEntry({
+          id: agentId,
+          status: mappedStatus,
+          passed,
+          summary,
+          role: agent?.specification.role,
+          model: agent?.specification.model,
+          thinkingLevel: agent?.specification.thinkingLevel,
+          createdAt: agent?.createdAt ?? new Date(),
+        }),
+      );
+    };
+
+    const unsubs = [
+      eventBus.on("feature-forge:agent-stream", (payload) => {
+        const agentId = payload.details.agentId;
+        if (!agentId) return;
+
+        if (payload.details.event) {
+          if (connected) {
+            viewer.pushStreamEvent(agentId, payload.details.event);
+          } else {
+            eventBuffer.push({ agentId, event: payload.details.event });
+            capEventBuffer();
+          }
+        }
+      }),
+
+      eventBus.on("feature-forge:agent-started", (payload) => {
+        const agentId = payload.details.agentId;
+        if (!agentId) return;
+
+        const mappedStatus = AgentViewerOverlay.mapStatus(
+          agentQuery.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+        );
+        if (connected) {
+          deliverStatusEvent(viewer, agentId, mappedStatus);
+        } else {
+          eventBuffer.push({ agentId, status: mappedStatus });
+          capEventBuffer();
+        }
+      }),
+
+      eventBus.on("feature-forge:agent-done", (payload) => {
+        const agentId = payload.details.agentId;
+        if (!agentId) return;
+
+        const mappedStatus = AgentViewerOverlay.mapStatus(
+          agentQuery.getAgent(agentId)?.status ?? AgentStatus.Spawned,
+        );
+        const passed = payload.details.passed;
+        const eventSummary = payload.details.summary;
+        if (connected) {
+          deliverStatusEvent(viewer, agentId, mappedStatus, passed, eventSummary);
+        } else {
+          eventBuffer.push({ agentId, status: mappedStatus, passed, summary: eventSummary });
+          capEventBuffer();
+        }
+      }),
+    ];
+
+    let viewer!: AgentViewerOverlay;
+
+    const connect = (v: AgentViewerOverlay, streamDir: string) => {
+      viewer = v;
+      connected = true;
+      viewer.setStreamDir(streamDir);
+
+      for (const item of eventBuffer) {
+        if (item.status) {
+          deliverStatusEvent(viewer, item.agentId, item.status, item.passed, item.summary);
+        } else if (item.event) {
+          viewer.pushStreamEvent(item.agentId, item.event);
+        }
+      }
+      eventBuffer.length = 0;
+
+      // Fire-and-forget: disk loading happens in background, test-relevant
+      // agent population runs synchronously below.
+      viewer.prepopulateStreamFiles(streamDir).catch(() => {});
+
+      for (const agent of agentQuery.getAllAgents()) {
+        // The overlay lists subprocess agents only — in-session personas drive
+        // the live conversation and never appear here (or in /agent:list).
+        if (agent.kind !== "subprocess") continue;
+        viewer.update(
+          AgentDisplayHelpers.buildEntry({
+            id: agent.id,
+            status: AgentViewerOverlay.mapStatus(agent.status),
+            summary: `${agent.specification.role} - ${agent.status}`,
+            role: agent.specification.role,
+            model: agent.specification.model,
+            thinkingLevel: agent.specification.thinkingLevel,
+            createdAt: agent.createdAt,
+          }),
+        );
+      }
+    };
+
+    return { connect, unsubs };
+  }
+
+  // ── Private helpers ───────────────────────────────────────
+
+  private openDetail(agentId: string): void {
+    this.viewMode = "detail";
+    this.detailView.selectedAgentId = agentId;
+    this.detailView.autoScroll = true;
+    this.detailView.scrollOffsetEnd = 0;
+    this.tui.requestRender();
+  }
+
+  /**
+   * Format a detail string from an event object using the pre-extracted
+   * {@code eventType} for type-safe dispatch.
+   */
+  private static formatDetail(event: AgentEvent): string {
+    switch (event.type) {
+      case "agent_start":
+        return "started";
+      case "agent_end":
+        return "completed";
+      case "turn_start":
+        return "turn start";
+      case "turn_end":
+        return "turn end";
+
+      case "message_start":
+        return event.message?.role ?? "";
+
+      case "message_update":
+      case "message_end": {
+        return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
+      }
+
+      case "tool_execution_start": {
+        const toolName = event.toolName;
+        if ("args" in event && event.args !== undefined) {
+          const serialized = AgentDisplayHelpers.serializeToolArgs(event.args);
+          return toolName + " | " + serialized;
+        }
+        return toolName;
+      }
+
+      case "tool_execution_end": {
+        const name = event.toolName;
+        const status = event.isError ? " (error)" : " (ok)";
+        return name + status;
+      }
+
+      case "tool_execution_update": {
+        const name = event.toolName;
+        const partial: string =
+          typeof event.partialResult === "string"
+            ? event.partialResult
+            : event.partialResult !== undefined && event.partialResult !== null
+              ? AgentDisplayHelpers.serializeToolResultText(event.partialResult)
+              : "";
+        return partial ? `${name}: ${partial}` : name;
+      }
+
+      default:
+        return "";
+    }
+  }
+}

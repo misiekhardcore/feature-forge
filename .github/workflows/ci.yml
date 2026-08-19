@@ -17,11 +17,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run flow:generate-schema
-      - run: git diff --exit-code -- packages/cli/src/flows/flow-schema.json
+      - run: git diff --exit-code -- packages/core/src/flows/flow-schema.json
       - run: npm run flow:validate-json
-      # Smoke: runtime-imports @feature-forge/shared (regression for the
+      # Smoke: runtime-imports @feature-forge/core (regression for the
       # type-only re-export crash that silently broke flow:validate under tsx).
-      - run: npm -w @feature-forge/cli run flow:validate:all
+      - run: npm -w @feature-forge/core run flow:validate:all
 
   quality:
     runs-on: ubuntu-latest

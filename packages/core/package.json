@@ -1,0 +1,39 @@
+{
+  "name": "@feature-forge/core",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Core abstractions for feature-forge",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "echo 'core: nothing to build'",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "format": "prettier . --check",
+    "format:fix": "prettier . --write",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
+    "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts && npx prettier --write src/flows/flow-schema.json",
+    "flow:validate": "npx tsx scripts/validate-flow.ts",
+    "flow:validate:all": "npx tsx scripts/validate-flow.ts --all",
+    "flow:validate-json": "npx tsx scripts/validate-flow-json.ts"
+  },
+  "dependencies": {
+    "minimatch": "^10.2.5",
+    "yaml": "^2.9.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@feature-forge/eslint-config": "*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "typebox": "*",
+    "vitest": "4.1.9"
+  }
+}

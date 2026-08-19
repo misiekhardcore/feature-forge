@@ -1,8 +1,8 @@
-import { IpcTool } from "@feature-forge/shared";
-import { ToolRenderer } from "@feature-forge/tui";
+import { IpcTool } from "@feature-forge/core";
+import { ListAgentsResult } from "@feature-forge/core/src/ipc/messages";
 import { Type } from "typebox";
 
-import { ListAgentsResult } from "../ipc/messages";
+import { ToolRenderer } from "../tui/views/ToolRenderer";
 
 const ListAgentsParameters = Type.Object({});
 

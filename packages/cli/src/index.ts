@@ -5,37 +5,43 @@ import { fileURLToPath } from "node:url";
 
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
-import { FileLogger, ForgeConfig, logger } from "@feature-forge/shared";
-
+import { FileLogger, ForgeConfig, logger } from "@feature-forge/core";
 import {
   InMemoryAgentSupervisor,
   PiSubprocessAgentFactory,
   SpecManager,
   SpecRegistry,
-} from "./agents";
+} from "@feature-forge/core/src/agents";
+import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
 import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
-  AgentListCommand,
-  FlowExitCommand,
-  ForgeInitCommand,
   ResearchCommand,
   WorktreeDestroyCommand,
   WorktreeListCommand,
   WorktreePruneCommand,
-} from "./commands";
+} from "@feature-forge/core/src/commands";
+import { TypedEventBus } from "@feature-forge/core/src/event-bus";
+import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import { FlowRegistrar } from "@feature-forge/core/src/flows/FlowRegistrar";
+import { connectChildClient } from "@feature-forge/core/src/ipc/connectChildClient";
+import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
+import { CommandRegistry, ToolRegistry } from "@feature-forge/core/src/registry";
+import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
+import {
+  CurrentDirProvider,
+  GitWorktreeProvider,
+  WorkspaceManager,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+} from "@feature-forge/core/src/workspace";
+import { registerSignalHandlers } from "@feature-forge/core/src/workspace/registerSignalHandlers";
+
+import { AgentListCommand, FlowExitCommand, ForgeInitCommand } from "./commands";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
 import { activateSpecResolution } from "./extensions/spec-resolution";
-import { connectChildClient } from "./ipc/connectChildClient";
-import { ParentSocketServer } from "./ipc/ParentSocketServer";
-import { SpecLoader } from "./loaders";
-import { ActiveFlowRegistry } from "./orchestrator/ActiveFlowRegistry";
-import { createStepExecutorRegistry } from "./orchestrator/createStepExecutorRegistry";
-import { TypedEventBus } from "./orchestrator/eventBus";
-import { FlowRegistrar } from "./orchestrator/FlowRegistrar";
-import { CommandRegistry, ToolRegistry } from "./registry";
-import { withForgePrefix } from "./registry/CommandRegistry";
 import {
   DestroyAgentTool,
   GetAgentResultTool,
@@ -45,14 +51,7 @@ import {
   SetSessionNameTool,
   SpawnAgentTool,
 } from "./tools";
-import {
-  CurrentDirProvider,
-  GitWorktreeProvider,
-  WorkspaceManager,
-  WorkspaceProviderRegistry,
-  WorktreeRegistry,
-} from "./workspace";
-import { registerSignalHandlers } from "./workspace/registerSignalHandlers";
+import { RoutineTool } from "./tools/RoutineTool";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -260,6 +259,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     stepExecutorRegistry,
     eventBus,
     activeFlowRegistry,
+    // The remaining seam factory (issue section 6 D3): FlowRegistrar (core)
+    // must not import cli — the concrete RoutineTool is wired here at the
+    // composition root.
+    createRoutineTool: (flowName, routineDef, routineExecutor, supervisor) =>
+      new RoutineTool(flowName, routineDef, routineExecutor, supervisor),
   });
   await flowRegistrar.registerAll();
 

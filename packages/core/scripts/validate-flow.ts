@@ -1,0 +1,93 @@
+import { readFile } from "node:fs/promises";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { jsonParse } from "@feature-forge/core";
+import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
+import { FlowValidation } from "@feature-forge/core/src/flows/flowValidation";
+
+/**
+ * Validate a flow JSON file against the structural and semantic rules.
+ *
+ * Usage: npx tsx scripts/validate-flow.ts <path-to-flow.json>
+ */
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    console.error("Usage: npm run flow:validate -- <path-to-flow.json>");
+    console.error("       npm run flow:validate --all");
+    process.exit(1);
+  }
+
+  if (args[0] === "--all") {
+    const flowsRoot = path.join(scriptDir, "..", "src", "flows", "definitions");
+    // Flows live in subdirectories (core/src/flows/definitions/<name>/flow.json);
+    // loadAll discovers them (mirroring FlowRegistrar) and collects failures.
+    const loader = new FlowLoader({ flowsDir: flowsRoot });
+    const { flows, failures } = await loader.loadAll();
+
+    if (failures.size > 0) {
+      console.error(`✗ ${failures.size} flow(s) failed validation:`);
+      for (const [name, error] of failures) {
+        console.error(`  - ${name}: ${error.message}`);
+      }
+    }
+
+    if (flows.size === 0) {
+      console.error("✗ No valid flows found.");
+      process.exit(1);
+    }
+
+    console.log(`✓ ${flows.size} flow(s) valid:`);
+    for (const name of flows.keys()) {
+      console.log(`  - ${name}`);
+    }
+
+    if (failures.size > 0) {
+      process.exit(1);
+    }
+    return;
+  }
+
+  const filepath = path.resolve(args[0]);
+
+  // Read and parse JSON
+  let raw: string;
+  try {
+    raw = await readFile(filepath, "utf-8");
+  } catch {
+    console.error(`✗ File not found: ${filepath}`);
+    process.exit(1);
+  }
+
+  let json: unknown;
+  try {
+    json = jsonParse(raw);
+  } catch (cause) {
+    console.error(`✗ Invalid JSON: ${(cause as Error).message}`);
+    process.exit(1);
+  }
+
+  // Structural validation
+  try {
+    FlowValidation.validateStructure(json);
+  } catch (cause) {
+    console.error(`✗ Structural validation failed:\n${(cause as Error).message}`);
+    process.exit(1);
+  }
+
+  // Semantic validation
+  const errors = FlowValidation.validateSemantics(json);
+  if (errors.length > 0) {
+    console.error(`✗ Semantic validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`);
+    process.exit(1);
+  }
+
+  console.log(`✓ Flow "${json.name}" is valid`);
+}
+
+void main();

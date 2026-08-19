@@ -2,6 +2,9 @@ import * as path from "node:path";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { ForgeConfig } from "@feature-forge/core";
+import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
+import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
 import type { ScenarioData } from "@feature-forge/debug";
 import {
   builderScenario,
@@ -13,17 +16,12 @@ import {
   reviewerScenario,
   toolArgsScenario,
 } from "@feature-forge/debug";
-import { ForgeConfig } from "@feature-forge/shared";
-import {
-  AgentViewerEntry,
-  AgentViewerOverlay,
-  ProgressRenderer,
-  TuiRoutineWidget,
-} from "@feature-forge/tui";
 
-import { showAgentViewer } from "../agents";
-import { withForgePrefix } from "../registry/CommandRegistry";
-import { ToolRegistry } from "../registry/ToolRegistry";
+import { ProgressRenderer } from "../tui/progress/ProgressRenderer";
+import { TuiRoutineWidget } from "../tui/progress/TuiRoutineWidget";
+import { showAgentViewer } from "../tui/showAgentViewer";
+import type { AgentViewerEntry } from "../tui/types";
+import { AgentViewerOverlay } from "../tui/views/AgentViewerOverlay";
 
 // ── Guard ───────────────────────────────────────────────────
 

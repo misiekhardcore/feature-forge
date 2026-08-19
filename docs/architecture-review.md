@@ -158,6 +158,13 @@ graph LR
 
 **Option B (lighter):** declare minimal structural interfaces in `tui` (e.g. `EventBusLike<C>` with an `on()` signature) and make `TypedEventBus` implement them. This works but leaves two type families to reconcile, which is exactly the drift this repo has suffered elsewhere - prefer Option A.
 
+> **Status: RESOLVED by #229 (package restructure).** The `tui -> cli` cycle is
+> gone by construction: `packages/tui` was folded into `cli/src/tui` (D1), and
+> the wire types + `TypedEventBus` now live in `@feature-forge/core` because
+> `@feature-forge/shared` merged into core (D5/D9). No code move was needed
+> beyond the restructure itself; roadmap Phase 1a (p1a) is consumed. See
+> ADR 0020.
+
 ---
 
 ### 3.2 P0-2: Display pipeline welded into the execution engine
@@ -216,6 +223,14 @@ graph TD
 - Add **one** pure projection module in `tui`: `applyEvent(state, event): AccumulatedState` - a single switch over `event.phase`. This is the only place that knows how an event renders.
 - `RoutineTool` subscribes once and calls `applyEvent`; `ProgressRenderer` reads the folded state.
 - Result: engine → TUI dependency removed, O(1) per event, one place to change display behavior, trivially unit-testable projection.
+
+> **Status: LANDED as part of #229 (roadmap 2a, D6).** The prescription became
+> the implementation: `getDisplayContribution`/`registerDisplayHandler` were
+> deleted from `StepExecutor` and the executors, and the projection now lives
+> in `cli/src/tui/progress/DisplayProjection.ts` (`applyEvent` fold +
+> `AccumulatedState`). Core contains zero display vocabulary. Roadmap Phase 2
+> (p2a) is consumed; the remaining RoutineTool split is roadmap 2b. See
+> ADR 0020.
 
 ---
 
@@ -599,13 +614,19 @@ Downstream consumers (factory, orchestrator command) receive a model config with
 
 |            |                                                                                                                                                                                                                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Files**  | `shared/src/index.ts` (`export { AgentConfig, AgentModelConfig, ... } from "./config"`), `cli/scripts/validate-flow.ts`                                                                                                                                                                                                         |
+| **Files**  | `shared/src/index.ts` (`export { AgentConfig, AgentModelConfig, ... } from "./config"`), `core/scripts/validate-flow.ts`                                                                                                                                                                                                        |
 | **Impact** | **Verified runtime bug**: `import('@feature-forge/shared')` throws under tsx `SyntaxError: The requested module './config' does not provide an export named 'AgentConfig'` - which breaks `npm run flow:validate`. esbuild/tsup silently drop the missing re-exports, so tests and the shipped bundle pass and CI never sees it |
 | **Effort** | S                                                                                                                                                                                                                                                                                                                               |
 
-Verified: `npx tsx -e "import('@feature-forge/shared')..."` → `import FAIL: The requested module './config' does not provide an export named 'AgentConfig'`. `validate-flow-json.ts` survives only because it deep-imports `@feature-forge/shared/src/helpers` - the two scripts have diverged in import style for exactly this reason.
+Verified: `npx tsx -e "import('@feature-forge/shared')..."` → `import FAIL: The requested module './config' does not provide an export named 'AgentConfig'`. `validate-flow-json.ts` survives only because it deep-imports `@feature-forge/shared/src/helpers` (now `@feature-forge/core/src/helpers` after the shared merge) - the two scripts have diverged in import style for exactly this reason.
 
 **Fix:** split into `export type { ... }` for the type-only names; add a runtime import smoke test to CI (e.g. run `flow:validate` in CI).
+
+> **Status: SELF-HEALED by #229 (package restructure, ADR 0020).** The shared
+> package was deleted (merged into core, D9) and core's index re-exports use
+> `export type { ... }` for type-only names, so the crash mechanism no longer
+> exists; `flow:validate` runs from `core/scripts` and no longer touches
+> `@feature-forge/shared`.
 
 ---
 
@@ -675,7 +696,7 @@ Worst pockets: `connectChildClient.ts` **0%** (33 production lines), `debug/.../
 
 | #   | Finding                                                                                                                                                                                                                           | Location                                                              | Fix                                                                                               |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1   | `validate-flow.ts --all` **exits 0 when every flow fails**: `flows.size === 0` triggers an early return before the `failures.size > 0 → exit(1)` check (currently masked by the 3.22 crash)                                       | `cli/scripts/validate-flow.ts`                                        | Check failures before the early return                                                            |
+| 1   | `validate-flow.ts --all` **exits 0 when every flow fails**: `flows.size === 0` triggers an early return before the `failures.size > 0 → exit(1)` check (fixed in Phase -1, #225; 3.22 self-healed by #229)                        | `core/scripts/validate-flow.ts`                                       | Check failures before the early return                                                            |
 | 2   | `ChildSocketClient.connect()` can be called repeatedly, overwriting `this.socket` and leaking the previous socket's handlers; pending requests are never rejected on `close`/`error` after connection                             | `cli/src/ipc/ChildSocketClient.ts`                                    | Guard double-connect; reject all pending on close/error (extends P2-3)                            |
 | 3   | `ParentSocketServer.start()` registers a fresh `session_shutdown` listener per call; the `mkdtempSync` temp dir is never removed in `stop()`                                                                                      | `cli/src/ipc/ParentSocketServer.ts`                                   | Register once; `rmSync` in `stop()`                                                               |
 | 4   | `OrchestratorCommand` swallows model/thinking-level resolution errors without even a `logger.warn`                                                                                                                                | `commands/OrchestratorCommand.ts`                                     | Log the caught error                                                                              |
@@ -773,17 +794,26 @@ gantt
     Skill single-sourcing (3.10 #4)     :p4c, after p4b, 2d
 ```
 
+> **Roadmap status (2026-08-19):** phases **P1a** (3.1) and **P2a** (3.2) were
+> consumed by issue #229's package restructure (ADR 0020) - the gantt rows
+> below are kept as the original plan, not re-drawn. 3.1's cycle is gone by
+> construction (wire types + `TypedEventBus` in core; `shared` and `tui` no
+> longer exist); 2a's DisplayProjection landed as the final commit group of
+> #229. Remaining roadmap work: p1b (the template/expression half of 3.6),
+> then 2b (RoutineTool split) and 3a/3b, which now operate inside
+> `core/src/config` and `core/src/logging`.
+
 **Phase -1 - Gate repair + verified bugs (1 week)**
 The coverage gate fails today and two verified bugs corrupt session state or defeat the build loop. These land first because they are small and make every later phase safer: fix the branch threshold (3.23), add the two missing suites (`connectChildClient`, `FlowStateStore` - see 7.2), fix the `/flow:exit` re-mount leak (3.18), the loop-feedback envelope bug (3.19), the `resolveModel` prototype leak (3.20), the shallow freeze (3.21), the shared barrel crash (3.22), and the `disposition_comments` quoting bug (3.24).
 
 **Phase 0 - Quick wins (1 week)**
 Dead code removal, `IpcTool` base, `FlowStateStore` de-inheritance, workspace name/path fixes, socket null guard, logger/console consistency. Pure deletions and extractions with existing tests as the safety net.
 
-**Phase 1 - Contracts (1 week)**
-Move `TypedEventBus` + IPC wire types to `@feature-forge/shared`; kill the `tui → cli` edge. Unify template resolution; fix the `===`/`!==` doc-vs-lexer mismatch.
+**Phase 1 - Contracts (1 week)** - p1a **consumed by #229**:
+Move `TypedEventBus` + IPC wire types to `@feature-forge/shared`; kill the `tui → cli` edge. Unify template resolution; fix the `===`/`!==` doc-vs-lexer mismatch. (The move half is done - wire types + `TypedEventBus` are in core and the cycle is dead; the template/expression half, p1b, is still open.)
 
-**Phase 2 - Display extraction (1.5 weeks)**
-Replace the dual push/pull display mechanism with the single `DisplayProjection` fold; delete `getDisplayContribution`/`registerDisplayHandler` from all executors; split `RoutineTool`.
+**Phase 2 - Display extraction (1.5 weeks)** - p2a **consumed by #229**:
+Replace the dual push/pull display mechanism with the single `DisplayProjection` fold; delete `getDisplayContribution`/`registerDisplayHandler` from all executors; split `RoutineTool`. (The projection fold landed in #229's final commit group; the remaining work is the 2b RoutineTool split on the new layout.)
 
 **Phase 3 - Config de-singleton (1 week)**
 Inject config through the composition root, consumer by consumer; simplify the two-stage Logger singleton.
@@ -965,10 +995,10 @@ Every P0, P1, and P2 finding **still holds**. No finding has been fixed and none
 3. **test-setup copies (7.1#2).** Only two of three are byte-identical (`cli` + `tui`); `shared` differs solely by import path (`./config` vs `@feature-forge/shared`). The "three copies to boot the singleton" claim stands.
 4. **fillTemplate (3.6/3.17#1).** Production-dead (no consumer) but not untested - `templates.test.ts` covers it. "Dead export" is correct; deletion must also remove the test file.
 5. **ResearchCommand (3.28#5).** It does `ctx.ui.notify` for usage/spec errors; the invisible failure is the un-caught `runAgent(...)` promise (no `.catch`, no log). `AgentListCommand` matches exactly (debug-only).
-6. **Path shorthand.** The review cites `flows/implement/flow.json` and `flows/resolve-pr-feedback/flow.json`; actual locations are `packages/cli/src/flows/...` (verified there).
+6. **Path shorthand.** The review cites `flows/implement/flow.json` and `flows/resolve-pr-feedback/flow.json`; actual locations are `packages/core/src/flows/definitions/...` (flows moved from `packages/cli/src/flows` to core in #229; verified there).
 7. **Date typo.** Original header/gantt read 2025-08-17/18; corrected to 2026.
 
 ### 10.4 New observations (not in the original review)
 
-- **Flow files are duplicated** between `.forge/flows/` and `packages/cli/src/flows/` - the 5 flow JSONs are byte-identical, mirroring the 3.10#4 skills duplication. Same single-sourcing fix applies (one source of truth + copy/sync at `forge init`).
+- **Flow files are duplicated** between `.forge/flows/` and `packages/core/src/flows/definitions/` (previously `packages/cli/src/flows/`) - the 5 flow JSONs are byte-identical, mirroring the 3.10#4 skills duplication. Same single-sourcing fix applies (one source of truth + copy/sync at `forge init`).
 - `.forge/worktrees/` contains leftover worktree dirs (`ws-03a8859d`, `ws-3f25704b`, `ws-df09a612`, `ws-f0b88079`) - workspace-cleanup hygiene, outside the code findings above.

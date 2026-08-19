@@ -1,8 +1,8 @@
+import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
-import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
-import { FlowStateStore } from "../orchestrator/FlowStateStore";
 import { makeMockTypedEventBus } from "../test-utils";
 import { SetFlowParamTool } from "./SetFlowParamTool";
 

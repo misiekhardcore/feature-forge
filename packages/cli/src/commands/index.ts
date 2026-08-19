@@ -1,11 +1,3 @@
-export { AgentDestroyAllCommand } from "./AgentDestroyAllCommand";
-export { AgentDestroyCommand } from "./AgentDestroyCommand";
 export { AgentListCommand } from "./AgentListCommand";
-export { Command } from "./Command";
 export { FlowExitCommand } from "./FlowExitCommand";
 export { ForgeInitCommand } from "./ForgeInitCommand";
-export { OrchestratorCommand } from "./OrchestratorCommand";
-export { ResearchCommand } from "./ResearchCommand";
-export { WorktreeDestroyCommand } from "./WorktreeDestroyCommand";
-export { WorktreeListCommand } from "./WorktreeListCommand";
-export { WorktreePruneCommand } from "./WorktreePruneCommand";

@@ -1,0 +1,97 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+
+import type { SpawnAgentParams } from "@feature-forge/core/src/ipc/messages";
+
+import type {
+  AgentSpecification,
+  AgentSpecificationParams,
+} from "./specifications/AgentSpecification";
+import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
+import type { SpecLoader } from "./specifications/SpecLoader";
+import type { SpecRegistry } from "./specifications/SpecRegistry";
+
+/**
+ * Parameters for resolving a specification by named spec.
+ *
+ * Used internally by {@link AgentStepExecutor} and commands (e.g. ResearchCommand)
+ * that look up named specs from the registry.
+ */
+export interface SpecResolutionParams extends AgentSpecificationParams, Record<string, unknown> {
+  /** Named spec identifier (e.g. "build", "review", "verify", "research"). */
+  spec: string;
+}
+
+/**
+ * Owns specification construction — loading declarative specs and resolving
+ * both named spec references and ad-hoc IPC spawn params into
+ * {@link AgentSpecification} instances.
+ *
+ * This keeps all spec creation in one place so the IPC layer
+ * ({@link ParentSocketServer}) does not need to instantiate concrete
+ * specification subclasses.
+ */
+export class SpecManager {
+  constructor(
+    private readonly registry: SpecRegistry,
+    private readonly loader: SpecLoader,
+  ) {}
+
+  /**
+   * Load every `*.md` declarative spec from a directory and register them.
+   */
+  async loadFromDirectory(specsDir: string): Promise<void> {
+    const files = await fs.readdir(specsDir);
+    const mdFiles = files.filter((file) => file.endsWith(".md"));
+
+    for (const file of mdFiles) {
+      const parsed = await this.loader.load(path.join(specsDir, file));
+      this.registry.register(parsed.name, parsed.factory);
+    }
+  }
+
+  /**
+   * Resolve a named spec into a fully configured specification.
+   *
+   * Looks up the spec name in the registry and delegates to the registered
+   * factory.
+   */
+  resolve(params: Pick<SpecResolutionParams, "spec">): AgentSpecification {
+    if (!this.registry.has(params.spec)) {
+      throw new Error(`Spec '${params.spec}' not found`);
+    }
+    return this.registry.create(params.spec);
+  }
+
+  /**
+   * Create an ad-hoc {@link AgentSpecification} from resolved IPC params.
+   *
+   * All values are fully resolved before they reach this layer — no
+   * template variables, no spec name lookups. The returned spec is a
+   * {@link DynamicAgentSpecification}, which is tracked by the supervisor
+   * after spawning, not registered for reuse.
+   */
+  createDynamic(params: SpawnAgentParams): AgentSpecification {
+    return new DynamicAgentSpecification(params);
+  }
+
+  /**
+   * Return a read-only set of registered spec names.
+   *
+   * Exposed so callers (e.g. {@link FlowRegistrar}) can snapshot the current
+   * registry contents before validating flow references.
+   */
+  specNames(): ReadonlySet<string> {
+    return this.registry.specNames();
+  }
+
+  /**
+   * Type guard: checks whether params come from a named spec flow.
+   *
+   * Used by internal callers (e.g. {@link AgentStepExecutor}) that may
+   * resolve via either named specs or direct construction.
+   */
+  static isSpecParams(params: Record<string, unknown>): params is SpecResolutionParams {
+    return "spec" in params && typeof params.spec === "string";
+  }
+}

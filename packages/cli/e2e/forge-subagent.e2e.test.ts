@@ -13,15 +13,15 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/shared";
-import { AgentStatus } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
+import { AgentStatus } from "@feature-forge/core";
+import type { Agent } from "@feature-forge/core/src/agents";
+import { AgentSpecification } from "@feature-forge/core/src/agents";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AgentSpecification } from "../src/agents";
-import type { Agent } from "../src/agents/agents";
-import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import type { AgentSupervisor } from "../src/agents/supervisors";
-import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 import { makeMockPi, makeMockSpecManager } from "../src/test-utils";
 
 function createMockAgent(): SubprocessAgent {

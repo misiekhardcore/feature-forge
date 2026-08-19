@@ -1,4 +1,4 @@
-import { logger } from "@feature-forge/shared";
+import { logger } from "@feature-forge/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockPiWithHandlers } from "../test-utils";

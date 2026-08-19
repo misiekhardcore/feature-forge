@@ -1,0 +1,101 @@
+import { randomUUID } from "node:crypto";
+
+import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import type {
+  FlowInstruction,
+  WorkspaceInstruction,
+} from "@feature-forge/core/src/flows/FlowInstruction";
+import type {
+  WorkspaceManager,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+} from "@feature-forge/core/src/workspace";
+import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
+
+import type { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "./StepExecutor";
+
+/**
+ * Executes a "workspace" instruction by creating an isolated workspace
+ * via the configured {@link WorkspaceProviderRegistry}.
+ *
+ * After creation the workspace handle is stored in {@link FlowContext.workspaces}
+ * under the instruction id, so downstream instructions can resolve its path
+ * via `{{workspace.<id>}}` and also registered in the persistent
+ * {@link WorktreeRegistry} so commands like `/worktree:list` can surface it.
+ *
+ * The path is also tracked in {@link WorkspaceManager} for session-scoped
+ * signal-handler cleanup.
+ */
+export class WorkspaceStepExecutor extends StepExecutor<WorkspaceInstruction> {
+  readonly type = "workspace";
+
+  constructor(
+    private readonly providerRegistry: WorkspaceProviderRegistry,
+    private readonly worktreeRegistry: WorktreeRegistry,
+    private readonly workspaceManager: WorkspaceManager,
+  ) {
+    super();
+  }
+
+  async execute(
+    instruction: WorkspaceInstruction,
+    context: FlowContext,
+    _executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
+    eventBus: TypedEventBus,
+    signal?: AbortSignal,
+  ): Promise<FlowContext> {
+    signal?.throwIfAborted();
+
+    const providerName = instruction.provider;
+    const workspaceId = `ws-${randomUUID().split("-")[0]}`;
+
+    const provider = this.providerRegistry.get(providerName);
+    if (!provider) {
+      throw new Error(`Unknown workspace provider "${providerName}"`);
+    }
+
+    const resolvedBranch = instruction.branch ? context.resolve(instruction.branch) : undefined;
+    const isBranchUnresolved =
+      !resolvedBranch || resolvedBranch.length === 0 || resolvedBranch.startsWith("{{");
+    const branch = isBranchUnresolved ? `forge/${workspaceId}` : resolvedBranch;
+
+    const resolvedBaseRef = instruction.baseRef ? context.resolve(instruction.baseRef) : undefined;
+    const baseRef =
+      resolvedBaseRef && resolvedBaseRef.length > 0 && !resolvedBaseRef.startsWith("{{")
+        ? resolvedBaseRef
+        : undefined;
+
+    if (!isBranchUnresolved && baseRef !== undefined) {
+      throw new Error(
+        `Workspace instruction "${instruction.id}": branch and baseRef are mutually exclusive. ` +
+          "Pass branch to reuse an existing workspace, or baseRef to create from a specific commit.",
+      );
+    }
+
+    const path = await provider.createWorkspace(workspaceId, {
+      symlinks: instruction.symlinks,
+      branch,
+      ...(baseRef !== undefined ? { baseRef } : {}),
+    });
+    const handle = new WorkspaceHandle(path, new Date(), branch);
+
+    await this.worktreeRegistry.register(handle);
+    this.workspaceManager.trackPath(path);
+
+    eventBus.emit("feature-forge:workspace-ready", {
+      phase: "workspace-ready",
+      message: `Workspace "${workspaceId}" created at ${path}`,
+      details: { path, branch },
+    });
+
+    return context.withWorkspace(instruction.id, handle).withResult(instruction.id, {
+      raw: JSON.stringify({ path }),
+      parsed: { passed: true, summary: `Workspace created at ${path}` },
+    });
+  }
+}

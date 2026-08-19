@@ -6,17 +6,20 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/shared";
-import { AgentStatus } from "@feature-forge/shared";
+import { jsonParse } from "@feature-forge/core";
+import { AgentStatus } from "@feature-forge/core";
+import type { Agent } from "@feature-forge/core/src/agents/Agent";
+import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
+import type {
+  AgentSpecification,
+  AgentSpecificationParams,
+} from "@feature-forge/core/src/agents/specifications";
+import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
+import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
+import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
+import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
 import { expect, vi } from "vitest";
 
-import type { Agent } from "../src/agents/agents";
-import { SessionAgent } from "../src/agents/agents/SessionAgent";
-import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import type { AgentSpecification, AgentSpecificationParams } from "../src/agents/specifications";
-import { DynamicAgentSpecification } from "../src/agents/specifications/DynamicAgentSpecification";
-import type { AgentSupervisor } from "../src/agents/supervisors";
-import { ParentSocketServer } from "../src/ipc/ParentSocketServer";
 import { makeMockPi, makeMockSpecManager } from "../src/test-utils";
 
 /** Absolute path to the CLI package root (where package.json lives). */

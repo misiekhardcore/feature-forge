@@ -4,4 +4,4 @@ coverage/
 .turbo/
 .forge/
 packages/cli/src/skills/
-packages/cli/src/flows/flow-schema.json
+packages/core/src/flows/flow-schema.json

@@ -1,1 +1,0 @@
-export { Registry } from "./Registry";
