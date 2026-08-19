@@ -15,11 +15,15 @@
  *
  * **When to add a new flow:** after adding a new .json file to
  * `src/flows/definitions/`, add a `describe("new-flow-name", ...)` block here.
- * The boilerplate is minimal — the five assertions are the same for every flow.
+ * The boilerplate is minimal — the five core assertions are the same for every
+ * flow; flow-specific blocks may add extra checks (e.g. implement asserts
+ * open_pr/build_loop instruction ordering and RoutineTool name alignment).
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+// Test-only value imports from cli (mock helpers + RoutineTool): self-heal when
+// cli test-utils / RoutineTool move to their final homes (S6/S11).
 import { RoutineTool } from "@feature-forge/cli/src/orchestrator/RoutineTool";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { jsonParse } from "@feature-forge/core";
@@ -748,7 +752,7 @@ describe("flow round-trip", () => {
 
       const flowWithParams = {
         $schema:
-          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/core/src/flows/flow-schema.json",
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "test" },
@@ -771,7 +775,7 @@ describe("flow round-trip", () => {
 
       const flowWithoutParams = {
         $schema:
-          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/core/src/flows/flow-schema.json",
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "test" },
@@ -793,7 +797,7 @@ describe("flow round-trip", () => {
 
       const flowWithInvalidParams = {
         $schema:
-          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+          "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/core/src/flows/flow-schema.json",
         name: "test",
         command: "/test",
         orchestrator: { systemPrompt: "test" },

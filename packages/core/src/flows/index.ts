@@ -1,7 +1,8 @@
 export { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 export type { FlowContextLike } from "./ExpressionEvaluator";
 export { ExpressionEvaluator } from "./ExpressionEvaluator";
-export { BinaryOp, Expr, ExpressionParser, ParseError, UnaryOp } from "./ExpressionParser";
+export type { BinaryOp, Expr, UnaryOp } from "./ExpressionParser";
+export { ExpressionParser, ParseError } from "./ExpressionParser";
 export type { InstructionResult } from "./FlowContext";
 export { FlowContext } from "./FlowContext";
 export type {
@@ -50,7 +51,8 @@ export {
   type ToolRegistryLike,
   type WorkspaceManagerLike,
 } from "./FlowRegistrar";
-export { FlowParams, FlowStateStore } from "./FlowStateStore";
+export type { FlowParams } from "./FlowStateStore";
+export { FlowStateStore } from "./FlowStateStore";
 
 import {
   FlowInstructionSchema,

@@ -66,7 +66,7 @@ function makeDispatch(
 function makeTargetFlow(overrides: Partial<FlowDefinition> = {}): FlowDefinition {
   return {
     $schema:
-      "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+      "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/core/src/flows/flow-schema.json",
     name: "review",
     command: "/review",
     orchestrator: { systemPrompt: "t" },

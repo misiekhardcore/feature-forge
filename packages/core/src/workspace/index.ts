@@ -8,6 +8,7 @@ export {
 } from "./WorkspaceError";
 export { WorkspaceHandle } from "./WorkspaceHandle";
 export { WorkspaceManager } from "./WorkspaceManager";
-export { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
+export type { CreateWorkspaceOptions } from "./WorkspaceProvider";
+export { WorkspaceProvider } from "./WorkspaceProvider";
 export { WorkspaceProviderRegistry } from "./WorkspaceProviderRegistry";
 export { WorktreeRegistry } from "./WorktreeRegistry";
