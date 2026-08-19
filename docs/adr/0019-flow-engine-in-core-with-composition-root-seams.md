@@ -54,9 +54,10 @@ lets core depend on structural surfaces while cli supplies the concretions.
   latent type hole if the two shapes drift; narrowing it (e.g. having
   `OrchestratorCommand` accept `ToolRegistryLike`) is planned when S4d moves
   the registries.
-- Core's unit tests depend on cli's src tree at runtime until S4d/S4e/S6
-  (test-only; does not ship).
-- S11's restricted-imports lint enforces the direction (core never imports
-  cli).
-- ADR 0018 is reserved by the phase plan for S10's package-layering decisions
-  (D1-D8); this ADR covers the S4c seam only.
+- Core's unit tests import cli's test-utils at runtime until S11 moves them
+  to core (test-only; does not ship).
+- S11's restricted-imports lint will enforce the direction (core never imports
+  cli) once the rules land with this series (issue section 8; not yet present).
+- ADR 0018 was reserved by the phase plan for S10's package-layering
+  decisions (D1-D8) but was never written; those decisions landed as
+  ADR 0020. This ADR covers the S4c seam only.

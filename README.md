@@ -53,6 +53,21 @@ Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your pr
 
 Environment variables override config: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
 
+## Packages
+
+The monorepo is layered strictly one-directionally: `core <- cli <- debug`.
+
+| Package                | Role                                                                                                                                                  | Publishes   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `@feature-forge/core`  | Engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, tool bases, skills, flow definitions. Source-only, no pi-tui. | no (source) |
+| `@feature-forge/cli`   | pi extension + TUI display: composition root, commands, tools, registry, folded TUI views/progress.                                                   | yes (tsup)  |
+| `@feature-forge/debug` | Dev-only test scenarios and commands; accepts cli-shaped components via dependency interfaces.                                                        | no (source) |
+
+`core` and `debug` are consumed as source via the npm workspace
+(`main: ./src/index.ts`); only `cli` builds with tsup and publishes the pi
+extension bundle. See [ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md)
+for the layering decisions.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, repository structure, pull request guidelines, and release process.

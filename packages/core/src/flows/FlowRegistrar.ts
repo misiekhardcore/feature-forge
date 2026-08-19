@@ -39,7 +39,8 @@ export interface ToolRegistryLike {
 }
 
 /**
- * Structural surface of cli's `WorkspaceManager` (stays in cli until S4e).
+ * Structural surface of the workspace manager (moved to core in S4e; typed
+ * structurally by the member the cli `OrchestratorCommand` reads).
  *
  * Only threaded through to the orchestrator command factory — the minimal
  * surface is the member the cli `OrchestratorCommand` actually reads when

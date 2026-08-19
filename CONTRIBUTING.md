@@ -6,10 +6,12 @@ Feature Forge is an autonomous software engineering platform — idea-to-PR via 
 
 This is a **Turborepo monorepo** with npm workspaces:
 
-- **`@feature-forge/cli`** (`packages/cli/`) — main pi extension, orchestrator, step executors, IPC agents
-- **`@feature-forge/shared`** (`packages/shared/`) — shared base types and abstractions
+- **`@feature-forge/core`** (`packages/core/`) — engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, tool bases, skills, flow definitions (source-only)
+- **`@feature-forge/cli`** (`packages/cli/`) — pi extension + TUI display: composition root, commands, tools, registry, folded TUI views/progress (publishes)
+- **`@feature-forge/debug`** (`packages/debug/`) — dev-only test scenarios and commands
 - **`@feature-forge/eslint-config`** (`packages/eslint-config/`) — shared ESLint configuration
-- **`@feature-forge/web`** (`packages/web/`) — web UI (TBD)
+
+The package graph is strictly one-directional (`core <- cli <- debug`); see [ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md).
 
 See [AGENTS.md](AGENTS.md) for the full project structure and coding conventions.
 
@@ -29,25 +31,25 @@ npm install
 
 ## Scripts
 
-| Command              | Description                                    |
-| -------------------- | ---------------------------------------------- |
-| `npm test`           | Run tests (vitest, all packages)               |
-| `npm run test:watch` | Run tests in watch mode                        |
-| `npm run lint`       | Check code style (turbo, all packages)         |
-| `npm run lint:fix`   | Auto-fix lint issues (turbo, all packages)     |
-| `npm run format`     | Check formatting (turbo, all packages)         |
-| `npm run format:fix` | Auto-fix formatting (turbo, all packages)      |
-| `npm run fix`        | Combined: lint:fix + format:fix                |
-| `npm run typecheck`  | TypeScript type checking (turbo, all packages) |
-| `npm run check`      | Combined: lint + format + test (not typecheck) |
-| `npm run build`      | Build all packages via turbo                   |
-| `npm run changelog`  | Generate CHANGELOG.md from commits             |
+| Command                                   | Description                                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                                | Run tests (vitest, all packages)                                                                                    |
+| `npm run test:watch`                      | Run tests in watch mode                                                                                             |
+| `npm run lint`                            | Check code style (turbo, all packages)                                                                              |
+| `npm run lint:fix`                        | Auto-fix lint issues (turbo, all packages)                                                                          |
+| `npm run format`                          | Check formatting (turbo, all packages)                                                                              |
+| `npm run format:fix`                      | Auto-fix formatting (turbo, all packages)                                                                           |
+| `npm run fix`                             | Combined: lint:fix + format:fix                                                                                     |
+| `npm run typecheck`                       | TypeScript type checking (turbo, all packages)                                                                      |
+| `npm run check`                           | Combined: lint + format + test (not typecheck)                                                                      |
+| `npm run build`                           | Build all packages via turbo                                                                                        |
+| `npm -w @feature-forge/cli run changelog` | Generate CHANGELOG.md from commits (requires git-cliff; the Release workflow generates it via the git-cliff action) |
 
 Run commands inside a specific package:
 
 ```bash
 npm -w @feature-forge/cli run test
-npm -w @feature-forge/shared run lint
+npm -w @feature-forge/core run lint
 ```
 
 E2E tests (`packages/cli/e2e`) run as the `cli-e2e` vitest project:
@@ -108,11 +110,11 @@ The CI `schema` job runs exactly these steps on every push to `main` and every p
 
 ### Rebuild before consumers run `forge:init`
 
-Scaffolding templates (agents, flows, skills) are not shipped as source: `dist/` is git-ignored and produced by `npm run build`. tsup's `onSuccess` copies `src/agents/declarative-specs`, `src/flows` (test files excluded), `src/skills`, and the whole `scripts` dir into `dist/`, then copies the shared `forge-config.defaults.json` (from `@feature-forge/shared`) to `dist/scripts/forge-config.defaults.json` (`packages/cli/tsup.config.ts`).
+Scaffolding templates (agents, flows, skills) are not shipped as source: `dist/` is git-ignored and produced by `npm run build`. tsup's `onSuccess` copies the templates and flow definitions from `@feature-forge/core` — `src/agents/specifications/templates`, `src/flows/definitions` (test files excluded), `src/flows/flow-schema.json`, `src/skills` — plus the `scripts` dirs from both `cli` (`forge-setup.js`) and `core` (flow validation scripts, test files excluded) into `dist/scripts`, then copies the core `forge-config.defaults.json` (from `@feature-forge/core/src/config`) to `dist/scripts/forge-config.defaults.json` (`packages/cli/tsup.config.ts`).
 
-`forge-setup.js` resolves these assets with `resolveAssetsDir`, which checks `<pkg>`, then `<pkg>/dist`, then `<pkg>/src` — so the published layout scaffolds from `<pkg>/dist/`, and an unbuilt source tree falls back to `<pkg>/src/` (`packages/cli/scripts/forge-setup.js`). Consumers' `forge:init` therefore scaffolds from the published `dist/` — a release that changed flows, specs, or skills must ship a freshly built `dist/`. The Release workflow builds before publishing, but never publish from a stale `dist/`.
+`forge-setup.js` resolves these assets with `resolveAssetsDir`, which checks `<pkg>`, then `<pkg>/dist`, then `<pkg>/src` — so the published layout scaffolds from `<pkg>/dist/`, and an unbuilt source tree falls back to `<pkg>/src/` (`packages/cli/scripts/forge-setup.js`). Flow validation lives in `packages/core/scripts/` (`validate-flow.ts`, `validate-flow-json.ts`, `generate-flow-schema.ts`). Consumers' `forge:init` therefore scaffolds from the published `dist/` — a release that changed flows, specs, or skills must ship a freshly built `dist/`. The Release workflow builds before publishing, but never publish from a stale `dist/`.
 
-The full "re-run `forge:init`" invariant for a flow/asset change is: edit the source (e.g. `FlowInstruction.ts`) → `npm run flow:generate-schema` → `npm run flow:validate-json` → `npm run build` so the new templates land in `dist/flows` → release → consumers re-run `forge:init` in their projects (scaffolding is non-destructive — only missing files are copied) and restart pi when prompted.
+The full "re-run `forge:init`" invariant for a flow/asset change is: edit the source (e.g. `FlowInstruction.ts` in `packages/core/src/flows/`) → `npm run flow:generate-schema` → `npm run flow:validate-json` → `npm run build` so the new templates land in `dist/flows` → release → consumers re-run `forge:init` in their projects (scaffolding is non-destructive — only missing files are copied) and restart pi when prompted.
 
 ## Design decisions
 

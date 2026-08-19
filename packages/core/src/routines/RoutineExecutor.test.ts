@@ -1,5 +1,5 @@
 // Test-only value imports from cli: self-heal when cli test-utils
-// moves to core (S4e) (#229).
+// moves to core (S11) (#229).
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/cli/src/test-utils";
 import { TypedEventBus } from "@feature-forge/core/src/event-bus";
