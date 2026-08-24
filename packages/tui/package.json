@@ -1,6 +1,6 @@
 {
   "name": "@feature-forge/tui",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Terminal user interface components for feature-forge",
   "type": "module",
