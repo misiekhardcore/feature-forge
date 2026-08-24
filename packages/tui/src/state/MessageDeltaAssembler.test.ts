@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { assistantMessage } from "../test-utils";
 import { MessageDeltaAssembler, type WireAssistantDelta } from "./MessageDeltaAssembler";
 
 describe("MessageDeltaAssembler", () => {
@@ -55,15 +56,6 @@ describe("MessageDeltaAssembler", () => {
     ]);
   });
 
-  it("accumulates raw tool-call argument fragments before toolcall_end", () => {
-    const assembler = new MessageDeltaAssembler();
-    assembler.apply({ type: "toolcall_start", contentIndex: 0, id: "call-1", toolName: "bash" });
-    const partial = assembler.apply({ type: "toolcall_delta", contentIndex: 0, delta: '{"cmd":"' });
-
-    const content = partial!.content as Array<{ type: string; id: string; name: string }>;
-    expect(content[0]).toMatchObject({ type: "toolCall", id: "call-1", name: "bash" });
-  });
-
   it("tracks tool call starts and ends", () => {
     const assembler = new MessageDeltaAssembler();
     assembler.apply({ type: "toolcall_start", contentIndex: 0, id: "call-1", toolName: "read" });
@@ -75,6 +67,15 @@ describe("MessageDeltaAssembler", () => {
 
     const content = partial!.content as Array<{ type: string; id: string; name: string }>;
     expect(content[0]).toMatchObject({ type: "toolCall", id: "call-1", name: "read" });
+  });
+
+  it("accumulates raw tool-call argument fragments before toolcall_end", () => {
+    const assembler = new MessageDeltaAssembler();
+    assembler.apply({ type: "toolcall_start", contentIndex: 0, id: "call-1", toolName: "bash" });
+    const partial = assembler.apply({ type: "toolcall_delta", contentIndex: 0, delta: '{"cmd":"' });
+
+    const content = partial!.content as Array<{ type: string; id: string; name: string }>;
+    expect(content[0]).toMatchObject({ type: "toolCall", id: "call-1", name: "bash" });
   });
 
   it("keeps blocks in contentIndex order", () => {
@@ -90,13 +91,9 @@ describe("MessageDeltaAssembler", () => {
     const assembler = new MessageDeltaAssembler();
     assembler.apply({ type: "text_delta", contentIndex: 0, delta: "stale" });
 
-    const done = {
-      type: "done" as const,
-      reason: "stop" as const,
-      message: { role: "assistant" as const, content: [], timestamp: 1 },
-    } as unknown as WireAssistantDelta;
-    const partial = assembler.apply(done);
-    expect(partial).toBe((done as unknown as { message: unknown }).message);
+    const finalMessage = assistantMessage();
+    const done: WireAssistantDelta = { type: "done", reason: "stop", message: finalMessage };
+    expect(assembler.apply(done)).toBe(finalMessage);
 
     // Reset after done: next deltas start from an empty message.
     expect(assembler.apply({ type: "text_delta", contentIndex: 0, delta: "x" })!.content).toEqual([
@@ -106,11 +103,8 @@ describe("MessageDeltaAssembler", () => {
 
   it("returns the error message on error and resets", () => {
     const assembler = new MessageDeltaAssembler();
-    const error = {
-      type: "error" as const,
-      reason: "error" as const,
-      error: { role: "assistant" as const, content: [], timestamp: 1 },
-    } as unknown as WireAssistantDelta;
-    expect(assembler.apply(error)).toBe((error as unknown as { error: unknown }).error);
+    const errorMessage = assistantMessage();
+    const error: WireAssistantDelta = { type: "error", reason: "error", error: errorMessage };
+    expect(assembler.apply(error)).toBe(errorMessage);
   });
 });

@@ -948,10 +948,12 @@ describe("ParentSocketServer", () => {
 
       const agent = localAgents.get("stream-worker") as SubprocessAgent;
       vi.mocked(agent.executeTask).mockImplementation(async (_prompt, options) => {
-        const streamEvent = {
+        const streamEvent: JsonAgentSessionEvent = {
           type: "tool_execution_start",
+          toolCallId: "tc-1",
           toolName: "read",
-        } as unknown as JsonAgentSessionEvent;
+          args: {},
+        };
         options?.onEvent?.(streamEvent);
         return "stream result";
       });
@@ -973,7 +975,12 @@ describe("ParentSocketServer", () => {
             executionId: "str-2",
             agentId: "stream-worker",
             label: "stream-worker",
-            event: { type: "tool_execution_start", toolName: "read" },
+            event: {
+              type: "tool_execution_start",
+              toolCallId: "tc-1",
+              toolName: "read",
+              args: {},
+            },
           }),
         }),
       );

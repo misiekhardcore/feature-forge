@@ -13,6 +13,16 @@ import { join } from "node:path";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  agentStartEvent,
+  assistantMessage,
+  messageEndEvent,
+  messageStartEvent,
+  messageUpdateEvent,
+  text,
+  turnEndEvent,
+  turnStartEvent,
+} from "../test-utils";
 import type { AgentViewerEntry } from "../types";
 import { AgentViewerState, MAX_EVENTS_FILE_LINES } from "./AgentViewerState";
 
@@ -23,40 +33,33 @@ function makeTempDir(): string {
 // ── Event factories ─────────────────────────────────────────
 
 function makeAgentStartEvent(): JsonAgentSessionEvent {
-  return { type: "agent_start" };
+  return agentStartEvent();
 }
 
 function makeMessageEndEvent(content: string, role = "assistant"): JsonAgentSessionEvent {
-  return {
-    type: "message_end",
-    message: {
-      role,
-      content: [{ type: "text", text: content }],
-    },
-  } as unknown as JsonAgentSessionEvent;
+  return messageEndEvent(
+    role === "assistant"
+      ? assistantMessage([text(content)])
+      : { role: "user", content: [text(content)], timestamp: 0 },
+  );
 }
 
 function makeMessageStartEvent(role = "assistant"): JsonAgentSessionEvent {
-  return {
-    type: "message_start",
-    message: { role, content: [] },
-  } as unknown as JsonAgentSessionEvent;
+  return messageStartEvent(
+    role === "assistant" ? assistantMessage() : { role: "user", content: [], timestamp: 0 },
+  );
 }
 
 function makeMessageUpdateEvent(content: string): JsonAgentSessionEvent {
-  return {
-    type: "message_update",
-    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: content },
-  } as unknown as JsonAgentSessionEvent;
+  return messageUpdateEvent(content);
 }
 
 function makeTurnStartEvent(): JsonAgentSessionEvent {
-  return { type: "turn_start" };
+  return turnStartEvent();
 }
 
 function makeTurnEndEvent(): JsonAgentSessionEvent {
-  return { type: "turn_end" } as unknown as JsonAgentSessionEvent;
+  return turnEndEvent();
 }
 
 // ── Format helper ───────────────────────────────────────────
