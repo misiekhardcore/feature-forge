@@ -64,6 +64,7 @@ function createDefaultConfig(): Required<ForgeConfig> {
     display: defaultsJson.display,
     models: defaultsJson.models,
     defaultModel: undefined,
+    piCli: undefined,
     dev: defaultsJson.dev,
     forgeDir: defaultsJson.forgeDir,
   });
@@ -147,6 +148,7 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
       ]),
     ),
     defaultModel: overrides.defaultModel ?? DEFAULT_FORGE_CONFIG.defaultModel,
+    piCli: overrides.piCli ?? DEFAULT_FORGE_CONFIG.piCli,
     display: { ...(overrides.display ?? DEFAULT_FORGE_CONFIG.display) },
     dev: { ...(overrides.dev ?? DEFAULT_FORGE_CONFIG.dev) },
     forgeDir: overrides.forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir,

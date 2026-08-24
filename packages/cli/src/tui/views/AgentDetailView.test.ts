@@ -2,12 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentViewerState } from "../state/AgentViewerState";
+import { assistantMessage, messageEndEvent, messageStartEvent, text } from "../test-utils";
 import { AgentDetailView } from "./AgentDetailView";
 
 function makeMockToolFormatter() {
@@ -55,14 +56,12 @@ function makeTui(overrides: Partial<Record<string, unknown>> = {}): TUI {
   } as unknown as TUI;
 }
 
-function makeMessageEndEvent(content: string, role = "assistant"): AgentEvent {
-  return {
-    type: "message_end",
-    message: {
-      role,
-      content: [{ type: "text", text: content }],
-    },
-  } as unknown as AgentEvent;
+function makeMessageEndEvent(content: string, role = "assistant"): JsonAgentSessionEvent {
+  return messageEndEvent(
+    role === "assistant"
+      ? assistantMessage([text(content)])
+      : { role: "user", content: [text(content)], timestamp: 0 },
+  );
 }
 
 function makeTempDir(): string {
@@ -314,14 +313,7 @@ describe("AgentDetailView", () => {
       // Push enough content to create scrollable area exceeding viewport.
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
       for (let i = 0; i < 50; i++) {
-        state.pushStreamEvent(
-          "builder",
-          {
-            type: "message_start",
-            message: { role: "assistant", content: [] },
-          } as unknown as AgentEvent,
-          () => `start ${i}`,
-        );
+        state.pushStreamEvent("builder", messageStartEvent(assistantMessage()), () => `start ${i}`);
         state.pushStreamEvent("builder", makeMessageEndEvent(`Line ${i}`), () => `event ${i}`);
       }
       view.selectedAgentId = "builder";
@@ -337,14 +329,7 @@ describe("AgentDetailView", () => {
     it("enables autoScroll when scrolling to bottom", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
       for (let i = 0; i < 50; i++) {
-        state.pushStreamEvent(
-          "builder",
-          {
-            type: "message_start",
-            message: { role: "assistant", content: [] },
-          } as unknown as AgentEvent,
-          () => `start ${i}`,
-        );
+        state.pushStreamEvent("builder", messageStartEvent(assistantMessage()), () => `start ${i}`);
         state.pushStreamEvent(
           "builder",
           makeMessageEndEvent(`Line ${i} with enough text to wrap across multiple lines`),
@@ -373,14 +358,7 @@ describe("AgentDetailView", () => {
     it("auto-scrolls when autoScroll is enabled and agent matches", () => {
       state.update({ id: "builder", status: "started", createdAt: new Date(), role: "builder" });
       for (let i = 0; i < 50; i++) {
-        state.pushStreamEvent(
-          "builder",
-          {
-            type: "message_start",
-            message: { role: "assistant", content: [] },
-          } as unknown as AgentEvent,
-          () => `start ${i}`,
-        );
+        state.pushStreamEvent("builder", messageStartEvent(assistantMessage()), () => `start ${i}`);
         state.pushStreamEvent("builder", makeMessageEndEvent(`Line ${i}`), () => `event ${i}`);
       }
       view.selectedAgentId = "builder";
@@ -388,14 +366,7 @@ describe("AgentDetailView", () => {
       view.render(100);
 
       // Push another event to trigger auto-scroll.
-      state.pushStreamEvent(
-        "builder",
-        {
-          type: "message_start",
-          message: { role: "assistant", content: [] },
-        } as unknown as AgentEvent,
-        () => "new start",
-      );
+      state.pushStreamEvent("builder", messageStartEvent(assistantMessage()), () => "new start");
       state.pushStreamEvent("builder", makeMessageEndEvent("update"), () => "last line");
       view.onStreamEvent("builder");
 
@@ -450,17 +421,13 @@ describe("AgentDetailView", () => {
   });
 
   describe("hideThinkingBlock", () => {
-    function makeThinkingEvent(): AgentEvent {
-      return {
-        type: "message_end",
-        message: {
-          role: "assistant",
-          content: [
-            { type: "thinking", thinking: "internal reasoning trace" },
-            { type: "text", text: "final answer" },
-          ],
-        },
-      } as unknown as AgentEvent;
+    function makeThinkingEvent(): JsonAgentSessionEvent {
+      return messageEndEvent(
+        assistantMessage([
+          { type: "thinking", thinking: "internal reasoning trace" },
+          text("final answer"),
+        ]),
+      );
     }
 
     it("collapses thinking blocks when getHideThinkingBlock returns true", () => {

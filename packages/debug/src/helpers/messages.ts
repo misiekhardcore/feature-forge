@@ -5,7 +5,7 @@ import type {
   ToolCall,
   ToolResultMessage,
   UserMessage,
-} from "@earendil-works/pi-ai/base";
+} from "@earendil-works/pi-ai";
 
 export function textBlock(text: string): TextContent {
   return { type: "text", text };

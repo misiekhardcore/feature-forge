@@ -1,4 +1,5 @@
-import type { AgentEvent, AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { AgentStatus, Tool } from "@feature-forge/core";
 
 import type { AgentViewerEntry } from "./types";
@@ -21,13 +22,17 @@ export interface AgentStreamProvider {
 /** Provides conversation data for detail view. */
 export interface AgentConversationProvider {
   getConversationMessages(agentId: string): AgentMessage[];
-  loadConversationEvents(agentId: string, count?: number): Promise<AgentEvent[]>;
+  loadConversationEvents(agentId: string, count?: number): Promise<JsonAgentSessionEvent[]>;
 }
 
 /** Allows overlay to write state updates. */
 export interface AgentStateWriter {
   update(entry: AgentViewerEntry): void;
-  pushStreamEvent(agentId: string, event: AgentEvent, formatEvent: (e: AgentEvent) => string): void;
+  pushStreamEvent(
+    agentId: string,
+    event: JsonAgentSessionEvent,
+    formatEvent: (e: JsonAgentSessionEvent) => string,
+  ): void;
   setStreamDir(dir: string): void;
   dispose(): void;
 }

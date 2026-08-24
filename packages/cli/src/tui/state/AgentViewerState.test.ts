@@ -10,9 +10,19 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  agentStartEvent,
+  assistantMessage,
+  messageEndEvent,
+  messageStartEvent,
+  messageUpdateEvent,
+  text,
+  turnEndEvent,
+  turnStartEvent,
+} from "../test-utils";
 import type { AgentViewerEntry } from "../types";
 import { AgentViewerState, MAX_EVENTS_FILE_LINES } from "./AgentViewerState";
 
@@ -22,48 +32,39 @@ function makeTempDir(): string {
 
 // ── Event factories ─────────────────────────────────────────
 
-function makeAgentStartEvent(): AgentEvent {
-  return { type: "agent_start" };
+function makeAgentStartEvent(): JsonAgentSessionEvent {
+  return agentStartEvent();
 }
 
-function makeMessageEndEvent(content: string, role = "assistant"): AgentEvent {
-  return {
-    type: "message_end",
-    message: {
-      role,
-      content: [{ type: "text", text: content }],
-    },
-  } as unknown as AgentEvent;
+function makeMessageEndEvent(content: string, role = "assistant"): JsonAgentSessionEvent {
+  return messageEndEvent(
+    role === "assistant"
+      ? assistantMessage([text(content)])
+      : { role: "user", content: [text(content)], timestamp: 0 },
+  );
 }
 
-function makeMessageStartEvent(role = "assistant"): AgentEvent {
-  return {
-    type: "message_start",
-    message: { role, content: [] },
-  } as unknown as AgentEvent;
+function makeMessageStartEvent(role = "assistant"): JsonAgentSessionEvent {
+  return messageStartEvent(
+    role === "assistant" ? assistantMessage() : { role: "user", content: [], timestamp: 0 },
+  );
 }
 
-function makeMessageUpdateEvent(content: string, role = "assistant"): AgentEvent {
-  return {
-    type: "message_update",
-    message: {
-      role,
-      content: [{ type: "text", text: content }],
-    },
-  } as unknown as AgentEvent;
+function makeMessageUpdateEvent(content: string): JsonAgentSessionEvent {
+  return messageUpdateEvent(content);
 }
 
-function makeTurnStartEvent(): AgentEvent {
-  return { type: "turn_start" };
+function makeTurnStartEvent(): JsonAgentSessionEvent {
+  return turnStartEvent();
 }
 
-function makeTurnEndEvent(): AgentEvent {
-  return { type: "turn_end" } as AgentEvent;
+function makeTurnEndEvent(): JsonAgentSessionEvent {
+  return turnEndEvent();
 }
 
 // ── Format helper ───────────────────────────────────────────
 
-function defaultFormat(event: AgentEvent): string {
+function defaultFormat(event: JsonAgentSessionEvent): string {
   return `${event.type}: detail`;
 }
 
@@ -433,13 +434,13 @@ describe("AgentViewerState", () => {
       expect(messages.length).toBe(1);
     });
 
-    it("replaces last message for message_update (dedup)", () => {
+    it("ignores message_update deltas (conversation updates at message_end)", () => {
       state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
       expect(state.getConversationMessages("builder").length).toBe(1);
 
       state.pushStreamEvent("builder", makeMessageUpdateEvent("updated text"), defaultFormat);
       const messages = state.getConversationMessages("builder");
-      expect(messages.length).toBe(1); // Still 1 — replaced, not appended
+      expect(messages.length).toBe(1); // Unchanged — deltas do not mutate the conversation
     });
 
     it("replaces last message for message_end (dedup after message_start)", () => {
@@ -693,7 +694,7 @@ describe("AgentViewerState", () => {
 
       // Write 5 events to .events.jsonl
       const eventsPath = join(tmpDir, "agent-x.events.jsonl");
-      const diskEvents: AgentEvent[] = [];
+      const diskEvents: JsonAgentSessionEvent[] = [];
       for (let i = 0; i < 5; i++) {
         diskEvents.push({ type: "agent_start" });
       }
@@ -773,43 +774,34 @@ describe("AgentViewerState", () => {
     });
   });
 
-  // ── extractMessageFromEvent (static) ───────────────────────
+  // ── message_update handling ───────────────────────────────
 
-  describe("extractMessageFromEvent", () => {
-    it("extracts message from message_start", () => {
-      const msg = AgentViewerState.extractMessageFromEvent({
-        type: "message_start",
-        message: { role: "user", content: "hello" },
-      } as unknown as AgentEvent);
-      expect(msg).toBeDefined();
-      expect(msg!.role).toBe("user");
+  describe("message_update handling", () => {
+    it("ignores message_update deltas; final text arrives at message_end", () => {
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("partial"), defaultFormat);
+
+      const during = state.getConversationMessages("builder");
+      const duringContent = (during[0] as { content: Array<{ type: string; text: string }> })
+        .content;
+      expect(duringContent).toEqual([]);
+
+      state.pushStreamEvent("builder", makeMessageEndEvent("final text"), defaultFormat);
+      const after = state.getConversationMessages("builder");
+      const afterContent = (after[0] as { content: Array<{ type: string; text: string }> }).content;
+      expect(afterContent[0].text).toBe("final text");
     });
 
-    it("extracts message from message_update", () => {
-      const msg = AgentViewerState.extractMessageFromEvent({
-        type: "message_update",
-        message: { role: "assistant", content: "streaming..." },
-      } as unknown as AgentEvent);
-      expect(msg).toBeDefined();
-    });
+    it("does not touch the status line or version", () => {
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      const versionBefore = state.getVersion();
 
-    it("extracts message from message_end", () => {
-      const msg = AgentViewerState.extractMessageFromEvent({
-        type: "message_end",
-        message: { role: "assistant", content: "done" },
-      } as unknown as AgentEvent);
-      expect(msg).toBeDefined();
-    });
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("partial"), defaultFormat);
 
-    it("returns undefined for non-message events", () => {
-      expect(AgentViewerState.extractMessageFromEvent({ type: "agent_start" })).toBeUndefined();
-      expect(AgentViewerState.extractMessageFromEvent({ type: "turn_start" })).toBeUndefined();
-      expect(
-        AgentViewerState.extractMessageFromEvent({
-          type: "tool_execution_start",
-          toolName: "bash",
-        } as unknown as AgentEvent),
-      ).toBeUndefined();
+      expect(state.lastStreamLine).toBe("message_start: detail");
+      expect(state.getVersion()).toBe(versionBefore);
+      // Raw events are still recorded for diagnostics.
+      expect(state.getConversation("builder")).toHaveLength(2);
     });
   });
 

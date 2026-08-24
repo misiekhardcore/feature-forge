@@ -1,5 +1,4 @@
-import { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig } from "@feature-forge/core/src/config";
 import { logger } from "@feature-forge/core/src/logging";
@@ -179,7 +178,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
       let assistantText = "";
 
-      const internalOnEvent = (event: AgentEvent): void => {
+      const internalOnEvent = (event: JsonAgentSessionEvent): void => {
         if (
           event.type === "message_end" &&
           event.message?.role === "assistant" &&

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, logger } from "@feature-forge/core";
 import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
 import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
@@ -98,7 +98,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
       label: instruction.systemPrompt,
     });
 
-    const emitStreamEvent = (event: AgentEvent): void => {
+    const emitStreamEvent = (event: JsonAgentSessionEvent): void => {
       emitAgentStream(eventBus, {
         executionId,
         agentId: agent.id,

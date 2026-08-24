@@ -199,6 +199,13 @@ export const ForgeConfigSchema = Type.Object({
   /** Default model preset key. References a key in `models`. Undefined means no preset default — the system falls back to `defaultAgent.model` or a hard-coded fallback. */
   defaultModel: Type.Readonly(Type.Optional(Type.String())),
 
+  /**
+   * Absolute path to the pi CLI entry (`dist/cli.js`) used to spawn sub-agents.
+   * Defaults to the pi copy bundled with feature-forge — set this to pin
+   * children to a specific pi install.
+   */
+  piCli: Type.Readonly(Type.Optional(Type.String())),
+
   /** Development-mode configuration. */
   dev: Type.Readonly(Type.Optional(DevConfigSchema)),
 
@@ -254,7 +261,7 @@ export type DevConfig = Type.Static<typeof DevConfigSchema>;
  */
 export type ForgeConfig = Omit<
   Type.Static<typeof ForgeConfigSchema>,
-  "agents" | "models" | "defaultModel" | "logLevel" | "workspaceProvider" | "defaultAgent"
+  "agents" | "models" | "defaultModel" | "piCli" | "logLevel" | "workspaceProvider" | "defaultAgent"
 > & {
   readonly logLevel: LogLevel;
   readonly workspaceProvider: WorkspaceProviderKind;
@@ -262,5 +269,6 @@ export type ForgeConfig = Omit<
   readonly defaultAgent: AgentConfig;
   readonly models: Readonly<Record<string, AgentModelConfig>>;
   readonly defaultModel: string | undefined;
+  readonly piCli: string | undefined;
   readonly forgeDir: string | undefined;
 };

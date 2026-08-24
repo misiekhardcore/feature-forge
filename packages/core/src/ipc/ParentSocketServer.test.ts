@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
 import type { Agent } from "@feature-forge/core/src/agents";
@@ -948,10 +948,12 @@ describe("ParentSocketServer", () => {
 
       const agent = localAgents.get("stream-worker") as SubprocessAgent;
       vi.mocked(agent.executeTask).mockImplementation(async (_prompt, options) => {
-        const streamEvent = {
+        const streamEvent: JsonAgentSessionEvent = {
           type: "tool_execution_start",
+          toolCallId: "tc-1",
           toolName: "read",
-        } as AgentEvent;
+          args: {},
+        };
         options?.onEvent?.(streamEvent);
         return "stream result";
       });
@@ -973,7 +975,12 @@ describe("ParentSocketServer", () => {
             executionId: "str-2",
             agentId: "stream-worker",
             label: "stream-worker",
-            event: { type: "tool_execution_start", toolName: "read" },
+            event: {
+              type: "tool_execution_start",
+              toolCallId: "tc-1",
+              toolName: "read",
+              args: {},
+            },
           }),
         }),
       );

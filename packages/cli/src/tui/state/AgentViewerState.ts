@@ -9,7 +9,8 @@ import {
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { jsonParse, logger } from "@feature-forge/core";
 
 import type { AgentViewerEntry } from "../types";
@@ -58,7 +59,7 @@ export class AgentViewerState {
   private streamDir?: string;
 
   /** Maps agent id → raw stream events in insertion order. */
-  private agentEvents = new Map<string, AgentEvent[]>();
+  private agentEvents = new Map<string, JsonAgentSessionEvent[]>();
 
   /** Maps agent id → lines appended to its current .events.jsonl file this session. */
   private eventsFileLineCounts = new Map<string, number>();
@@ -104,7 +105,7 @@ export class AgentViewerState {
    * @param agentId - The agent to get events for.
    * @returns An array of events in insertion order, most recent last. Empty for unknown agents.
    */
-  getAgentEvents(agentId: string): AgentEvent[] {
+  getAgentEvents(agentId: string): JsonAgentSessionEvent[] {
     return this.agentEvents.get(agentId) ?? [];
   }
 
@@ -230,8 +231,8 @@ export class AgentViewerState {
    */
   pushStreamEvent(
     agentId: string,
-    event: AgentEvent,
-    formatEvent: (e: AgentEvent) => string,
+    event: JsonAgentSessionEvent,
+    formatEvent: (e: JsonAgentSessionEvent) => string,
   ): void {
     if (!this.agents.has(agentId)) {
       this.update({
@@ -242,16 +243,20 @@ export class AgentViewerState {
     }
 
     const line = formatEvent(event);
-    this.lastLines.set(agentId, line);
-    this.version++;
+    if (event.type !== "message_update") {
+      // Streaming deltas change nothing visible — the conversation updates
+      // at message_end, so keep the status line and version stable.
+      this.lastLines.set(agentId, line);
+      this.version++;
 
-    // Update the in-flight agent entry with the last stream line
-    const existing = this.agents.get(agentId);
-    if (existing && (existing.status === "started" || existing.status === "running")) {
-      this.agents.set(agentId, {
-        ...existing,
-        lastStreamLine: line,
-      });
+      // Update the in-flight agent entry with the last stream line
+      const existing = this.agents.get(agentId);
+      if (existing && (existing.status === "started" || existing.status === "running")) {
+        this.agents.set(agentId, {
+          ...existing,
+          lastStreamLine: line,
+        });
+      }
     }
 
     if (this.streamDir) {
@@ -274,7 +279,7 @@ export class AgentViewerState {
   /**
    * Persist stream event to disk.
    */
-  private persistStreamEvent(agentId: string, event: AgentEvent, line: string): void {
+  private persistStreamEvent(agentId: string, event: JsonAgentSessionEvent, line: string): void {
     if (!this.streamDir) return;
 
     try {
@@ -347,7 +352,7 @@ export class AgentViewerState {
    * (turn_start, turn_end) whose content arrives through other events.
    * Also excludes message_end events that produced no extracted text.
    */
-  private shouldPersistToStreamFile(event: AgentEvent, line: string): boolean {
+  private shouldPersistToStreamFile(event: JsonAgentSessionEvent, line: string): boolean {
     switch (event.type) {
       case "message_update":
       case "turn_start":
@@ -368,12 +373,12 @@ export class AgentViewerState {
    * Applies the same FIFO sliding window cap as agentEvents to prevent
    * unbounded memory growth.
    */
-  private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
-    const message = AgentViewerState.extractMessageFromEvent(event);
+  private appendMessageFromEvent(agentId: string, event: JsonAgentSessionEvent): void {
+    const message = this.extractMessageFromEvent(event);
     if (!message) return;
 
     const messages = this.agentMessages.get(agentId) ?? [];
-    if (event.type === "message_update" || event.type === "message_end") {
+    if (event.type === "message_end") {
       if (messages.length > 0) {
         messages[messages.length - 1] = message;
       } else {
@@ -393,13 +398,13 @@ export class AgentViewerState {
   /**
    * Extract an AgentMessage from an event if it carries one.
    *
-   * Returns the message for message_start, message_update, and
-   * message_end events. Returns undefined for all other event types.
+   * Only message_start and message_end carry a message directly — the RPC
+   * wire's message_update carries deltas only, so the conversation updates
+   * at message_end (the authoritative message).
    */
-  static extractMessageFromEvent(event: AgentEvent): AgentMessage | undefined {
+  private extractMessageFromEvent(event: JsonAgentSessionEvent): AgentMessage | undefined {
     switch (event.type) {
       case "message_start":
-      case "message_update":
       case "message_end":
         return event.message;
       default:
@@ -462,7 +467,7 @@ export class AgentViewerState {
   /**
    * Return the raw stream events for an agent (alias for getAgentEvents).
    */
-  getConversation(agentId: string): AgentEvent[] {
+  getConversation(agentId: string): JsonAgentSessionEvent[] {
     return this.getAgentEvents(agentId);
   }
 
@@ -592,7 +597,7 @@ export class AgentViewerState {
   async loadConversationEvents(
     agentId: string,
     count: number = MAX_AGENT_EVENTS,
-  ): Promise<AgentEvent[]> {
+  ): Promise<JsonAgentSessionEvent[]> {
     const memoryEvents = this.agentEvents.get(agentId) ?? [];
 
     if (count <= memoryEvents.length) {
@@ -619,10 +624,10 @@ export class AgentViewerState {
         }
       }
 
-      const diskEvents: AgentEvent[] = [];
+      const diskEvents: JsonAgentSessionEvent[] = [];
       for (const line of lines) {
         try {
-          const parsed = jsonParse<AgentEvent>(line);
+          const parsed = jsonParse<JsonAgentSessionEvent>(line);
           diskEvents.push(parsed);
         } catch (err) {
           logger.warn("loadConversationEvents: failed to parse event line", {

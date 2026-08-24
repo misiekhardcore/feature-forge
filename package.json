@@ -1,6 +1,6 @@
 {
   "name": "@feature-forge/monorepo",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Pi extension for autonomous software engineering — structured discovery, ADR-driven design, and multi-agent implementation from idea to PR.",
   "type": "module",
@@ -38,10 +38,10 @@
     ]
   },
   "devDependencies": {
-    "@earendil-works/pi-agent-core": "0.79.10",
-    "@earendil-works/pi-ai": "0.79.10",
-    "@earendil-works/pi-coding-agent": "0.79.10",
-    "@earendil-works/pi-tui": "0.79.10",
+    "@earendil-works/pi-agent-core": "0.84.3",
+    "@earendil-works/pi-ai": "0.84.3",
+    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@earendil-works/pi-tui": "0.84.3",
     "@types/node": "26.0.0",
     "@vitest/coverage-v8": "4.1.9",
     "ajv": "^8.20.0",
