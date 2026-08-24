@@ -434,13 +434,13 @@ describe("AgentViewerState", () => {
       expect(messages.length).toBe(1);
     });
 
-    it("replaces last message for message_update (dedup)", () => {
+    it("ignores message_update deltas (conversation updates at message_end)", () => {
       state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
       expect(state.getConversationMessages("builder").length).toBe(1);
 
       state.pushStreamEvent("builder", makeMessageUpdateEvent("updated text"), defaultFormat);
       const messages = state.getConversationMessages("builder");
-      expect(messages.length).toBe(1); // Still 1 — replaced, not appended
+      expect(messages.length).toBe(1); // Unchanged — deltas do not mutate the conversation
     });
 
     it("replaces last message for message_end (dedup after message_start)", () => {
@@ -774,43 +774,22 @@ describe("AgentViewerState", () => {
     });
   });
 
-  // ── message_update delta assembly ─────────────────────────
+  // ── message_update handling ───────────────────────────────
 
-  describe("message_update delta assembly", () => {
-    it("accumulates text deltas into the partial message", () => {
-      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
-      state.pushStreamEvent("builder", makeMessageUpdateEvent("Hello "), defaultFormat);
-      state.pushStreamEvent("builder", makeMessageUpdateEvent("world"), defaultFormat);
-
-      const messages = state.getConversationMessages("builder");
-      expect(messages.length).toBe(1);
-      const content = (messages[0] as { content: Array<{ type: string; text: string }> }).content;
-      expect(content[0].text).toBe("Hello world");
-    });
-
-    it("replaces the assembled partial with the authoritative message_end", () => {
+  describe("message_update handling", () => {
+    it("ignores message_update deltas; final text arrives at message_end", () => {
       state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
       state.pushStreamEvent("builder", makeMessageUpdateEvent("partial"), defaultFormat);
+
+      const during = state.getConversationMessages("builder");
+      const duringContent = (during[0] as { content: Array<{ type: string; text: string }> })
+        .content;
+      expect(duringContent).toEqual([]);
+
       state.pushStreamEvent("builder", makeMessageEndEvent("final text"), defaultFormat);
-
-      const messages = state.getConversationMessages("builder");
-      expect(messages.length).toBe(1);
-      const content = (messages[0] as { content: Array<{ type: string; text: string }> }).content;
-      expect(content[0].text).toBe("final text");
-    });
-
-    it("starts fresh on a new message_start (stale deltas do not leak)", () => {
-      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
-      state.pushStreamEvent("builder", makeMessageUpdateEvent("first"), defaultFormat);
-      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
-      state.pushStreamEvent("builder", makeMessageUpdateEvent("second"), defaultFormat);
-
-      const messages = state.getConversationMessages("builder");
-      const last = messages[messages.length - 1] as {
-        content: Array<{ type: string; text: string }>;
-      };
-      const content = last.content;
-      expect(content[0].text).toBe("second");
+      const after = state.getConversationMessages("builder");
+      const afterContent = (after[0] as { content: Array<{ type: string; text: string }> }).content;
+      expect(afterContent[0].text).toBe("final text");
     });
   });
 

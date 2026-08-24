@@ -14,7 +14,6 @@ import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { jsonParse, logger } from "@feature-forge/shared";
 
 import type { AgentViewerEntry } from "../types";
-import { MessageDeltaAssembler } from "./MessageDeltaAssembler";
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).
@@ -67,18 +66,6 @@ export class AgentViewerState {
 
   /** Maps agent id → extracted AgentMessage objects in order. */
   private agentMessages = new Map<string, AgentMessage[]>();
-
-  /** Maps agent id → delta assembler for pi >= 0.84 message_update events. */
-  private deltaAssemblers = new Map<string, MessageDeltaAssembler>();
-
-  /** Get (or create) the delta assembler for an agent. */
-  private deltaAssembler(agentId: string): MessageDeltaAssembler {
-    const existing = this.deltaAssemblers.get(agentId);
-    if (existing) return existing;
-    const created = new MessageDeltaAssembler();
-    this.deltaAssemblers.set(agentId, created);
-    return created;
-  }
 
   /**
    * Get all agent entries as a read-only map.
@@ -232,7 +219,6 @@ export class AgentViewerState {
     this.streamFiles.clear();
     this.eventsFiles.clear();
     this.messagesFiles.clear();
-    this.deltaAssemblers.clear();
     this.streamDir = undefined;
   }
 
@@ -384,11 +370,11 @@ export class AgentViewerState {
    * unbounded memory growth.
    */
   private appendMessageFromEvent(agentId: string, event: JsonAgentSessionEvent): void {
-    const message = this.extractMessageFromEvent(agentId, event);
+    const message = this.extractMessageFromEvent(event);
     if (!message) return;
 
     const messages = this.agentMessages.get(agentId) ?? [];
-    if (event.type === "message_update" || event.type === "message_end") {
+    if (event.type === "message_end") {
       if (messages.length > 0) {
         messages[messages.length - 1] = message;
       } else {
@@ -408,22 +394,15 @@ export class AgentViewerState {
   /**
    * Extract an AgentMessage from an event if it carries one.
    *
-   * message_start and message_end carry the message directly; message_update
-   * carries only deltas, so the partial message is reassembled from them.
+   * Only message_start and message_end carry a message directly — the RPC
+   * wire's message_update carries deltas only, so the conversation updates
+   * at message_end (the authoritative message).
    */
-  private extractMessageFromEvent(
-    agentId: string,
-    event: JsonAgentSessionEvent,
-  ): AgentMessage | undefined {
+  private extractMessageFromEvent(event: JsonAgentSessionEvent): AgentMessage | undefined {
     switch (event.type) {
       case "message_start":
-        this.deltaAssembler(agentId).reset();
-        return event.message;
       case "message_end":
-        this.deltaAssembler(agentId).reset();
         return event.message;
-      case "message_update":
-        return this.deltaAssembler(agentId).apply(event.assistantMessageEvent);
       default:
         return undefined;
     }
