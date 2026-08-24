@@ -388,6 +388,28 @@ describe("ForgeConfigSchema", () => {
       expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
     });
 
+    it("validates config with a piCli path", () => {
+      const valid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        piCli: "/usr/local/bin/pi-cli.js",
+      };
+      expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+    });
+
+    it("rejects piCli with a non-string value", () => {
+      const invalid = {
+        logLevel: "info",
+        workspaceProvider: "git-worktree",
+        agents: {},
+        defaultAgent: { model: { model: "gpt-4" } },
+        piCli: 42,
+      };
+      expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+    });
+
     it("rejects models with a non-object value", () => {
       const invalid = {
         logLevel: "info",

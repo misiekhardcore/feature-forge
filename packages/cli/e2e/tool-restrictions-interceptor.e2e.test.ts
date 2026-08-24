@@ -23,13 +23,13 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 import {
-  AuthStorage,
   createEventBus,
   discoverAndLoadExtensions,
   type ExtensionActions,
   type ExtensionContextActions,
   ExtensionRunner,
   ModelRegistry,
+  ModelRuntime,
   SessionManager,
   type ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
@@ -64,6 +64,7 @@ function makeRuntimeStubs(): {
     },
     contextActions: {
       getModel: () => undefined,
+      getScopedModels: () => [],
       isIdle: () => true,
       isProjectTrusted: () => true,
       getSignal: () => undefined,
@@ -99,7 +100,12 @@ async function createRestrictionRunner(cwd: string): Promise<ExtensionRunner> {
     runtime,
     cwd,
     SessionManager.inMemory(cwd),
-    ModelRegistry.inMemory(AuthStorage.create(path.join(cwd, "auth.json"))),
+    new ModelRegistry(
+      await ModelRuntime.create({
+        authPath: path.join(cwd, "auth.json"),
+        refreshOnCreate: false,
+      }),
+    ),
   );
   runner.bindCore(actions, contextActions);
   return runner;

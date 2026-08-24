@@ -238,6 +238,16 @@ export class ForgeConfig {
   }
 
   /**
+   * Return the absolute path to the pi CLI used to spawn sub-agents.
+   *
+   * Defaults to `undefined` — the factory resolves the pi bundled with
+   * feature-forge.
+   */
+  getPiCli(): string | undefined {
+    return this.getConfig().piCli;
+  }
+
+  /**
    * Return the configured additional agent spec directories.
    */
   getAgentSpecDirectories(): string[] {

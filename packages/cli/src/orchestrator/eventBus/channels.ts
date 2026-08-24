@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 /**
  * Typed channel-to-payload mapping for all feature-forge event bus channels.
@@ -20,7 +20,7 @@ export interface ForgeChannels {
       executionId: string;
       agentId: string;
       label: string;
-      event: AgentEvent;
+      event: JsonAgentSessionEvent;
     };
   };
 

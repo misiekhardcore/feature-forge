@@ -1,5 +1,5 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { ToolResultMessage } from "@earendil-works/pi-ai/base";
+import type { ToolResultMessage } from "@earendil-works/pi-ai";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import {
   agentEndEvent,
@@ -23,7 +23,7 @@ import {
 
 export interface ScenarioData {
   agentId: string;
-  events: AgentEvent[];
+  events: JsonAgentSessionEvent[];
   status: string;
   summary?: string;
   passed?: boolean;
@@ -33,7 +33,7 @@ export interface ScenarioData {
  * Emit pi's per-tool result pair: each tool result is finalised as its own
  * message_start/message_end pair (mirrors pi's {@code emitToolResultMessage}).
  */
-function toolResultMessageEvents(result: ToolResultMessage): AgentEvent[] {
+function toolResultMessageEvents(result: ToolResultMessage): JsonAgentSessionEvent[] {
   return [messageStartEvent(result), messageEndEvent(result)];
 }
 
@@ -149,7 +149,7 @@ export function conversationScenario(): ScenarioData {
       messageEndEvent(prompt),
       turnStartEvent(),
       messageStartEvent(assistantStartMsg()),
-      messageUpdateEvent(updated, textDeltaEvent(0, " for relevant patterns", updated)),
+      messageUpdateEvent(textDeltaEvent(0, " for relevant patterns")),
       messageEndEvent(updated),
       toolExecutionStartEvent(grepCall.id, grepCall.name, grepCall.arguments),
       toolExecutionEndEvent(grepCall.id, grepCall.name, "Found in 3 files", false),
@@ -215,7 +215,7 @@ export function manyTurnsScenario(): ScenarioData {
   const prompt = userMsg(
     "Run a 35-turn suite of mixed tool calls, streaming messages, and reports.",
   );
-  const events: AgentEvent[] = [
+  const events: JsonAgentSessionEvent[] = [
     agentStartEvent(),
     messageStartEvent(prompt),
     messageEndEvent(prompt),
@@ -276,11 +276,9 @@ export function manyTurnsScenario(): ScenarioData {
       events.push(messageStartEvent(msg));
       events.push(
         messageUpdateEvent(
-          deltaMsg,
           textDeltaEvent(
             0,
             " Additional validation confirms all edge cases are handled correctly.",
-            deltaMsg,
           ),
         ),
       );

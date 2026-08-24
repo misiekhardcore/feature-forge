@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import type { ForgeChannels } from "./channels";
 
@@ -47,7 +47,7 @@ export interface AgentStreamParams {
   name: string;
   /** Role/spec label carried in the details. */
   label: string;
-  event: AgentEvent;
+  event: JsonAgentSessionEvent;
 }
 
 export interface AgentDoneParams {

@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import type { AgentViewerEntryStatus } from "../types";
 
@@ -29,7 +29,7 @@ export interface AgentContribution {
   /** Whether the agent's parsed result passed (undefined when not available). */
   agentPassed?: boolean;
   /** Raw stream event payload from an agent-stream event. */
-  streamEvent?: AgentEvent;
+  streamEvent?: JsonAgentSessionEvent;
   /** The event phase label (e.g. "agent-started"). */
   phase: string;
   /** Human-readable description of the current progress. */
