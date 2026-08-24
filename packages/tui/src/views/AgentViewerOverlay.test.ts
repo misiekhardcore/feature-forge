@@ -685,11 +685,6 @@ describe("AgentViewerOverlay", () => {
       expect(line).toBe("read: Reading file...");
     });
 
-    it("formats message_update text_delta fragment", () => {
-      const line = AgentViewerOverlay.formatStreamEvent(messageUpdateEvent("I am thinking..."));
-      expect(line).toBe("I am thinking...");
-    });
-
     it("returns just the type for events with no known detail", () => {
       // Intentionally out-of-schema event — exercises the formatDetail fallback.
       const line = AgentViewerOverlay.formatStreamEvent({

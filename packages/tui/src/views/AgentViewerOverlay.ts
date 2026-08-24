@@ -313,6 +313,11 @@ export class AgentViewerOverlay implements Component {
    */
   pushStreamEvent(agentId: string, event: JsonAgentSessionEvent): void {
     this.state.pushStreamEvent(agentId, event, (e) => AgentViewerOverlay.formatStreamEvent(e));
+    if (event.type === "message_update") {
+      // Streaming deltas change nothing visible — the conversation updates
+      // at message_end, so skip re-render and auto-scroll churn.
+      return;
+    }
     this.detailView.markDirty();
     this.detailView.onStreamEvent(agentId);
 
@@ -607,28 +612,6 @@ export class AgentViewerOverlay implements Component {
 
       case "message_start":
         return event.message?.role ?? "";
-
-      case "message_update": {
-        const delta = event.assistantMessageEvent;
-        switch (delta.type) {
-          case "text_delta":
-          case "thinking_delta":
-            return delta.delta;
-          case "text_end":
-          case "thinking_end":
-            return delta.content;
-          case "toolcall_start":
-            return `tool call | ${delta.toolName}`;
-          case "toolcall_end":
-            return `tool call | ${delta.toolCall.name}`;
-          case "done":
-            return "completed";
-          case "error":
-            return "error";
-          default:
-            return "";
-        }
-      }
 
       case "message_end": {
         return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";

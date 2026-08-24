@@ -791,6 +791,18 @@ describe("AgentViewerState", () => {
       const afterContent = (after[0] as { content: Array<{ type: string; text: string }> }).content;
       expect(afterContent[0].text).toBe("final text");
     });
+
+    it("does not touch the status line or version", () => {
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      const versionBefore = state.getVersion();
+
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("partial"), defaultFormat);
+
+      expect(state.lastStreamLine).toBe("message_start: detail");
+      expect(state.getVersion()).toBe(versionBefore);
+      // Raw events are still recorded for diagnostics.
+      expect(state.getConversation("builder")).toHaveLength(2);
+    });
   });
 
   // ── loadStreamFile / loadMessagesFile ────────────────────

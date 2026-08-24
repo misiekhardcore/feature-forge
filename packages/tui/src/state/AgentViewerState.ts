@@ -243,16 +243,20 @@ export class AgentViewerState {
     }
 
     const line = formatEvent(event);
-    this.lastLines.set(agentId, line);
-    this.version++;
+    if (event.type !== "message_update") {
+      // Streaming deltas change nothing visible — the conversation updates
+      // at message_end, so keep the status line and version stable.
+      this.lastLines.set(agentId, line);
+      this.version++;
 
-    // Update the in-flight agent entry with the last stream line
-    const existing = this.agents.get(agentId);
-    if (existing && (existing.status === "started" || existing.status === "running")) {
-      this.agents.set(agentId, {
-        ...existing,
-        lastStreamLine: line,
-      });
+      // Update the in-flight agent entry with the last stream line
+      const existing = this.agents.get(agentId);
+      if (existing && (existing.status === "started" || existing.status === "running")) {
+        this.agents.set(agentId, {
+          ...existing,
+          lastStreamLine: line,
+        });
+      }
     }
 
     if (this.streamDir) {
