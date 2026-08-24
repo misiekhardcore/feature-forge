@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentViewerState } from "@feature-forge/tui";
@@ -54,14 +54,14 @@ function makeTui(overrides: Partial<Record<string, unknown>> = {}): TUI {
   } as unknown as TUI;
 }
 
-function makeMessageEndEvent(content: string, role = "assistant"): AgentEvent {
+function makeMessageEndEvent(content: string, role = "assistant"): JsonAgentSessionEvent {
   return {
     type: "message_end",
     message: {
       role,
       content: [{ type: "text", text: content }],
     },
-  } as unknown as AgentEvent;
+  } as unknown as JsonAgentSessionEvent;
 }
 
 function makeTempDir(): string {
@@ -318,7 +318,7 @@ describe("AgentDetailView", () => {
           {
             type: "message_start",
             message: { role: "assistant", content: [] },
-          } as unknown as AgentEvent,
+          } as unknown as JsonAgentSessionEvent,
           () => `start ${i}`,
         );
         state.pushStreamEvent("builder", makeMessageEndEvent(`Line ${i}`), () => `event ${i}`);
@@ -341,7 +341,7 @@ describe("AgentDetailView", () => {
           {
             type: "message_start",
             message: { role: "assistant", content: [] },
-          } as unknown as AgentEvent,
+          } as unknown as JsonAgentSessionEvent,
           () => `start ${i}`,
         );
         state.pushStreamEvent(
@@ -377,7 +377,7 @@ describe("AgentDetailView", () => {
           {
             type: "message_start",
             message: { role: "assistant", content: [] },
-          } as unknown as AgentEvent,
+          } as unknown as JsonAgentSessionEvent,
           () => `start ${i}`,
         );
         state.pushStreamEvent("builder", makeMessageEndEvent(`Line ${i}`), () => `event ${i}`);
@@ -392,7 +392,7 @@ describe("AgentDetailView", () => {
         {
           type: "message_start",
           message: { role: "assistant", content: [] },
-        } as unknown as AgentEvent,
+        } as unknown as JsonAgentSessionEvent,
         () => "new start",
       );
       state.pushStreamEvent("builder", makeMessageEndEvent("update"), () => "last line");
@@ -449,7 +449,7 @@ describe("AgentDetailView", () => {
   });
 
   describe("hideThinkingBlock", () => {
-    function makeThinkingEvent(): AgentEvent {
+    function makeThinkingEvent(): JsonAgentSessionEvent {
       return {
         type: "message_end",
         message: {
@@ -459,7 +459,7 @@ describe("AgentDetailView", () => {
             { type: "text", text: "final answer" },
           ],
         },
-      } as unknown as AgentEvent;
+      } as unknown as JsonAgentSessionEvent;
     }
 
     it("collapses thinking blocks when getHideThinkingBlock returns true", () => {

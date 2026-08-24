@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentViewerEntry } from "../types";
@@ -22,48 +22,46 @@ function makeTempDir(): string {
 
 // ── Event factories ─────────────────────────────────────────
 
-function makeAgentStartEvent(): AgentEvent {
+function makeAgentStartEvent(): JsonAgentSessionEvent {
   return { type: "agent_start" };
 }
 
-function makeMessageEndEvent(content: string, role = "assistant"): AgentEvent {
+function makeMessageEndEvent(content: string, role = "assistant"): JsonAgentSessionEvent {
   return {
     type: "message_end",
     message: {
       role,
       content: [{ type: "text", text: content }],
     },
-  } as unknown as AgentEvent;
+  } as unknown as JsonAgentSessionEvent;
 }
 
-function makeMessageStartEvent(role = "assistant"): AgentEvent {
+function makeMessageStartEvent(role = "assistant"): JsonAgentSessionEvent {
   return {
     type: "message_start",
     message: { role, content: [] },
-  } as unknown as AgentEvent;
+  } as unknown as JsonAgentSessionEvent;
 }
 
-function makeMessageUpdateEvent(content: string, role = "assistant"): AgentEvent {
+function makeMessageUpdateEvent(content: string): JsonAgentSessionEvent {
   return {
     type: "message_update",
-    message: {
-      role,
-      content: [{ type: "text", text: content }],
-    },
-  } as unknown as AgentEvent;
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: content },
+  } as unknown as JsonAgentSessionEvent;
 }
 
-function makeTurnStartEvent(): AgentEvent {
+function makeTurnStartEvent(): JsonAgentSessionEvent {
   return { type: "turn_start" };
 }
 
-function makeTurnEndEvent(): AgentEvent {
-  return { type: "turn_end" } as AgentEvent;
+function makeTurnEndEvent(): JsonAgentSessionEvent {
+  return { type: "turn_end" } as unknown as JsonAgentSessionEvent;
 }
 
 // ── Format helper ───────────────────────────────────────────
 
-function defaultFormat(event: AgentEvent): string {
+function defaultFormat(event: JsonAgentSessionEvent): string {
   return `${event.type}: detail`;
 }
 
@@ -693,7 +691,7 @@ describe("AgentViewerState", () => {
 
       // Write 5 events to .events.jsonl
       const eventsPath = join(tmpDir, "agent-x.events.jsonl");
-      const diskEvents: AgentEvent[] = [];
+      const diskEvents: JsonAgentSessionEvent[] = [];
       for (let i = 0; i < 5; i++) {
         diskEvents.push({ type: "agent_start" });
       }
@@ -773,43 +771,43 @@ describe("AgentViewerState", () => {
     });
   });
 
-  // ── extractMessageFromEvent (static) ───────────────────────
+  // ── message_update delta assembly ─────────────────────────
 
-  describe("extractMessageFromEvent", () => {
-    it("extracts message from message_start", () => {
-      const msg = AgentViewerState.extractMessageFromEvent({
-        type: "message_start",
-        message: { role: "user", content: "hello" },
-      } as unknown as AgentEvent);
-      expect(msg).toBeDefined();
-      expect(msg!.role).toBe("user");
+  describe("message_update delta assembly", () => {
+    it("accumulates text deltas into the partial message", () => {
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("Hello "), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("world"), defaultFormat);
+
+      const messages = state.getConversationMessages("builder");
+      expect(messages.length).toBe(1);
+      const content = (messages[0] as { content: Array<{ type: string; text: string }> }).content;
+      expect(content[0].text).toBe("Hello world");
     });
 
-    it("extracts message from message_update", () => {
-      const msg = AgentViewerState.extractMessageFromEvent({
-        type: "message_update",
-        message: { role: "assistant", content: "streaming..." },
-      } as unknown as AgentEvent);
-      expect(msg).toBeDefined();
+    it("replaces the assembled partial with the authoritative message_end", () => {
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("partial"), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageEndEvent("final text"), defaultFormat);
+
+      const messages = state.getConversationMessages("builder");
+      expect(messages.length).toBe(1);
+      const content = (messages[0] as { content: Array<{ type: string; text: string }> }).content;
+      expect(content[0].text).toBe("final text");
     });
 
-    it("extracts message from message_end", () => {
-      const msg = AgentViewerState.extractMessageFromEvent({
-        type: "message_end",
-        message: { role: "assistant", content: "done" },
-      } as unknown as AgentEvent);
-      expect(msg).toBeDefined();
-    });
+    it("starts fresh on a new message_start (stale deltas do not leak)", () => {
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("first"), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageStartEvent(), defaultFormat);
+      state.pushStreamEvent("builder", makeMessageUpdateEvent("second"), defaultFormat);
 
-    it("returns undefined for non-message events", () => {
-      expect(AgentViewerState.extractMessageFromEvent({ type: "agent_start" })).toBeUndefined();
-      expect(AgentViewerState.extractMessageFromEvent({ type: "turn_start" })).toBeUndefined();
-      expect(
-        AgentViewerState.extractMessageFromEvent({
-          type: "tool_execution_start",
-          toolName: "bash",
-        } as unknown as AgentEvent),
-      ).toBeUndefined();
+      const messages = state.getConversationMessages("builder");
+      const last = messages[messages.length - 1] as {
+        content: Array<{ type: string; text: string }>;
+      };
+      const content = last.content;
+      expect(content[0].text).toBe("second");
     });
   });
 

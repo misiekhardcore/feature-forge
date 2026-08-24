@@ -1,6 +1,5 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import { Agent } from "./Agent";
 
@@ -14,8 +13,8 @@ export interface ExecuteTaskOptions {
   timeout?: number;
   /** Optional AbortSignal to cancel the task execution. */
   signal?: AbortSignal;
-  /** Receive real-time AgentEvents during execution. */
-  onEvent?: (event: AgentEvent) => void;
+  /** Receive real-time agent session events during execution. */
+  onEvent?: (event: JsonAgentSessionEvent) => void;
 }
 
 /**

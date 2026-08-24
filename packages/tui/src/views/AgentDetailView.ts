@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, type Theme } from "@earendil-works/pi-coding-agent";
 import { type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 
@@ -235,7 +235,7 @@ export class AgentDetailView {
   /**
    * Load conversation events from disk for the selected agent.
    */
-  async loadConversationEvents(count?: number): Promise<AgentEvent[]> {
+  async loadConversationEvents(count?: number): Promise<JsonAgentSessionEvent[]> {
     if (!this.selectedAgentId) return [];
     return this.state.loadConversationEvents(this.selectedAgentId, count);
   }

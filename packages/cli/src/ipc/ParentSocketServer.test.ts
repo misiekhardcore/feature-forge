@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 
-import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { AgentStatus, jsonParse } from "@feature-forge/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -951,7 +951,7 @@ describe("ParentSocketServer", () => {
         const streamEvent = {
           type: "tool_execution_start",
           toolName: "read",
-        } as AgentEvent;
+        } as unknown as JsonAgentSessionEvent;
         options?.onEvent?.(streamEvent);
         return "stream result";
       });

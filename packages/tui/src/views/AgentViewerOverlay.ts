@@ -1,4 +1,5 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type {
   Component,
@@ -310,7 +311,7 @@ export class AgentViewerOverlay implements Component {
    * most recent stream line) and, when {@link streamDir} is
    * configured, appends it to a per-agent log file on disk.
    */
-  pushStreamEvent(agentId: string, event: AgentEvent): void {
+  pushStreamEvent(agentId: string, event: JsonAgentSessionEvent): void {
     this.state.pushStreamEvent(agentId, event, (e) => AgentViewerOverlay.formatStreamEvent(e));
     this.detailView.markDirty();
     this.detailView.onStreamEvent(agentId);
@@ -335,7 +336,7 @@ export class AgentViewerOverlay implements Component {
    * {@link loadConversationEvents} for disk-backed history beyond the
    * window.
    */
-  getConversation(agentId: string): AgentEvent[] {
+  getConversation(agentId: string): JsonAgentSessionEvent[] {
     return this.state.getConversation(agentId);
   }
 
@@ -367,7 +368,7 @@ export class AgentViewerOverlay implements Component {
   async loadConversationEvents(
     agentId: string,
     count: number = getDisplayMaxAgentEvents(this.config),
-  ): Promise<AgentEvent[]> {
+  ): Promise<JsonAgentSessionEvent[]> {
     return this.state.loadConversationEvents(agentId, count);
   }
 
@@ -417,7 +418,7 @@ export class AgentViewerOverlay implements Component {
   /**
    * Format a stream event into a single-line human-readable description.
    */
-  static formatStreamEvent(event: AgentEvent): string {
+  static formatStreamEvent(event: JsonAgentSessionEvent): string {
     return AgentViewerOverlay.formatDetail(event) || event.type;
   }
 
@@ -444,7 +445,7 @@ export class AgentViewerOverlay implements Component {
 
     const eventBuffer: Array<{
       agentId: string;
-      event?: AgentEvent;
+      event?: JsonAgentSessionEvent;
       status?: AgentViewerEntryStatus;
       passed?: boolean;
       summary?: string;
@@ -593,7 +594,7 @@ export class AgentViewerOverlay implements Component {
    * Format a detail string from an event object using the pre-extracted
    * {@code eventType} for type-safe dispatch.
    */
-  private static formatDetail(event: AgentEvent): string {
+  private static formatDetail(event: JsonAgentSessionEvent): string {
     switch (event.type) {
       case "agent_start":
         return "started";
@@ -607,7 +608,28 @@ export class AgentViewerOverlay implements Component {
       case "message_start":
         return event.message?.role ?? "";
 
-      case "message_update":
+      case "message_update": {
+        const delta = event.assistantMessageEvent;
+        switch (delta.type) {
+          case "text_delta":
+          case "thinking_delta":
+            return delta.delta;
+          case "text_end":
+          case "thinking_end":
+            return delta.content;
+          case "toolcall_start":
+            return `tool call | ${delta.toolName}`;
+          case "toolcall_end":
+            return `tool call | ${delta.toolCall.name}`;
+          case "done":
+            return "completed";
+          case "error":
+            return "error";
+          default:
+            return "";
+        }
+      }
+
       case "message_end": {
         return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
       }

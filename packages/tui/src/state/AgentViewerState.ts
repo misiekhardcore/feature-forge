@@ -9,10 +9,12 @@ import {
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { jsonParse, logger } from "@feature-forge/shared";
 
 import type { AgentViewerEntry } from "../types";
+import { MessageDeltaAssembler } from "./MessageDeltaAssembler";
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).
@@ -58,13 +60,25 @@ export class AgentViewerState {
   private streamDir?: string;
 
   /** Maps agent id → raw stream events in insertion order. */
-  private agentEvents = new Map<string, AgentEvent[]>();
+  private agentEvents = new Map<string, JsonAgentSessionEvent[]>();
 
   /** Maps agent id → lines appended to its current .events.jsonl file this session. */
   private eventsFileLineCounts = new Map<string, number>();
 
   /** Maps agent id → extracted AgentMessage objects in order. */
   private agentMessages = new Map<string, AgentMessage[]>();
+
+  /** Maps agent id → delta assembler for pi >= 0.84 message_update events. */
+  private deltaAssemblers = new Map<string, MessageDeltaAssembler>();
+
+  /** Get (or create) the delta assembler for an agent. */
+  private deltaAssembler(agentId: string): MessageDeltaAssembler {
+    const existing = this.deltaAssemblers.get(agentId);
+    if (existing) return existing;
+    const created = new MessageDeltaAssembler();
+    this.deltaAssemblers.set(agentId, created);
+    return created;
+  }
 
   /**
    * Get all agent entries as a read-only map.
@@ -104,7 +118,7 @@ export class AgentViewerState {
    * @param agentId - The agent to get events for.
    * @returns An array of events in insertion order, most recent last. Empty for unknown agents.
    */
-  getAgentEvents(agentId: string): AgentEvent[] {
+  getAgentEvents(agentId: string): JsonAgentSessionEvent[] {
     return this.agentEvents.get(agentId) ?? [];
   }
 
@@ -218,6 +232,7 @@ export class AgentViewerState {
     this.streamFiles.clear();
     this.eventsFiles.clear();
     this.messagesFiles.clear();
+    this.deltaAssemblers.clear();
     this.streamDir = undefined;
   }
 
@@ -230,8 +245,8 @@ export class AgentViewerState {
    */
   pushStreamEvent(
     agentId: string,
-    event: AgentEvent,
-    formatEvent: (e: AgentEvent) => string,
+    event: JsonAgentSessionEvent,
+    formatEvent: (e: JsonAgentSessionEvent) => string,
   ): void {
     if (!this.agents.has(agentId)) {
       this.update({
@@ -274,7 +289,7 @@ export class AgentViewerState {
   /**
    * Persist stream event to disk.
    */
-  private persistStreamEvent(agentId: string, event: AgentEvent, line: string): void {
+  private persistStreamEvent(agentId: string, event: JsonAgentSessionEvent, line: string): void {
     if (!this.streamDir) return;
 
     try {
@@ -347,7 +362,7 @@ export class AgentViewerState {
    * (turn_start, turn_end) whose content arrives through other events.
    * Also excludes message_end events that produced no extracted text.
    */
-  private shouldPersistToStreamFile(event: AgentEvent, line: string): boolean {
+  private shouldPersistToStreamFile(event: JsonAgentSessionEvent, line: string): boolean {
     switch (event.type) {
       case "message_update":
       case "turn_start":
@@ -368,8 +383,8 @@ export class AgentViewerState {
    * Applies the same FIFO sliding window cap as agentEvents to prevent
    * unbounded memory growth.
    */
-  private appendMessageFromEvent(agentId: string, event: AgentEvent): void {
-    const message = AgentViewerState.extractMessageFromEvent(event);
+  private appendMessageFromEvent(agentId: string, event: JsonAgentSessionEvent): void {
+    const message = this.extractMessageFromEvent(agentId, event);
     if (!message) return;
 
     const messages = this.agentMessages.get(agentId) ?? [];
@@ -393,15 +408,22 @@ export class AgentViewerState {
   /**
    * Extract an AgentMessage from an event if it carries one.
    *
-   * Returns the message for message_start, message_update, and
-   * message_end events. Returns undefined for all other event types.
+   * message_start and message_end carry the message directly; message_update
+   * carries only deltas, so the partial message is reassembled from them.
    */
-  static extractMessageFromEvent(event: AgentEvent): AgentMessage | undefined {
+  private extractMessageFromEvent(
+    agentId: string,
+    event: JsonAgentSessionEvent,
+  ): AgentMessage | undefined {
     switch (event.type) {
       case "message_start":
-      case "message_update":
-      case "message_end":
+        this.deltaAssembler(agentId).reset();
         return event.message;
+      case "message_end":
+        this.deltaAssembler(agentId).reset();
+        return event.message;
+      case "message_update":
+        return this.deltaAssembler(agentId).apply(event.assistantMessageEvent);
       default:
         return undefined;
     }
@@ -462,7 +484,7 @@ export class AgentViewerState {
   /**
    * Return the raw stream events for an agent (alias for getAgentEvents).
    */
-  getConversation(agentId: string): AgentEvent[] {
+  getConversation(agentId: string): JsonAgentSessionEvent[] {
     return this.getAgentEvents(agentId);
   }
 
@@ -592,7 +614,7 @@ export class AgentViewerState {
   async loadConversationEvents(
     agentId: string,
     count: number = MAX_AGENT_EVENTS,
-  ): Promise<AgentEvent[]> {
+  ): Promise<JsonAgentSessionEvent[]> {
     const memoryEvents = this.agentEvents.get(agentId) ?? [];
 
     if (count <= memoryEvents.length) {
@@ -619,10 +641,10 @@ export class AgentViewerState {
         }
       }
 
-      const diskEvents: AgentEvent[] = [];
+      const diskEvents: JsonAgentSessionEvent[] = [];
       for (const line of lines) {
         try {
-          const parsed = jsonParse<AgentEvent>(line);
+          const parsed = jsonParse<JsonAgentSessionEvent>(line);
           diskEvents.push(parsed);
         } catch (err) {
           logger.warn("loadConversationEvents: failed to parse event line", {

@@ -27,6 +27,10 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     expect(DEFAULT_FORGE_CONFIG.logLevel).toBe(LogLevel.INFO);
   });
 
+  it("has no piCli override by default", () => {
+    expect(DEFAULT_FORGE_CONFIG.piCli).toBeUndefined();
+  });
+
   it("has default workspace provider GitWorktree", () => {
     expect(DEFAULT_FORGE_CONFIG.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
   });
@@ -137,6 +141,12 @@ describe("resolveConfig", () => {
     expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
     expect(config.agents.size).toBe(0);
     expect(config.defaultAgent.model).toBeUndefined();
+    expect(config.piCli).toBeUndefined();
+  });
+
+  it("overrides piCli", () => {
+    const config = resolveConfig({ piCli: "/usr/local/bin/pi-cli.js" });
+    expect(config.piCli).toBe("/usr/local/bin/pi-cli.js");
   });
 
   it("overrides logLevel", () => {

@@ -156,6 +156,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     {
       env: childEnv,
       cwd: process.cwd(),
+      cliPath: forgeConfig.getPiCli(),
     },
     forgeConfig.getConfig().models,
   );
