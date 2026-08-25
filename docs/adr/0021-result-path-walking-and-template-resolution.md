@@ -30,7 +30,7 @@ expression evaluator, one results-path walker, and `fillTemplate` deleted.
 
 ## Decision
 
-- **D1 - `ResultPathWalker` (`core/src/flows/resultPath.ts`) is the single
+- **D1 - `ResultPathWalker` (`core/src/flows/ResultPathWalker.ts`) is the single
   results-path walker.** It never throws: every failure is reported
   structurally via a `ResultPathWalk` union (`no-result` |
   `not-traversable {at, key, current}` | `missing-key {at, key}`). Missing-key
@@ -41,7 +41,7 @@ expression evaluator, one results-path walker, and `fillTemplate` deleted.
   throw vs `undefined`) is the caller's policy, not the walker's. Exposed as a
   static-only utility class per ADR 0017 (private constructor, `static walk`)
   - no instance state.
-- **D2 - `TemplateResolver` (`core/src/flows/templateResolver.ts`) is the
+- **D2 - `TemplateResolver` (`core/src/flows/TemplateResolver.ts`) is the
   single `{{token}}` engine.** Defined values (including `""`) substitute
   verbatim; `undefined` or `null` keeps the token in place - unknown tokens
   are never silently blanked, so template-authoring mistakes surface in the

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ResultPathWalker } from "./resultPath";
+import { ResultPathWalker } from "./ResultPathWalker";
 
 function map(entries: Array<[string, unknown]>): ReadonlyMap<string, unknown> {
   return new Map(entries);

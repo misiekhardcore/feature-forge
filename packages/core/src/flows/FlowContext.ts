@@ -1,8 +1,8 @@
 import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
-import { ResultPathWalker } from "./resultPath";
-import { TemplateResolver } from "./templateResolver";
+import { ResultPathWalker } from "./ResultPathWalker";
+import { TemplateResolver } from "./TemplateResolver";
 
 type FlowContextParams = {
   /** Step results keyed by instruction id. */

@@ -8,7 +8,7 @@ import { ForgeConfig, resolveModel } from "../config";
 import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "../flows/FlowInstruction";
 import type { FlowStateStore } from "../flows/FlowStateStore";
-import { TemplateResolver } from "../flows/templateResolver";
+import { TemplateResolver } from "../flows/TemplateResolver";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";

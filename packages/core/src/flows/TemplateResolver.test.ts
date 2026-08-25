@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { TemplateLookup } from "./templateResolver";
-import { TemplateResolver } from "./templateResolver";
+import type { TemplateLookup } from "./TemplateResolver";
+import { TemplateResolver } from "./TemplateResolver";
 
 function lookup(entries: Record<string, string>): TemplateLookup {
   return (token) => entries[token];

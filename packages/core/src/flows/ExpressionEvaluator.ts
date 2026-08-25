@@ -1,5 +1,5 @@
 import { Expr, ExpressionParser } from "./ExpressionParser";
-import { ResultPathWalker } from "./resultPath";
+import { ResultPathWalker } from "./ResultPathWalker";
 
 export interface FlowContextLike {
   results: ReadonlyMap<string, { raw: string; parsed?: { passed: boolean } }>;
