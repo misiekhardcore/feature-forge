@@ -25,11 +25,12 @@ kept intact. What changed:
   core types, and the composition root only wires the remaining seam.
 - **R-S3 - test-utils moved to core.** `packages/core/src/test-utils.ts`
   hosts the shared test helpers (cli's file is a re-export shim). The
-  "core tests import cli's test-utils until S11" interim is resolved; only
-  three core test files construct cli tool classes as fixtures
-  (`RoutineTool` in `FlowRegistrar.test.ts` and `flow-roundtrip.test.ts`,
-  `SetSessionNameTool` in `SessionAgent.test.ts`), covered by the eslint
-  test-file exemption.
+  "core tests import cli's test-utils until S11" interim is resolved; the
+  last cli tool-class fixtures in core tests (`RoutineTool` in
+  `FlowRegistrar.test.ts` and `flow-roundtrip.test.ts`, `SetSessionNameTool`
+  in `SessionAgent.test.ts`) were replaced with local stubs in the cleanup
+  round, so core tests import no cli code and the eslint test-file
+  exemption no longer exists.
 - **What remains** - only the `createRoutineTool` factory seam. `RoutineTool`
   stays cli-owned because it renders with pi-tui (D4) and is wired at the
   composition root as `(…) => new RoutineTool(…)`. The transient type-only
@@ -104,8 +105,9 @@ lets core depend on structural surfaces while cli supplies the concretions.
   cli) once the rules land with this series (issue section 8; not yet present).
   (Superseded: the rules landed with the rework - `packages/core` and
   `packages/debug` `eslint.config.js` forbid `@feature-forge/cli` (core also
-  `@earendil-works/pi-tui`), with a test-file exemption for the three cli
-  tool-class fixtures.)
+  `@earendil-works/pi-tui`) across all files including tests; the last cli
+  tool-class fixtures were replaced with local stubs, so no test-file
+  exemption remains.)
 - ADR 0018 was reserved by the phase plan for S10's package-layering
   decisions (D1-D8) but was never written; those decisions landed as
   ADR 0020. This ADR covers the S4c seam only.

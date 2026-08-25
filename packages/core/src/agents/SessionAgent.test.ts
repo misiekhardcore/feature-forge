@@ -1,4 +1,6 @@
-import { SetSessionNameTool } from "@feature-forge/cli/src/tools";
+import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import { Tool } from "@feature-forge/core/tools";
+import { Type } from "typebox";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolRegistry } from "../registry";
@@ -6,6 +8,39 @@ import { makeMockPi, makeSpec } from "../test-utils";
 import { AgentStatus } from "./";
 import { SessionAgent } from "./SessionAgent";
 import type { AgentSpecification } from "./specifications";
+
+/**
+ * Local stand-in for the cli `SetSessionNameTool` (which stays cli-owned):
+ * mirrors the real tool's `set_session_name` name (cli/src/tools/
+ * SetSessionNameTool.ts) and its rename-to-pi behavior, which is what the
+ * registration-site test observes.
+ */
+class TestSetSessionNameTool extends Tool {
+  readonly name = "set_session_name";
+  readonly label = "Set Session Name";
+  readonly description = "stub: mirrors the cli SetSessionNameTool name contract";
+  readonly parameters = Type.Object({
+    name: Type.String({ description: "Display name for the session", minLength: 1 }),
+  });
+  renderShell = "self" as const;
+
+  constructor(private readonly pi: { setSessionName: (name: string) => unknown }) {
+    super();
+  }
+
+  async execute(
+    _toolCallId: string,
+    params: { name: string },
+    signal: AbortSignal | undefined,
+  ): Promise<AgentToolResult<unknown>> {
+    signal?.throwIfAborted();
+    this.pi.setSessionName(params.name);
+    return {
+      content: [{ type: "text", text: `Session named: ${params.name}` }],
+      details: undefined,
+    };
+  }
+}
 
 describe("SessionAgent", () => {
   let spec: AgentSpecification;
@@ -251,7 +286,7 @@ describe("SessionAgent", () => {
       expect(pi.setSessionName).toHaveBeenCalledWith("session-agent");
 
       // Registration site (index.ts): registerInstance wires the tool to pi.
-      const tool = new SetSessionNameTool(pi);
+      const tool = new TestSetSessionNameTool(pi);
       const registry = new ToolRegistry(null, pi);
       registry.registerInstance(tool);
 

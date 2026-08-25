@@ -15,8 +15,8 @@ import { Command } from "./Command";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 /**
- * Minimal local stand-in for the cli `flow:exit` command (D3: the real
- * command lives in the cli package). Only the behavior this test observes
+ * Minimal local stand-in for the cli `flow:exit` command (the real command
+ * lives in the cli package). Only the behavior this test observes
  * is reproduced: destroy every mounted session agent via the supervisor
  * (which unmounts the agent and restores the saved tools) and clear the
  * active-flow pointer.

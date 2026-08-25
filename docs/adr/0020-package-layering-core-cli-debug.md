@@ -88,9 +88,9 @@ graph TD
   registry layers (`src/commands/`: `Command`, `OrchestratorCommand`,
   `Worktree*`, `AgentDestroy*`, `ResearchCommand`; `src/registry/`:
   `CommandRegistry`, `ToolRegistry`, `withForgePrefix` - moved from cli in
-  the rework). No pi-tui imports; no production `@feature-forge/cli` imports
-  (three test files construct cli tool classes as fixtures - see
-  Consequences).
+  the rework). No pi-tui imports; no `@feature-forge/cli` imports anywhere
+  (tests included - the last cli tool-class fixtures were replaced with local
+  stubs, see Consequences).
 - `cli` - the composition root (`index.ts`), the pi-extension commands and
   tools that stay cli-owned (`AgentList`, `FlowExit`, `ForgeInit`; the tool
   classes incl. `RoutineTool`), extensions, and the folded TUI display.
@@ -137,11 +137,9 @@ contract:
 - `cli` is unrestricted (top of the stack).
 - `debug` forbids `@feature-forge/cli` (keeps the DI boundary).
 
-The rules exempt test files: three core test files construct cli tool
-classes as fixtures (`RoutineTool` x2, `SetSessionNameTool`) that stay
-cli-owned by design. Test-only imports never ship, and the exemption is the
-documented bridge that keeps the production direction enforced without
-blocking the suite.
+The rule applies to all core files, test files included: the last cli
+tool-class fixtures in tests (`RoutineTool` x2, `SetSessionNameTool`) were
+replaced with local stubs in the cleanup round, so no exemption remains.
 
 ## Consequences
 
@@ -163,10 +161,11 @@ blocking the suite.
 - The shared-barrel runtime crash (architecture-review 3.22) self-heals: the
   `export { ... }` type/value split problem disappears with the merge into
   core, and `flow:validate` runs from `core/scripts`.
-- Core's test-only cli imports shrank to three files (cli tool classes
-  used as fixtures) once test-utils moved to core; those are exempted from
-  the restricted-imports rules. No runtime `core -> cli` edge remains in
-  production code.
+- Core tests import no cli code: the last three cli tool-class fixtures
+  (`RoutineTool` x2, `SetSessionNameTool`) were replaced with local stubs in
+  the cleanup round, and the no-restricted-imports rule applies to all core
+  files including tests. No `core -> cli` edge remains anywhere in the
+  package.
 
 ## Amendment (rework)
 
@@ -182,8 +181,9 @@ unchanged. Corrected in this ADR:
 - The seam story: only `createRoutineTool` remains (RoutineTool stays cli,
   D4); the `*Like` surfaces, `CreateOrchestratorCommand`, and the `as never`
   cast are dissolved (see ADR 0019's Superseded section).
-- Test-utils moved to core (R-S3); the enforcement exemption now covers only
-  the three cli tool-class fixtures, and the rules themselves have landed.
+- Test-utils moved to core (R-S3); the rules themselves have landed. The
+  cleanup round replaced the last cli tool-class fixtures in core tests with
+  local stubs, removing the test-file exemption entirely.
 
 ## Amendment (exports map, E1/E2)
 
@@ -197,17 +197,21 @@ gained an explicit `exports` map, and the previous
 Core exposes two import surfaces, neither of which contains `/src/`:
 
 - `@feature-forge/core` - the root barrel (`src/index.ts`) re-exports the
-  full public API across every public directory.
+  full public API across every public directory (test-utils excluded - it is
+  test-support, not public API).
 - `@feature-forge/core/<dir>` - explicit subpaths for `agents`, `commands`,
   `config`, `event-bus`, `executors`, `flows`, `github`, `helpers`, `ipc`,
   `logging`, `progress`, `registry`, `routines`, `tools`, `workspace`, plus
-  `test-utils` for test-only helpers. `RpcClientMock` and
-  `createRpcClientMock` live in `test-utils` and are deliberately NOT
-  re-exported from the root barrel.
+  `test-utils` for test-only helpers (cross-package consumers only).
+  `RpcClientMock` and `createRpcClientMock` live in `test-utils` and are
+  deliberately NOT re-exported from the root barrel. The map also exports
+  `./package.json` (consumed by `forge-setup.js` via `require.resolve`) -
+  18 keys total: root + 15 dirs + test-utils + package.json.
 
 ```ts
 import { ForgeConfig } from "@feature-forge/core";
 import { WorkspaceHandle } from "@feature-forge/core/workspace";
+// cross-package only: cli's src/test-utils.ts re-exports this shim
 import { makeMockPi } from "@feature-forge/core/test-utils";
 ```
 
@@ -228,10 +232,17 @@ import { makeMockPi } from "@feature-forge/core/test-utils";
 
 Core-internal cross-directory imports are **relative**, never the root
 barrel: `src/index.ts` re-exports every public directory, so importing the
-barrel from inside core would create an evaluation-time cycle. Core test
-files are the deliberate exception - they import
-`@feature-forge/core/test-utils` through the public subpath, exercising the
-exports map at runtime exactly as external consumers do.
+barrel from inside core would create an evaluation-time cycle. The
+internal-relative rule applies to test files too - since the #229 cleanup
+sweep, every core test file imports helpers via relative paths, never the
+subpath (top-level tests use `../test-utils`, nested dirs
+`../../test-utils`). The `@feature-forge/core/test-utils` public subpath
+exists for cross-package consumers only; today its sole consumer is the
+`packages/cli/src/test-utils.ts` re-export shim. The one deliberate
+self-package subpath import left in core tests is the `Tool` base class
+from `@feature-forge/core/tools` in the three local-stub files - the
+stubs extend the exported base, and a subpath import never touches the
+root barrel, so no evaluation cycle is created.
 
 ### cli / debug
 

@@ -1,4 +1,5 @@
-import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
+import { Tool } from "@feature-forge/core/tools";
+import { Type } from "typebox";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InMemoryAgentSupervisor } from "../agents";
@@ -90,6 +91,30 @@ vi.mock("../routines/RoutineExecutor", () => ({
 
 // ── Helpers ──────────────────────────────────────────────────
 
+/**
+ * Local stand-in for the cli `RoutineTool` (which stays cli-owned, S6 seam):
+ * reproduces only the name/label contract this test observes. The real tool
+ * renders progress with pi-tui at the composition root; tests never execute
+ * routines, so a no-op stub is sufficient.
+ */
+class TestRoutineTool extends Tool {
+  readonly name: string;
+  readonly label: string;
+  readonly description: string;
+  readonly parameters = Type.Object({});
+
+  constructor(flowName: string, routineDef: { id: string }) {
+    super();
+    this.name = routineDef.id;
+    this.label = `Routine: ${flowName}/${routineDef.id}`;
+    this.description = "stub routine tool";
+  }
+
+  async execute(): Promise<never> {
+    throw new Error("no-op stub: tests never invoke routine tools");
+  }
+}
+
 function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistrarContext {
   const pi = overrides.pi ?? makeMockPi();
   // The concrete registries are replaced with structural mocks: registerFlow
@@ -117,10 +142,11 @@ function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistra
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
     activeFlowRegistry: overrides.activeFlowRegistry ?? new ActiveFlowRegistry(),
+    // Local stub stands in for the cli RoutineTool (S6 seam) — the factory
+    // is still provided by the composition root.
     createRoutineTool:
       overrides.createRoutineTool ??
-      ((flowName, routineDef, routineExecutor, supervisor) =>
-        new RoutineTool(flowName, routineDef, routineExecutor, supervisor)),
+      ((flowName, routineDef) => new TestRoutineTool(flowName, routineDef)),
   };
 }
 

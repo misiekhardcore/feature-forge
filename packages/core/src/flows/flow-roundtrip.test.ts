@@ -22,20 +22,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// Test-only value import from cli: RoutineTool stays cli-owned.
-import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
+import { Tool } from "@feature-forge/core/tools";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { Type } from "typebox";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { SpecManager } from "../agents";
 import { SpecRegistry } from "../agents/specifications";
 import { SpecLoader } from "../agents/specifications";
-import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
 import { jsonParse } from "../helpers";
-import { RoutineExecutor } from "../routines/RoutineExecutor";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { ExpressionEvaluator } from "./ExpressionEvaluator";
 import { FlowContext } from "./FlowContext";
 import type {
@@ -53,6 +49,30 @@ import {
 import { FlowLoader } from "./FlowLoader";
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Local stand-in for the cli `RoutineTool` (which stays cli-owned, S6 seam):
+ * reproduces only the name contract this test observes. The real tool renders
+ * progress with pi-tui at the composition root; the round-trip test only
+ * asserts that registered routine tools are named after the routine ids.
+ */
+class TestRoutineTool extends Tool {
+  readonly name: string;
+  readonly label: string;
+  readonly description: string;
+  readonly parameters = Type.Object({});
+
+  constructor(flowName: string, routineDef: { id: string }) {
+    super();
+    this.name = routineDef.id;
+    this.label = `Routine: ${flowName}/${routineDef.id}`;
+    this.description = "stub routine tool";
+  }
+
+  async execute(): Promise<never> {
+    throw new Error("no-op stub: tests never invoke routine tools");
+  }
+}
 
 /** Collect all parseJson: true agent IDs and routine ref IDs within a list of instructions (recursive). */
 function collectParseJsonIds(
@@ -377,20 +397,10 @@ describe("flow round-trip", () => {
     // ── 7. RoutineTool name alignment with tools ──────────
 
     it("routine-based tools match registered RoutineTool names", () => {
-      const registry = new StepExecutorRegistry();
-      const executor = new RoutineExecutor(
-        flow,
-        registry,
-        makeMockTypedEventBus(),
-        makeMockToolRegistry(),
-      );
       const routineToolNames = new Set<string>();
 
       for (const routineDef of flow.routines) {
-        const tool = new RoutineTool(flow.name, routineDef, executor, {
-          getAgent: vi.fn().mockReturnValue(undefined),
-          getAllAgents: vi.fn().mockReturnValue([]),
-        } as unknown as AgentSupervisor);
+        const tool = new TestRoutineTool(flow.name, routineDef);
         routineToolNames.add(tool.name);
       }
 
