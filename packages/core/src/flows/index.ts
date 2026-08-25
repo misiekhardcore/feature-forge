@@ -47,6 +47,8 @@ export type { FlowParams } from "./FlowStateStore";
 export { FlowStateStore } from "./FlowStateStore";
 export type { ResultPathFailure, ResultPathWalk } from "./resultPath";
 export { walkResultPath } from "./resultPath";
+export type { TemplateLookup } from "./templateResolver";
+export { resolveTemplate } from "./templateResolver";
 
 import {
   FlowInstructionSchema,
