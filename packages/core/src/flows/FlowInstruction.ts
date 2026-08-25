@@ -195,6 +195,16 @@ Object.defineProperty(LoopInstructionSchema.properties, "steps", {
 export const FLOW_SCHEMA_URL =
   "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/core/src/flows/flow-schema.json";
 
+/**
+ * Legacy `$schema` URLs accepted for one-shot auto-migration on load.
+ * These point at pre-#233 schema file locations; a flow file carrying one
+ * of these URLs is rewritten to {@link FLOW_SCHEMA_URL} by the FlowLoader
+ * before validation (in-memory always, file write best-effort).
+ */
+export const LEGACY_FLOW_SCHEMA_URLS: readonly string[] = [
+  "https://raw.githubusercontent.com/misiekhardcore/feature-forge/main/packages/cli/src/flows/flow-schema.json",
+];
+
 export const FlowInstructionSchema = FlowInstructionUnion;
 
 export const OrchestratorConfigSchema = Type.Object({

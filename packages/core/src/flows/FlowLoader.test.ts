@@ -2,10 +2,11 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../logging";
 import type { FlowDefinition } from "./FlowInstruction";
-import { FLOW_SCHEMA_URL } from "./FlowInstruction";
+import { FLOW_SCHEMA_URL, LEGACY_FLOW_SCHEMA_URLS } from "./FlowInstruction";
 import { FlowLoader } from "./FlowLoader";
 import { FlowValidation } from "./flowValidation";
 
@@ -1031,5 +1032,185 @@ describe("FlowLoader", () => {
     const { flows, failures } = await loader.loadAll();
     expect(flows.size).toBe(0);
     expect(failures.size).toBe(0);
+  });
+
+  // ── legacy $schema auto-migration ────────────────────
+
+  describe("legacy $schema auto-migration", () => {
+    const legacyUrl = LEGACY_FLOW_SCHEMA_URLS[0];
+    const unknownUrl = legacyUrl.replace("/packages/cli/", "/packages/other/");
+
+    function minimalFlow(schemaUrl: string): string {
+      return JSON.stringify(
+        {
+          $schema: schemaUrl,
+          name: "mig",
+          command: "/mig",
+          orchestrator: { systemPrompt: "t" },
+          routines: [
+            {
+              id: "main",
+              params: [],
+              steps: [{ type: "workspace", id: "ws", provider: "git-worktree" }],
+            },
+          ],
+        },
+        null,
+        4,
+      );
+    }
+
+    it("migrates a legacy $schema URL on load and rewrites the file", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      await fs.writeFile(filepath, minimalFlow(legacyUrl));
+
+      const loaded = await loader.load("mig");
+
+      expect(loaded.$schema).toBe(FLOW_SCHEMA_URL);
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      expect(onDisk).toContain(FLOW_SCHEMA_URL);
+    });
+
+    it("rewrites the file byte-preserving except for the URL", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      const original = minimalFlow(legacyUrl);
+      await fs.writeFile(filepath, original);
+
+      await loader.load("mig");
+
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      // Oracle built from the data (JSON.stringify of the migrated flow),
+      // not from a string transform - any over-/under-replacement or
+      // formatting change would fail the exact-match assertion.
+      expect(onDisk).toBe(minimalFlow(FLOW_SCHEMA_URL));
+    });
+
+    it("leaves a current-$schema file untouched", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      const original = minimalFlow(FLOW_SCHEMA_URL);
+      await fs.writeFile(filepath, original);
+
+      const loaded = await loader.load("mig");
+
+      expect(loaded.$schema).toBe(FLOW_SCHEMA_URL);
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      expect(onDisk).toBe(original);
+    });
+
+    it("rejects an unknown $schema URL without touching the file", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      const original = minimalFlow(unknownUrl);
+      await fs.writeFile(filepath, original);
+
+      await expect(loader.load("mig")).rejects.toThrow("must be equal to constant");
+
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      expect(onDisk).toBe(original);
+    });
+
+    it("logs a warning when a flow $schema is auto-migrated", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const filepath = path.join(tempDir, "mig.json");
+        await fs.writeFile(filepath, minimalFlow(legacyUrl));
+
+        await loader.load("mig");
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          "Flow $schema auto-migrated to current URL",
+          expect.objectContaining({ name: "mig" }),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("rewrites only the $schema member, not prose occurrences", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      const original = JSON.stringify(
+        {
+          $schema: legacyUrl,
+          name: "mig",
+          command: "/mig",
+          orchestrator: { systemPrompt: `flow schema lives at ${legacyUrl}` },
+          routines: [
+            {
+              id: "main",
+              params: [],
+              steps: [{ type: "workspace", id: "ws", provider: "git-worktree" }],
+            },
+          ],
+        },
+        null,
+        4,
+      );
+      await fs.writeFile(filepath, original);
+
+      const loaded = await loader.load("mig");
+
+      expect(loaded.$schema).toBe(FLOW_SCHEMA_URL);
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      expect(onDisk).toContain(`flow schema lives at ${legacyUrl}`);
+      expect(onDisk.split(FLOW_SCHEMA_URL).length - 1).toBe(1);
+    });
+
+    it("keeps the in-memory migration when the file write fails", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      await fs.writeFile(filepath, minimalFlow(legacyUrl));
+
+      // Make the loader's temp-file write fail deterministically: the temp
+      // path is an existing directory, so fs.writeFile rejects (EISDIR).
+      await fs.mkdir(`${filepath}.${process.pid}.tmp`);
+
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        const loaded = await loader.load("mig");
+
+        expect(loaded.$schema).toBe(FLOW_SCHEMA_URL);
+        expect(warnSpy).toHaveBeenCalledWith(
+          "Flow $schema auto-migration write failed (file left stale)",
+          expect.objectContaining({ name: "mig" }),
+        );
+        // The file is left stale with the legacy URL.
+        const onDisk = await fs.readFile(filepath, "utf-8");
+        expect(onDisk).toContain(legacyUrl);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("rejects a missing $schema without touching the file", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      const flow = JSON.parse(minimalFlow(legacyUrl)) as Record<string, unknown>;
+      delete flow.$schema;
+      const original = JSON.stringify(flow, null, 4);
+      await fs.writeFile(filepath, original);
+
+      await expect(loader.load("mig")).rejects.toThrow("must have required properties $schema");
+
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      expect(onDisk).toBe(original);
+    });
+
+    it("migrates in memory when the raw $schema member cannot be matched", async () => {
+      const filepath = path.join(tempDir, "mig.json");
+      // `\u0024schema` is a JSON escape for `$schema`: the parsed value is
+      // migrated, but the raw-text rewrite does not match the escaped key,
+      // so the file stays untouched while the in-memory migration stands.
+      const raw = `{
+  "\\u0024schema": "${legacyUrl}",
+  "name": "mig",
+  "command": "/mig",
+  "orchestrator": { "systemPrompt": "t" },
+  "routines": [{ "id": "main", "params": [], "steps": [{ "type": "workspace", "id": "ws", "provider": "git-worktree" }] }]
+}`;
+      await fs.writeFile(filepath, raw);
+
+      const loaded = await loader.load("mig");
+
+      expect(loaded.$schema).toBe(FLOW_SCHEMA_URL);
+      const onDisk = await fs.readFile(filepath, "utf-8");
+      expect(onDisk).toBe(raw);
+    });
   });
 });
