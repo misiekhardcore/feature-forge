@@ -69,6 +69,7 @@ roots at the config file location, so discovery works from any cwd.)
 
 - **TypeScript** with ES modules (`"type": "module"`)
 - **strict mode** — no `any` casts, use `unknown` + type guards
+- **Object-oriented TypeScript** - the codebase is class-based: domain and utility logic is exposed through classes (instance classes for stateful collaborators; static-only utility classes with a private constructor for stateless helpers - see ADR 0017, e.g. `ExpressionEvaluator`, `FlowValidation`, `SkillResolver`). Do not export free functions as a module's public surface; keep helpers module-private.
 - **Commits** follow [Conventional Commits](https://www.conventionalcommits.org/)
 - **Formatting** via Prettier (automated, enforced in CI)
 - **Linting** via ESLint with typescript-eslint (automated, enforced in CI)

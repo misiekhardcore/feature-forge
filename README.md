@@ -75,7 +75,7 @@ Import `core` through its package exports: the root barrel
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, repository structure, pull request guidelines, and release process.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, repository structure, pull request guidelines, and release process. The codebase is object-oriented: modules expose classes (instance classes for stateful logic, static-only utility classes per [ADR 0017](docs/adr/0017-static-utility-classes.md) for stateless helpers).
 
 ## License
 

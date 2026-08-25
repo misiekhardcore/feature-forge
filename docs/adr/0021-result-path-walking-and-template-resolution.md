@@ -30,7 +30,7 @@ expression evaluator, one results-path walker, and `fillTemplate` deleted.
 
 ## Decision
 
-- **D1 - `walkResultPath` (`core/src/flows/resultPath.ts`) is the single
+- **D1 - `ResultPathWalker` (`core/src/flows/resultPath.ts`) is the single
   results-path walker.** It never throws: every failure is reported
   structurally via a `ResultPathWalk` union (`no-result` |
   `not-traversable {at, key, current}` | `missing-key {at, key}`). Missing-key
@@ -38,13 +38,17 @@ expression evaluator, one results-path walker, and `fillTemplate` deleted.
   `length`), accessor properties, own enumerable keys whose value is
   `undefined`, and prototype-chain keys (`constructor`, `__proto__`) are all
   treated as absent, and getters are never invoked. Strictness (blank vs
-  throw vs `undefined`) is the caller's policy, not the walker's.
-- **D2 - `resolveTemplate` (`core/src/flows/templateResolver.ts`) is the
+  throw vs `undefined`) is the caller's policy, not the walker's. Exposed as a
+  static-only utility class per ADR 0017 (private constructor, `static walk`)
+  - no instance state.
+- **D2 - `TemplateResolver` (`core/src/flows/templateResolver.ts`) is the
   single `{{token}}` engine.** Defined values (including `""`) substitute
   verbatim; `undefined` or `null` keeps the token in place - unknown tokens
   are never silently blanked, so template-authoring mistakes surface in the
   rendered output. Callers that need blanking return `""` from their lookup.
-- **D3 - both template consumers delegate to `resolveTemplate`.**
+  Exposed as a static-only utility class per ADR 0017 (private constructor,
+  `static resolve`) - no instance state.
+- **D3 - both template consumers delegate to `TemplateResolver.resolve`.**
   `FlowContext.resolve` supplies a lookup covering `prompt`, `feedback`,
   `params`, `session.` / `workspace.` / `results.` prefixes;
   `OrchestratorCommand.resolveTask` supplies `promptParams` plus the
@@ -53,7 +57,7 @@ expression evaluator, one results-path walker, and `fillTemplate` deleted.
   (`ExpressionParser` / `ExpressionEvaluator`): raw-value strict equality
   with no type coercion (`'true' === true` is `false`), binding tighter than
   `&&` / `||` and left-associative. `ExpressionEvaluator.resolvePath`
-  delegates to `walkResultPath` with a strictness policy layer: optional
+  delegates to `ResultPathWalker.walk` with a strictness policy layer: optional
   segments (`?.`) resolve to `undefined`, required segments throw with the
   legacy error messages preserved. Walking stops at the first failing segment
   (first-failure-wins), so a required segment after an earlier optional miss
@@ -72,5 +76,8 @@ expression evaluator, one results-path walker, and `fillTemplate` deleted.
      on the old behavior.
 - One template engine, one expression evaluator, one results-path walker;
   `fillTemplate` was already deleted in #227.
+- Both new modules are static-only utility classes per ADR 0017 (precedent:
+  `ExpressionEvaluator`, `FlowValidation`, `SkillResolver`) - a pure
+  API-shape decision with no instance state.
 - Loop expressions can now use the documented `===` / `!==` operators - the
   doc-vs-lexer mismatch from finding 3.6 is gone.

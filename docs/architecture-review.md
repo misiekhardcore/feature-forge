@@ -368,8 +368,8 @@ Proposed fix:
 - Extract the `results.<id>.<path>` walking into a single helper shared by `resolveNested` and `resolvePath`, with **identical** missing-key semantics (currently `resolveNested` returns `""`, `resolvePath` throws - pick one and document it).
 
 > **Status: RESOLVED by the p1b implementation (template/expression unification, ADR 0021).**
-> One `resolveTemplate` engine now serves `FlowContext` and `OrchestratorCommand`; one
-> `walkResultPath` serves templates and the expression evaluator; `===` / `!==` are
+> One `TemplateResolver` engine now serves `FlowContext` and `OrchestratorCommand`; one
+> `ResultPathWalker` serves templates and the expression evaluator; `===` / `!==` are
 > implemented (raw-value strict equality); `fillTemplate` had already been deleted in #227.
 
 ---
