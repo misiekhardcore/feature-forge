@@ -1,7 +1,7 @@
 /**
  * E2E tests for the github module against the real gh CLI.
  *
- * The unit tests in src/github.test.ts mock child_process, which cannot catch
+ * The unit tests in packages/core/src/github.test.ts mock child_process, which cannot catch
  * gh contract drift (e.g. a `--json` field name gh rejects at runtime, or a
  * GraphQL query gh refuses to run). These tests exercise the real `gh` binary
  * to validate the field list and round-trip the public functions.
@@ -17,9 +17,8 @@
 
 import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 
+import { GitHubService } from "@feature-forge/core/github";
 import { describe, expect, it } from "vitest";
-
-import { GitHubService } from "../src/github";
 
 const gh = new GitHubService();
 

@@ -46,24 +46,18 @@
     "typecheck:watch": "tsc --noEmit --watch",
     "test:watch": "vitest --watch",
     "test:e2e": "vitest run --root ../.. --project cli-e2e",
-    "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts && npx prettier --write src/flows/flow-schema.json",
-    "flow:validate": "npx tsx scripts/validate-flow.ts",
-    "flow:validate:all": "npx tsx scripts/validate-flow.ts --all",
-    "flow:validate-json": "npx tsx scripts/validate-flow-json.ts",
     "changelog": "git-cliff -o CHANGELOG.md"
   },
   "dependencies": {
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@feature-forge/shared": "*",
-    "@feature-forge/tui": "*",
+    "@feature-forge/core": "*",
     "@feature-forge/debug": "*",
+    "@feature-forge/eslint-config": "*",
+    "@types/node": "^26.0.0",
     "tsup": "^8.0.0",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "typebox": "*",
-    "@feature-forge/eslint-config": "*"
+    "typebox": "*"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "*",

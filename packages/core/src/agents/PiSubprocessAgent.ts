@@ -1,0 +1,311 @@
+import type { ExtensionAPI, JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { RpcClient } from "@earendil-works/pi-coding-agent";
+
+import { ForgeConfig } from "../config";
+import { logger } from "../logging";
+import { AgentStatus } from "./AgentStatus";
+import { AgentSpecification } from "./specifications";
+import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
+
+/**
+ * Concrete {@link SubprocessAgent} that wraps a pi subprocess spawned in RPC mode.
+ *
+ * Delegates all lifecycle (start, stop, communicate) to the underlying RpcClient.
+ */
+export class PiSubprocessAgent extends SubprocessAgent {
+  public readonly kind = "subprocess" as const;
+  public readonly id: string;
+  public readonly specification: AgentSpecification;
+
+  private _status: AgentStatus = AgentStatus.Spawned;
+  private readonly rpcClient: RpcClient;
+  private result: string = "";
+  private error: Error | undefined = undefined;
+
+  constructor(id: string, specification: AgentSpecification, rpcClient: RpcClient) {
+    super();
+    this.id = id;
+    this.specification = specification;
+    this.rpcClient = rpcClient;
+  }
+
+  public get status(): AgentStatus {
+    return this._status;
+  }
+
+  /**
+   * Start the underlying RPC process and transition to Running.
+   * Must be called before sending tasks.
+   */
+  public override async start(): Promise<void> {
+    try {
+      await this.rpcClient.start();
+      this._status = AgentStatus.Running;
+      logger.info("Agent started", { agentId: this.id, role: this.specification.role });
+    } catch (error) {
+      logger.error("Agent start failed", { agentId: this.id, error });
+      this._status = AgentStatus.Failed;
+      this.error = error instanceof Error ? error : new Error(String(error));
+      throw this.error;
+    }
+  }
+
+  /**
+   * Send a prompt (task) to the subagent and wait for completion.
+   *
+   * Uses incremental onEvent listeners: subscribes internal + optional external
+   * listeners, sends the prompt, and awaits a promise that resolves when
+   * the agent_end event is received.
+   *
+   * Returns the extracted assistant text response.
+   */
+  public override async executeTask(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
+    if (this._status !== AgentStatus.Running) {
+      throw new Error(`Cannot execute task on agent "${this.id}" in state "${this._status}"`);
+    }
+
+    options?.signal?.throwIfAborted();
+
+    // Wire the abort signal so pressing Esc immediately stops the underlying
+    // RPC process rather than waiting for the agent to finish naturally.
+    const onAbort = (): void => {
+      void this.rpcClient.abort().catch((error) => {
+        logger.warn("RPC abort failed during signal abort", {
+          agentId: this.id,
+          error,
+        });
+      });
+    };
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
+
+    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+
+    try {
+      this.result = await this._collectResponse(prompt, options, timeout);
+      this._status = AgentStatus.Completed;
+      logger.info("Agent task completed", {
+        agentId: this.id,
+        promptLength: prompt.length,
+        resultLength: this.result.length,
+      });
+      return this.result;
+    } catch (error) {
+      logger.error("Task execution failed", { agentId: this.id, prompt, error });
+      this._status = AgentStatus.Failed;
+      this.error = error instanceof Error ? error : new Error(String(error));
+      throw this.error;
+    } finally {
+      options?.signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
+  /**
+   * Send a correction prompt without changing lifecycle state.
+   *
+   * Used after the initial task completes but the response is invalid
+   * (e.g. missing required JSON). The agent stays in Completed state;
+   * this only produces a replacement result for {@link getResult}.
+   *
+   * Re-uses the existing RPC transport session - no new process is spawned.
+   */
+  public override async retry(prompt: string, options?: ExecuteTaskOptions): Promise<string> {
+    if (this._status !== AgentStatus.Completed) {
+      throw new Error(
+        `Cannot retry on agent "${this.id}" in state "${this._status}". Expected Completed.`,
+      );
+    }
+
+    options?.signal?.throwIfAborted();
+
+    // Mirror executeTask: abort the underlying RPC process when the signal
+    // fires mid-retry so cancellation never leaves the transport hanging.
+    const onAbort = (): void => {
+      void this.rpcClient.abort().catch((error) => {
+        logger.warn("RPC abort failed during signal abort", {
+          agentId: this.id,
+          error,
+        });
+      });
+    };
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
+
+    // Bound the retry with the same task timeout used by executeTask so a
+    // hung retry cannot block the routine indefinitely.
+    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+
+    try {
+      const result = await this._collectResponse(prompt, options, timeout);
+      this.result = result; // Update so getResult() returns the corrected output
+      return result;
+    } catch (error) {
+      logger.error("Retry failed", { agentId: this.id, error });
+      throw error; // Don't change status on retry failure - agent stays Completed
+    } finally {
+      options?.signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
+  /**
+   * Shared transport concern between {@link executeTask} and {@link retry}:
+   * subscribe to agent events, send the prompt via the RPC client, and resolve
+   * when the `agent_end` event arrives with the concatenated assistant text.
+   *
+   * Does not touch lifecycle state; {@link executeTask} owns the timeout,
+   * abort-signal wiring, and Running -> Completed/Failed transitions.
+   */
+  private async _collectResponse(
+    prompt: string,
+    options?: ExecuteTaskOptions,
+    timeout?: number,
+  ): Promise<string> {
+    const unsubscribeHandlers: (() => void)[] = [];
+
+    // Promise that resolves when agent_end is received, rejecting on timeout.
+    let cancelResultPromise: (() => void) | undefined;
+    let rejectResultPromise: ((reason: unknown) => void) | undefined;
+
+    const resultPromise = new Promise<string>((resolve, reject) => {
+      rejectResultPromise = reject;
+
+      if (timeout !== undefined) {
+        const timeoutId = setTimeout(() => {
+          reject(new Error(`Task timed out after ${timeout}ms`));
+        }, timeout);
+        cancelResultPromise = () => {
+          clearTimeout(timeoutId);
+        };
+      }
+
+      let assistantText = "";
+
+      const internalOnEvent = (event: JsonAgentSessionEvent): void => {
+        if (
+          event.type === "message_end" &&
+          event.message?.role === "assistant" &&
+          event.message.content
+        ) {
+          const parts: string[] = [];
+          for (const block of event.message.content) {
+            if (block.type === "text" && block.text) {
+              parts.push(block.text);
+            }
+          }
+          if (parts.length > 0) {
+            assistantText = assistantText
+              ? `${assistantText}\n\n${parts.join("\n\n")}`
+              : parts.join("\n\n");
+          }
+        }
+
+        if (event.type === "agent_end") {
+          cancelResultPromise?.();
+          resolve(assistantText);
+        }
+      };
+
+      unsubscribeHandlers.push(this.rpcClient.onEvent(internalOnEvent));
+
+      if (options?.onEvent) {
+        unsubscribeHandlers.push(this.rpcClient.onEvent(options.onEvent));
+      }
+    });
+
+    // Safety net: if the timeout fires while prompt() is still in-flight, the
+    // rejection has no listener yet - Node would report an unhandled rejection.
+    // The rejection is surfaced through await resultPromise in the try block.
+    resultPromise.catch(() => {
+      // Silently handled - the rejection will be re-thrown on await.
+    });
+
+    try {
+      try {
+        await this.rpcClient.prompt(prompt, options?.images);
+      } catch (error) {
+        cancelResultPromise?.();
+        rejectResultPromise?.(error);
+        throw error;
+      }
+
+      return await resultPromise;
+    } finally {
+      // Unsubscribe in every exit path (prompt rejection, result rejection,
+      // timeout, or normal completion) so event listeners never leak.
+      for (const unsubscribe of unsubscribeHandlers) {
+        unsubscribe();
+      }
+    }
+  }
+
+  /**
+   * Signal the subagent to stop and clean up the RPC process.
+   */
+  public override async destroy(): Promise<void> {
+    try {
+      await this.rpcClient.stop();
+    } catch {
+      logger.warn("RPC stop failed during destroy", { agentId: this.id });
+      // Swallow stop errors — agent is being destroyed either way
+    }
+    this._status = AgentStatus.Cancelled;
+    logger.info("Agent destroyed", { agentId: this.id });
+  }
+
+  /**
+   * Return the extracted assistant text from the last executed task.
+   */
+  public override getResult(): string {
+    if (this._status !== AgentStatus.Completed) {
+      throw new Error(`Agent "${this.id}" is not in Completed state (current: "${this._status}")`);
+    }
+    return this.result;
+  }
+
+  /**
+   * Return the error that caused the agent to fail.
+   */
+  public override getError(): Error | undefined {
+    if (this._status !== AgentStatus.Failed && this._status !== AgentStatus.Cancelled) {
+      throw new Error(
+        `Agent "${this.id}" is not in Failed or Cancelled state (current: "${this._status}")`,
+      );
+    }
+    return this.error;
+  }
+
+  /**
+   * Format and deliver a successful result to the parent session.
+   *
+   * Uses the agent's role as the section header so each agent type gets
+   * its own visual identity in the chat output.
+   */
+  public override deliverResult(prompt: string, result: string, pi: ExtensionAPI): void {
+    const header = this.capitalize(this.specification.role);
+    pi.sendMessage(
+      {
+        customType: `${this.specification.role}_result`,
+        content: `## ${header}: ${prompt}\n\n${result || "_(no findings produced)_"}`,
+        display: true,
+      },
+      { triggerTurn: false },
+    );
+  }
+
+  /**
+   * Format and deliver an error notification to the parent session.
+   */
+  public override deliverError(prompt: string, error: Error, pi: ExtensionAPI): void {
+    pi.sendMessage(
+      {
+        customType: `${this.specification.role}_error`,
+        content: `## ❌ ${this.capitalize(this.specification.role)} failed: ${prompt}\n\n${error.message}`,
+        display: true,
+      },
+      { triggerTurn: false },
+    );
+  }
+
+  /** Capitalize the first letter of the role for display headers. */
+  private capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+}

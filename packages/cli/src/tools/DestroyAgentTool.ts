@@ -1,8 +1,8 @@
-import { IpcTool } from "@feature-forge/shared";
-import { ToolRenderer } from "@feature-forge/tui";
+import { IpcTool } from "@feature-forge/core";
+import { DestroyAgentResult } from "@feature-forge/core/ipc";
 import { Type } from "typebox";
 
-import { DestroyAgentResult } from "../ipc/messages";
+import { ToolRenderer } from "../tui/views/ToolRenderer";
 
 const DestroyAgentParameters = Type.Object({
   agentId: Type.String({ description: "Agent id returned by spawn_agent" }),

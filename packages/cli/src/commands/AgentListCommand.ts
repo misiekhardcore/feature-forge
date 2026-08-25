@@ -1,9 +1,10 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/shared";
+import { ForgeConfig, logger } from "@feature-forge/core";
+import type { AgentSupervisor } from "@feature-forge/core/agents";
+import { Command } from "@feature-forge/core/commands";
+import { TypedEventBus } from "@feature-forge/core/event-bus";
 
-import { type AgentSupervisor, showAgentViewer } from "../agents";
-import { TypedEventBus } from "../orchestrator/eventBus";
-import { Command } from "./Command";
+import { showAgentViewer } from "../tui/showAgentViewer";
 
 /**
  * Opens the AgentViewerOverlay showing all tracked agents from the

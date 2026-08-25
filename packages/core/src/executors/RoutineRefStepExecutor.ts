@@ -1,0 +1,240 @@
+import type { TypedEventBus } from "../event-bus";
+import type { FlowContext, InstructionResult } from "../flows/FlowContext";
+import type {
+  FlowDefinition,
+  FlowInstruction,
+  RoutineRefInstruction,
+} from "../flows/FlowInstruction";
+import { logger } from "../logging";
+import { FlowMapAware } from "./FlowMapAware";
+import { isAbortError } from "./isAbortError";
+import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededError";
+import { StepExecutor } from "./StepExecutor";
+
+/**
+ * Executes a `routine` instruction by inlining all routines from the
+ * target flow into the parent's {@link FlowContext}.
+ *
+ * No child executor, no isolated context — steps from the sub-flow run
+ * directly in the parent's context with the same params, results map,
+ * and token resolution.
+ */
+export class RoutineRefStepExecutor
+  extends StepExecutor<RoutineRefInstruction>
+  implements FlowMapAware
+{
+  readonly type = "routine";
+
+  /** Shared flow map keyed by flow name. Set via {@link setFlowMap}. */
+  private flowMap: Map<string, FlowDefinition> = new Map();
+
+  /** Expose the flowMap for DI. */
+  setFlowMap(map: Map<string, FlowDefinition>): void {
+    this.flowMap = map;
+  }
+
+  async execute(
+    instruction: RoutineRefInstruction,
+    context: FlowContext,
+    executeStep: (
+      instruction: FlowInstruction,
+      context: FlowContext,
+      signal?: AbortSignal,
+    ) => Promise<FlowContext>,
+    eventBus: TypedEventBus,
+    signal?: AbortSignal,
+  ): Promise<FlowContext> {
+    signal?.throwIfAborted();
+
+    // Split "flow.routine" dot notation. A bare flow name (backward
+    // compatible) inlines all routines of the target flow; a dotted target
+    // inlines only the matching routine. Reject malformed targets instead of
+    // silently truncating extra segments or a dangling dot.
+    const parts = instruction.target.split(".");
+    if (parts.length > 2 || (parts.length === 2 && parts[1] === "")) {
+      throw new Error(
+        `Malformed routine ref target "${instruction.target}" ` +
+          `(expected "flow" or "flow.routine") referenced by routine ref "${instruction.id}"`,
+      );
+    }
+    const [flowName, routineId] = parts;
+    const targetFlow = this.flowMap.get(flowName);
+    if (!targetFlow) {
+      throw new Error(
+        `Unknown target flow "${flowName}" ` + `referenced by routine ref "${instruction.id}"`,
+      );
+    }
+
+    // Depth guard against infinite recursion.
+    const newDepth = context.depth + 1;
+    if (newDepth >= MAX_NESTING_DEPTH) {
+      throw new MaxDepthExceededError(newDepth, MAX_NESTING_DEPTH, instruction.target);
+    }
+
+    // When the target is "flow.routine", inline only the matching routine.
+    const routinesToInline = routineId
+      ? targetFlow.routines.filter((r) => r.id === routineId)
+      : targetFlow.routines;
+
+    if (routineId && routinesToInline.length === 0) {
+      throw new Error(
+        `Unknown routine "${routineId}" in flow "${flowName}" ` +
+          `referenced by routine ref "${instruction.id}"`,
+      );
+    }
+
+    const routineCount = routinesToInline.length;
+    logger.info("Inlining routine ref", {
+      id: instruction.id,
+      target: instruction.target,
+      routineCount,
+      depth: newDepth,
+    });
+
+    eventBus.emit("feature-forge:routine-ref-start", {
+      phase: "routine-ref-start",
+      message: `Routine ref "${instruction.id}" → "${instruction.target}" (${routineCount} routine(s))`,
+      details: { instructionId: instruction.id, target: instruction.target, flow: targetFlow.name },
+    });
+
+    let current = context.withDepth(newDepth);
+    if (instruction.input) {
+      // Resolve template expressions (e.g. "{{workspace}}", "{{results.builder.raw}}")
+      // against the PARENT context before merging, so that the inlined steps
+      // receive the actual values rather than unresolved template strings.
+      // Without this, "{{workspace}}" would overwrite the real workspace path
+      // in params, causing the sub-flow's agents to spawn with a non-existent cwd.
+      const resolvedInput: Record<string, string> = {};
+      for (const [key, value] of Object.entries(instruction.input)) {
+        resolvedInput[key] = context.resolve(value);
+      }
+      current = current.withMergedParams(resolvedInput);
+    }
+    let allPassed = true;
+    const inlinedRoutineIds: string[] = [];
+
+    /**
+     * Collect every inlined step's raw output under its namespaced id
+     * (e.g. "call_review.review.review"). Loop feedback built from a
+     * routine ref then sees the reviewer's actual findings, not just the
+     * envelope JSON.
+     */
+    const collectStepResults = (): Record<string, string> => {
+      const stepResults: Record<string, string> = {};
+      for (const routine of routinesToInline) {
+        const routineSteps = routine.steps as FlowInstruction[];
+        for (const step of routineSteps) {
+          const nsId = `${instruction.id}.${instruction.target}.${step.id}`;
+          const result = current.results.get(nsId);
+          if (result) stepResults[nsId] = result.raw;
+        }
+      }
+      return stepResults;
+    };
+
+    try {
+      for (const routine of routinesToInline) {
+        const routineSteps = routine.steps as FlowInstruction[];
+        for (const step of routineSteps) {
+          // Namespace the step ID to prevent collision with parent steps.
+          const namespacedStep: FlowInstruction = {
+            ...step,
+            id: `${instruction.id}.${instruction.target}.${step.id}`,
+          };
+
+          signal?.throwIfAborted();
+
+          try {
+            current = await executeStep(namespacedStep, current, signal);
+          } catch (error) {
+            if (isAbortError(error)) throw error;
+            const err = error instanceof Error ? error : new Error(String(error));
+            logger.error("Inlined step failed", {
+              target: instruction.target,
+              step: namespacedStep.id,
+              error: err,
+            });
+
+            eventBus.emit("feature-forge:routine-ref-error", {
+              phase: "routine-ref-error",
+              message: `Routine ref "${instruction.id}" failed at step "${namespacedStep.id}"`,
+              details: {
+                instructionId: instruction.id,
+                target: instruction.target,
+                flow: targetFlow.name,
+                stepId: namespacedStep.id,
+              },
+            });
+
+            throw error;
+          }
+        }
+        inlinedRoutineIds.push(routine.id);
+      }
+
+      // Check if any inlined step result explicitly failed.
+      for (const routine of routinesToInline) {
+        const checkSteps = routine.steps as FlowInstruction[];
+        for (const step of checkSteps) {
+          const nsId = `${instruction.id}.${instruction.target}.${step.id}`;
+          const result = current.results.get(nsId);
+          if (result?.parsed?.passed === false) {
+            allPassed = false;
+            break;
+          }
+        }
+        if (!allPassed) break;
+      }
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+
+      // Record a failure result for the routine ref.
+      const failureResult: InstructionResult = {
+        raw: JSON.stringify({
+          passed: false,
+          flow: instruction.target,
+          routines: inlinedRoutineIds,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        parsed: {
+          passed: false,
+          summary: `Flow "${instruction.target}" failed`,
+        },
+        results: collectStepResults(),
+      };
+
+      const resultKey = instruction.output_as ?? instruction.id;
+      return current.withResult(resultKey, failureResult);
+    }
+
+    eventBus.emit("feature-forge:routine-ref-done", {
+      phase: "routine-ref-done",
+      message: `Routine ref "${instruction.id}" → "${instruction.target}" complete`,
+      details: {
+        instructionId: instruction.id,
+        target: instruction.target,
+        flow: targetFlow.name,
+        passed: allPassed,
+      },
+    });
+
+    const result: InstructionResult = {
+      raw: JSON.stringify({
+        passed: allPassed,
+        flow: instruction.target,
+        routineCount,
+        routines: inlinedRoutineIds,
+      }),
+      parsed: {
+        passed: allPassed,
+        summary: allPassed
+          ? `Flow "${instruction.target}" inlined ${routineCount} routine(s) — all passed`
+          : `Flow "${instruction.target}" — some steps did not pass`,
+      },
+      results: collectStepResults(),
+    };
+
+    const resultKey = instruction.output_as ?? instruction.id;
+    return current.withResult(resultKey, result);
+  }
+}

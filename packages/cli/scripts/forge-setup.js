@@ -83,7 +83,7 @@ function commandAvailable(command) {
 
 /**
  * Resolve the directory that contains the built-in template assets
- * (agents, flows, skills) to scaffold.
+ * (flows, skills) to scaffold.
  *
  * The script can run from three layouts:
  * - `<pkg>/scripts/` (published package, invoked by the extension)
@@ -92,15 +92,18 @@ function commandAvailable(command) {
  *   → assets in `<pkg>/dist/`
  * - `<pkg>/scripts/` in the source tree (dev)
  *   → assets in `<pkg>/src/`
+ *
+ * Agent templates live in `@feature-forge/core` and are derived from
+ * the resolved dir via `../../core/src/agents/specifications/templates`.
  */
 function resolveAssetsDir() {
   const scriptDir = path.join(__dirname, "..");
   const candidates = [scriptDir, path.join(scriptDir, "dist"), path.join(scriptDir, "src")];
+  // Probe for any asset marker dir: dist markers are flows/skills/agents, src
+  // markers are tui/extensions.
+  const markers = ["flows", "skills", "agents", "tui", "extensions"];
   for (const dir of candidates) {
-    if (
-      fs.existsSync(path.join(dir, "agents", "declarative-specs")) ||
-      fs.existsSync(path.join(dir, "flows"))
-    ) {
+    if (markers.some((marker) => fs.existsSync(path.join(dir, marker)))) {
       return dir;
     }
   }
@@ -134,22 +137,33 @@ function computeForgeDir() {
 // ── Resolve canonical defaults JSON ──────────────────────────────────
 function resolveDefaultsPath() {
   try {
-    // Monorepo dev: resolves via workspace symlink
-    return require.resolve("@feature-forge/shared/src/config/forge-config.defaults.json");
-  } catch {
-    const candidates = [
-      // Source layout: <pkg>/scripts/forge-config.defaults.json (next to script)
-      path.join(__dirname, "forge-config.defaults.json"),
-      // Built layout: <pkg>/dist/scripts/forge-config.defaults.json
-      path.join(__dirname, "..", "dist", "scripts", "forge-config.defaults.json"),
-    ];
-    for (const candidate of candidates) {
-      if (fs.existsSync(candidate)) {
-        return candidate;
-      }
+    // Monorepo dev: core's exports map blocks /src/ deep paths, so resolve
+    // core's package root via its exported package.json and derive the path.
+    const corePkgJson = require.resolve("@feature-forge/core/package.json");
+    const candidate = path.join(
+      path.dirname(corePkgJson),
+      "src",
+      "config",
+      "forge-config.defaults.json",
+    );
+    if (fs.existsSync(candidate)) {
+      return candidate;
     }
-    return candidates[0];
+  } catch {
+    // Fall through to the layout probes below.
   }
+  const candidates = [
+    // Source layout: <pkg>/scripts/forge-config.defaults.json (next to script)
+    path.join(__dirname, "forge-config.defaults.json"),
+    // Built layout: <pkg>/dist/scripts/forge-config.defaults.json
+    path.join(__dirname, "..", "dist", "scripts", "forge-config.defaults.json"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0];
 }
 
 // ── Check prerequisites ───────────────────────────────────────────────
@@ -232,8 +246,12 @@ function copyMissingFiles(src, dest) {
 function scaffoldTemplates(forgeDir) {
   const srcDir = resolveAssetsDir();
 
-  // Agents: copy .md files from <assets>/agents/declarative-specs → forgeDir/agents/
-  const agentsSrc = path.join(srcDir, "agents", "declarative-specs");
+  // Agents: prefer the dist copy (built/published layout), fall back to the
+  // core source templates (monorepo dev layout; declarative-specs moved to
+  // core; srcDir/../../.. = packages/)
+  const agentsSrc = fs.existsSync(path.join(srcDir, "agents", "declarative-specs"))
+    ? path.join(srcDir, "agents", "declarative-specs")
+    : path.join(srcDir, "..", "..", "core", "src", "agents", "specifications", "templates");
   const agentsDest = path.join(forgeDir, "agents");
   if (fs.existsSync(agentsSrc)) {
     let created = 0;
@@ -256,8 +274,11 @@ function scaffoldTemplates(forgeDir) {
     process.exit(1);
   }
 
-  // Flows: copy <assets>/flows → forgeDir/flows (skip existing files)
-  const flowsSrc = path.join(srcDir, "flows");
+  // Flows: prefer the dist copy (built/published layout), fall back to the
+  // core source definitions (monorepo dev layout; flows moved to core).
+  const flowsSrc = fs.existsSync(path.join(srcDir, "flows"))
+    ? path.join(srcDir, "flows")
+    : path.join(srcDir, "..", "..", "core", "src", "flows", "definitions");
   const flowsDest = path.join(forgeDir, "flows");
   if (fs.existsSync(flowsSrc)) {
     const { created, skipped } = copyMissingFiles(flowsSrc, flowsDest);
@@ -266,8 +287,11 @@ function scaffoldTemplates(forgeDir) {
     logWarn(`flows source directory not found: ${flowsSrc} — skipping`);
   }
 
-  // Skills: copy <assets>/skills → forgeDir/skills (skip existing files)
-  const skillsSrc = path.join(srcDir, "skills");
+  // Skills: prefer the dist copy (built/published layout), fall back to the
+  // core source dir.
+  const skillsSrc = fs.existsSync(path.join(srcDir, "skills"))
+    ? path.join(srcDir, "skills")
+    : path.join(srcDir, "..", "..", "core", "src", "skills");
   const skillsDest = path.join(forgeDir, "skills");
   if (fs.existsSync(skillsSrc)) {
     const { created, skipped } = copyMissingFiles(skillsSrc, skillsDest);

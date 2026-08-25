@@ -1,9 +1,8 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { Tool } from "@feature-forge/shared";
+import { Tool } from "@feature-forge/core";
+import type { TypedEventBus } from "@feature-forge/core/event-bus";
+import { ActiveFlowRegistry } from "@feature-forge/core/flows";
 import { Type } from "typebox";
-
-import { ActiveFlowRegistry } from "../orchestrator/ActiveFlowRegistry";
-import type { TypedEventBus } from "../orchestrator/eventBus";
 
 const SetFlowParamParams = Type.Object({
   key: Type.String({ description: "Session key to set", minLength: 1 }),

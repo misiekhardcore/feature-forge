@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { ForgeConfig, Logger } from "@feature-forge/shared";
+import { ForgeConfig, Logger } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import featureForgeExtension from "./index";
@@ -11,11 +11,16 @@ import { makeMockPi } from "./test-utils";
 describe("featureForgeExtension degraded mode", () => {
   let tempDir: string;
   let originalParentSocket: string | undefined;
+  let originalHome: string | undefined;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-degraded-"));
     originalParentSocket = process.env.FORGE_PARENT_SOCKET;
     delete process.env.FORGE_PARENT_SOCKET;
+    // Isolate HOME so a real global ~/.forge on the host cannot make the
+    // extension think the forge dir is already scaffolded (degraded mode).
+    originalHome = process.env.HOME;
+    process.env.HOME = path.join(tempDir, "home");
   });
 
   afterEach(() => {
@@ -24,6 +29,7 @@ describe("featureForgeExtension degraded mode", () => {
     } else {
       delete process.env.FORGE_PARENT_SOCKET;
     }
+    process.env.HOME = originalHome;
     ForgeConfig.destroy();
     Logger.resetForTest();
     fs.rmSync(tempDir, { recursive: true, force: true });

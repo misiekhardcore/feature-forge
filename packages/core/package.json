@@ -1,0 +1,110 @@
+{
+  "name": "@feature-forge/core",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Core abstractions for feature-forge",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./agents": {
+      "types": "./src/agents/index.ts",
+      "default": "./src/agents/index.ts"
+    },
+    "./commands": {
+      "types": "./src/commands/index.ts",
+      "default": "./src/commands/index.ts"
+    },
+    "./config": {
+      "types": "./src/config/index.ts",
+      "default": "./src/config/index.ts"
+    },
+    "./event-bus": {
+      "types": "./src/event-bus/index.ts",
+      "default": "./src/event-bus/index.ts"
+    },
+    "./executors": {
+      "types": "./src/executors/index.ts",
+      "default": "./src/executors/index.ts"
+    },
+    "./flows": {
+      "types": "./src/flows/index.ts",
+      "default": "./src/flows/index.ts"
+    },
+    "./github": {
+      "types": "./src/github.ts",
+      "default": "./src/github.ts"
+    },
+    "./helpers": {
+      "types": "./src/helpers/index.ts",
+      "default": "./src/helpers/index.ts"
+    },
+    "./ipc": {
+      "types": "./src/ipc/index.ts",
+      "default": "./src/ipc/index.ts"
+    },
+    "./logging": {
+      "types": "./src/logging/index.ts",
+      "default": "./src/logging/index.ts"
+    },
+    "./progress": {
+      "types": "./src/progress/index.ts",
+      "default": "./src/progress/index.ts"
+    },
+    "./registry": {
+      "types": "./src/registry/index.ts",
+      "default": "./src/registry/index.ts"
+    },
+    "./routines": {
+      "types": "./src/routines/index.ts",
+      "default": "./src/routines/index.ts"
+    },
+    "./tools": {
+      "types": "./src/tools/index.ts",
+      "default": "./src/tools/index.ts"
+    },
+    "./workspace": {
+      "types": "./src/workspace/index.ts",
+      "default": "./src/workspace/index.ts"
+    },
+    "./test-utils": {
+      "types": "./src/test-utils.ts",
+      "default": "./src/test-utils.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "echo 'core: nothing to build'",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "format": "prettier . --check",
+    "format:fix": "prettier . --write",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
+    "flow:generate-schema": "npx tsx scripts/generate-flow-schema.ts && npx prettier --write src/flows/flow-schema.json",
+    "flow:validate": "npx tsx scripts/validate-flow.ts",
+    "flow:validate:all": "npx tsx scripts/validate-flow.ts --all",
+    "flow:validate-json": "npx tsx scripts/validate-flow-json.ts"
+  },
+  "dependencies": {
+    "minimatch": "^10.2.5",
+    "yaml": "^2.9.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@feature-forge/eslint-config": "*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "typebox": "*",
+    "vitest": "4.1.9"
+  }
+}

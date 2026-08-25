@@ -20,15 +20,27 @@ export default defineConfig({
     "typebox",
   ],
   async onSuccess() {
-    await cp("src/agents/declarative-specs", "dist/agents/declarative-specs", { recursive: true });
-    await cp("src/flows", "dist/flows", {
+    await cp("../core/src/agents/specifications/templates", "dist/agents/declarative-specs", {
       recursive: true,
-      filter: (src) => !src.endsWith(".test.ts"),
     });
-    await cp("src/skills", "dist/skills", { recursive: true });
+    // Flow definitions + schema are core-owned; copy from core to
+    // preserve the published dist/flows layout (implement, review, verify,
+    // resolve-pr-feedback, flow-schema.json).
+    await cp("../core/src/flows/definitions", "dist/flows", {
+      recursive: true,
+      filter: (src: string) => !src.endsWith(".test.ts"),
+    });
+    await cp("../core/src/flows/flow-schema.json", "dist/flows/flow-schema.json");
+    await cp("../core/src/skills", "dist/skills", { recursive: true });
     await cp("scripts", "dist/scripts", { recursive: true });
+    // Flow scripts moved to core; keep the published dist/scripts layout
+    // (validate-flow was previously shipped from cli/scripts).
+    await cp("../core/scripts", "dist/scripts", {
+      recursive: true,
+      filter: (src: string) => !src.endsWith(".test.ts"),
+    });
     await cp(
-      "../shared/src/config/forge-config.defaults.json",
+      "../core/src/config/forge-config.defaults.json",
       "dist/scripts/forge-config.defaults.json",
     );
   },

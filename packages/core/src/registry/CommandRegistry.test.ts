@@ -1,0 +1,213 @@
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { AgentSupervisor } from "../agents";
+import { Command } from "../commands/Command";
+import { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
+import { makeMockPi, makeMockSpecManager, makeMockToolRegistry } from "../test-utils";
+import { CommandRegistry, withForgePrefix } from "./CommandRegistry";
+
+class TestCommand extends Command {
+  readonly name = "test:cmd";
+  readonly description = "A test command";
+
+  async handler(_args: string, _ctx: ExtensionCommandContext): Promise<void> {
+    // no-op for testing
+  }
+}
+
+class DuplicateCommand extends Command {
+  readonly name = "dup";
+  readonly description = "Duplicate";
+
+  async handler(_args: string, _ctx: ExtensionCommandContext): Promise<void> {}
+}
+
+describe("withForgePrefix", () => {
+  it("prefixes unprefixed names", () => {
+    expect(withForgePrefix("implement")).toBe("forge:implement");
+    expect(withForgePrefix("agent:list")).toBe("forge:agent:list");
+  });
+
+  it("does not double-prefix names that already carry the prefix", () => {
+    expect(withForgePrefix("forge:init")).toBe("forge:init");
+  });
+});
+
+describe("CommandRegistry", () => {
+  let mockPi: ExtensionAPI;
+  let registry: CommandRegistry;
+
+  beforeEach(() => {
+    mockPi = makeMockPi();
+
+    registry = new CommandRegistry(
+      {} as AgentSupervisor,
+      mockPi,
+      makeMockSpecManager(),
+      makeMockToolRegistry(),
+    );
+  });
+
+  describe("register", () => {
+    it("registers a command under the forge: prefix and keeps the declared name", () => {
+      const cmd = registry.register(TestCommand);
+      expect(cmd).toBeInstanceOf(TestCommand);
+      expect(cmd.name).toBe("test:cmd");
+      expect(registry.get("forge:test:cmd")).toBe(cmd);
+      expect(registry.get("test:cmd")).toBeUndefined();
+    });
+
+    it("pi.registerCommand is called with the prefixed name and no overriding options.name", () => {
+      registry.register(TestCommand);
+      expect(mockPi.registerCommand).toHaveBeenCalledTimes(1);
+      const [registeredName, options] = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, Record<string, unknown>];
+      expect(registeredName).toBe("forge:test:cmd");
+      expect(options.name).toBeUndefined();
+      expect(options).toEqual(expect.objectContaining({ handler: expect.any(Function) }));
+    });
+
+    it("throws when registering a command with a duplicate name", () => {
+      registry.register(DuplicateCommand);
+      expect(() => registry.register(DuplicateCommand)).toThrow(
+        "Command already registered: forge:dup",
+      );
+    });
+
+    it("registered command is retrievable via get", () => {
+      registry.register(TestCommand);
+      expect(registry.get("forge:test:cmd")).toBeInstanceOf(TestCommand);
+    });
+
+    it("pi.registerCommand handler executes the command", async () => {
+      const cmd = registry.register(TestCommand);
+      const executeSpy = vi.spyOn(cmd, "handler");
+
+      const registerCall = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock.calls[0];
+      const handler = registerCall[1].handler;
+
+      await handler("arg1", {});
+
+      expect(executeSpy).toHaveBeenCalledWith("arg1", {});
+    });
+
+    it("passes the registry in the dependency bag", () => {
+      const cmd = registry.register(TestCommand);
+      expect((cmd as TestCommand & { commandRegistry?: unknown }).commandRegistry).toBe(registry);
+    });
+
+    it("passes the activeFlow registry in the dependency bag", () => {
+      const activeFlowRegistry = new ActiveFlowRegistry();
+      registry = new CommandRegistry(
+        {} as AgentSupervisor,
+        mockPi,
+        makeMockSpecManager(),
+        makeMockToolRegistry(),
+        undefined,
+        undefined,
+        activeFlowRegistry,
+      );
+
+      const cmd = registry.register(TestCommand);
+      expect((cmd as TestCommand & { activeFlow?: unknown }).activeFlow).toBe(activeFlowRegistry);
+    });
+  });
+
+  describe("registerInstance", () => {
+    it("registers a pre-constructed command under the prefixed name", () => {
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
+      const result = registry.registerInstance(cmd);
+      expect(result).toBe(cmd);
+      expect(registry.get("forge:test:cmd")).toBe(cmd);
+    });
+
+    it("calls pi.registerCommand with the prefixed name and no overriding options.name", () => {
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
+      registry.registerInstance(cmd);
+      const [registeredName, options] = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, Record<string, unknown>];
+      expect(registeredName).toBe("forge:test:cmd");
+      expect(options.name).toBeUndefined();
+      expect(options).toEqual(expect.objectContaining({ handler: expect.any(Function) }));
+    });
+
+    it("throws when registering a command with a duplicate name", () => {
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
+      registry.registerInstance(cmd);
+      const duplicate = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
+      expect(() => registry.registerInstance(duplicate)).toThrow(
+        "Command already registered: forge:test:cmd",
+      );
+    });
+
+    it("pi.registerCommand handler delegates to command.handler", async () => {
+      const cmd = new TestCommand({
+        supervisor: {} as AgentSupervisor,
+        pi: mockPi,
+        specManager: makeMockSpecManager(),
+        toolRegistry: makeMockToolRegistry(),
+      });
+      const executeSpy = vi.spyOn(cmd, "handler");
+      registry.registerInstance(cmd);
+
+      const registerCall = (mockPi.registerCommand as ReturnType<typeof vi.fn>).mock.calls[0];
+      const handler = registerCall[1].handler;
+      await handler("arg1", {});
+
+      expect(executeSpy).toHaveBeenCalledWith("arg1", {});
+    });
+  });
+
+  describe("registerAll", () => {
+    it("registers multiple commands under the forge: prefix", () => {
+      const cmds = registry.registerAll(TestCommand, DuplicateCommand);
+      expect(cmds).toHaveLength(2);
+      expect(registry.has("forge:test:cmd")).toBe(true);
+      expect(registry.has("forge:dup")).toBe(true);
+    });
+
+    it("throws if any command has a duplicate name and stops registering", () => {
+      registry.register(TestCommand);
+      expect(() => registry.registerAll(TestCommand, DuplicateCommand)).toThrow(
+        "Command already registered: forge:test:cmd",
+      );
+    });
+  });
+
+  describe("inherited registry features", () => {
+    it("size reflects registered commands", () => {
+      expect(registry.size).toBe(0);
+      registry.register(TestCommand);
+      expect(registry.size).toBe(1);
+    });
+
+    it("unregister removes command and tracks correctly", () => {
+      registry.register(TestCommand);
+      expect(registry.size).toBe(1);
+      expect(registry.unregister("forge:test:cmd")).toBe(true);
+      expect(registry.has("forge:test:cmd")).toBe(false);
+      expect(registry.size).toBe(0);
+    });
+  });
+});

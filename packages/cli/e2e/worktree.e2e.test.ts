@@ -13,13 +13,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { GitWorktreeProvider } from "@feature-forge/core/workspace";
+import { WorktreeBranchExistsError, WorktreePathExistsError } from "@feature-forge/core/workspace";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import { GitWorktreeProvider } from "../src/workspace/GitWorktreeProvider";
-import {
-  WorktreeBranchExistsError,
-  WorktreePathExistsError,
-} from "../src/workspace/WorkspaceError";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

@@ -40,21 +40,11 @@ export default defineConfig({
     projects: [
       {
         test: {
-          name: "shared",
-          root: packageRoot("shared"),
+          name: "core",
+          root: packageRoot("core"),
           setupFiles: ["src/test-setup.ts"],
           globals: true,
           include: ["src/**/*.test.ts"],
-        },
-      },
-      {
-        test: {
-          name: "tui",
-          root: packageRoot("tui"),
-          globals: true,
-          setupFiles: ["src/test-setup.ts"],
-          include: ["src/**/*.test.ts"],
-          exclude: ["node_modules", "**/e2e/**", "**/dist/**"],
         },
       },
       {

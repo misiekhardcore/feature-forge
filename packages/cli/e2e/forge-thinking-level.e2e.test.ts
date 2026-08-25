@@ -12,21 +12,21 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { AgentSpecification } from "@feature-forge/core/agents";
+import type { SubprocessAgent } from "@feature-forge/core/agents";
+import { DynamicAgentSpecification } from "@feature-forge/core/agents";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/executors";
+import type { AgentInstruction, FlowDefinition } from "@feature-forge/core/flows";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/flows";
+import { RoutineExecutor } from "@feature-forge/core/routines";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
+import { WorkspaceProviderRegistry } from "@feature-forge/core/workspace";
+import { WorktreeRegistry } from "@feature-forge/core/workspace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SubprocessAgent } from "../src/agents/agents/SubprocessAgent";
-import type { AgentSpecification } from "../src/agents/specifications/AgentSpecification";
-import { DynamicAgentSpecification } from "../src/agents/specifications/DynamicAgentSpecification";
-import { InMemoryAgentSupervisor } from "../src/agents/supervisors/InMemoryAgentSupervisor";
-import { createStepExecutorRegistry } from "../src/orchestrator/createStepExecutorRegistry";
-import type { AgentInstruction, FlowDefinition } from "../src/orchestrator/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "../src/orchestrator/FlowInstruction";
-import { RoutineExecutor } from "../src/orchestrator/RoutineExecutor";
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
-import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
-import { WorkspaceProviderRegistry } from "../src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "../src/workspace/WorktreeRegistry";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

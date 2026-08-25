@@ -2,7 +2,7 @@
  * E2E test for routine progress display pipeline.
  *
  * Exercises the full RoutineExecutor cycle for run_build_loop against a real
- * git repo with mock agents. Verifies that the event bus → DisplayContribution →
+ * git repo with mock agents. Verifies that the event bus → DisplayProjection →
  * ProgressRenderer → TuiRoutineWidget pipeline produces correct output.
  *
  * Run via: `npm run test:e2e`
@@ -14,17 +14,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Theme } from "@earendil-works/pi-coding-agent";
-import { DisplayContribution, ProgressRenderer } from "@feature-forge/tui";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/executors";
+import { FLOW_SCHEMA_URL, type FlowDefinition } from "@feature-forge/core/flows";
+import type { RoutineProgressEvent } from "@feature-forge/core/routines";
+import { RoutineExecutor } from "@feature-forge/core/routines";
+import {
+  GitWorktreeProvider,
+  WorkspaceProviderRegistry,
+  WorktreeRegistry,
+} from "@feature-forge/core/workspace";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { InMemoryAgentSupervisor } from "../src/agents";
-import {
-  createStepExecutorRegistry,
-  FLOW_SCHEMA_URL,
-  FlowDefinition,
-  RoutineExecutor,
-  RoutineProgressEvent,
-} from "../src/orchestrator";
 import {
   makeMockFactory,
   makeMockSpecManager,
@@ -32,8 +34,9 @@ import {
   makeMockTypedEventBus,
 } from "../src/test-utils";
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../src/test-utils";
-import { GitWorktreeProvider, WorkspaceProviderRegistry, WorktreeRegistry } from "../src/workspace";
-import { WorkspaceManager } from "../src/workspace/WorkspaceManager";
+import { createAccumulatedState } from "../src/tui/progress/AccumulatedState";
+import { applyEvent } from "../src/tui/progress/DisplayProjection";
+import { ProgressRenderer } from "../src/tui/progress/ProgressRenderer";
 
 function createTempRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), "forge-e2e-progress-"));
@@ -110,26 +113,10 @@ describe("routine progress display (e2e)", () => {
       makeMockToolRegistry(),
     );
 
-    const agentState = new Map<string, { status: string; summary?: string }>();
-    let capturedIteration = 0;
-    let capturedMaxIterations = 0;
+    const acc = createAccumulatedState();
 
     const onEvent = (data: unknown): void => {
-      const event = data as RoutineProgressEvent;
-      for (const exec of executor.stepRegistry.getAll().values()) {
-        const contrib: DisplayContribution | undefined = exec.getDisplayContribution(event);
-        if (!contrib) continue;
-        if (contrib.type === "agent" && contrib.agentId && contrib.agentStatus) {
-          agentState.set(contrib.agentId, {
-            status: contrib.agentStatus,
-            summary: contrib.agentSummary,
-          });
-        }
-        if (contrib.type === "loop") {
-          if (contrib.iteration !== undefined) capturedIteration = contrib.iteration;
-          if (contrib.maxIterations !== undefined) capturedMaxIterations = contrib.maxIterations;
-        }
-      }
+      applyEvent(acc, data as RoutineProgressEvent);
     };
 
     executor.eventBus.on("feature-forge:agent-started", onEvent);
@@ -142,19 +129,19 @@ describe("routine progress display (e2e)", () => {
     expect(result.workspace).toBeDefined();
     expect(existsSync(result.workspace ?? "")).toBe(true);
 
-    expect(agentState.has("mock")).toBe(true);
-    expect(agentState.get("mock")!.status).toBe("done");
-    expect(capturedIteration).toBe(0);
-    expect(capturedMaxIterations).toBe(1);
+    expect(acc.agentMap.has("mock")).toBe(true);
+    expect(acc.agentMap.get("mock")!.status).toBe("done");
+    expect(acc.iteration).toBe(0);
+    expect(acc.maxIterations).toBe(1);
 
     const mockTheme = { fg: (_c: string, t: string) => t } as Theme;
-    const rows = [...agentState].map(
+    const rows = [...acc.agentMap].map(
       ([l, a]) => `${a.status === "done" ? "✓" : "→"} ${l}${a.summary ? ` — ${a.summary}` : ""}`,
     );
     const lines = ProgressRenderer.buildWidgetLines({
       theme: mockTheme,
       title: "run_build_loop",
-      subtitle: `iteration ${capturedIteration + 1}/${capturedMaxIterations}`,
+      subtitle: `iteration ${acc.iteration + 1}/${acc.maxIterations}`,
       rows,
       path: result.workspace,
     });
@@ -165,8 +152,8 @@ describe("routine progress display (e2e)", () => {
     const status = ProgressRenderer.buildStatusLine({
       theme: mockTheme,
       title: "run_build_loop",
-      subtitle: `${capturedIteration + 1}/${capturedMaxIterations}`,
-      tags: [...agentState].map(([l, a]) => `${a.status === "done" ? "✓" : "→"} ${l}`),
+      subtitle: `${acc.iteration + 1}/${acc.maxIterations}`,
+      tags: [...acc.agentMap].map(([l, a]) => `${a.status === "done" ? "✓" : "→"} ${l}`),
     });
     expect(status).toContain("run_build_loop");
     expect(status).toContain("mock");
