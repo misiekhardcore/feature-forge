@@ -1,7 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-// ESM polyfill: __dirname is not available in ESM
-import { fileURLToPath } from "node:url";
 
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
@@ -52,7 +50,6 @@ import {
   SpawnAgentTool,
 } from "./tools";
 import { RoutineTool } from "./tools/RoutineTool";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Feature Forge — autonomous software engineering platform.
