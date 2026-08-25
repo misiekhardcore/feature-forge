@@ -46,6 +46,17 @@ jobs:
           npm version "$NEW_VERSION" --workspaces --no-git-tag-version --allow-same-version
           echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
 
+      - name: Commit version bump and tag
+        run: |
+          git add package.json package-lock.json packages/*/package.json
+          git commit -m "chore: release v${{ steps.bump.outputs.new }}"
+          git tag "v${{ steps.bump.outputs.new }}"
+          git push origin HEAD:main
+          git push origin "v${{ steps.bump.outputs.new }}"
+
+      # The tag must exist before git-cliff runs: `--latest --tag vX.Y.Z`
+      # filters by tag, and a missing tag silently falls back to the previous
+      # one (releases shipped with the prior version's notes as a result).
       - name: Generate changelog
         uses: orhun/git-cliff-action@v4
         with:
@@ -54,13 +65,11 @@ jobs:
         env:
           OUTPUT: CHANGELOG.md
 
-      - name: Commit and tag
+      - name: Commit changelog
         run: |
-          git add package.json package-lock.json packages/*/package.json CHANGELOG.md
-          git commit -m "chore: release v${{ steps.bump.outputs.new }}"
-          git tag "v${{ steps.bump.outputs.new }}"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG for v${{ steps.bump.outputs.new }}"
           git push origin HEAD:main
-          git push origin "v${{ steps.bump.outputs.new }}"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
