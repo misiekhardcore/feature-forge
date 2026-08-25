@@ -6,6 +6,7 @@ export interface FlowContextLike {
 }
 
 export class ExpressionEvaluator {
+  /** Static utility class - not instantiable. */
   private constructor() {}
 
   /**
