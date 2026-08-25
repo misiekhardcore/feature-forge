@@ -1,8 +1,8 @@
-import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext } from "../flows/FlowContext";
 import type { CleanupInstruction } from "../flows/FlowInstruction";
+import { makeMockTypedEventBus } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";

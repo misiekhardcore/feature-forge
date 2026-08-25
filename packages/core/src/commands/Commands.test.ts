@@ -1,12 +1,4 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import {
-  makeMockCtx,
-  makeMockFactory,
-  makeMockPi,
-  makeMockToolRegistry,
-  makeSpec,
-  toolListToRestrictions,
-} from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DynamicAgentSpecification, SpecRegistry } from "../agents/specifications";
@@ -14,6 +6,14 @@ import { TOOL_PRESETS } from "../agents/specifications/constants";
 import { SpecLoader } from "../agents/specifications/SpecLoader";
 import { SpecManager } from "../agents/SpecManager";
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
+import {
+  makeMockCtx,
+  makeMockFactory,
+  makeMockPi,
+  makeMockToolRegistry,
+  makeSpec,
+  toolListToRestrictions,
+} from "../test-utils";
 import { AgentDestroyAllCommand } from "./AgentDestroyAllCommand";
 import { AgentDestroyCommand } from "./AgentDestroyCommand";
 import { ResearchCommand } from "./ResearchCommand";

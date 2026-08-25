@@ -88,8 +88,6 @@ describe("SkillResolver.resolveEffectiveSkillNames", () => {
 
 describe("skill discovery", () => {
   it("discovers forge-build skill from the bundled skills dir", () => {
-    // Bundled skills ship from core/src/skills (S4b); skill-resolver scans
-    // them from source via `../../skills` relative to this module dir.
     const buildSkillPath = path.resolve(__dirname, "..", "..", "skills", "forge-build", "SKILL.md");
     expect(fs.existsSync(buildSkillPath)).toBe(true);
 

@@ -12,8 +12,8 @@ import { FlowValidation } from "./flowValidation";
 // ── Helpers ──────────────────────────────────────────────────
 
 /**
- * The shipped flow content lives in core at `src/flows/definitions/` (moved
- * from cli in S4f), so the real-flow fixture directory is resolved within
+ * The shipped flow content lives in core at `src/flows/definitions/`,
+ * so the real-flow fixture directory is resolved within
  * the core package.
  */
 const DEFINITIONS_DIR = fileURLToPath(new URL("./definitions", import.meta.url));

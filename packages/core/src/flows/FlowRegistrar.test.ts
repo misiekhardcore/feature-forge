@@ -1,6 +1,4 @@
-// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D4: renders with pi-tui).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
-import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { InMemoryAgentSupervisor } from "../agents";
@@ -10,6 +8,7 @@ import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
 import { logger } from "../logging";
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import type { ToolRegistry } from "../registry/ToolRegistry";
+import { makeMockPi, makeMockTypedEventBus } from "../test-utils";
 import { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";
@@ -118,8 +117,6 @@ function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistra
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
     activeFlowRegistry: overrides.activeFlowRegistry ?? new ActiveFlowRegistry(),
-    // RoutineTool stays cli-owned (S6 seam) — the factory is still provided
-    // by the composition root.
     createRoutineTool:
       overrides.createRoutineTool ??
       ((flowName, routineDef, routineExecutor, supervisor) =>

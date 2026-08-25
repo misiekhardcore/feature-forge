@@ -618,7 +618,7 @@ Downstream consumers (factory, orchestrator command) receive a model config with
 | **Impact** | **Verified runtime bug**: `import('@feature-forge/shared')` throws under tsx `SyntaxError: The requested module './config' does not provide an export named 'AgentConfig'` - which breaks `npm run flow:validate`. esbuild/tsup silently drop the missing re-exports, so tests and the shipped bundle pass and CI never sees it |
 | **Effort** | S                                                                                                                                                                                                                                                                                                                               |
 
-Verified: `npx tsx -e "import('@feature-forge/shared')..."` → `import FAIL: The requested module './config' does not provide an export named 'AgentConfig'`. `validate-flow-json.ts` survives only because it deep-imports `@feature-forge/shared/src/helpers` (now `@feature-forge/core/src/helpers` after the shared merge) - the two scripts have diverged in import style for exactly this reason.
+Verified: `npx tsx -e "import('@feature-forge/shared')..."` → `import FAIL: The requested module './config' does not provide an export named 'AgentConfig'`. `validate-flow-json.ts` survives only because it deep-imports `@feature-forge/shared/src/helpers` (now `@feature-forge/core/src/helpers` after the shared merge - superseded: core's E1/E2 exports map removes `/src/` deep imports) - the two scripts have diverged in import style for exactly this reason.
 
 **Fix:** split into `export type { ... }` for the type-only names; add a runtime import smoke test to CI (e.g. run `flow:validate` in CI).
 

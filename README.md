@@ -68,6 +68,11 @@ The monorepo is layered strictly one-directionally: `core <- cli <- debug`.
 extension bundle. See [ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md)
 for the layering decisions.
 
+Import `core` through its package exports: the root barrel
+(`@feature-forge/core` - full public API) or a public subpath
+(`@feature-forge/core/workspace`, `@feature-forge/core/test-utils`, ...).
+`/src/` deep imports are not part of the public surface.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, repository structure, pull request guidelines, and release process.

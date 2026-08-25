@@ -1,8 +1,8 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { makeMockPi } from "@feature-forge/core/test-utils";
 import { Type } from "typebox";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { makeMockPi } from "../test-utils";
 import { Tool } from "../tools";
 import { ToolRegistry } from "./ToolRegistry";
 

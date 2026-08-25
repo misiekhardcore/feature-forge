@@ -1,6 +1,6 @@
-import { makeMockFactory, makeMockPi, makeSpec, MockAgent } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { makeMockFactory, makeMockPi, makeSpec, MockAgent } from "../../test-utils";
 import { AgentCreationError, AgentFactory } from "../factories/AgentFactory";
 import { AgentSpecification } from "../specifications/AgentSpecification";
 import { InMemoryAgentSupervisor } from "./InMemoryAgentSupervisor";

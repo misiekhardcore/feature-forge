@@ -4,6 +4,6 @@
     "rootDir": "./",
     "outDir": "./dist"
   },
-  "include": ["src/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
+  "include": ["src/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts", "tsup.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

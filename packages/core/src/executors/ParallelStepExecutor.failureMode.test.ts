@@ -1,4 +1,3 @@
-import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
@@ -9,6 +8,7 @@ import {
   ParallelInstructionSchema,
 } from "../flows/FlowInstruction";
 import { jsonParse } from "../helpers";
+import { makeMockTypedEventBus } from "../test-utils";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";

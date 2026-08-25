@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext } from "../flows/FlowContext";
 import type { WorkspaceInstruction } from "../flows/FlowInstruction";
+import { makeMockTypedEventBus } from "../test-utils";
 import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";

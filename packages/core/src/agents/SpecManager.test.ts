@@ -2,9 +2,9 @@ import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { toolListToRestrictions } from "@feature-forge/core/test-utils";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { toolListToRestrictions } from "../test-utils";
 import { TOOL_PRESETS } from "./specifications/constants";
 import { DynamicAgentSpecification } from "./specifications/DynamicAgentSpecification";
 import { SpecLoader } from "./specifications/SpecLoader";

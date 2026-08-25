@@ -1,6 +1,6 @@
-import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
+import { makeMockTypedEventBus } from "../test-utils";
 import {
   type AgentChannelEmitter,
   type AgentChannelEmitterLike,

@@ -1,10 +1,4 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import {
-  makeMockCtx,
-  makeMockFactory,
-  makeMockPi,
-  makeMockToolRegistry,
-} from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionAgent } from "../agents/SessionAgent";
@@ -16,6 +10,7 @@ import { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "../flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../flows/FlowInstruction";
 import { FlowStateStore } from "../flows/FlowStateStore";
+import { makeMockCtx, makeMockFactory, makeMockPi, makeMockToolRegistry } from "../test-utils";
 import { Command } from "./Command";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 

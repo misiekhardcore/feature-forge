@@ -184,3 +184,59 @@ unchanged. Corrected in this ADR:
   cast are dissolved (see ADR 0019's Superseded section).
 - Test-utils moved to core (R-S3); the enforcement exemption now covers only
   the three cli tool-class fixtures, and the rules themselves have landed.
+
+## Amendment (exports map, E1/E2)
+
+Issued with the #229 rework round 2 (E1/E2); the layering decisions D1-D9 and
+the R-S1..R-S3 corrections above are unchanged. `packages/core/package.json`
+gained an explicit `exports` map, and the previous
+`@feature-forge/core/src/<dir>` deep-import style is **superseded**.
+
+### Consumption model
+
+Core exposes two import surfaces, neither of which contains `/src/`:
+
+- `@feature-forge/core` - the root barrel (`src/index.ts`) re-exports the
+  full public API across every public directory.
+- `@feature-forge/core/<dir>` - explicit subpaths for `agents`, `commands`,
+  `config`, `event-bus`, `executors`, `flows`, `github`, `helpers`, `ipc`,
+  `logging`, `progress`, `registry`, `routines`, `tools`, `workspace`, plus
+  `test-utils` for test-only helpers. `RpcClientMock` and
+  `createRpcClientMock` live in `test-utils` and are deliberately NOT
+  re-exported from the root barrel.
+
+```ts
+import { ForgeConfig } from "@feature-forge/core";
+import { WorkspaceHandle } from "@feature-forge/core/workspace";
+import { makeMockPi } from "@feature-forge/core/test-utils";
+```
+
+### Exports map mechanics
+
+- Every key is explicit; there is **no catch-all** (`./*`) condition. A new
+  public symbol or directory must be added as an `exports` key - the map is
+  the public API surface and grows by open-closed principle, never by
+  accident.
+- Each subpath lists the `types` condition before `default`, both pointing
+  at `.ts` source (core stays source-only). The `types`-first ordering keeps
+  tsc on the type resolution path.
+- The lack of a catch-all is what eliminates `/src/` deep imports: an import
+  of `@feature-forge/core/src/<dir>/<file>` fails resolution outright, so no
+  internal path can leak into the public surface.
+
+### Internal rule
+
+Core-internal cross-directory imports are **relative**, never the root
+barrel: `src/index.ts` re-exports every public directory, so importing the
+barrel from inside core would create an evaluation-time cycle. Core test
+files are the deliberate exception - they import
+`@feature-forge/core/test-utils` through the public subpath, exercising the
+exports map at runtime exactly as external consumers do.
+
+### cli / debug
+
+`cli` and `debug` have no exports map. `cli` is consumed built
+(`main: dist/index.js`, published via tsup), so `@feature-forge/cli/...`
+subpath imports fall back to legacy deep resolution; `debug` is source-only
+with `main: ./src/index.ts` and no subpaths (cli's `registerTestCommands`
+imports the `@feature-forge/debug` root).

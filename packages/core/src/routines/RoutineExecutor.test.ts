@@ -1,5 +1,4 @@
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import { TypedEventBus } from "../event-bus";
@@ -8,6 +7,7 @@ import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
 import { FlowContext } from "../flows/FlowContext";
 import type { FlowDefinition, FlowInstruction } from "../flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../flows/FlowInstruction";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { RoutineExecutor } from "./RoutineExecutor";
 

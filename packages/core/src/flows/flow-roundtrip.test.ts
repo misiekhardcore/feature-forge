@@ -22,9 +22,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D4: renders with pi-tui).
+// Test-only value import from cli: RoutineTool stays cli-owned.
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -36,6 +35,7 @@ import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
 import { jsonParse } from "../helpers";
 import { RoutineExecutor } from "../routines/RoutineExecutor";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { ExpressionEvaluator } from "./ExpressionEvaluator";
 import { FlowContext } from "./FlowContext";
 import type {

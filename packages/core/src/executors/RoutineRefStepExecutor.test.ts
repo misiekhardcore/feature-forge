@@ -1,4 +1,3 @@
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
 import { TypedEventBus } from "../event-bus";
@@ -11,6 +10,7 @@ import type {
 import { FlowStateStore } from "../flows/FlowStateStore";
 import { RoutineExecutor } from "../routines/RoutineExecutor";
 import type { RoutineProgressEvent } from "../routines/RoutineProgress";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededError";
 import { RoutineRefStepExecutor } from "./RoutineRefStepExecutor";
 import { SessionStepExecutor } from "./SessionStepExecutor";

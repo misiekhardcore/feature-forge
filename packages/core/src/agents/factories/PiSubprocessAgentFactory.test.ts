@@ -63,8 +63,7 @@ vi.mock("../../logging", async (importOriginal) => {
   };
 });
 
-import { makeSpec } from "@feature-forge/core/test-utils";
-
+import { makeSpec } from "../../test-utils";
 import { PiSubprocessAgent } from "../PiSubprocessAgent";
 import { AgentCreationError } from "./AgentFactory";
 import { PiSubprocessAgentFactory } from "./PiSubprocessAgentFactory";

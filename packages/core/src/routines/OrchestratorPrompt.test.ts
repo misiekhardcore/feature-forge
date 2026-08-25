@@ -8,9 +8,6 @@ import { FlowLoader } from "../flows/FlowLoader";
 /**
  * Verify that the production orchestrator system prompt resolves cleanly
  * through FlowContext.resolve() with no dead placeholders.
- *
- * The flow content lives in core at `src/flows/definitions/` (moved from
- * cli in S4f), so the fixture directory is resolved within the core package.
  */
 const IMPLEMENT_FLOW_DIR = fileURLToPath(
   new URL("../flows/definitions/implement", import.meta.url),

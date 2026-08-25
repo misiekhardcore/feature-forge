@@ -1,3 +1,6 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { InMemoryAgentSupervisor } from "../agents/supervisors";
 import {
   makeMockCtx,
   makeMockFactory,
@@ -6,10 +9,7 @@ import {
   makeMockToolRegistry,
   MockWorkspaceProvider,
   MockWorktreeRegistry,
-} from "@feature-forge/core/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { InMemoryAgentSupervisor } from "../agents/supervisors";
+} from "../test-utils";
 import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import { ReconciliationReport } from "../workspace/WorktreeRegistry";
 import { WorktreePruneCommand } from "./WorktreePruneCommand";

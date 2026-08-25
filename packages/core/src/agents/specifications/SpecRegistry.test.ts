@@ -1,6 +1,6 @@
-import { toolListToRestrictions } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
+import { toolListToRestrictions } from "../../test-utils";
 import { BUILT_IN_TOOLS, TOOL_PRESETS } from "./constants";
 import { DynamicAgentSpecification } from "./DynamicAgentSpecification";
 import { SpecRegistry } from "./SpecRegistry";

@@ -11,7 +11,5 @@ export * from "./logging";
 export * from "./progress";
 export * from "./registry";
 export * from "./routines";
-export type { RpcClientMock } from "./test-utils";
-export { createRpcClientMock } from "./test-utils";
 export * from "./tools";
 export * from "./workspace";

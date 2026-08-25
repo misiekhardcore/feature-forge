@@ -1,6 +1,5 @@
 import { connect, type Socket } from "node:net";
 
-import { makeMockPi, makeMockSpecManager } from "@feature-forge/core/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Agent } from "../agents";
@@ -9,6 +8,7 @@ import { AgentSpecification } from "../agents";
 import type { SubprocessAgent } from "../agents/SubprocessAgent";
 import type { AgentSupervisor } from "../agents/supervisors";
 import { jsonParse } from "../helpers";
+import { makeMockPi, makeMockSpecManager } from "../test-utils";
 import { ChildSocketClient } from "./ChildSocketClient";
 import { IpcConnectionError } from "./errors";
 import { ParentSocketServer } from "./ParentSocketServer";

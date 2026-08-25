@@ -1,9 +1,9 @@
-import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext } from "../flows/FlowContext";
 import type { SessionInstruction } from "../flows/FlowInstruction";
 import { FlowStateStore } from "../flows/FlowStateStore";
+import { makeMockTypedEventBus } from "../test-utils";
 import { SessionStepExecutor } from "./SessionStepExecutor";
 
 describe("SessionStepExecutor", () => {

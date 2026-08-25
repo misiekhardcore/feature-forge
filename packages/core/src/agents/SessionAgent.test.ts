@@ -1,8 +1,8 @@
 import { SetSessionNameTool } from "@feature-forge/cli/src/tools";
-import { makeMockPi, makeSpec } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolRegistry } from "../registry";
+import { makeMockPi, makeSpec } from "../test-utils";
 import { AgentStatus } from "./";
 import { SessionAgent } from "./SessionAgent";
 import type { AgentSpecification } from "./specifications";

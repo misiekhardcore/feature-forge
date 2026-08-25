@@ -1,4 +1,3 @@
-import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentSpecification } from "../agents/specifications/AgentSpecification";
@@ -8,6 +7,7 @@ import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { FlowContext } from "../flows/FlowContext";
 import type { AgentInstruction } from "../flows/FlowInstruction";
 import { logger } from "../logging";
+import { makeMockTypedEventBus } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";

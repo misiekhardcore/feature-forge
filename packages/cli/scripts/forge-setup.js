@@ -93,15 +93,14 @@ function commandAvailable(command) {
  * - `<pkg>/scripts/` in the source tree (dev)
  *   → assets in `<pkg>/src/`
  *
- * Agent templates live in `@feature-forge/core` (S4a) and are derived from
+ * Agent templates live in `@feature-forge/core` and are derived from
  * the resolved dir via `../../core/src/agents/specifications/templates`.
  */
 function resolveAssetsDir() {
   const scriptDir = path.join(__dirname, "..");
   const candidates = [scriptDir, path.join(scriptDir, "dist"), path.join(scriptDir, "src")];
   // Probe for any asset marker dir: dist markers are flows/skills/agents, src
-  // markers are tui/extensions. Since S4f the flows live in core (not cli/src),
-  // so probing for `flows` alone no longer identifies cli/src.
+  // markers are tui/extensions.
   const markers = ["flows", "skills", "agents", "tui", "extensions"];
   for (const dir of candidates) {
     if (markers.some((marker) => fs.existsSync(path.join(dir, marker)))) {
@@ -249,7 +248,7 @@ function scaffoldTemplates(forgeDir) {
 
   // Agents: prefer the dist copy (built/published layout), fall back to the
   // core source templates (monorepo dev layout; declarative-specs moved to
-  // core in S4a; srcDir/../../.. = packages/)
+  // core; srcDir/../../.. = packages/)
   const agentsSrc = fs.existsSync(path.join(srcDir, "agents", "declarative-specs"))
     ? path.join(srcDir, "agents", "declarative-specs")
     : path.join(srcDir, "..", "..", "core", "src", "agents", "specifications", "templates");
@@ -276,7 +275,7 @@ function scaffoldTemplates(forgeDir) {
   }
 
   // Flows: prefer the dist copy (built/published layout), fall back to the
-  // core source definitions (monorepo dev layout; flows moved to core in S4f).
+  // core source definitions (monorepo dev layout; flows moved to core).
   const flowsSrc = fs.existsSync(path.join(srcDir, "flows"))
     ? path.join(srcDir, "flows")
     : path.join(srcDir, "..", "..", "core", "src", "flows", "definitions");
@@ -289,7 +288,7 @@ function scaffoldTemplates(forgeDir) {
   }
 
   // Skills: prefer the dist copy (built/published layout), fall back to the
-  // core source dir (monorepo dev layout; skills moved to core in S4b).
+  // core source dir.
   const skillsSrc = fs.existsSync(path.join(srcDir, "skills"))
     ? path.join(srcDir, "skills")
     : path.join(srcDir, "..", "..", "core", "src", "skills");

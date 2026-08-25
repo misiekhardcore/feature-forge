@@ -17,7 +17,6 @@ import type { FlowDefinition, RoutineDefinition } from "./FlowInstruction";
 import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";
 import { FlowStateStore } from "./FlowStateStore";
 
-/** Factory for one flow's routine tool — provided by the cli composition root (S6 seam). */
 export type CreateRoutineTool = (
   flowName: string,
   routineDef: RoutineDefinition,

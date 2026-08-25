@@ -1,6 +1,6 @@
-import { makeMockPiWithHandlers } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
+import { makeMockPiWithHandlers } from "../../test-utils";
 import { activateToolRestrictions } from "./tool-restrictions";
 
 const PROJECT_ROOT = "/home/user/proj";

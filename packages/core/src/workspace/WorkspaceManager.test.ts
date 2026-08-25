@@ -1,6 +1,6 @@
-import { MockWorkspaceProvider, MockWorktreeRegistry } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../test-utils";
 import { WorkspaceHandle } from "./WorkspaceHandle";
 import { WorkspaceManager } from "./WorkspaceManager";
 
