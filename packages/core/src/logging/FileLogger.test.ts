@@ -17,23 +17,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgeConfig, LogLevel } from "../config";
 import { jsonParse } from "../helpers";
 import { FileLogger } from "./FileLogger";
-import { Logger } from "./Logger";
+import { Logger, logger as moduleLogger } from "./Logger";
 
 describe("FileLogger", () => {
   let filePath: string;
   let logger: FileLogger;
+  let configSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     filePath = join(
       tmpdir(),
       `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
     );
+    // Force retention to 0 so initialize()'s pruneOldLogs call returns before
+    // touching any log dir, while keeping the initialize -> pruneOldLogs
+    // wiring (with the configured retention and current file path) covered.
+    // Dir/prefix still delegate to the real config. Without this, the
+    // always-on retention summary would be forwarded to this test's own log
+    // file whenever a real log dir exists, polluting the exact-content
+    // assertions below. The pruneOldLogs describe replaces this spy.
+    const realConfig = ForgeConfig.getInstance();
+    configSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
+      getLogRetentionDays: () => 0,
+      getLogLevel: () => realConfig.getLogLevel(),
+      getLogDir: () => realConfig.getLogDir(),
+      getLogPrefix: () => realConfig.getLogPrefix(),
+    } as unknown as ForgeConfig);
     logger = FileLogger.initialize(filePath);
     Logger.setLogLevel(LogLevel.DEBUG);
   });
 
   afterEach(async () => {
     // Level filtering is set via Logger.setLogLevel() in individual tests
+    configSpy.mockRestore();
     await logger.close();
     if (existsSync(filePath)) {
       unlinkSync(filePath);
@@ -301,14 +317,17 @@ describe("FileLogger", () => {
 
     beforeEach(() => {
       logDir = mkdtempSync(join(tmpdir(), "forge-prune-test-"));
-      // Point the config at the temp dir so pruning never touches the real
-      // log directory (the worktree's .forge/logs symlinks to shared logs).
+      // Replace the top-level config spy with one pointing at the temp dir so
+      // pruning never touches the real log directory (the worktree's
+      // .forge/logs symlinks to shared logs). The afterEach restore order
+      // unwinds this back to the top-level spy, then to the real instance.
       getInstanceSpy = vi
         .spyOn(ForgeConfig, "getInstance")
         .mockReturnValue({ getLogDir: () => logDir } as unknown as ForgeConfig);
     });
 
     afterEach(() => {
+      vi.restoreAllMocks();
       getInstanceSpy.mockRestore();
       rmSync(logDir, { recursive: true, force: true });
     });
@@ -403,6 +422,39 @@ describe("FileLogger", () => {
       getInstanceSpy.mockReturnValue({ getLogDir: () => missingDir });
 
       expect(() => FileLogger.pruneOldLogs(1)).not.toThrow();
+    });
+
+    it("swallows ENOTDIR from a log dir path that is a regular file", () => {
+      // getLogDir pointing at a regular file: the top-level readdirSync
+      // throws ENOTDIR and must be caught (warn + return) instead of
+      // escaping pruneOldLogs out of FileLogger.initialize().
+      const filePath = join(logDir, "not-a-dir.log");
+      writeFileSync(filePath, "x\n", "utf-8");
+      getInstanceSpy.mockReturnValue({ getLogDir: () => filePath });
+      const warnSpy = vi.spyOn(moduleLogger, "warn");
+
+      expect(() => FileLogger.pruneOldLogs(7)).not.toThrow();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`Log retention: cannot read log directory ${filePath}`),
+      );
+    });
+
+    it("logs a pruned summary even when nothing is pruned", () => {
+      writeLogFile("forge-recent.log", 3);
+      const infoSpy = vi.spyOn(moduleLogger, "info");
+
+      FileLogger.pruneOldLogs(7);
+
+      expect(infoSpy).toHaveBeenCalledWith("Log retention: pruned 0 of 1 files older than 7 days");
+    });
+
+    it("does not log a summary when retention is disabled", () => {
+      writeLogFile("forge-stale.log", 10);
+      const infoSpy = vi.spyOn(moduleLogger, "info");
+
+      FileLogger.pruneOldLogs(0);
+
+      expect(infoSpy).not.toHaveBeenCalled();
     });
   });
 });

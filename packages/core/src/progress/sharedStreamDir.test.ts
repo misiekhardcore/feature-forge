@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ForgeConfig } from "../config";
+import { logger } from "../logging";
 import { SharedStreamDir } from "./sharedStreamDir";
 
 describe("SharedStreamDir", () => {
@@ -121,6 +122,82 @@ describe("SharedStreamDir", () => {
         chmodSync(stale, 0o755);
       }
     });
+
+    it("prunes stale dirs on the startup path (no prior get())", () => {
+      mockConfig(7);
+      const stale = makeStaleDir("agent-streams-stale", 10);
+
+      SharedStreamDir.cleanup();
+
+      expect(existsSync(stale)).toBe(false);
+    });
+
+    it("keeps recent dirs on the startup path (no prior get())", () => {
+      mockConfig(7);
+      const recent = makeStaleDir("agent-streams-recent", 1);
+
+      SharedStreamDir.cleanup();
+
+      expect(existsSync(recent)).toBe(true);
+    });
+
+    it("swallows top-level readdir failure on an unreadable log dir", () => {
+      mockConfig(7);
+      makeStaleDir("agent-streams-stale", 10);
+      const warnSpy = vi.spyOn(logger, "warn");
+      // An unreadable base dir makes the top-level readdirSync throw EACCES;
+      // cleanup must warn and return instead of escaping initialize().
+      chmodSync(baseDir, 0o000);
+      try {
+        expect(() => SharedStreamDir.cleanup()).not.toThrow();
+      } finally {
+        chmodSync(baseDir, 0o755);
+      }
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to list shared stream dirs during retention pruning",
+        expect.objectContaining({ dir: baseDir }),
+      );
+    });
+
+    it("swallows stat failures on individual dirs", () => {
+      mockConfig(7);
+      const stale = makeStaleDir("agent-streams-stale", 10);
+      const warnSpy = vi.spyOn(logger, "warn");
+      // Read-only base dir: listing still works but statting children fails
+      // with EACCES — the dir must be warned about and skipped.
+      chmodSync(baseDir, 0o400);
+      try {
+        expect(() => SharedStreamDir.cleanup()).not.toThrow();
+      } finally {
+        chmodSync(baseDir, 0o755);
+      }
+      expect(existsSync(stale)).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to stat shared stream dir during retention pruning",
+        expect.objectContaining({ dir: stale }),
+      );
+    });
+
+    it("logs the pruned count when stale dirs are removed", () => {
+      mockConfig(7);
+      const infoSpy = vi.spyOn(logger, "info");
+      makeStaleDir("agent-streams-a", 10);
+      makeStaleDir("agent-streams-b", 10);
+
+      SharedStreamDir.cleanup();
+
+      expect(infoSpy).toHaveBeenCalledWith("Pruned stale shared stream dirs", { count: 2 });
+    });
+
+    it("does not log a pruned summary when nothing is pruned", () => {
+      mockConfig(7);
+      const infoSpy = vi.spyOn(logger, "info");
+      makeStaleDir("agent-streams-recent", 1);
+
+      SharedStreamDir.cleanup();
+
+      expect(infoSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe("sweepAndPrune", () => {
@@ -193,6 +270,59 @@ describe("SharedStreamDir", () => {
       mkdirSync(second);
       SharedStreamDir.get(baseDir);
       expect(existsSync(second)).toBe(true);
+    });
+
+    it("swallows top-level readdir failure on an unreadable log dir", () => {
+      mockConfig(7);
+      makeStaleDir("agent-streams-stale", 10);
+      const warnSpy = vi.spyOn(logger, "warn");
+      // Write+execute but no read: the sweep's listing fails with EACCES
+      // while get() can still create the new instance dir underneath.
+      chmodSync(baseDir, 0o300);
+      let dir = "";
+      try {
+        expect(() => {
+          dir = SharedStreamDir.get(baseDir);
+        }).not.toThrow();
+      } finally {
+        chmodSync(baseDir, 0o755);
+      }
+      expect(dir.startsWith(join(baseDir, "agent-streams-"))).toBe(true);
+      expect(existsSync(dir)).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to list shared stream dirs during sweep",
+        expect.objectContaining({ dir: baseDir }),
+      );
+    });
+
+    it("swallows per-dir read failures while checking emptiness", () => {
+      mockConfig(7);
+      const locked = makeStaleDir("agent-streams-locked", 10);
+      const warnSpy = vi.spyOn(logger, "warn");
+      // An unreadable stale dir cannot be checked for emptiness — the sweep
+      // must warn and skip it instead of throwing out of get().
+      chmodSync(locked, 0o000);
+      try {
+        expect(() => SharedStreamDir.get(baseDir)).not.toThrow();
+      } finally {
+        chmodSync(locked, 0o755);
+      }
+      expect(existsSync(locked)).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to read shared stream dir during sweep",
+        expect.objectContaining({ dir: locked }),
+      );
+    });
+
+    it("logs the pruned count when old dirs are removed", () => {
+      mockConfig(7);
+      const infoSpy = vi.spyOn(logger, "info");
+      makeStaleDir("agent-streams-a", 10);
+      makeStaleDir("agent-streams-b", 10);
+
+      SharedStreamDir.get(baseDir);
+
+      expect(infoSpy).toHaveBeenCalledWith("Pruned stale shared stream dirs", { count: 2 });
     });
   });
 });

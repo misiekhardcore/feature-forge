@@ -25,6 +25,7 @@ import { ActiveFlowRegistry } from "@feature-forge/core/flows";
 import { FlowRegistrar } from "@feature-forge/core/flows";
 import { connectChildClient } from "@feature-forge/core/ipc";
 import { ParentSocketServer } from "@feature-forge/core/ipc";
+import { SharedStreamDir } from "@feature-forge/core/progress";
 import { CommandRegistry, ToolRegistry } from "@feature-forge/core/registry";
 import { withForgePrefix } from "@feature-forge/core/registry";
 import {
@@ -105,6 +106,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.initialize();
+
+  // Prune stale agent-streams dirs from previous sessions now that the
+  // logger is live, so post-mortem history stays within the retention window.
+  SharedStreamDir.cleanup();
 
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
