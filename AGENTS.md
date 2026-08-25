@@ -60,7 +60,7 @@ Before reporting `passed: true` in your JSON output block, you MUST:
 2. Capture the verbatim stdout/stderr output of each validation command.
 3. Include this output in the `summary` field of your JSON block — the verify agent cross-checks it.
 4. Never report `passed: true` if any validation command fails (non-zero exit code).
-5. If you modified files that have auto-generated artefacts (schemas, generated types, codegen output), regenerate them and run `git diff --exit-code` to verify no unintended drift — include the output.
+5. If you modified files that have auto-generated artefacts (schemas, generated types, codegen output), regenerate them and compare the regeneration output against the pre-regeneration state — the diff must contain only intended changes, with no unintended drift. Do NOT use `git diff --exit-code` for this: under the no-commit policy the working tree always differs from HEAD. Include the comparison output.
 
 ## Reference
 
