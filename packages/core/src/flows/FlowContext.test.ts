@@ -561,6 +561,57 @@ describe("FlowContext", () => {
       });
       expect(ctx.resolve("Hello {{UNKNOWN}}")).toBe("Hello {{UNKNOWN}}");
     });
+
+    it("resolves nested parsed field as empty when parsed is null", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult(
+        "builder",
+        makeResult({ raw: "done", parsed: null as unknown as InstructionResult["parsed"] }),
+      );
+      expect(ctx.resolve("{{results.builder.parsed.passed}}")).toBe("");
+    });
+
+    it("renders a stored null leaf as empty string, not 'null'", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("builder", {
+        raw: "done",
+        parsed: {
+          passed: true,
+          summary: "ok",
+          details: { score: null },
+        },
+      });
+      expect(ctx.resolve("{{results.builder.parsed.details.score}}")).toBe("");
+    });
+
+    it("keeps a bare {{results.<id>}} token unchanged", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      }).withResult("builder", makeResult({ raw: "done" }));
+      expect(ctx.resolve("{{results.builder}}")).toBe("{{results.builder}}");
+    });
+
+    it("resolves {{session.<key>}} from the flow store", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      ctx.store.set("round", "3");
+      expect(ctx.resolve("Round: {{session.round}}")).toBe("Round: 3");
+    });
+
+    it("resolves {{session.<key>}} as empty when not set", () => {
+      const ctx = new FlowContext({
+        results: new Map(),
+        prompt: "task",
+      });
+      expect(ctx.resolve("{{session.missing}}")).toBe("");
+    });
   });
 
   // -----------------------------------------------------------------------

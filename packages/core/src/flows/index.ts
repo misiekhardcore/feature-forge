@@ -45,6 +45,10 @@ export { FlowLoader } from "./FlowLoader";
 export { type CreateRoutineTool, FlowRegistrar, type FlowRegistrarContext } from "./FlowRegistrar";
 export type { FlowParams } from "./FlowStateStore";
 export { FlowStateStore } from "./FlowStateStore";
+export type { ResultPathFailure, ResultPathWalk } from "./ResultPathWalker";
+export { ResultPathWalker } from "./ResultPathWalker";
+export type { TemplateLookup } from "./TemplateResolver";
+export { TemplateResolver } from "./TemplateResolver";
 
 import {
   FlowInstructionSchema,

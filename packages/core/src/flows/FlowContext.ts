@@ -1,6 +1,8 @@
 import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
+import { ResultPathWalker } from "./ResultPathWalker";
+import { TemplateResolver } from "./TemplateResolver";
 
 type FlowContextParams = {
   /** Step results keyed by instruction id. */
@@ -199,65 +201,65 @@ export class FlowContext {
 
   /**
    * Replace `{{PLACEHOLDER}}` tokens using the current context.
+   *
+   * Delegates to the shared `TemplateResolver.resolve` primitive; every token is
+   * resolved via {@link lookupToken} and unknown tokens are kept verbatim.
    */
   resolve(template: string): string {
-    return template.replaceAll(/\{\{([^}]+)\}\}/g, (_match, key: string) => {
-      return this.resolvePlaceholder(key.trim());
-    });
+    return TemplateResolver.resolve(template, (token) => this.lookupToken(token));
   }
 
-  private resolvePlaceholder(key: string): string {
-    switch (key) {
+  private lookupToken(token: string): string | undefined {
+    switch (token) {
       case "prompt":
         return this.prompt;
       case "feedback":
         return this.feedback ?? "(no prior findings)";
       default: {
-        const paramValue = this.params.get(key);
+        const paramValue = this.params.get(token);
         if (paramValue !== undefined) return paramValue;
 
         // session.<key> — flow-global state persisted across routine calls.
-        if (key.startsWith("session.")) {
-          const sessionKey = key.slice("session.".length);
+        if (token.startsWith("session.")) {
+          const sessionKey = token.slice("session.".length);
           return this.store.get(sessionKey) ?? "";
         }
 
-        if (key.startsWith("workspace.")) {
-          const name = key.slice("workspace.".length);
-          const handle = this.workspaces.get(name);
-          return handle?.path ?? "";
+        // workspace.<name> - named workspaces created during routine execution.
+        if (token.startsWith("workspace.")) {
+          const name = token.slice("workspace.".length);
+          return this.workspaces.get(name)?.path ?? "";
         }
 
-        const resolved = this.resolveNested(key, this);
-        if (resolved.startsWith("{{") && resolved.endsWith("}}")) {
-          logger.debug("Unresolved placeholder in flow template", { placeholder: key });
+        // results.<id>.<path> - step outputs, resolved via the shared walker.
+        if (token.startsWith("results.")) {
+          return this.resolveResultsPath(token);
         }
-        return resolved;
+
+        logger.debug("Unresolved placeholder in flow template", { placeholder: token });
+        return undefined;
       }
     }
   }
 
-  private resolveNested(key: string, ctx: FlowContext): string {
-    const segments = key.split(".");
-
-    if (segments[0] !== "results" || segments.length < 3) {
-      return `{{${key}}}`;
+  private resolveResultsPath(token: string): string | undefined {
+    const segments = token.split(".");
+    if (segments.length < 3) {
+      // A bare `results.<id>` is not resolvable - it stays a token.
+      logger.debug("Unresolved placeholder in flow template", { placeholder: token });
+      return undefined;
     }
 
-    const instructionId = segments[1];
-    const result = ctx.results.get(instructionId);
-    if (!result) return "";
+    const id = segments[1];
+    const path = segments.slice(2);
+    const walked = ResultPathWalker.walk(this.results, id, path);
+    if (!walked.ok) return "";
 
-    let current: unknown = result;
-    for (let i = 2; i < segments.length; i++) {
-      if (current === null || current === undefined) return "";
-      current = (current as Record<string, unknown>)[segments[i]];
-    }
-
-    if (current === null || current === undefined) return "";
-    if (typeof current === "string") return current;
-    if (typeof current === "number" || typeof current === "boolean") return String(current);
-    return JSON.stringify(current);
+    const value = walked.value;
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    return JSON.stringify(value);
   }
 }
 

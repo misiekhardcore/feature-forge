@@ -4,7 +4,8 @@
  * Grammar:
  *   expr    → or_expr
  *   or_expr → and_expr ("||" and_expr)*
- *   and_expr → unary ("&&" unary)*
+ *   and_expr → equality ("&&" equality)*
+ *   equality → unary (("===" | "!==") unary)*
  *   unary   → "!" unary | primary
  *   primary → "true" | "false" | "null" | NUMBER | STRING | "(" expr ")" | path
  *   path    → IDENT ("?." IDENT | "." IDENT)*
@@ -13,7 +14,7 @@
 // ── AST ──────────────────────────────────────────────────────
 
 export type UnaryOp = "not";
-export type BinaryOp = "and" | "or";
+export type BinaryOp = "and" | "or" | "eq" | "neq";
 
 export type Expr =
   | { type: "literal"; value: boolean | null | number | string }
@@ -31,6 +32,8 @@ interface Token {
     | "bang"
     | "and"
     | "or"
+    | "eq"
+    | "neq"
     | "lparen"
     | "rparen"
     | "true"
@@ -79,6 +82,16 @@ export class ExpressionParser {
       }
 
       // Operators and punctuation
+      if (ch === "=" && input[i + 1] === "=" && input[i + 2] === "=") {
+        tokens.push({ type: "eq", pos: i });
+        i += 3;
+        continue;
+      }
+      if (ch === "!" && input[i + 1] === "=" && input[i + 2] === "=") {
+        tokens.push({ type: "neq", pos: i });
+        i += 3;
+        continue;
+      }
       if (ch === "!" && input[i + 1] !== "=") {
         tokens.push({ type: "bang", pos: i });
         i++;
@@ -194,9 +207,19 @@ export class ExpressionParser {
   }
 
   private parseAnd(): Expr {
-    let left = this.parseUnary();
+    let left = this.parseEquality();
     while (this.match("and")) {
       const operator: BinaryOp = "and";
+      const right = this.parseEquality();
+      left = { type: "binary", operator, left, right };
+    }
+    return left;
+  }
+
+  private parseEquality(): Expr {
+    let left = this.parseUnary();
+    while (this.match("eq") || this.match("neq")) {
+      const operator: BinaryOp = this.previous().type === "eq" ? "eq" : "neq";
       const right = this.parseUnary();
       left = { type: "binary", operator, left, right };
     }

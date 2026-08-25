@@ -367,6 +367,11 @@ Proposed fix:
 - Delete `fillTemplate`.
 - Extract the `results.<id>.<path>` walking into a single helper shared by `resolveNested` and `resolvePath`, with **identical** missing-key semantics (currently `resolveNested` returns `""`, `resolvePath` throws - pick one and document it).
 
+> **Status: RESOLVED by the p1b implementation (template/expression unification, ADR 0021).**
+> One `TemplateResolver` engine now serves `FlowContext` and `OrchestratorCommand`; one
+> `ResultPathWalker` serves templates and the expression evaluator; `===` / `!==` are
+> implemented (raw-value strict equality); `fillTemplate` had already been deleted in #227.
+
 ---
 
 ### 3.7 P1-4: `FlowContext` - "immutable" in name only + boilerplate
@@ -799,9 +804,9 @@ gantt
 > below are kept as the original plan, not re-drawn. 3.1's cycle is gone by
 > construction (wire types + `TypedEventBus` in core; `shared` and `tui` no
 > longer exist); 2a's DisplayProjection landed as the final commit group of
-> #229. Remaining roadmap work: p1b (the template/expression half of 3.6),
-> then 2b (RoutineTool split) and 3a/3b, which now operate inside
-> `core/src/config` and `core/src/logging`.
+> #229. p1b (the template/expression half of 3.6) is RESOLVED by the p1b
+> implementation (ADR 0021); remaining roadmap work: 2b (RoutineTool split),
+> then 3a/3b (config de-singleton and logger simplification).
 
 **Phase -1 - Gate repair + verified bugs (1 week)**
 The coverage gate fails today and two verified bugs corrupt session state or defeat the build loop. These land first because they are small and make every later phase safer: fix the branch threshold (3.23), add the two missing suites (`connectChildClient`, `FlowStateStore` - see 7.2), fix the `/flow:exit` re-mount leak (3.18), the loop-feedback envelope bug (3.19), the `resolveModel` prototype leak (3.20), the shallow freeze (3.21), the shared barrel crash (3.22), and the `disposition_comments` quoting bug (3.24).
@@ -810,7 +815,7 @@ The coverage gate fails today and two verified bugs corrupt session state or def
 Dead code removal, `IpcTool` base, `FlowStateStore` de-inheritance, workspace name/path fixes, socket null guard, logger/console consistency. Pure deletions and extractions with existing tests as the safety net.
 
 **Phase 1 - Contracts (1 week)** - p1a **consumed by #229**:
-Move `TypedEventBus` + IPC wire types to `@feature-forge/shared`; kill the `tui → cli` edge. Unify template resolution; fix the `===`/`!==` doc-vs-lexer mismatch. (The move half is done - wire types + `TypedEventBus` are in core and the cycle is dead; the template/expression half, p1b, is still open.)
+Move `TypedEventBus` + IPC wire types to `@feature-forge/shared`; kill the `tui → cli` edge. Unify template resolution; fix the `===`/`!==` doc-vs-lexer mismatch. (The move half is done - wire types + `TypedEventBus` are in core and the cycle is dead; the template/expression half, p1b, is resolved by the p1b implementation - ADR 0021.)
 
 **Phase 2 - Display extraction (1.5 weeks)** - p2a **consumed by #229**:
 Replace the dual push/pull display mechanism with the single `DisplayProjection` fold; delete `getDisplayContribution`/`registerDisplayHandler` from all executors; split `RoutineTool`. (The projection fold landed in #229's final commit group; the remaining work is the 2b RoutineTool split on the new layout.)

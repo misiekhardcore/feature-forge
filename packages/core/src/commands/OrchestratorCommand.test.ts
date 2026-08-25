@@ -202,6 +202,44 @@ describe("OrchestratorCommand", () => {
     expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "task [extra]");
   });
 
+  it("keeps unknown promptParams tokens as-is", async () => {
+    const flow: FlowDefinition = {
+      ...baseFlow,
+      orchestrator: {
+        systemPrompt: "implement",
+        prompt: "{{prompt}} [{{MISSING}}]",
+        promptParams: {},
+      },
+    };
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, flow);
+
+    const ctx = makeMockCtx();
+    await cmd.handler("task", ctx);
+
+    expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "task [{{MISSING}}]");
+  });
+
+  it("honors a defined-but-empty promptParams value verbatim", async () => {
+    const flow: FlowDefinition = {
+      ...baseFlow,
+      orchestrator: {
+        systemPrompt: "implement",
+        prompt: "{{prompt}} [{{CONTEXT}}]",
+        promptParams: { CONTEXT: "" },
+      },
+    };
+    const supervisor = makeSupervisor();
+    const cmd = makeCmd(supervisor, flow);
+
+    const ctx = makeMockCtx();
+    await cmd.handler("task", ctx);
+
+    // "" is a valid substitution, not a missing token: it must blank the
+    // placeholder rather than keep {{CONTEXT}} in place.
+    expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "task []");
+  });
+
   it("caches the spec and in-session agent across handler calls", async () => {
     const flow: FlowDefinition = {
       ...baseFlow,

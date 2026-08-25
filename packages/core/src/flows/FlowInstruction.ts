@@ -136,13 +136,21 @@ export const ParallelInstructionSchema = defineInstruction("parallel", {
  *
  * The expression string supports the following syntax:
  *
- * - `results.<stepId>.<field>` — access step results by id and dot-notation
+ * - `results.<stepId>.<field>` - access step results by id and dot-notation
  *   field path
- * - `?.` — optional chaining in field access (e.g.
- *   `results.builder?.parsed?.passed`)
- * - `!` — logical negation
- * - `&&`, `||` — logical AND / OR
- * - `===`, `!==` — strict equality / inequality
+ * - `?.` - optional chaining in field access (e.g.
+ *   `results.builder?.parsed?.passed`). Path walking stops at the first
+ *   failing segment (first-failure-wins): a `?.` miss resolves to
+ *   `undefined`, a required `.` miss throws.
+ * - `!` - logical negation
+ * - `&&`, `||` - logical AND / OR
+ * - `===`, `!==` - strict equality / inequality on raw values (no type
+ *   coercion - `'true' === true` is false). Bind tighter than `&&` / `||`.
+ *   Example: `results.builder?.parsed?.passed === false`
+ * - There is no `undefined` literal: to test for a missing value, negate the
+ *   path (`!results.builder?.parsed?.passed`). Note `!` is true for any falsy
+ *   value (`0`, `""`, `false`), so a missing value and a falsy value are
+ *   indistinguishable.
  */
 export const LoopInstructionSchema = defineInstruction("loop", {
   maxIterations: Type.Integer({ minimum: 1 }),
