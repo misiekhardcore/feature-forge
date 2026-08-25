@@ -84,6 +84,17 @@ describe("resolveTemplate", () => {
     expect(resolveTemplate("{{a}}", l)).toBe("{{b}}");
   });
 
+  it("inserts substitution values containing $ literally (no replacement-pattern injection)", () => {
+    const l = lookup({ a: "$&", b: "$1", c: "$$", d: "$`" });
+    expect(resolveTemplate("{{a}}|{{b}}|{{c}}|{{d}}", l)).toBe("$&|$1|$$|$`");
+  });
+
+  it("passes a token containing } through unchanged (the character cannot be expressed)", () => {
+    const l = lookup({ "a}b": "x" });
+    expect(resolveTemplate("{{a}b}}", l)).toBe("{{a}b}}");
+    expect(resolveTemplate("{{a}b}}", l)).not.toContain("x");
+  });
+
   it("handles a token whose key contains whitespace around a middle token", () => {
     const l = lookup({ "a b": "c" });
     expect(resolveTemplate("{{a b}}", l)).toBe("c");

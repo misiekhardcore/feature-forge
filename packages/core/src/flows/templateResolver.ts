@@ -41,7 +41,7 @@ export type TemplateLookup = (token: string) => string | undefined;
  *   unchanged, as does a template with no tokens at all.
  */
 export function resolveTemplate(template: string, lookup: TemplateLookup): string {
-  return template.replace(/\{\{([^}]+)\}\}/g, (match, token: string) => {
+  return template.replace(/\{\{([^}]+)\}\}/g, (_match, token: string) => {
     const key = token.trim();
     const value = lookup(key);
     return value === undefined ? `{{${key}}}` : value;
