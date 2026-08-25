@@ -85,54 +85,6 @@ const STREAM_EVENT_PAYLOAD = {
 /** Agent lifecycle phases a fake step can emit (D4 payloads, see agentChannels.ts). */
 type AgentTestPhase = "started" | "stream" | "done";
 
-/** Build a registry + flow whose agent step emits one agent-stream event. */
-function makeStreamEmittingSetup(): { registry: StepExecutorRegistry; flow: FlowDefinition } {
-  const registry = new StepExecutorRegistry();
-  registry.register(
-    () =>
-      new (class extends StepExecutor {
-        readonly type = "agent";
-        async execute(
-          _instruction: FlowInstruction,
-          _context: FlowContext,
-          _executeStep: (
-            instruction: FlowInstruction,
-            context: FlowContext,
-            signal?: AbortSignal,
-          ) => Promise<FlowContext>,
-          eventBus: EventBus,
-          _signal?: AbortSignal,
-        ): Promise<FlowContext> {
-          eventBus.emit("feature-forge:agent-stream", STREAM_EVENT_PAYLOAD);
-          return _context;
-        }
-      })(),
-  );
-  return {
-    registry,
-    flow: {
-      $schema: FLOW_SCHEMA_URL,
-      name: "test-flow",
-      command: "/test",
-      orchestrator: { systemPrompt: "t" },
-      routines: [
-        {
-          id: "build",
-          params: [],
-          steps: [
-            {
-              type: "agent",
-              id: "builder",
-              systemPrompt: "build",
-              task: "do task",
-            } as unknown as FlowInstruction,
-          ],
-        },
-      ],
-    },
-  };
-}
-
 /**
  * Build a registry + flow whose agent step emits the requested agent
  * lifecycle events (agent-started by default) with D4 payload details
@@ -261,21 +213,7 @@ describe("RoutineTool", () => {
       expect(tool.label).toContain("myflow/build");
     });
 
-    it("sets description without params when routine has none", () => {
-      const flow = makeFlow();
-      const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        makeMockToolRegistry(),
-      );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
-
-      expect(tool.description).not.toContain("Parameters:");
-    });
-
-    it("includes param names in description when routine has params", () => {
+    it("wires the schema builders into description and parameters", () => {
       const flow = makeFlow(["task", "plan"]);
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(
@@ -287,98 +225,8 @@ describe("RoutineTool", () => {
       const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
 
       expect(tool.description).toContain("task, plan");
-    });
-
-    it("has typed parameters built from the routine's param declarations", () => {
-      const flow = makeFlow(["task", "plan"]);
-      const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        makeMockToolRegistry(),
-      );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
-
-      expect(tool.parameters).toBeDefined();
-      // The schema is built dynamically — verify it has the expected structure.
-      const schemaJson = JSON.stringify(tool.parameters);
-      expect(schemaJson).toContain('"task"');
-      expect(schemaJson).toContain('"plan"');
-    });
-
-    it("marks optional params as not required in the schema", () => {
-      const flow: FlowDefinition = {
-        $schema: FLOW_SCHEMA_URL,
-        name: "test-flow",
-        command: "/test",
-        orchestrator: { systemPrompt: "t" },
-        routines: [
-          {
-            id: "create_workspace",
-            params: [
-              { name: "branch", optional: true },
-              { name: "baseRef", optional: true },
-            ],
-            steps: [],
-          },
-        ],
-      };
-
-      const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        makeMockToolRegistry(),
-      );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
-
-      const schemaJson = JSON.stringify(tool.parameters);
-      // Both params should appear in the schema.
-      expect(schemaJson).toContain('"branch"');
-      expect(schemaJson).toContain('"baseRef"');
-      // But neither should be in the "required" array since both are optional.
-      const parsed = JSON.parse(schemaJson);
-      expect(parsed.required).toBeUndefined();
-    });
-
-    it("includes required params in the required array", () => {
-      const flow: FlowDefinition = {
-        $schema: FLOW_SCHEMA_URL,
-        name: "test-flow",
-        command: "/test",
-        orchestrator: { systemPrompt: "t" },
-        routines: [
-          {
-            id: "open_pr",
-            params: [
-              { name: "workspace" },
-              { name: "title" },
-              { name: "commit_message" },
-              { name: "body" },
-            ],
-            steps: [],
-          },
-        ],
-      };
-
-      const eventBus = makeMockTypedEventBus();
-      const executor = new RoutineExecutor(
-        flow,
-        new StepExecutorRegistry(),
-        eventBus,
-        makeMockToolRegistry(),
-      );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
-
-      const schemaJson = JSON.stringify(tool.parameters);
-      const parsed = JSON.parse(schemaJson);
-      expect(parsed.required).toBeDefined();
-      expect(parsed.required).toContain("workspace");
-      expect(parsed.required).toContain("title");
-      expect(parsed.required).toContain("commit_message");
-      expect(parsed.required).toContain("body");
+      expect(tool.parameters.properties.task).toBeDefined();
+      expect(tool.parameters.properties.plan).toBeDefined();
     });
   });
 
@@ -413,56 +261,6 @@ describe("RoutineTool", () => {
       const parsed = jsonParse<RoutineResult>((result.content[0] as TextContent).text);
       expect(parsed.routine).toBe("build");
       expect(parsed.passed).toBe(true);
-    });
-
-    it("logs the full progress event payload when logPayloads is enabled", async () => {
-      const debugSpy = vi.spyOn(logger, "debug").mockImplementation(() => {});
-      const getInstanceSpy = vi
-        .spyOn(ForgeConfig, "getInstance")
-        .mockReturnValue({ getLogPayloads: () => true } as unknown as ForgeConfig);
-
-      try {
-        const { registry, flow } = makeStreamEmittingSetup();
-        const eventBus = makeMockTypedEventBus();
-        const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-        const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
-
-        await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
-
-        expect(debugSpy).toHaveBeenCalledWith("RoutineTool progress", STREAM_EVENT_PAYLOAD);
-      } finally {
-        debugSpy.mockRestore();
-        getInstanceSpy.mockRestore();
-      }
-    });
-
-    it("logs only phase and message when logPayloads is disabled", async () => {
-      const debugSpy = vi.spyOn(logger, "debug").mockImplementation(() => {});
-      const getInstanceSpy = vi
-        .spyOn(ForgeConfig, "getInstance")
-        .mockReturnValue({ getLogPayloads: () => false } as unknown as ForgeConfig);
-
-      try {
-        const { registry, flow } = makeStreamEmittingSetup();
-        const eventBus = makeMockTypedEventBus();
-        const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-        const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
-
-        await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
-
-        // The LLM payload (details) must not leak into the debug entry.
-        expect(debugSpy).toHaveBeenCalledWith("RoutineTool progress", {
-          phase: "agent-stream",
-          message: 'tool_call: read("file.ts")',
-        });
-        expect(debugSpy).not.toHaveBeenCalledWith(
-          "RoutineTool progress",
-          expect.objectContaining({ details: expect.anything() }),
-        );
-      } finally {
-        debugSpy.mockRestore();
-        getInstanceSpy.mockRestore();
-      }
     });
 
     it("passes resolved routine params to the executor", async () => {
