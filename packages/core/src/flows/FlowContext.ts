@@ -1,8 +1,8 @@
 import { logger } from "../logging";
 import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowParams, FlowStateStore } from "./FlowStateStore";
-import { walkResultPath } from "./resultPath";
-import { resolveTemplate } from "./templateResolver";
+import { ResultPathWalker } from "./resultPath";
+import { TemplateResolver } from "./templateResolver";
 
 type FlowContextParams = {
   /** Step results keyed by instruction id. */
@@ -202,11 +202,11 @@ export class FlowContext {
   /**
    * Replace `{{PLACEHOLDER}}` tokens using the current context.
    *
-   * Delegates to the shared `resolveTemplate` primitive; every token is
+   * Delegates to the shared `TemplateResolver.resolve` primitive; every token is
    * resolved via {@link lookupToken} and unknown tokens are kept verbatim.
    */
   resolve(template: string): string {
-    return resolveTemplate(template, (token) => this.lookupToken(token));
+    return TemplateResolver.resolve(template, (token) => this.lookupToken(token));
   }
 
   private lookupToken(token: string): string | undefined {
@@ -252,7 +252,7 @@ export class FlowContext {
 
     const id = segments[1];
     const path = segments.slice(2);
-    const walked = walkResultPath(this.results, id, path);
+    const walked = ResultPathWalker.walk(this.results, id, path);
     if (!walked.ok) return "";
 
     const value = walked.value;

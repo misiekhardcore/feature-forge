@@ -8,7 +8,7 @@ import { ForgeConfig, resolveModel } from "../config";
 import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "../flows/FlowInstruction";
 import type { FlowStateStore } from "../flows/FlowStateStore";
-import { resolveTemplate } from "../flows/templateResolver";
+import { TemplateResolver } from "../flows/templateResolver";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";
@@ -174,6 +174,6 @@ export class OrchestratorCommand extends Command {
       ...(config.promptParams ?? {}),
       prompt: userTask,
     };
-    return resolveTemplate(template, (token) => params[token]);
+    return TemplateResolver.resolve(template, (token) => params[token]);
   }
 }

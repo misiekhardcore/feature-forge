@@ -1,5 +1,5 @@
 import { Expr, ExpressionParser } from "./ExpressionParser";
-import { walkResultPath } from "./resultPath";
+import { ResultPathWalker } from "./resultPath";
 
 export interface FlowContextLike {
   results: ReadonlyMap<string, { raw: string; parsed?: { passed: boolean } }>;
@@ -82,7 +82,7 @@ export class ExpressionEvaluator {
       throw new Error(`Path too short — expected "results.<id>..."`);
     }
 
-    const walked = walkResultPath(ctx.results, id, expr.segments.slice(2));
+    const walked = ResultPathWalker.walk(ctx.results, id, expr.segments.slice(2));
     if (walked.ok) return walked.value;
 
     const failure = walked.failure;
