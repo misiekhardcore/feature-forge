@@ -6,6 +6,8 @@ export interface FlowContextLike {
 }
 
 export class ExpressionEvaluator {
+  private constructor() {}
+
   /**
    * Parse an expression string into an AST.
    * Throws ParseError with position info if the syntax is invalid.
