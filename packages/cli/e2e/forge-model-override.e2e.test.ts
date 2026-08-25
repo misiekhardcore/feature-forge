@@ -12,17 +12,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
-import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
-import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
-import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
-import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
-import { WorkspaceProviderRegistry } from "@feature-forge/core/src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
+import type { AgentSpecification } from "@feature-forge/core/agents";
+import type { SubprocessAgent } from "@feature-forge/core/agents";
+import { DynamicAgentSpecification } from "@feature-forge/core/agents";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/executors";
+import type { FlowDefinition } from "@feature-forge/core/flows";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/flows";
+import { RoutineExecutor } from "@feature-forge/core/routines";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
+import { WorkspaceProviderRegistry } from "@feature-forge/core/workspace";
+import { WorktreeRegistry } from "@feature-forge/core/workspace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../src/test-utils";

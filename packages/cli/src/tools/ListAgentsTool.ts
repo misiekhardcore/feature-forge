@@ -1,5 +1,5 @@
 import { IpcTool } from "@feature-forge/core";
-import { ListAgentsResult } from "@feature-forge/core/src/ipc/messages";
+import { ListAgentsResult } from "@feature-forge/core/ipc";
 import { Type } from "typebox";
 
 import { ToolRenderer } from "../tui/views/ToolRenderer";

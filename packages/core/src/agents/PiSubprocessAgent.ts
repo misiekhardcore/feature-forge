@@ -1,8 +1,8 @@
 import type { ExtensionAPI, JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig } from "@feature-forge/core/src/config";
-import { logger } from "@feature-forge/core/src/logging";
 
+import { ForgeConfig } from "../config";
+import { logger } from "../logging";
 import { AgentStatus } from "./AgentStatus";
 import { AgentSpecification } from "./specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";

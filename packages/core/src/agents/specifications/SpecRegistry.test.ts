@@ -1,4 +1,4 @@
-import { toolListToRestrictions } from "@feature-forge/core/src/test-utils";
+import { toolListToRestrictions } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
 import { BUILT_IN_TOOLS, TOOL_PRESETS } from "./constants";

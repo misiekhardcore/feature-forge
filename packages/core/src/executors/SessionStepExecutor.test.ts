@@ -1,9 +1,9 @@
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type { SessionInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
+import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
+import { FlowContext } from "../flows/FlowContext";
+import type { SessionInstruction } from "../flows/FlowInstruction";
+import { FlowStateStore } from "../flows/FlowStateStore";
 import { SessionStepExecutor } from "./SessionStepExecutor";
 
 describe("SessionStepExecutor", () => {

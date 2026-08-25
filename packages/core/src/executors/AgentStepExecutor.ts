@@ -1,18 +1,16 @@
 import { randomUUID } from "node:crypto";
 
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/core";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  AgentInstruction,
-  FlowInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
 
+import type { SpecManager } from "../agents/SpecManager";
+import type { SubprocessAgent } from "../agents/SubprocessAgent";
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import { ForgeConfig } from "../config";
 import type { TypedEventBus } from "../event-bus";
 import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../event-bus/agentChannels";
+import type { FlowContext, InstructionResult } from "../flows/FlowContext";
+import type { AgentInstruction, FlowInstruction } from "../flows/FlowInstruction";
+import { logger } from "../logging";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { extractJson } from "./extractJson";
 import { isAbortError } from "./isAbortError";

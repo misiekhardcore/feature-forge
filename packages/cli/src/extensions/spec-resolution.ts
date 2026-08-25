@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
-import { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
-import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
+import { AgentSpecification } from "@feature-forge/core/agents";
+import { DynamicAgentSpecification } from "@feature-forge/core/agents";
 
 import { activateToolRestrictions } from "./tool-restrictions";
 

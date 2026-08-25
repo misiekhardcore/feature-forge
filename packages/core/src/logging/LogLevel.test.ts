@@ -1,6 +1,6 @@
-import { LogLevel } from "@feature-forge/core/src/config";
 import { describe, expect, it } from "vitest";
 
+import { LogLevel } from "../config";
 import { levelSeverity, LOG_LEVEL_ORDER, shouldLog } from "./LogLevel";
 
 describe("LogLevel", () => {

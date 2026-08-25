@@ -1,5 +1,5 @@
-import { AgentSpecification, SkillResolver } from "@feature-forge/core/src/agents/specifications";
-import { ForgeConfig } from "@feature-forge/core/src/config";
+import { ForgeConfig } from "../../config";
+import { AgentSpecification, SkillResolver } from "../specifications";
 
 /**
  * Converts an AgentSpecification into pi CLI arguments.

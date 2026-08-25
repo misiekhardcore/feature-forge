@@ -10,11 +10,11 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { logger } from "@feature-forge/core/src/logging/Logger";
 import type { Type } from "typebox";
 import { Value } from "typebox/value";
 import { parse as parseYaml } from "yaml";
 
+import { logger } from "../logging/Logger";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { resolveConfig } from "./ForgeConfigDefaults";
 import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";

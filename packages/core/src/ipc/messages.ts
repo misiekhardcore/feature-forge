@@ -7,8 +7,8 @@
  * - Server may also push unsolicited `SocketPush` events (e.g., agent status updates).
  */
 
-import type { AgentStatus } from "@feature-forge/core";
-import type { AgentSpecificationParams } from "@feature-forge/core/src/agents";
+import type { AgentStatus } from "../agents";
+import type { AgentSpecificationParams } from "../agents";
 
 // ─── Requests ──────────────────────────────────────────────────────────────
 

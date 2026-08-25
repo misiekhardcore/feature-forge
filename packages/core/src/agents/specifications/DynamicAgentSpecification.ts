@@ -1,5 +1,4 @@
-import { jsonParse } from "@feature-forge/core/src/helpers";
-
+import { jsonParse } from "../../helpers";
 import { AgentSpecification, AgentSpecificationParams } from "./AgentSpecification";
 
 type DynamicAgentSpecificationParams = Omit<AgentSpecificationParams, "id"> &

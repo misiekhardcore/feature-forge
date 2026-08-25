@@ -1,17 +1,15 @@
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import { StepExecutor } from "@feature-forge/core/src/executors/StepExecutor";
-import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowDefinition,
-  FlowInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
+
+import { TypedEventBus } from "../event-bus";
+import { StepExecutor } from "../executors/StepExecutor";
+import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
+import { FlowContext } from "../flows/FlowContext";
+import type { FlowDefinition, FlowInstruction } from "../flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../flows/FlowInstruction";
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
+import { RoutineExecutor } from "./RoutineExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────
 

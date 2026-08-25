@@ -1,14 +1,14 @@
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type { CleanupInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
-import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
-import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
-import { WorkspaceProvider } from "@feature-forge/core/src/workspace/WorkspaceProvider";
-import { WorkspaceProviderRegistry } from "@feature-forge/core/src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
+import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
+import { FlowContext } from "../flows/FlowContext";
+import type { CleanupInstruction } from "../flows/FlowInstruction";
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
+import { WorkspaceManager } from "../workspace/WorkspaceManager";
+import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
+import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
+import { WorkspaceProviderRegistry } from "../workspace/WorkspaceProviderRegistry";
+import { WorktreeRegistry } from "../workspace/WorktreeRegistry";
 import { CleanupStepExecutor } from "./CleanupStepExecutor";
 
 // ── Helpers ──────────────────────────────────────────────────

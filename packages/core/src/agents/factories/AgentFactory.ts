@@ -1,5 +1,4 @@
-import { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
-
+import { AgentSpecification } from "../specifications";
 import type { SubprocessAgent } from "../SubprocessAgent";
 
 /**

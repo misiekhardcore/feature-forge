@@ -10,9 +10,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { ForgeConfig } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ForgeConfig } from "../config";
 import { SharedStreamDir } from "./sharedStreamDir";
 
 describe("SharedStreamDir", () => {

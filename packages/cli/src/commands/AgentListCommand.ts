@@ -1,8 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, logger } from "@feature-forge/core";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents";
-import { Command } from "@feature-forge/core/src/commands/Command";
-import { TypedEventBus } from "@feature-forge/core/src/event-bus";
+import type { AgentSupervisor } from "@feature-forge/core/agents";
+import { Command } from "@feature-forge/core/commands";
+import { TypedEventBus } from "@feature-forge/core/event-bus";
 
 import { showAgentViewer } from "../tui/showAgentViewer";
 

@@ -5,7 +5,7 @@ import type {
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text, TruncatedText } from "@earendil-works/pi-tui";
-import type { SendTaskParams, SpawnAgentParams } from "@feature-forge/core/src/ipc/messages";
+import type { SendTaskParams, SpawnAgentParams } from "@feature-forge/core/ipc";
 
 /** Background colours assigned per tool — derived from pi's Theme.bg parameter type. */
 type ToolBgColor = Parameters<Theme["bg"]>[0];

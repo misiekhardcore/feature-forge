@@ -1,7 +1,7 @@
-import { AgentStatus } from "@feature-forge/core";
-import { makeMockPi } from "@feature-forge/core/src/test-utils";
+import { makeMockPi } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentStatus } from "../agents";
 import { connectChildClient } from "./connectChildClient";
 import type { SocketPush } from "./messages";
 

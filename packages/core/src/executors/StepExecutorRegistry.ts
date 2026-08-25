@@ -1,5 +1,4 @@
-import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-
+import type { FlowDefinition } from "../flows/FlowInstruction";
 import { isFlowMapAware } from "./FlowMapAware";
 import { StepExecutor } from "./StepExecutor";
 

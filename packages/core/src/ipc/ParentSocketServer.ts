@@ -4,19 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentStatus, jsonParse, logger } from "@feature-forge/core";
-import type { SpecManager } from "@feature-forge/core/src/agents";
-import {
-  AgentSupervisor,
-  isSubprocessAgent,
-  type SubprocessAgent,
-} from "@feature-forge/core/src/agents";
-import {
-  emitAgentDone,
-  emitAgentStarted,
-  emitAgentStream,
-} from "@feature-forge/core/src/event-bus/agentChannels";
 
+import type { SpecManager } from "../agents";
+import { AgentStatus } from "../agents";
+import { AgentSupervisor, isSubprocessAgent, type SubprocessAgent } from "../agents";
+import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../event-bus/agentChannels";
+import { jsonParse } from "../helpers";
+import { logger } from "../logging";
 import {
   type SendTaskParams,
   type SocketMessage,

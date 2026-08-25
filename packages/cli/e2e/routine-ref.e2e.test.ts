@@ -12,17 +12,14 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
-import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
-import type {
-  FlowDefinition,
-  FlowInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import { WorkspaceProviderRegistry, WorktreeRegistry } from "@feature-forge/core/src/workspace";
-import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/executors";
+import type { FlowDefinition, FlowInstruction } from "@feature-forge/core/flows";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/flows";
+import type { RoutineProgressEvent } from "@feature-forge/core/routines";
+import { RoutineExecutor } from "@feature-forge/core/routines";
+import { WorkspaceProviderRegistry, WorktreeRegistry } from "@feature-forge/core/workspace";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
 import { describe, expect, it } from "vitest";
 
 import {

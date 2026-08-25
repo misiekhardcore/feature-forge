@@ -1,6 +1,6 @@
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { describe, expect, it } from "vitest";
 
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext, type InstructionResult } from "./FlowContext";
 
 function makeHandle(filePath: string): WorkspaceHandle {

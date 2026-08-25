@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle, TUI } from "@earendil-works/pi-tui";
 import { ForgeConfig } from "@feature-forge/core";
-import { SharedStreamDir } from "@feature-forge/core/src/progress/sharedStreamDir";
+import { SharedStreamDir } from "@feature-forge/core/progress";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";

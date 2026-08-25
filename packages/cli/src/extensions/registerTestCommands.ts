@@ -3,8 +3,8 @@ import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig } from "@feature-forge/core";
-import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
-import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
+import { withForgePrefix } from "@feature-forge/core/registry";
+import { ToolRegistry } from "@feature-forge/core/registry";
 import type { ScenarioData } from "@feature-forge/debug";
 import {
   builderScenario,

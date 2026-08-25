@@ -1,8 +1,9 @@
 import { fileURLToPath } from "node:url";
 
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
 import { describe, expect, it } from "vitest";
+
+import { FlowContext } from "../flows/FlowContext";
+import { FlowLoader } from "../flows/FlowLoader";
 
 /**
  * Verify that the production orchestrator system prompt resolves cleanly

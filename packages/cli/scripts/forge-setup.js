@@ -138,22 +138,33 @@ function computeForgeDir() {
 // ── Resolve canonical defaults JSON ──────────────────────────────────
 function resolveDefaultsPath() {
   try {
-    // Monorepo dev: resolves via workspace symlink
-    return require.resolve("@feature-forge/core/src/config/forge-config.defaults.json");
-  } catch {
-    const candidates = [
-      // Source layout: <pkg>/scripts/forge-config.defaults.json (next to script)
-      path.join(__dirname, "forge-config.defaults.json"),
-      // Built layout: <pkg>/dist/scripts/forge-config.defaults.json
-      path.join(__dirname, "..", "dist", "scripts", "forge-config.defaults.json"),
-    ];
-    for (const candidate of candidates) {
-      if (fs.existsSync(candidate)) {
-        return candidate;
-      }
+    // Monorepo dev: core's exports map blocks /src/ deep paths, so resolve
+    // core's package root via its exported package.json and derive the path.
+    const corePkgJson = require.resolve("@feature-forge/core/package.json");
+    const candidate = path.join(
+      path.dirname(corePkgJson),
+      "src",
+      "config",
+      "forge-config.defaults.json",
+    );
+    if (fs.existsSync(candidate)) {
+      return candidate;
     }
-    return candidates[0];
+  } catch {
+    // Fall through to the layout probes below.
   }
+  const candidates = [
+    // Source layout: <pkg>/scripts/forge-config.defaults.json (next to script)
+    path.join(__dirname, "forge-config.defaults.json"),
+    // Built layout: <pkg>/dist/scripts/forge-config.defaults.json
+    path.join(__dirname, "..", "dist", "scripts", "forge-config.defaults.json"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0];
 }
 
 // ── Check prerequisites ───────────────────────────────────────────────

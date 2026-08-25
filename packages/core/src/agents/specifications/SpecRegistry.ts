@@ -1,5 +1,4 @@
-import { Registry } from "@feature-forge/core/src/registry";
-
+import { Registry } from "../../registry";
 import type { AgentSpecification } from "./AgentSpecification";
 
 /**

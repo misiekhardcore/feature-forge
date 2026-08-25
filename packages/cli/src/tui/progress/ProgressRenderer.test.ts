@@ -4,7 +4,7 @@ import type {
   ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
+import type { RoutineProgressEvent } from "@feature-forge/core/routines";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AccumulatedState } from "./AccumulatedState";

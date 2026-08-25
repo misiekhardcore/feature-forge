@@ -9,7 +9,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { ForgeConfig, logger } from "@feature-forge/core";
+import { ForgeConfig } from "../config";
+import { logger } from "../logging";
 
 /**
  * Session-persistent shared stream directory.

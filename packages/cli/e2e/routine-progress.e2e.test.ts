@@ -14,20 +14,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Theme } from "@earendil-works/pi-coding-agent";
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
-import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
-import {
-  FLOW_SCHEMA_URL,
-  type FlowDefinition,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
+import { createStepExecutorRegistry } from "@feature-forge/core/executors";
+import { FLOW_SCHEMA_URL, type FlowDefinition } from "@feature-forge/core/flows";
+import type { RoutineProgressEvent } from "@feature-forge/core/routines";
+import { RoutineExecutor } from "@feature-forge/core/routines";
 import {
   GitWorktreeProvider,
   WorkspaceProviderRegistry,
   WorktreeRegistry,
-} from "@feature-forge/core/src/workspace";
-import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+} from "@feature-forge/core/workspace";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {

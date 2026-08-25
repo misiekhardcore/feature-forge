@@ -2,8 +2,8 @@ import { execFile } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
-import { ForgeConfig, logger } from "@feature-forge/core";
-
+import { ForgeConfig } from "../config";
+import { logger } from "../logging";
 import {
   WorkspaceError,
   WorktreeBranchExistsError,

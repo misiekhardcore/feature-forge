@@ -1,10 +1,6 @@
-import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowInstruction,
-  SessionInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-
 import type { TypedEventBus } from "../event-bus";
+import type { FlowContext } from "../flows/FlowContext";
+import type { FlowInstruction, SessionInstruction } from "../flows/FlowInstruction";
 import { StepExecutor } from "./StepExecutor";
 
 /**

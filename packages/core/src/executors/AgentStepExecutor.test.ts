@@ -1,14 +1,14 @@
-import { logger } from "@feature-forge/core";
-import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type { AgentInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
+import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AgentSpecification } from "../agents/specifications/AgentSpecification";
+import type { SpecManager } from "../agents/SpecManager";
+import type { SubprocessAgent } from "../agents/SubprocessAgent";
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import { FlowContext } from "../flows/FlowContext";
+import type { AgentInstruction } from "../flows/FlowInstruction";
+import { logger } from "../logging";
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { AgentInstructionWorkingDirMissing } from "./AgentInstructionWorkingDirMissing";
 import { AgentStepExecutor } from "./AgentStepExecutor";
 

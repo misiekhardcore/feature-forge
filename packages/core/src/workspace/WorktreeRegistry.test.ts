@@ -2,10 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { logger } from "@feature-forge/core";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../logging";
+import { WorkspaceHandle } from "./WorkspaceHandle";
 import { WorktreeRegistry } from "./WorktreeRegistry";
 
 const { mockExecFile } = vi.hoisted(() => ({

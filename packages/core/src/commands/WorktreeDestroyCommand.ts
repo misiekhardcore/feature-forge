@@ -1,5 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Command } from "@feature-forge/core/src/commands/Command";
+
+import { Command } from "./Command";
 
 /**
  * Destroy a specific worktree by path.

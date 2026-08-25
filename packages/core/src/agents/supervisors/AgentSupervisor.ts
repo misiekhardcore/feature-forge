@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
 
 import type { Agent } from "../Agent";
 import type { SessionAgent } from "../SessionAgent";
+import { AgentSpecification } from "../specifications";
 import type { SubprocessAgent } from "../SubprocessAgent";
 
 /**

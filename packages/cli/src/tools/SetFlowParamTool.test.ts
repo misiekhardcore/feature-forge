@@ -1,5 +1,5 @@
-import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
+import { ActiveFlowRegistry } from "@feature-forge/core/flows";
+import { FlowStateStore } from "@feature-forge/core/flows";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 

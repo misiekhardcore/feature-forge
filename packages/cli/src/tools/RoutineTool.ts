@@ -9,11 +9,11 @@ import {
 import type { Component } from "@earendil-works/pi-tui";
 import { logger } from "@feature-forge/core";
 import { ForgeConfig } from "@feature-forge/core";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import type { RoutineDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
+import type { AgentSupervisor } from "@feature-forge/core/agents";
+import type { RoutineDefinition } from "@feature-forge/core/flows";
+import type { RoutineProgressEvent } from "@feature-forge/core/routines";
+import type { RoutineResult } from "@feature-forge/core/routines";
+import { RoutineExecutor } from "@feature-forge/core/routines";
 import type { TObject, TProperties } from "typebox";
 import { Type } from "typebox";
 

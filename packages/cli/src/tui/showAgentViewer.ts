@@ -2,8 +2,8 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle } from "@earendil-works/pi-tui";
 import { ForgeConfig } from "@feature-forge/core";
-import { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import { SharedStreamDir } from "@feature-forge/core/src/progress/sharedStreamDir";
+import { TypedEventBus } from "@feature-forge/core/event-bus";
+import { SharedStreamDir } from "@feature-forge/core/progress";
 
 import type { AgentQuery, ToolFormatter } from "./api";
 import { AgentViewerOverlay } from "./views/AgentViewerOverlay";

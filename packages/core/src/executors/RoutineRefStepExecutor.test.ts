@@ -1,16 +1,16 @@
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
+import { describe, expect, it } from "vitest";
+
+import { TypedEventBus } from "../event-bus";
+import { FlowContext } from "../flows/FlowContext";
 import type {
   FlowDefinition,
   FlowInstruction,
   RoutineRefInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
-import { describe, expect, it } from "vitest";
-
-import { TypedEventBus } from "../event-bus";
+} from "../flows/FlowInstruction";
+import { FlowStateStore } from "../flows/FlowStateStore";
+import { RoutineExecutor } from "../routines/RoutineExecutor";
+import type { RoutineProgressEvent } from "../routines/RoutineProgress";
 import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededError";
 import { RoutineRefStepExecutor } from "./RoutineRefStepExecutor";
 import { SessionStepExecutor } from "./SessionStepExecutor";

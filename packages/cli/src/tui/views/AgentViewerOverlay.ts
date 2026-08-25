@@ -10,7 +10,7 @@ import type {
 } from "@earendil-works/pi-tui";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { AgentStatus } from "@feature-forge/core";
-import { TypedEventBus } from "@feature-forge/core/src/event-bus";
+import { TypedEventBus } from "@feature-forge/core/event-bus";
 
 import type { AgentQuery, DisplayConfig, ToolFormatter } from "../api";
 import { AgentDisplayHelpers } from "../display";

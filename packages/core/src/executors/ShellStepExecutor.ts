@@ -2,14 +2,10 @@ import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
 import { promisify } from "node:util";
 
-import { logger } from "@feature-forge/core";
-import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowInstruction,
-  ShellInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-
 import type { TypedEventBus } from "../event-bus";
+import type { FlowContext, InstructionResult } from "../flows/FlowContext";
+import type { FlowInstruction, ShellInstruction } from "../flows/FlowInstruction";
+import { logger } from "../logging";
 import { StepExecutor } from "./StepExecutor";
 
 const execFileAsync = promisify(execFile);

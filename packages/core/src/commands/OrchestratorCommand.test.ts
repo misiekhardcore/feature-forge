@@ -1,22 +1,22 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
-import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors/InMemoryAgentSupervisor";
-import { Command } from "@feature-forge/core/src/commands/Command";
-import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
 import {
   makeMockCtx,
   makeMockFactory,
   makeMockPi,
   makeMockToolRegistry,
-} from "@feature-forge/core/src/test-utils";
+} from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SessionAgent } from "../agents/SessionAgent";
+import type { AgentSpecification } from "../agents/specifications";
+import type { SpecManager } from "../agents/SpecManager";
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import { InMemoryAgentSupervisor } from "../agents/supervisors/InMemoryAgentSupervisor";
+import { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
+import type { FlowDefinition } from "../flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../flows/FlowInstruction";
+import { FlowStateStore } from "../flows/FlowStateStore";
+import { Command } from "./Command";
 import { OrchestratorCommand } from "./OrchestratorCommand";
 
 /**
@@ -89,8 +89,8 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock("@feature-forge/core", async () => {
-  const actual = await vi.importActual<typeof import("@feature-forge/core")>("@feature-forge/core");
+vi.mock("../config", async () => {
+  const actual = await vi.importActual<typeof import("../config")>("../config");
   return {
     ...actual,
     ForgeConfig: {

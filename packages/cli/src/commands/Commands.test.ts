@@ -1,8 +1,8 @@
 import { logger } from "@feature-forge/core";
-import { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
-import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
+import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
+import { ActiveFlowRegistry } from "@feature-forge/core/flows";
+import { FlowStateStore } from "@feature-forge/core/flows";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

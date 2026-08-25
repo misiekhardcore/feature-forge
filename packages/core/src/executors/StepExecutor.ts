@@ -1,7 +1,6 @@
-import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type { FlowInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-
 import type { TypedEventBus } from "../event-bus";
+import type { FlowContext } from "../flows/FlowContext";
+import type { FlowInstruction } from "../flows/FlowInstruction";
 
 /**
  * Executes a single deterministic flow instruction against an immutable context,

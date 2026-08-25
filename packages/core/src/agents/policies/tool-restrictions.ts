@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { logger } from "@feature-forge/core/src/logging";
 import { minimatch } from "minimatch";
+
+import { logger } from "../../logging";
 
 /**
  * Maps tool names to the input field that carries the value to check

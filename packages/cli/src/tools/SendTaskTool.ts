@@ -1,6 +1,6 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { IpcTool } from "@feature-forge/core";
-import { SendTaskParams, SendTaskResult } from "@feature-forge/core/src/ipc/messages";
+import { SendTaskParams, SendTaskResult } from "@feature-forge/core/ipc";
 import { Type } from "typebox";
 
 import { ToolRenderer } from "../tui/views/ToolRenderer";

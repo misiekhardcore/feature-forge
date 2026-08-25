@@ -9,8 +9,7 @@
  * This module maps the JSON's string enum values onto typed constants.
  */
 
-import { cloneReadonlyArray, deepFreeze } from "@feature-forge/core/src/helpers";
-
+import { cloneReadonlyArray, deepFreeze } from "../helpers";
 import defaultsJson from "./forge-config.defaults.json";
 import type { AgentConfig, ForgeConfig, SpecDirectories } from "./ForgeConfigSchema";
 import { LogLevel, WorkspaceProviderKind } from "./ForgeConfigSchema";

@@ -1,13 +1,9 @@
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowDefinition,
-  FlowInstruction,
-  LoopInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
+import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
+import { FlowContext } from "../flows/FlowContext";
+import type { FlowDefinition, FlowInstruction, LoopInstruction } from "../flows/FlowInstruction";
+import { FLOW_SCHEMA_URL } from "../flows/FlowInstruction";
 import { LoopStepExecutor } from "./LoopStepExecutor";
 import { RoutineRefStepExecutor } from "./RoutineRefStepExecutor";
 import { StepExecutor } from "./StepExecutor";

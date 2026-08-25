@@ -1,12 +1,9 @@
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowInstruction,
-  ParallelInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
+import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
+import { FlowContext } from "../flows/FlowContext";
+import type { FlowInstruction, ParallelInstruction } from "../flows/FlowInstruction";
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { ParallelStepExecutor } from "./ParallelStepExecutor";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";

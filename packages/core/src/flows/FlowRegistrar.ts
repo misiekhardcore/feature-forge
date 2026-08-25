@@ -1,17 +1,17 @@
 import * as path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { logger } from "@feature-forge/core";
-import type { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
-import { OrchestratorCommand } from "@feature-forge/core/src/commands/OrchestratorCommand";
-import type { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import type { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
-import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { Tool } from "@feature-forge/core/src/tools";
-import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 
+import type { InMemoryAgentSupervisor, SpecManager } from "../agents";
+import { OrchestratorCommand } from "../commands/OrchestratorCommand";
+import type { TypedEventBus } from "../event-bus";
+import type { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
+import { logger } from "../logging";
+import type { CommandRegistry } from "../registry/CommandRegistry";
+import type { ToolRegistry } from "../registry/ToolRegistry";
+import { RoutineExecutor } from "../routines/RoutineExecutor";
+import type { Tool } from "../tools";
+import type { WorkspaceManager } from "../workspace";
 import type { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 import type { FlowDefinition, RoutineDefinition } from "./FlowInstruction";
 import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";

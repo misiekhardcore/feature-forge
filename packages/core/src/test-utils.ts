@@ -12,24 +12,22 @@ import {
   type ExtensionAPI,
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
-import { AgentStatus } from "@feature-forge/core";
-import { SpecManager, type SpecResolutionParams } from "@feature-forge/core/src/agents";
-import { AgentFactory } from "@feature-forge/core/src/agents/factories/AgentFactory";
+import { vi } from "vitest";
+
+import { AgentStatus } from "./agents";
+import { SpecManager, type SpecResolutionParams } from "./agents";
+import { AgentFactory } from "./agents/factories/AgentFactory";
 import {
   AgentSpecification,
   type AgentSpecificationParams,
-} from "@feature-forge/core/src/agents/specifications/AgentSpecification";
-import {
-  type ExecuteTaskOptions,
-  SubprocessAgent,
-} from "@feature-forge/core/src/agents/SubprocessAgent";
-import { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
-import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
-import { WorkspaceProvider } from "@feature-forge/core/src/workspace/WorkspaceProvider";
-import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
-import { vi } from "vitest";
+} from "./agents/specifications/AgentSpecification";
+import { type ExecuteTaskOptions, SubprocessAgent } from "./agents/SubprocessAgent";
+import { TypedEventBus } from "./event-bus";
+import { ToolRegistry } from "./registry/ToolRegistry";
+import { WorkspaceHandle } from "./workspace/WorkspaceHandle";
+import type { CreateWorkspaceOptions } from "./workspace/WorkspaceProvider";
+import { WorkspaceProvider } from "./workspace/WorkspaceProvider";
+import { WorktreeRegistry } from "./workspace/WorktreeRegistry";
 
 // ---------------------------------------------------------------------------
 // RPC client mock (shared by ipc and socket tests)

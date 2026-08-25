@@ -1,4 +1,4 @@
-import type { ForgeChannels } from "@feature-forge/core/src/event-bus/channels";
+import type { ForgeChannels } from "../event-bus/channels";
 
 /**
  * A granular progress update emitted during routine execution.

@@ -1,15 +1,15 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, resolveModel } from "@feature-forge/core";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents";
-import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
-import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import type { FlowDefinition } from "@feature-forge/core/src/flows/FlowInstruction";
-import type { FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-import type { WorkspaceManager } from "@feature-forge/core/src/workspace";
 
+import type { AgentSupervisor } from "../agents";
+import { SessionAgent } from "../agents/SessionAgent";
+import type { AgentSpecification } from "../agents/specifications";
+import type { SpecManager } from "../agents/SpecManager";
+import { ForgeConfig, resolveModel } from "../config";
+import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
+import type { FlowDefinition } from "../flows/FlowInstruction";
+import type { FlowStateStore } from "../flows/FlowStateStore";
+import { ToolRegistry } from "../registry/ToolRegistry";
+import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";
 
 /**

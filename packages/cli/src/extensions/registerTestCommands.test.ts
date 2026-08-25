@@ -1,8 +1,8 @@
 import * as path from "node:path";
 
 import { ForgeConfig } from "@feature-forge/core";
-import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
-import { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
+import { withForgePrefix } from "@feature-forge/core/registry";
+import { ToolRegistry } from "@feature-forge/core/registry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockCtx, makeMockPi } from "../test-utils";

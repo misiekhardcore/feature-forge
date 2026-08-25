@@ -1,17 +1,12 @@
-import { logger } from "@feature-forge/core";
-import type { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import type { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import type { InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowDefinition,
-  FlowInstruction,
-  RoutineDefinition,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { isContainerInstruction } from "@feature-forge/core/src/flows/FlowInstruction";
-import { FlowParams, FlowStateStore } from "@feature-forge/core/src/flows/FlowStateStore";
-import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-
+import type { TypedEventBus } from "../event-bus";
+import type { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
+import type { InstructionResult } from "../flows/FlowContext";
+import { FlowContext } from "../flows/FlowContext";
+import type { FlowDefinition, FlowInstruction, RoutineDefinition } from "../flows/FlowInstruction";
+import { isContainerInstruction } from "../flows/FlowInstruction";
+import { FlowParams, FlowStateStore } from "../flows/FlowStateStore";
+import { logger } from "../logging";
+import type { ToolRegistry } from "../registry/ToolRegistry";
 import type { RoutineResult, RoutineStatus } from "./RoutineResult";
 
 /**

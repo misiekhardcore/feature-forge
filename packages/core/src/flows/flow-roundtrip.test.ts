@@ -24,32 +24,33 @@ import * as path from "node:path";
 
 // Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D4: renders with pi-tui).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
-import { jsonParse } from "@feature-forge/core";
-import { SpecManager } from "@feature-forge/core/src/agents";
-import { SpecRegistry } from "@feature-forge/core/src/agents/specifications";
-import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import { ExpressionEvaluator } from "@feature-forge/core/src/flows/ExpressionEvaluator";
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
+import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
+import Ajv from "ajv/dist/2020";
+import addFormats from "ajv-formats";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
+import { SpecManager } from "../agents";
+import { SpecRegistry } from "../agents/specifications";
+import { SpecLoader } from "../agents/specifications";
+import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
+import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
+import { jsonParse } from "../helpers";
+import { RoutineExecutor } from "../routines/RoutineExecutor";
+import { ExpressionEvaluator } from "./ExpressionEvaluator";
+import { FlowContext } from "./FlowContext";
 import type {
   FlowDefinition,
   FlowInstruction,
   LoopInstruction,
   RoutineRefInstruction,
   ShellInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
+} from "./FlowInstruction";
 import {
   isContainerInstruction,
   isLoopInstruction,
   isParallelInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import { makeMockToolRegistry, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
-import Ajv from "ajv/dist/2020";
-import addFormats from "ajv-formats";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+} from "./FlowInstruction";
+import { FlowLoader } from "./FlowLoader";
 
 // ── Helpers ──────────────────────────────────────────────────
 

@@ -2,9 +2,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/core/src/helpers";
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
+
+import { jsonParse } from "../src/helpers";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 // Script lives in core/scripts; flows are core-owned.

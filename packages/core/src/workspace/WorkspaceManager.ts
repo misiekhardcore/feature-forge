@@ -1,6 +1,5 @@
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
-
 import { WorkspaceError } from "./WorkspaceError";
+import { WorkspaceHandle } from "./WorkspaceHandle";
 import { WorkspaceProvider } from "./WorkspaceProvider";
 import { WorktreeRegistry } from "./WorktreeRegistry";
 

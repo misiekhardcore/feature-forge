@@ -11,8 +11,8 @@ import {
   PiSubprocessAgentFactory,
   SpecManager,
   SpecRegistry,
-} from "@feature-forge/core/src/agents";
-import { SpecLoader } from "@feature-forge/core/src/agents/specifications";
+} from "@feature-forge/core/agents";
+import { SpecLoader } from "@feature-forge/core/agents";
 import {
   AgentDestroyAllCommand,
   AgentDestroyCommand,
@@ -20,23 +20,23 @@ import {
   WorktreeDestroyCommand,
   WorktreeListCommand,
   WorktreePruneCommand,
-} from "@feature-forge/core/src/commands";
-import { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import { createStepExecutorRegistry } from "@feature-forge/core/src/executors/createStepExecutorRegistry";
-import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import { FlowRegistrar } from "@feature-forge/core/src/flows/FlowRegistrar";
-import { connectChildClient } from "@feature-forge/core/src/ipc/connectChildClient";
-import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
-import { CommandRegistry, ToolRegistry } from "@feature-forge/core/src/registry";
-import { withForgePrefix } from "@feature-forge/core/src/registry/CommandRegistry";
+} from "@feature-forge/core/commands";
+import { TypedEventBus } from "@feature-forge/core/event-bus";
+import { createStepExecutorRegistry } from "@feature-forge/core/executors";
+import { ActiveFlowRegistry } from "@feature-forge/core/flows";
+import { FlowRegistrar } from "@feature-forge/core/flows";
+import { connectChildClient } from "@feature-forge/core/ipc";
+import { ParentSocketServer } from "@feature-forge/core/ipc";
+import { CommandRegistry, ToolRegistry } from "@feature-forge/core/registry";
+import { withForgePrefix } from "@feature-forge/core/registry";
 import {
   CurrentDirProvider,
   GitWorktreeProvider,
   WorkspaceManager,
   WorkspaceProviderRegistry,
   WorktreeRegistry,
-} from "@feature-forge/core/src/workspace";
-import { registerSignalHandlers } from "@feature-forge/core/src/workspace/registerSignalHandlers";
+} from "@feature-forge/core/workspace";
+import { registerSignalHandlers } from "@feature-forge/core/workspace";
 
 import { AgentListCommand, FlowExitCommand, ForgeInitCommand } from "./commands";
 import { activateForgeSkills } from "./extensions/forge-skills";

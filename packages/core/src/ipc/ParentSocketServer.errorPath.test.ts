@@ -1,4 +1,4 @@
-import { makeMockPi, makeMockSpecManager } from "@feature-forge/core/src/test-utils";
+import { makeMockPi, makeMockSpecManager } from "@feature-forge/core/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ParentSocketServer } from "./ParentSocketServer";

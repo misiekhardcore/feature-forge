@@ -7,9 +7,9 @@ import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
 import { AgentStatus, jsonParse } from "@feature-forge/core";
-import { AgentSupervisor } from "@feature-forge/core/src/agents";
-import type { Agent, AgentKind } from "@feature-forge/core/src/agents/Agent";
-import type { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
+import type { Agent, AgentKind } from "@feature-forge/core/agents";
+import type { AgentSpecification } from "@feature-forge/core/agents";
+import { AgentSupervisor } from "@feature-forge/core/agents";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../../test-utils";

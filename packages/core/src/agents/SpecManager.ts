@@ -1,8 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-import type { SpawnAgentParams } from "@feature-forge/core/src/ipc/messages";
-
+import type { SpawnAgentParams } from "../ipc/messages";
 import type {
   AgentSpecification,
   AgentSpecificationParams,

@@ -1,10 +1,10 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import { Command, type CommandDeps } from "@feature-forge/core/src/commands/Command";
-import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import type { WorkspaceManager, WorktreeRegistry } from "@feature-forge/core/src/workspace";
 
+import type { AgentSupervisor } from "../agents";
+import type { SpecManager } from "../agents/SpecManager";
+import { Command, type CommandDeps } from "../commands/Command";
+import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
+import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 import { Registry } from "./Registry";
 import { ToolRegistry } from "./ToolRegistry";
 

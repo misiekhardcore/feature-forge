@@ -1,16 +1,8 @@
-import {
-  AgentCreationError,
-  AgentFactory,
-} from "@feature-forge/core/src/agents/factories/AgentFactory";
-import { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
-import {
-  makeMockFactory,
-  makeMockPi,
-  makeSpec,
-  MockAgent,
-} from "@feature-forge/core/src/test-utils";
+import { makeMockFactory, makeMockPi, makeSpec, MockAgent } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentCreationError, AgentFactory } from "../factories/AgentFactory";
+import { AgentSpecification } from "../specifications/AgentSpecification";
 import { InMemoryAgentSupervisor } from "./InMemoryAgentSupervisor";
 
 describe("InMemoryAgentSupervisor", () => {

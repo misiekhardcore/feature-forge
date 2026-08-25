@@ -17,7 +17,7 @@
 
 import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 
-import { GitHubService } from "@feature-forge/core/src/github";
+import { GitHubService } from "@feature-forge/core/github";
 import { describe, expect, it } from "vitest";
 
 const gh = new GitHubService();

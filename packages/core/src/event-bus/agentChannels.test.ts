@@ -1,4 +1,4 @@
-import { makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
+import { makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { describe, expect, it, vi } from "vitest";
 
 import {

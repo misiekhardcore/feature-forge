@@ -1,10 +1,5 @@
-import { InMemoryAgentSupervisor, SpecManager } from "@feature-forge/core/src/agents";
-import type {
-  WorkspaceManager,
-  WorkspaceProviderRegistry,
-  WorktreeRegistry,
-} from "@feature-forge/core/src/workspace";
-
+import { InMemoryAgentSupervisor, SpecManager } from "../agents";
+import type { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
 import {
   AgentStepExecutor,
   CleanupStepExecutor,

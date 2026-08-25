@@ -1,6 +1,6 @@
-import { AgentStatus } from "@feature-forge/core";
 import { describe, expect, it } from "vitest";
 
+import { AgentStatus } from "../agents";
 import type {
   SendTaskParams,
   SocketMessage,

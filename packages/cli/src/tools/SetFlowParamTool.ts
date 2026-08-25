@@ -1,7 +1,7 @@
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { Tool } from "@feature-forge/core";
-import type { TypedEventBus } from "@feature-forge/core/src/event-bus";
-import { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
+import type { TypedEventBus } from "@feature-forge/core/event-bus";
+import { ActiveFlowRegistry } from "@feature-forge/core/flows";
 import { Type } from "typebox";
 
 const SetFlowParamParams = Type.Object({

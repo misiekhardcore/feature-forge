@@ -53,9 +53,10 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   ExtensionContext: class {},
 }));
 
-import { AgentStatus, ForgeConfig } from "@feature-forge/core";
-import { makeMessageEvent, makeSpec } from "@feature-forge/core/src/test-utils";
+import { makeMessageEvent, makeSpec } from "@feature-forge/core/test-utils";
 
+import { ForgeConfig } from "../config";
+import { AgentStatus } from "./";
 import { PiSubprocessAgent } from "./PiSubprocessAgent";
 
 describe("PiSubprocessAgent", () => {

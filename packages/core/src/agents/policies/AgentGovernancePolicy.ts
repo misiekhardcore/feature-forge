@@ -1,4 +1,4 @@
-import { AgentSpecification } from "@feature-forge/core/src/agents/specifications";
+import { AgentSpecification } from "../specifications";
 
 /**
  * Describes what an agent is allowed to do.

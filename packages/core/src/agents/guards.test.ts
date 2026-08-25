@@ -1,7 +1,7 @@
-import { AgentStatus } from "@feature-forge/core";
-import { makeSpec, MockAgent } from "@feature-forge/core/src/test-utils";
+import { makeSpec, MockAgent } from "@feature-forge/core/test-utils";
 import { describe, expect, it } from "vitest";
 
+import { AgentStatus } from "./";
 import { Agent } from "./Agent";
 import { isSubprocessAgent } from "./guards";
 

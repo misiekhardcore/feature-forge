@@ -9,9 +9,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-import { ForgeConfig } from "@feature-forge/core/src/config/ForgeConfig";
-import { LogLevel } from "@feature-forge/core/src/config/ForgeConfigSchema";
-
+import { ForgeConfig } from "../config/ForgeConfig";
+import { LogLevel } from "../config/ForgeConfigSchema";
 import { Logger, logger } from "./Logger";
 
 /** Shape of a single log entry written to the JSON Lines file. */

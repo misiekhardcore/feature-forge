@@ -1,5 +1,4 @@
-import { logger } from "@feature-forge/core";
-
+import { logger } from "../logging";
 import type { WorkspaceManager } from "./WorkspaceManager";
 
 /** Maximum time (ms) to wait for workspace destruction before forcing exit. */

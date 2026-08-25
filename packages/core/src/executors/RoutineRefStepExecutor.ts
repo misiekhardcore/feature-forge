@@ -1,12 +1,11 @@
-import { logger } from "@feature-forge/core";
-import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
+import type { TypedEventBus } from "../event-bus";
+import type { FlowContext, InstructionResult } from "../flows/FlowContext";
 import type {
   FlowDefinition,
   FlowInstruction,
   RoutineRefInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-
-import type { TypedEventBus } from "../event-bus";
+} from "../flows/FlowInstruction";
+import { logger } from "../logging";
 import { FlowMapAware } from "./FlowMapAware";
 import { isAbortError } from "./isAbortError";
 import { MAX_NESTING_DEPTH, MaxDepthExceededError } from "./MaxDepthExceededError";

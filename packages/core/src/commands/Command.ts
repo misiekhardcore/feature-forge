@@ -3,12 +3,13 @@ import type {
   ExtensionCommandContext,
   RegisteredCommand,
 } from "@earendil-works/pi-coding-agent";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import type { ActiveFlowRegistry } from "@feature-forge/core/src/flows/ActiveFlowRegistry";
-import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
-import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-import type { WorkspaceManager, WorktreeRegistry } from "@feature-forge/core/src/workspace";
+
+import type { AgentSupervisor } from "../agents";
+import type { SpecManager } from "../agents/SpecManager";
+import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
+import type { CommandRegistry } from "../registry/CommandRegistry";
+import type { ToolRegistry } from "../registry/ToolRegistry";
+import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 
 /**
  * Dependency bag for {@link Command}. `pi` is always required; every other

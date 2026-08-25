@@ -1,11 +1,8 @@
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowDefinition,
-  WorkspaceInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
 import { describe, expect, it } from "vitest";
 
+import type { FlowContext } from "../flows/FlowContext";
+import type { FlowDefinition, WorkspaceInstruction } from "../flows/FlowInstruction";
 import { isFlowMapAware } from "./FlowMapAware";
 import { StepExecutor } from "./StepExecutor";
 import { StepExecutorRegistry } from "./StepExecutorRegistry";

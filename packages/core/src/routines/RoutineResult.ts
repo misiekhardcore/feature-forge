@@ -1,6 +1,7 @@
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
-import type { InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
-import type { FlowParams } from "@feature-forge/core/src/flows/FlowStateStore";
+
+import type { InstructionResult } from "../flows/FlowContext";
+import type { FlowParams } from "../flows/FlowStateStore";
 
 /**
  * Three-state outcome of a routine execution:

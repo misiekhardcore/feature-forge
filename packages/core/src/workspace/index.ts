@@ -1,5 +1,6 @@
 export { CurrentDirProvider } from "./CurrentDirProvider";
 export { GitWorktreeProvider } from "./GitWorktreeProvider";
+export { cleanupWorkspaces, registerSignalHandlers } from "./registerSignalHandlers";
 export {
   DirtyWorkingTreeError,
   WorkspaceError,

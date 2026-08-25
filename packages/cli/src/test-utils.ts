@@ -1,1 +1,1 @@
-export * from "@feature-forge/core/src/test-utils";
+export * from "@feature-forge/core/test-utils";

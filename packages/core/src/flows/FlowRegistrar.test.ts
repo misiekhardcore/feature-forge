@@ -1,15 +1,15 @@
 // Test-only value import from cli: RoutineTool stays cli-owned (S6 seam, D4: renders with pi-tui).
 import { RoutineTool } from "@feature-forge/cli/src/tools/RoutineTool";
-import { logger } from "@feature-forge/core";
-import type { InMemoryAgentSupervisor } from "@feature-forge/core/src/agents";
-import type { SpecManager } from "@feature-forge/core/src/agents/SpecManager";
-import { OrchestratorCommand } from "@feature-forge/core/src/commands/OrchestratorCommand";
-import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import type { CommandRegistry } from "@feature-forge/core/src/registry/CommandRegistry";
-import type { ToolRegistry } from "@feature-forge/core/src/registry/ToolRegistry";
-import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/core/src/test-utils";
+import { makeMockPi, makeMockTypedEventBus } from "@feature-forge/core/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { InMemoryAgentSupervisor } from "../agents";
+import type { SpecManager } from "../agents/SpecManager";
+import { OrchestratorCommand } from "../commands/OrchestratorCommand";
+import { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
+import { logger } from "../logging";
+import type { CommandRegistry } from "../registry/CommandRegistry";
+import type { ToolRegistry } from "../registry/ToolRegistry";
 import { ActiveFlowRegistry } from "./ActiveFlowRegistry";
 import type { FlowDefinition } from "./FlowInstruction";
 import { FLOW_SCHEMA_URL } from "./FlowInstruction";

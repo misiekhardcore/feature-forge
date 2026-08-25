@@ -26,23 +26,20 @@ vi.mock("../tui/showAgentViewer", async (importOriginal) => {
   return { ...actual, showAgentViewer: showAgentViewerMock };
 });
 
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors/AgentSupervisor";
-import { StepExecutor } from "@feature-forge/core/src/executors/StepExecutor";
-import { StepExecutorRegistry } from "@feature-forge/core/src/executors/StepExecutorRegistry";
-import { WorkspaceStepExecutor } from "@feature-forge/core/src/executors/WorkspaceStepExecutor";
-import { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowDefinition,
-  FlowInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import { FLOW_SCHEMA_URL } from "@feature-forge/core/src/flows/FlowInstruction";
-import { RoutineExecutor } from "@feature-forge/core/src/routines/RoutineExecutor";
-import type { RoutineResult } from "@feature-forge/core/src/routines/RoutineResult";
-import { WorkspaceManager } from "@feature-forge/core/src/workspace/WorkspaceManager";
-import type { CreateWorkspaceOptions } from "@feature-forge/core/src/workspace/WorkspaceProvider";
-import { WorkspaceProvider } from "@feature-forge/core/src/workspace/WorkspaceProvider";
-import { WorkspaceProviderRegistry } from "@feature-forge/core/src/workspace/WorkspaceProviderRegistry";
-import { WorktreeRegistry } from "@feature-forge/core/src/workspace/WorktreeRegistry";
+import type { AgentSupervisor } from "@feature-forge/core/agents";
+import { StepExecutor } from "@feature-forge/core/executors";
+import { StepExecutorRegistry } from "@feature-forge/core/executors";
+import { WorkspaceStepExecutor } from "@feature-forge/core/executors";
+import type { FlowDefinition, FlowInstruction } from "@feature-forge/core/flows";
+import { FlowContext } from "@feature-forge/core/flows";
+import { FLOW_SCHEMA_URL } from "@feature-forge/core/flows";
+import type { RoutineResult } from "@feature-forge/core/routines";
+import { RoutineExecutor } from "@feature-forge/core/routines";
+import type { CreateWorkspaceOptions } from "@feature-forge/core/workspace";
+import { WorkspaceManager } from "@feature-forge/core/workspace";
+import { WorkspaceProvider } from "@feature-forge/core/workspace";
+import { WorkspaceProviderRegistry } from "@feature-forge/core/workspace";
+import { WorktreeRegistry } from "@feature-forge/core/workspace";
 
 import {
   makeMockToolRegistry,

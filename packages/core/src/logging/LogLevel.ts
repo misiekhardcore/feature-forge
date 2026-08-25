@@ -5,7 +5,7 @@
  * Use {@link levelSeverity} for comparison-based filtering.
  */
 
-import { LogLevel } from "@feature-forge/core/src/config/ForgeConfigSchema";
+import { LogLevel } from "../config/ForgeConfigSchema";
 
 /** Log levels ordered from most to least severe. */
 export const LOG_LEVEL_ORDER: readonly LogLevel[] = [

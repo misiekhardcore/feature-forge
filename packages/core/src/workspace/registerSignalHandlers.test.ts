@@ -1,9 +1,9 @@
-import { logger } from "@feature-forge/core";
-import { MockWorkspaceProvider, MockWorktreeRegistry } from "@feature-forge/core/src/test-utils";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "@feature-forge/core/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "../logging";
 import { cleanupWorkspaces, registerSignalHandlers } from "./registerSignalHandlers";
+import { WorkspaceHandle } from "./WorkspaceHandle";
 import { WorkspaceManager } from "./WorkspaceManager";
 
 describe("registerSignalHandlers", () => {

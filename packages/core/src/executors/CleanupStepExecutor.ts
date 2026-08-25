@@ -1,17 +1,9 @@
-import { logger } from "@feature-forge/core";
-import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  CleanupInstruction,
-  FlowInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import type {
-  WorkspaceManager,
-  WorkspaceProviderRegistry,
-  WorktreeRegistry,
-} from "@feature-forge/core/src/workspace";
-import type { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
-
 import type { TypedEventBus } from "../event-bus";
+import type { FlowContext, InstructionResult } from "../flows/FlowContext";
+import type { CleanupInstruction, FlowInstruction } from "../flows/FlowInstruction";
+import { logger } from "../logging";
+import type { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
+import type { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { StepExecutor } from "./StepExecutor";
 
 /**

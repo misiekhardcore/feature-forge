@@ -1,3 +1,4 @@
+export type { AgentKind } from "./Agent";
 export { Agent } from "./Agent";
 export { AgentStatus } from "./AgentStatus";
 export {
@@ -20,6 +21,8 @@ export {
   AgentSpecification,
   BUILT_IN_TOOLS,
   DynamicAgentSpecification,
+  SkillResolver,
+  SpecLoader,
   SpecRegistry,
   TOOL_PRESETS,
 } from "./specifications";

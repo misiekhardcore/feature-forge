@@ -1,4 +1,4 @@
-import type { RoutineProgressEvent } from "@feature-forge/core/src/routines/RoutineProgress";
+import type { RoutineProgressEvent } from "@feature-forge/core/routines";
 
 import type { AccumulatedState } from "./AccumulatedState";
 

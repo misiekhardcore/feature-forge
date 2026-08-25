@@ -1,12 +1,8 @@
-import { logger } from "@feature-forge/core";
-import { ExpressionEvaluator } from "@feature-forge/core/src/flows/ExpressionEvaluator";
-import type { FlowContext, InstructionResult } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowInstruction,
-  LoopInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-
 import type { TypedEventBus } from "../event-bus";
+import { ExpressionEvaluator } from "../flows/ExpressionEvaluator";
+import type { FlowContext, InstructionResult } from "../flows/FlowContext";
+import type { FlowInstruction, LoopInstruction } from "../flows/FlowInstruction";
+import { logger } from "../logging";
 import { collectAllIds } from "./helpers";
 import { StepExecutor } from "./StepExecutor";
 

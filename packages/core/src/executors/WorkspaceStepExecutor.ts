@@ -1,18 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import type { FlowContext } from "@feature-forge/core/src/flows/FlowContext";
-import type {
-  FlowInstruction,
-  WorkspaceInstruction,
-} from "@feature-forge/core/src/flows/FlowInstruction";
-import type {
-  WorkspaceManager,
-  WorkspaceProviderRegistry,
-  WorktreeRegistry,
-} from "@feature-forge/core/src/workspace";
-import { WorkspaceHandle } from "@feature-forge/core/src/workspace/WorkspaceHandle";
-
 import type { TypedEventBus } from "../event-bus";
+import type { FlowContext } from "../flows/FlowContext";
+import type { FlowInstruction, WorkspaceInstruction } from "../flows/FlowInstruction";
+import type { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
+import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { StepExecutor } from "./StepExecutor";
 
 /**

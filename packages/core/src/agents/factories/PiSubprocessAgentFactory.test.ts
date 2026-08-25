@@ -40,8 +40,8 @@ const rpcMock = vi.hoisted(() => {
 
 vi.mock("@earendil-works/pi-coding-agent", () => rpcMock.factory());
 
-vi.mock("@feature-forge/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@feature-forge/core")>();
+vi.mock("../../config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../config")>();
   return {
     ...actual,
     resolveModel: vi.fn((m: string | undefined, models: Record<string, unknown>) => {
@@ -52,13 +52,20 @@ vi.mock("@feature-forge/core", async (importOriginal) => {
       }
       return { model: m, resolved: false };
     }),
+  };
+});
+
+vi.mock("../../logging", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../logging")>();
+  return {
+    ...actual,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   };
 });
 
-import { PiSubprocessAgent } from "@feature-forge/core/src/agents/PiSubprocessAgent";
-import { makeSpec } from "@feature-forge/core/src/test-utils";
+import { makeSpec } from "@feature-forge/core/test-utils";
 
+import { PiSubprocessAgent } from "../PiSubprocessAgent";
 import { AgentCreationError } from "./AgentFactory";
 import { PiSubprocessAgentFactory } from "./PiSubprocessAgentFactory";
 

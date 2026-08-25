@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { jsonParse } from "@feature-forge/core";
-import { FlowLoader } from "@feature-forge/core/src/flows/FlowLoader";
-import { FlowValidation } from "@feature-forge/core/src/flows/flowValidation";
+import { FlowLoader } from "../src/flows/FlowLoader";
+import { FlowValidation } from "../src/flows/flowValidation";
+import { jsonParse } from "../src/helpers";
 
 /**
  * Validate a flow JSON file against the structural and semantic rules.

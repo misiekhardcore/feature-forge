@@ -8,16 +8,13 @@ import { fileURLToPath } from "node:url";
 
 import { jsonParse } from "@feature-forge/core";
 import { AgentStatus } from "@feature-forge/core";
-import type { Agent } from "@feature-forge/core/src/agents/Agent";
-import { SessionAgent } from "@feature-forge/core/src/agents/SessionAgent";
-import type {
-  AgentSpecification,
-  AgentSpecificationParams,
-} from "@feature-forge/core/src/agents/specifications";
-import { DynamicAgentSpecification } from "@feature-forge/core/src/agents/specifications/DynamicAgentSpecification";
-import type { SubprocessAgent } from "@feature-forge/core/src/agents/SubprocessAgent";
-import type { AgentSupervisor } from "@feature-forge/core/src/agents/supervisors";
-import { ParentSocketServer } from "@feature-forge/core/src/ipc/ParentSocketServer";
+import type { Agent } from "@feature-forge/core/agents";
+import type { AgentSpecification, AgentSpecificationParams } from "@feature-forge/core/agents";
+import type { SubprocessAgent } from "@feature-forge/core/agents";
+import type { AgentSupervisor } from "@feature-forge/core/agents";
+import { SessionAgent } from "@feature-forge/core/agents";
+import { DynamicAgentSpecification } from "@feature-forge/core/agents";
+import { ParentSocketServer } from "@feature-forge/core/ipc";
 import { expect, vi } from "vitest";
 
 import { makeMockPi, makeMockSpecManager } from "../src/test-utils";

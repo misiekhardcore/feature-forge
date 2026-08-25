@@ -1,6 +1,6 @@
-import { AgentSpecification } from "@feature-forge/core/src/agents/specifications/AgentSpecification";
 import { describe, expect, it } from "vitest";
 
+import { AgentSpecification } from "../specifications/AgentSpecification";
 import { DefaultAgentGovernancePolicy } from "./DefaultAgentGovernancePolicy";
 
 function makeSpec(overrides: Partial<ConstructorParameters<typeof AgentSpecification>[0]> = {}) {
