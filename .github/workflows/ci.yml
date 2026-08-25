@@ -55,4 +55,20 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm run test
+      # Unit + integration tests only; the e2e suite runs in its own job below.
+      - run: npx vitest run --project core --project cli
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      # The e2e suite spawns the real `pi` CLI (--mode rpc --no-session); the
+      # binary ships in @earendil-works/pi-coding-agent. Pin the version that
+      # matches the workspace deps so the harness and the SDK stay in sync.
+      - run: npm install -g @earendil-works/pi-coding-agent@0.84.3
+      - run: npm run test:e2e
