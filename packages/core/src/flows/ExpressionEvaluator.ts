@@ -1,4 +1,5 @@
 import { Expr, ExpressionParser } from "./ExpressionParser";
+import { walkResultPath } from "./resultPath";
 
 export interface FlowContextLike {
   results: ReadonlyMap<string, { raw: string; parsed?: { passed: boolean } }>;
@@ -28,33 +29,45 @@ export class ExpressionEvaluator {
    */
   static evaluateExpression(expr: string, ctx: FlowContextLike): boolean {
     const ast = this.parseExpression(expr);
-    return this.evaluate(ast, ctx);
+    return Boolean(this.evaluateValue(ast, ctx));
   }
 
   // ── Evaluator ────────────────────────────────────────────────
 
-  private static evaluate(expr: Expr, ctx: FlowContextLike): boolean {
+  private static evaluateValue(expr: Expr, ctx: FlowContextLike): unknown {
     switch (expr.type) {
       case "literal":
-        return Boolean(expr.value);
+        return expr.value;
 
-      case "path": {
-        const value = this.resolvePath(expr, ctx);
-        return Boolean(value);
-      }
+      case "path":
+        return this.resolvePath(expr, ctx);
 
       case "unary":
-        return !this.evaluate(expr.operand, ctx);
+        return !this.evaluateValue(expr.operand, ctx);
 
       case "binary": {
-        const left = this.evaluate(expr.left, ctx);
-        if (expr.operator === "or" && left) return true; // short-circuit
-        if (expr.operator === "and" && !left) return false; // short-circuit
-        return this.evaluate(expr.right, ctx);
+        const left = this.evaluateValue(expr.left, ctx);
+        const op = expr.operator;
+        switch (op) {
+          case "or":
+            return left ? left : this.evaluateValue(expr.right, ctx);
+          case "and":
+            return left ? this.evaluateValue(expr.right, ctx) : left;
+          case "eq":
+            return left === this.evaluateValue(expr.right, ctx);
+          case "neq":
+            return left !== this.evaluateValue(expr.right, ctx);
+          default: {
+            const exhaustive: never = op;
+            throw new Error(`Unknown binary operator: ${String(exhaustive)}`);
+          }
+        }
       }
 
-      default:
-        throw new Error(`Unknown expression type`);
+      default: {
+        const exhaustive: never = expr;
+        throw new Error(`Unknown expression type: ${JSON.stringify(exhaustive)}`);
+      }
     }
   }
 
@@ -69,34 +82,25 @@ export class ExpressionEvaluator {
       throw new Error(`Path too short — expected "results.<id>..."`);
     }
 
-    let current: unknown = ctx.results.get(id);
-    if (current === undefined && !expr.optional[1]) {
+    const walked = walkResultPath(ctx.results, id, expr.segments.slice(2));
+    if (walked.ok) return walked.value;
+
+    const failure = walked.failure;
+    if (failure.reason === "no-result") {
+      if (expr.optional[1]) return undefined;
       throw new Error(`No result found for id "${id}"`);
     }
-    if (current === undefined) return undefined;
-
-    // Walk into .raw or .parsed.passed etc.
-    for (let index = 2; index < expr.segments.length; index++) {
-      const key = expr.segments[index];
-      const isOptional = expr.optional[index] ?? false;
-
-      if (current === null || current === undefined) {
-        if (isOptional) return undefined;
-        throw new Error(`Cannot access "${key}" on ${String(current)}`);
-      }
-
-      if (typeof current !== "object") {
-        if (isOptional) return undefined;
-        throw new Error(`Cannot access property "${key}" on ${typeof current}`);
-      }
-
-      const next = (current as Record<string, unknown>)[key];
-      if (next === undefined && !isOptional) {
-        throw new Error(`Property "${key}" not found`);
-      }
-      current = next;
+    // failure.at is a 0-based index into the walked segments (i.e. segments[2..]);
+    // map back to the AST optional[] index.
+    const optional = expr.optional[failure.at + 2] ?? false;
+    if (optional) return undefined;
+    if (failure.reason === "missing-key") {
+      throw new Error(`Property "${failure.key}" not found`);
     }
-
-    return current;
+    // not-traversable - reconstruct the legacy messages
+    if (failure.current === null || failure.current === undefined) {
+      throw new Error(`Cannot access "${failure.key}" on ${String(failure.current)}`);
+    }
+    throw new Error(`Cannot access property "${failure.key}" on ${typeof failure.current}`);
   }
 }

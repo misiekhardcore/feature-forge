@@ -9,7 +9,7 @@
 /**
  * Resolves a single template token (already trimmed) to its substitution.
  *
- * Returning `undefined` signals "token unknown - keep it in place".
+ * Returning `undefined` (or `null`) signals "token unknown - keep it in place".
  * Returning `""` is a valid substitution and is honored verbatim.
  */
 export type TemplateLookup = (token: string) => string | undefined;
@@ -20,9 +20,9 @@ export type TemplateLookup = (token: string) => string | undefined;
  * - Every `{{token}}` occurrence is replaced by `lookup(token.trim())`.
  * - A defined return value is substituted verbatim (empty string is a valid
  *   substitution).
- * - `undefined` keeps the token in place, verbatim: `{{` + trimmed token +
- *   `}}` (no whitespace normalization on the kept token - the trimmed token
- *   is used, so `{{ x }}` stays `{{x}}`).
+ * - `undefined` or `null` keeps the token in place, verbatim: `{{` + trimmed token +
+ *   `}}` (no normalization beyond trimming: inner whitespace is preserved -
+ *   e.g. `{{ a b }}` keeps `{{a b}}`).
  * - The regex is `/\{\{([^}]+)\}\}/g` - single pass, left-to-right, no
  *   recursion, no nested-brace handling (a token containing `}` cannot be
  *   expressed).
@@ -44,6 +44,6 @@ export function resolveTemplate(template: string, lookup: TemplateLookup): strin
   return template.replace(/\{\{([^}]+)\}\}/g, (_match, token: string) => {
     const key = token.trim();
     const value = lookup(key);
-    return value === undefined ? `{{${key}}}` : value;
+    return value == null ? `{{${key}}}` : value;
   });
 }

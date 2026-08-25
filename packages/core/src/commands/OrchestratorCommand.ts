@@ -8,6 +8,7 @@ import { ForgeConfig, resolveModel } from "../config";
 import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "../flows/FlowInstruction";
 import type { FlowStateStore } from "../flows/FlowStateStore";
+import { resolveTemplate } from "../flows/templateResolver";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";
@@ -163,6 +164,8 @@ export class OrchestratorCommand extends Command {
   /**
    * Resolve the orchestrator prompt template against the user's args.
    * `{{prompt}}` → user task; other `{{key}}` → `orchestrator.promptParams`.
+   * Unknown tokens are kept as-is (`{{token}}`), surfacing template-authoring
+   * mistakes.
    */
   private resolveTask(userTask: string): string {
     const config = this.flow.orchestrator;
@@ -171,10 +174,6 @@ export class OrchestratorCommand extends Command {
       ...(config.promptParams ?? {}),
       prompt: userTask,
     };
-
-    return template.replaceAll(/\{\{([^}]+)\}\}/g, (_match, key: string) => {
-      const value = params[key.trim()];
-      return value !== undefined ? value : "";
-    });
+    return resolveTemplate(template, (token) => params[token]);
   }
 }

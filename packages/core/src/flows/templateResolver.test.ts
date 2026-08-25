@@ -99,4 +99,25 @@ describe("resolveTemplate", () => {
     const l = lookup({ "a b": "c" });
     expect(resolveTemplate("{{a b}}", l)).toBe("c");
   });
+
+  it("keeps an unknown token with inner whitespace in its trimmed form", () => {
+    const l = lookup({});
+    expect(resolveTemplate("{{ a b }}", l)).toBe("{{a b}}");
+  });
+
+  it("looks up a token containing a { character (the regex allows it)", () => {
+    const l = lookup({ "a{{b": "v" });
+    expect(resolveTemplate("{{a{{b}}", l)).toBe("v");
+    expect(resolveTemplate("{{a{{b}}", () => undefined)).toBe("{{a{{b}}");
+  });
+
+  it("looks up a multiline token and substitutes when defined", () => {
+    const l = lookup({ "first\nsecond": "v" });
+    expect(resolveTemplate("{{first\nsecond}}", l)).toBe("v");
+    expect(resolveTemplate("{{first\nsecond}}", () => undefined)).toBe("{{first\nsecond}}");
+  });
+
+  it("keeps the token when the lookup returns null (defensive guard)", () => {
+    expect(resolveTemplate("{{x}}", () => null as unknown as string | undefined)).toBe("{{x}}");
+  });
 });
