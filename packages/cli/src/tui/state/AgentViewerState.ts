@@ -518,7 +518,6 @@ export class AgentViewerState {
         status: "done",
         createdAt,
         finishedAt,
-        passed: false,
         summary: "Agent completed",
       });
     };

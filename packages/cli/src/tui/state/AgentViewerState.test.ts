@@ -13,6 +13,7 @@ import { join } from "node:path";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
 import {
   agentStartEvent,
   assistantMessage,
@@ -632,6 +633,11 @@ describe("AgentViewerState", () => {
       const entry = state.getAgentEntry("stale-agent");
       expect(entry).toBeDefined();
       expect(entry!.status).toBe("done");
+
+      // No parsed result on disk means `passed` stays undefined, so the
+      // entry renders "completed" (green) rather than "failed".
+      expect(AgentDisplayHelpers.getEntryPassed(entry!)).toBeUndefined();
+      expect(AgentDisplayHelpers.getStatusLabel("done", undefined).label).toBe("completed");
 
       // Messages should have been loaded from disk.
       const messages = state.getConversationMessages("stale-agent");
