@@ -8,7 +8,10 @@
  * corrupt-file resilience at extension load.
  *
  * Usage:
- *   node packages/cli/scripts/test-worktree-registry-live.mjs [options]
+ *   node .forge/skills/forge-livetest/test-worktree-registry-live.mjs [options]
+ *
+ * Owned by the forge-livetest skill (see .forge/skills/forge-livetest/SKILL.md);
+ * run it from the repo root.
  *
  * Options:
  *   --dist <path>    Built extension bundle (default: packages/cli/dist/index.js)

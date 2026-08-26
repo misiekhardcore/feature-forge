@@ -37,13 +37,13 @@ touches those paths, validate in a real pi session.
 ```bash
 # Build the current checkout and test it live
 npm run build
-node packages/cli/scripts/test-worktree-registry-live.mjs
+node .forge/skills/forge-livetest/test-worktree-registry-live.mjs
 
 # Test a specific branch (builds it in a temp worktree first)
-node packages/cli/scripts/test-worktree-registry-live.mjs --branch forge/ws-worktree-registry
+node .forge/skills/forge-livetest/test-worktree-registry-live.mjs --branch forge/ws-worktree-registry
 
 # Inspect what the pi sessions are doing
-node packages/cli/scripts/test-worktree-registry-live.mjs --verbose --keep
+node .forge/skills/forge-livetest/test-worktree-registry-live.mjs --verbose --keep
 ```
 
 ## What it verifies
@@ -94,3 +94,22 @@ tail .forge/logs/forge-*.log     # expect "starting with an empty registry"
 - **No logs** - `ForgeConfig` writes `.forge/logs/` only when logging is
   initialized; check `logLevel` in `.forge/config.json` of the scratch repo
   (scaffolded from the repo's own config).
+
+## Why this skill exists (self-tooling pattern)
+
+Live behaviors (session hooks, startup reconciliation, corrupt-file load) are
+invisible to unit and e2e suites, which construct the composition chain
+directly. The first time they were validated (PR #247), the session had to
+manually boot pi headlessly, scaffold a scratch repo, and inspect
+`.forge/worktrees.json` + logs across three runs. That experience was
+packaged into this skill + its script so the validation is one command and
+repeatable.
+
+**Pattern for future work:** when a task requires validating behavior the
+test suite cannot reach (real process, hooks, external tool, timing), build
+a self-tool — a script plus a skill that documents when/how to run it — and
+commit both together. Keep the script next to its skill (this directory), not
+in `packages/`, so the skill owns its tooling. Mirror the eslint/prettier
+treatment: `.forge/` is runtime scaffold, not lint target (see root
+`eslint.config.js` / `.prettierignore`). The script's assertions should be on
+deterministic filesystem/process effects, never on LLM output text.
