@@ -1,9 +1,16 @@
 ---
 id: "resolve-pr-feedback-orchestrator"
 role: "orchestrator"
-model: "smart"
+model: "dumb"
 skills:
   - "notes-md"
+  - "save"
+  - "query"
+  - "notes"
+  - "daily"
+  - "wiki"
+  - "vault-ops"
+  - "memory-search"
 tools:
   - set_flow_param
   - set_session_name
@@ -126,10 +133,10 @@ one entry per comment with `id`, `body`, `path`, `source: "review"`,
 `isResolved` (from the thread), and `threadId`. Threads with
 `isResolved: false` are the actionable inventory; resolved threads need no
 work. Fall back to the `GitHubService` class in
-`packages/cli/src/github.ts` only when shaping needs fields the routine
+`packages/core/src/github.ts` only when shaping needs fields the routine
 query does not return — `author` login, `line`, `createdAt`, `url`, and
 issue comments. Instantiate it once
-(`import { GitHubService } from './packages/cli/src/github.ts'; const gh = new GitHubService();`)
+(`import { GitHubService } from './packages/core/src/github.ts'; const gh = new GitHubService();`)
 and use `gh.getPullRequest()` / `gh.getUnresolvedComments()`. Run those from
 the main checkout, the one that has `node_modules` (find it with `git worktree
 list`).
@@ -187,14 +194,27 @@ thread and resolves it only for `fixed`, `fixed-differently`, and
 `not-addressing`. Equivalently, from the main checkout:
 
 ```bash
-# Reply on a review thread (threadId comes from the comment)
-gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $id, body: $body }) { comment { id } } }' -F id=<threadId> -f body='<reply>'
+# Reply on a review thread (threadId comes from the comment). The reply is
+# passed via a temp file + --field body=@file — never inline: apostrophes in
+# the reply would break the shell command.
+cat > /tmp/ff-reply-$$.md << 'FFEOF'
+<reply>
+FFEOF
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $id, body: $body }) { comment { id } } }' -F id=<threadId> -F body=@/tmp/ff-reply-$$.md; status=$?; rm -f /tmp/ff-reply-$$.md; exit $status
 
-# Resolve a review thread (only for fixed/fixed-differently/not-addressing)
-gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }' -F id=<threadId>
+# Resolve a review thread (only for fixed/fixed-differently/not-addressing).
+# The verdict word is quoted so it cannot act as a shell pattern/injection.
+case "<verdict>" in
+  fixed|fixed-differently|not-addressing)
+    gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }' -F id=<threadId>
+    ;;
+esac
 
-# Reply to an issue comment
-gh api repos/<owner>/<repo>/issues/<pr>/comments -f body='<reply>'
+# Reply to an issue comment — same temp-file pattern
+cat > /tmp/ff-reply-$$.md << 'FFEOF'
+<reply>
+FFEOF
+gh api repos/<owner>/<repo>/issues/<pr>/comments -F body=@/tmp/ff-reply-$$.md; status=$?; rm -f /tmp/ff-reply-$$.md; exit $status
 
 # React 👍 to a comment (GraphQL node id works for both sources)
 gh api graphql -f query='mutation($id: ID!, $c: ReactionContent!) { addReaction(input: { subjectId: $id, content: $c }) { reaction { id } } }' -F id=<commentId> -F c=THUMBS_UP
@@ -212,6 +232,32 @@ when the ids do not line up.
 2. Verify the push succeeded (comments now point at code that exists on the
    branch), then call `destroy_workspace(workspace)`.
 3. Summarise for the user: comments triaged, groups built, verdicts posted.
+
+## Knowledge base (agents-memo)
+
+This session has an Obsidian vault (agents-memo plugin). Flows ship
+without agents-memo installed - this section is best-effort guidance when
+the plugin is present. These skills are declared here for documentation -
+the in-session orchestrator resolves them via the session's ambient skill
+discovery; the spec `skills:` allowlist is enforced only for subprocess
+agents. The agents-memo skills below are available - read the relevant
+`SKILL.md` (under `~/.pi/agent/skills/`) before using:
+
+| Skill           | Command  | Purpose                                        |
+| --------------- | -------- | ---------------------------------------------- |
+| `query`         | `/query` | Ask the vault for prior notes before planning  |
+| `save`          | `/save`  | File session learnings as permanent wiki pages |
+| `notes`         | `/note`  | Quick inbox capture                            |
+| `daily`         | `/daily` | Timestamped daily log lines                    |
+| `wiki`          | `/wiki`  | Vault routing and scaffolding                  |
+| `vault-ops`     | -        | Vault CLI verbs reference (read first for I/O) |
+| `memory-search` | -        | Fast project-knowledge lookup via obsidian CLI |
+
+Use the vault for context (`query`) and as a write target for durable
+learnings (`save`). Vault access is best-effort: if the vault is not
+configured (the agents-memo `scripts/resolve-vault.sh` exits non-zero -
+run `/wiki init` first), skip gracefully - never fail the flow over the
+vault.
 
 ## Rules
 

@@ -4,6 +4,13 @@ role: "orchestrator"
 model: "smart"
 skills:
   - "notes-md"
+  - "save"
+  - "query"
+  - "notes"
+  - "daily"
+  - "wiki"
+  - "vault-ops"
+  - "memory-search"
 tools:
   - set_flow_param
   - set_session_name
@@ -203,6 +210,13 @@ After each call:
      markdown summary. Use `--body-file` with a temp file instead of inline
      `--body` to avoid shell quoting issues with backticks and special characters.
 3. If `open_pr` succeeds:
+   - **Persist learnings.** Run the agents-memo `save` skill (see
+     "Knowledge base (agents-memo)" below) to file the session's project
+     learnings - issue -> PR mapping, key decisions, subtask outcomes,
+     validation results - into the Obsidian vault (harvest from the
+     session record / the PR body - `<workspace>/NOTES.md` is already
+     deleted at this point). Best-effort: skip gracefully if the vault is
+     not configured (see the section below).
    - Call `destroy_workspace(workspace)` to release the worktree.
    - Post the PR URL to the user.
 4. If `open_pr` fails:
@@ -217,6 +231,32 @@ retry, ask the user to choose one of:
 - **(b) Discard all changes** — call `destroy_workspace(workspace)` and stop.
 - **(c) Leave as-is** — report the workspace path and stop without destroying.
   Do NOT auto-destroy the workspace — the user decides.
+
+## Knowledge base (agents-memo)
+
+This session has an Obsidian vault (agents-memo plugin). Flows ship
+without agents-memo installed - this section is best-effort guidance when
+the plugin is present. These skills are declared here for documentation -
+the in-session orchestrator resolves them via the session's ambient skill
+discovery; the spec `skills:` allowlist is enforced only for subprocess
+agents. The agents-memo skills below are available - read the relevant
+`SKILL.md` (under `~/.pi/agent/skills/`) before using:
+
+| Skill           | Command  | Purpose                                        |
+| --------------- | -------- | ---------------------------------------------- |
+| `query`         | `/query` | Ask the vault for prior notes before planning  |
+| `save`          | `/save`  | File session learnings as permanent wiki pages |
+| `notes`         | `/note`  | Quick inbox capture                            |
+| `daily`         | `/daily` | Timestamped daily log lines                    |
+| `wiki`          | `/wiki`  | Vault routing and scaffolding                  |
+| `vault-ops`     | -        | Vault CLI verbs reference (read first for I/O) |
+| `memory-search` | -        | Fast project-knowledge lookup via obsidian CLI |
+
+Use the vault for context (`query`) and as a write target for durable
+learnings (`save`). Vault access is best-effort: if the vault is not
+configured (the agents-memo `scripts/resolve-vault.sh` exits non-zero -
+run `/wiki init` first), skip gracefully - never fail the flow over the
+vault.
 
 ## Rules
 

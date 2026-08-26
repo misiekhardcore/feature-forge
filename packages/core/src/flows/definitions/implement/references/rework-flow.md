@@ -50,5 +50,10 @@ Same as the Greenfield Flow. Call `run_build_loop(workspace, task, plan)` for ea
    git push origin <rework_branch>
    ```
    If push fails, report the error to the user.
-4. Call `destroy_workspace(workspace)` to release the worktree.
-5. Post a summary of what was pushed, referencing the existing PR number.
+4. Run the agents-memo `save` skill (see the implement orchestrator's
+   "Knowledge base (agents-memo)" section) to persist the session's
+   learnings into the Obsidian vault. Best-effort - skip if the vault is
+   not configured (the agents-memo `scripts/resolve-vault.sh` exits
+   non-zero - run `/wiki init` first).
+5. Call `destroy_workspace(workspace)` to release the worktree.
+6. Post a summary of what was pushed, referencing the existing PR number.

@@ -192,12 +192,14 @@ describe("flow round-trip", () => {
   let knownSpecs!: ReadonlySet<string>;
   let loader!: FlowLoader;
   let flow!: FlowDefinition;
+  let implementSpecManager!: SpecManager;
 
   beforeAll(async () => {
     const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
     await specManager.loadFromDirectory(specsDir);
     await specManager.loadFromDirectory(flowsDir); // the flow's own orchestrator.md
     knownSpecs = specManager.specNames();
+    implementSpecManager = specManager;
 
     // Load the single shipped flow. When more flows are added,
     // this iterates all .json files excluding flow-schema.json.
@@ -274,6 +276,15 @@ describe("flow round-trip", () => {
     it("declares no promptParams on the orchestrator config", () => {
       const orchestrator = flow.orchestrator as { promptParams?: unknown };
       expect(orchestrator.promptParams).toBeUndefined();
+    });
+
+    it("orchestrator spec declares the shared skill set and the save-at-end step", () => {
+      const spec = implementSpecManager.resolve({ spec: flow.orchestrator.systemPrompt });
+      for (const skill of ORCHESTRATOR_SKILLS) {
+        expect(spec.skills, `orchestrator spec missing skill "${skill}"`).toContain(skill);
+      }
+      expect(spec.systemPrompt).toContain("Knowledge base (agents-memo)");
+      expect(spec.systemPrompt).toContain("Persist learnings");
     });
 
     // ── 5. continueWhile parses and evaluates ────────────────────
@@ -854,17 +865,49 @@ describe("flow round-trip", () => {
   });
 });
 
-// ── set_flow_param guardrails ────────────────────────────────
+// ── flow docs guardrails ─────────────────────────────────────
 
-/** Extract the frontmatter `tools:` list from an orchestrator.md file. */
-function parseFrontmatterTools(markdown: string): string[] {
+/** Extract a frontmatter `{field}:` list (e.g. `tools:`, `skills:`) from an orchestrator.md file. */
+function parseFrontmatterList(markdown: string, field: string, stripQuotes = false): string[] {
   const frontmatter = markdown.split(/^---\s*$/m)[1] ?? "";
-  const toolsMatch = frontmatter.match(/^tools:\n((?:^ {2}- .*$\n?)+)/m);
-  if (!toolsMatch) return [];
-  return toolsMatch[1]
+  const listMatch = frontmatter.match(new RegExp(`^${field}:\\n((?:^ {2}- .*$\\n?)+)`, "m"));
+  if (!listMatch) {
+    // Fail loudly instead of returning [] - a frontmatter format change would
+    // otherwise surface as a misleading "missing skill/tool" failure.
+    const idLine =
+      frontmatter
+        .split("\n")
+        .find((line) => /^id:/.test(line.trim()))
+        ?.trim() ?? "";
+    throw new Error(`orchestrator frontmatter has no "${field}" list (${idLine})`);
+  }
+  return listMatch[1]
     .split("\n")
-    .map((line) => line.trim().replace(/^-\s+/, ""))
+    .map((line) => {
+      const item = line.trim().replace(/^-\s+/, "");
+      return stripQuotes ? item.replace(/^"|"$/g, "") : item;
+    })
     .filter(Boolean);
+}
+
+/** Extract the "## Knowledge base (agents-memo)" section, up to the next heading. */
+function extractKnowledgeBaseSection(markdown: string): string {
+  const start = markdown.indexOf("## Knowledge base (agents-memo)");
+  if (start < 0) return "";
+  // Anchor on a line-start heading ("\n## ") so a "### " sub-heading inside
+  // the section cannot truncate it early.
+  const end = markdown.indexOf("\n## ", start);
+  return end < 0 ? markdown.slice(start) : markdown.slice(start, end);
+}
+
+/**
+ * Read a UTF-8 file with an existence guard: a missing file must fail the
+ * enclosing test with an actionable message naming the file (a bare ENOENT
+ * thrown before the expect wrapper evaluates would report a generic error).
+ */
+function readGuardrailFile(filePath: string, message: string): string {
+  expect(fs.existsSync(filePath), message).toBe(true);
+  return fs.readFileSync(filePath, "utf-8");
 }
 
 // The legacy flow-scoped naming this guardrail protects against (e.g.
@@ -873,7 +916,21 @@ function parseFrontmatterTools(markdown: string): string[] {
 // itself must not re-introduce the literal it polices.
 const FLOW_SCOPED_SET_PARAM_SUFFIX = "_set_flow_" + "param";
 
-describe("set_flow_param guardrails", () => {
+// The shared skill set every orchestrator persona must declare (notes-md from
+// the forge plus the agents-memo skills; mirrors the implement orchestrator's
+// frontmatter `skills:` list).
+const ORCHESTRATOR_SKILLS = [
+  "notes-md",
+  "save",
+  "query",
+  "notes",
+  "daily",
+  "wiki",
+  "vault-ops",
+  "memory-search",
+];
+
+describe("flow docs guardrails", () => {
   // The flow-scoped set_flow_param routines were replaced by one shared
   // global tool (PR #218 rework). These tests keep the flows and their
   // orchestrator personas from regressing to flow-scoped names.
@@ -914,7 +971,7 @@ describe("set_flow_param guardrails", () => {
 
   it("every orchestrator persona lists the shared set_flow_param tool", () => {
     for (const [i, markdown] of orchestratorDocs.entries()) {
-      const tools = parseFrontmatterTools(markdown);
+      const tools = parseFrontmatterList(markdown, "tools");
       expect(tools, `flow "${guardrailFlowDirs[i]}" has no tools list`).toContain("set_flow_param");
       const flowScopedTools = tools.filter((tool) => tool.endsWith(FLOW_SCOPED_SET_PARAM_SUFFIX));
       expect(
@@ -922,5 +979,160 @@ describe("set_flow_param guardrails", () => {
         `flow "${guardrailFlowDirs[i]}" lists flow-scoped tools: ${flowScopedTools.join(", ")}`,
       ).toEqual([]);
     }
+  });
+
+  it("every orchestrator persona declares the shared skill set", () => {
+    const kbSections: string[] = [];
+    for (const [i, markdown] of orchestratorDocs.entries()) {
+      const skills = parseFrontmatterList(markdown, "skills", true);
+      for (const skill of ORCHESTRATOR_SKILLS) {
+        expect(skills, `flow "${guardrailFlowDirs[i]}" missing skill "${skill}"`).toContain(skill);
+      }
+      expect(markdown, `flow "${guardrailFlowDirs[i]}" missing knowledge-base section`).toContain(
+        "Knowledge base (agents-memo)",
+      );
+      const section = extractKnowledgeBaseSection(markdown);
+      if (kbSections.length > 0) {
+        // The knowledge-base section is shared verbatim by every orchestrator
+        // persona - a per-flow edit would silently diverge the copies. Compare
+        // against the first flow so a divergence names the offending doc.
+        expect(
+          section,
+          `flow "${guardrailFlowDirs[i]}" knowledge-base section diverges from flow "${guardrailFlowDirs[0]}"`,
+        ).toBe(kbSections[0]);
+      }
+      kbSections.push(section);
+    }
+  });
+
+  it("tracked .forge runtime copies mirror the definitions (only the model line may diverge)", () => {
+    // The tracked .forge/flows copies are the local runtime versions of the
+    // shipped flow definitions (scaffolded by forge-setup.js and updated in
+    // lockstep). The one intentional divergence is the orchestrator model
+    // override; every other file must be byte-identical - the unhardened gh
+    // reply commands in an older resolve-pr-feedback copy predating PR #233
+    // showed exactly how silently drifting copies regress.
+    const forgeFlowsDir = path.join(__dirname, "..", "..", "..", "..", ".forge", "flows");
+    for (const flowName of guardrailFlowDirs) {
+      const defDir = path.join(__dirname, "definitions", flowName);
+      const forgeDir = path.join(forgeFlowsDir, flowName);
+
+      // orchestrator.md: byte-identical apart from the frontmatter model line.
+      const defDoc = readGuardrailFile(
+        path.join(defDir, "orchestrator.md"),
+        `flow "${flowName}" definitions orchestrator.md is missing`,
+      );
+      const forgeDoc = readGuardrailFile(
+        path.join(forgeDir, "orchestrator.md"),
+        `flow "${flowName}" .forge orchestrator.md is missing`,
+      );
+      const withoutModel = (doc: string) =>
+        doc.split("\n").filter((line) => !line.startsWith("model: "));
+      expect(
+        withoutModel(forgeDoc),
+        `flow "${flowName}" .forge orchestrator diverges from the definitions copy`,
+      ).toEqual(withoutModel(defDoc));
+
+      const defModel = defDoc.split("\n").find((line) => line.startsWith("model: "));
+      const forgeModel = forgeDoc.split("\n").find((line) => line.startsWith("model: "));
+      expect(defModel, `flow "${flowName}" definition must declare the "smart" preset`).toBe(
+        'model: "smart"',
+      );
+      if (forgeModel !== defModel) {
+        expect(forgeModel, `flow "${flowName}" .forge copy may only override to "dumb"`).toBe(
+          'model: "dumb"',
+        );
+      }
+
+      // flow.json and references/ are executable content and must be identical.
+      expect(
+        readGuardrailFile(
+          path.join(forgeDir, "flow.json"),
+          `flow "${flowName}" .forge flow.json is missing`,
+        ),
+        `flow "${flowName}" .forge flow.json diverges from the definitions copy`,
+      ).toBe(
+        readGuardrailFile(
+          path.join(defDir, "flow.json"),
+          `flow "${flowName}" definitions flow.json is missing`,
+        ),
+      );
+
+      const defRefsDir = path.join(defDir, "references");
+      const forgeRefsDir = path.join(forgeDir, "references");
+      if (fs.existsSync(defRefsDir)) {
+        for (const ref of fs.readdirSync(defRefsDir)) {
+          expect(
+            readGuardrailFile(
+              path.join(forgeRefsDir, ref),
+              `flow "${flowName}" .forge reference "${ref}" is missing`,
+            ),
+            `flow "${flowName}" .forge reference "${ref}" diverges from the definitions copy`,
+          ).toBe(
+            readGuardrailFile(
+              path.join(defRefsDir, ref),
+              `flow "${flowName}" definitions reference "${ref}" is missing`,
+            ),
+          );
+        }
+      }
+      // Reverse direction: a reference present only in .forge is stale cruft
+      // the runtime would keep loading - flag it explicitly.
+      if (fs.existsSync(forgeRefsDir)) {
+        for (const ref of fs.readdirSync(forgeRefsDir)) {
+          expect(
+            fs.existsSync(path.join(defRefsDir, ref)),
+            `flow "${flowName}" .forge has unexpected reference "${ref}"`,
+          ).toBe(true);
+        }
+      }
+    }
+
+    // The runtime tree also carries the flow schema copy (scaffolded by
+    // forge-setup.js) - it must stay byte-identical to the definitions copy.
+    expect(
+      readGuardrailFile(
+        path.join(forgeFlowsDir, "flow-schema.json"),
+        ".forge flow-schema.json is missing",
+      ),
+      ".forge flow-schema.json diverges from the definitions copy",
+    ).toBe(
+      readGuardrailFile(
+        path.join(__dirname, "flow-schema.json"),
+        "definitions flow-schema.json is missing",
+      ),
+    );
+  });
+
+  it("implement rework flow orders save before destroy before summary", () => {
+    const rework = fs.readFileSync(
+      path.join(__dirname, "definitions", "implement", "references", "rework-flow.md"),
+      "utf-8",
+    );
+    // Anchor the ordering to the numbered Phase 3 steps rather than
+    // first-occurrence prose tokens (a future mention of a marker in an
+    // earlier step's text would silently move a raw indexOf anchor).
+    const phase3 = rework.slice(rework.indexOf("## Phase 3"));
+    const saveIdx = phase3.indexOf("\n4. ");
+    const destroyIdx = phase3.indexOf("\n5. ");
+    const summaryIdx = phase3.indexOf("\n6. ");
+    expect(
+      saveIdx,
+      "rework-flow.md Phase 3 must number the agents-memo save step 4",
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      destroyIdx,
+      "rework-flow.md Phase 3 must number the destroy_workspace step 5",
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      summaryIdx,
+      "rework-flow.md Phase 3 must number the summary step 6",
+    ).toBeGreaterThanOrEqual(0);
+    expect(saveIdx).toBeLessThan(destroyIdx);
+    expect(destroyIdx).toBeLessThan(summaryIdx);
+    // The numbered steps must contain the expected instructions.
+    expect(phase3.slice(saveIdx, destroyIdx)).toContain("Run the agents-memo `save` skill");
+    expect(phase3.slice(destroyIdx, summaryIdx)).toContain("destroy_workspace");
+    expect(phase3.slice(summaryIdx)).toContain("Post a summary");
   });
 });
