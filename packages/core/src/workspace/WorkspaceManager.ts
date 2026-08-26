@@ -33,14 +33,18 @@ export class WorkspaceManager {
   /**
    * Create an isolated workspace, register it, and persist the record.
    *
+   * @param workspaceId — Identifier passed to the provider to allocate the workspace.
+   * @param branch — Branch name associated with the workspace; defaults to `forge/${workspaceId}`.
    * @returns The handle for the newly created workspace.
    */
-  async create(workspaceId: string): Promise<WorkspaceHandle> {
+  async create(workspaceId: string, branch = `forge/${workspaceId}`): Promise<WorkspaceHandle> {
     const path = await this.provider.createWorkspace(workspaceId);
-    const handle = new WorkspaceHandle(path, new Date());
-    await this.registry.register(handle);
+    const handle = new WorkspaceHandle(path, new Date(), branch);
+    // register() may store a session-stamped copy; return the stored
+    // handle so callers observe the same sessionId the registry persisted.
+    const registered = await this.registry.register(handle);
     this.sessionPaths.add(path);
-    return handle;
+    return registered;
   }
 
   /**

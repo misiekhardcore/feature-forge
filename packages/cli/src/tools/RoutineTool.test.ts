@@ -39,7 +39,6 @@ import type { CreateWorkspaceOptions } from "@feature-forge/core/workspace";
 import { WorkspaceManager } from "@feature-forge/core/workspace";
 import { WorkspaceProvider } from "@feature-forge/core/workspace";
 import { WorkspaceProviderRegistry } from "@feature-forge/core/workspace";
-import { WorktreeRegistry } from "@feature-forge/core/workspace";
 
 import {
   makeMockToolRegistry,
@@ -487,7 +486,7 @@ describe("RoutineTool", () => {
         () =>
           new WorkspaceStepExecutor(
             wpRegistry,
-            new WorktreeRegistry(),
+            new MockWorktreeRegistry(),
             new WorkspaceManager(new MockWorkspaceProvider(), new MockWorktreeRegistry()),
           ),
       );

@@ -213,7 +213,9 @@ describe("GitStepExecutor", () => {
       const context = new FlowContext({
         results: new Map(),
         prompt: "task",
-        workspaces: new Map([["ws", new WorkspaceHandle("/resolved/ws", new Date())]]),
+        workspaces: new Map([
+          ["ws", new WorkspaceHandle("/resolved/ws", new Date(), "forge/ws-test")],
+        ]),
       });
       await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 

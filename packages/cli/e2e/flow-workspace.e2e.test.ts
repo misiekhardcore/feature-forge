@@ -9,7 +9,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -196,6 +196,26 @@ describe("Flow workspace lifecycle (e2e)", () => {
 
     const registryPath = WorktreeRegistry.defaultStoragePath(repoRoot);
     expect(existsSync(registryPath)).toBe(true);
+
+    const raw = readFileSync(registryPath, "utf-8");
+    const file = JSON.parse(raw) as {
+      version: unknown;
+      worktrees: Array<{ path: unknown; createdAt: unknown; branch: unknown }>;
+    };
+
+    // v1 envelope shape: { version: 1, worktrees: [...] } with non-empty,
+    // fully-typed entries (path/createdAt/branch are serialized strings).
+    expect(file.version).toBe(1);
+    expect(Array.isArray(file.worktrees)).toBe(true);
+    expect(file.worktrees.length).toBeGreaterThan(0);
+    for (const entry of file.worktrees as Record<string, unknown>[]) {
+      expect(typeof entry.path).toBe("string");
+      expect((entry.path as string).length).toBeGreaterThan(0);
+      expect(typeof entry.createdAt).toBe("string");
+      expect((entry.createdAt as string).length).toBeGreaterThan(0);
+      expect(typeof entry.branch).toBe("string");
+      expect((entry.branch as string).length).toBeGreaterThan(0);
+    }
   });
 
   it("cleanup step handles non-existent path gracefully", async () => {

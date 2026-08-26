@@ -1,8 +1,13 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { MockWorkspaceProvider, MockWorktreeRegistry } from "../test-utils";
 import { WorkspaceHandle } from "./WorkspaceHandle";
 import { WorkspaceManager } from "./WorkspaceManager";
+import { WorktreeRegistry } from "./WorktreeRegistry";
 
 describe("WorkspaceManager", () => {
   let provider: MockWorkspaceProvider;
@@ -25,6 +30,17 @@ describe("WorkspaceManager", () => {
       expect(registry.get("/tmp/mock-workspaces/task-1")).toBeDefined();
     });
 
+    it("defaults branch to forge/<workspaceId>", async () => {
+      const handle = await manager.create("task-1");
+      expect(handle.branch).toBe("forge/task-1");
+      expect(registry.get(handle.path)?.branch).toBe("forge/task-1");
+    });
+
+    it("uses an explicit branch when provided", async () => {
+      const handle = await manager.create("task-1", "custom/branch");
+      expect(handle.branch).toBe("custom/branch");
+    });
+
     it("creates different paths for different workspace ids", async () => {
       const handleA = await manager.create("task-a");
       const handleB = await manager.create("task-b");
@@ -40,6 +56,23 @@ describe("WorkspaceManager", () => {
 
       await expect(manager.create("task-1")).rejects.toThrow("disk is full");
       expect(registry.get("/tmp/mock-workspaces/task-1")).toBeUndefined();
+    });
+
+    it("returns the session-stamped handle stored in the registry", async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "workspace-manager-test-"));
+      try {
+        const realRegistry = new WorktreeRegistry(join(tmpDir, "worktrees.json"));
+        realRegistry.setSessionIdProvider(() => "sess-9");
+        const stampedManager = new WorkspaceManager(new MockWorkspaceProvider(), realRegistry);
+
+        const handle = await stampedManager.create("task-stamp");
+
+        expect(handle.sessionId).toBe("sess-9");
+        expect(realRegistry.get(handle.path)?.sessionId).toBe("sess-9");
+        expect(realRegistry.get(handle.path)).toBe(handle);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 

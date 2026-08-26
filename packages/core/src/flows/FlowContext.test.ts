@@ -4,7 +4,7 @@ import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { FlowContext, type InstructionResult } from "./FlowContext";
 
 function makeHandle(filePath: string): WorkspaceHandle {
-  return new WorkspaceHandle(filePath, new Date("2025-01-01"));
+  return new WorkspaceHandle(filePath, new Date("2025-01-01"), "forge/ws-test");
 }
 
 function makeResult(overrides: Partial<InstructionResult> = {}): InstructionResult {

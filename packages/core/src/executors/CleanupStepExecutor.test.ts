@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext } from "../flows/FlowContext";
 import type { CleanupInstruction } from "../flows/FlowInstruction";
-import { makeMockTypedEventBus } from "../test-utils";
+import { makeMockTypedEventBus, MockWorktreeRegistry } from "../test-utils";
 import { WorkspaceHandle } from "../workspace/WorkspaceHandle";
 import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
@@ -28,7 +28,7 @@ class TrackingProvider extends WorkspaceProvider {
 }
 
 function stubWorktreeRegistry(): WorktreeRegistry {
-  const registry = new WorktreeRegistry();
+  const registry = new MockWorktreeRegistry();
   return registry;
 }
 
@@ -50,7 +50,7 @@ describe("CleanupStepExecutor", () => {
       const wm = stubWorkspaceManager(provider, wtRegistry);
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
-      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test");
       const context = new FlowContext({
         results: new Map(),
         prompt: "task",
@@ -76,7 +76,7 @@ describe("CleanupStepExecutor", () => {
       const wm = stubWorkspaceManager(provider, wtRegistry);
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
-      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test");
       const context = new FlowContext({
         results: new Map(),
         prompt: "task",
@@ -90,7 +90,7 @@ describe("CleanupStepExecutor", () => {
       expect(result.results.get("c1")!.parsed!.passed).toBe(true);
     });
 
-    it("passes branch to destroyWorkspace when handle has branch", async () => {
+    it("passes the handle branch to destroyWorkspace", async () => {
       const provider = new TrackingProvider();
       const provRegistry = new WorkspaceProviderRegistry().register("git-worktree", provider);
       const wtRegistry = stubWorktreeRegistry();
@@ -118,7 +118,7 @@ describe("CleanupStepExecutor", () => {
       const wm = stubWorkspaceManager(provider, wtRegistry);
       const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
-      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+      const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test");
       const context = new FlowContext({
         results: new Map(),
         prompt: "task",
@@ -144,8 +144,8 @@ describe("CleanupStepExecutor", () => {
         results: new Map(),
         prompt: "task",
         workspaces: new Map([
-          ["ws1", new WorkspaceHandle("/fake/ws1", new Date())],
-          ["ws2", new WorkspaceHandle("/fake/ws2", new Date())],
+          ["ws1", new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test")],
+          ["ws2", new WorkspaceHandle("/fake/ws2", new Date(), "forge/ws-test")],
         ]),
       });
 
@@ -205,7 +205,9 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext({
         results: new Map(),
         prompt: "task",
-        workspaces: new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
+        workspaces: new Map([
+          ["ws1", new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test")],
+        ]),
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1" };
@@ -241,7 +243,7 @@ describe("CleanupStepExecutor", () => {
         const wm = stubWorkspaceManager(provider, wtRegistry);
         const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
-        const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+        const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test");
         const context = new FlowContext({
           results: new Map(),
           prompt: "task",
@@ -282,7 +284,7 @@ describe("CleanupStepExecutor", () => {
         const wm = stubWorkspaceManager(provider, wtRegistry);
         const executor = new CleanupStepExecutor(provRegistry, wtRegistry, wm);
 
-        const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date());
+        const workspaceHandle = new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test");
         const context = new FlowContext({
           results: new Map(),
           prompt: "task",
@@ -353,7 +355,9 @@ describe("CleanupStepExecutor", () => {
       const context = new FlowContext({
         results: new Map(),
         prompt: "task",
-        workspaces: new Map([["ws1", new WorkspaceHandle("/fake/ws1", new Date())]]),
+        workspaces: new Map([
+          ["ws1", new WorkspaceHandle("/fake/ws1", new Date(), "forge/ws-test")],
+        ]),
       });
 
       const instruction: CleanupInstruction = { type: "cleanup", id: "c1", of: "ws1" };

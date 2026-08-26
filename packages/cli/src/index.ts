@@ -29,7 +29,6 @@ import { SharedStreamDir } from "@feature-forge/core/progress";
 import { CommandRegistry, ToolRegistry } from "@feature-forge/core/registry";
 import { withForgePrefix } from "@feature-forge/core/registry";
 import {
-  CurrentDirProvider,
   GitWorktreeProvider,
   WorkspaceManager,
   WorkspaceProviderRegistry,
@@ -189,7 +188,31 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const repoRoot = process.cwd();
   const worktreeProvider = new GitWorktreeProvider(repoRoot);
   const worktreeRegistry = new WorktreeRegistry();
-  await worktreeRegistry.load();
+  try {
+    await worktreeRegistry.load();
+    // Surface crash leftovers (stale registry entries, orphaned worktrees,
+    // orphaned forge/* branches) on startup; never brick the extension.
+    await worktreeRegistry.reconcileAndLog(repoRoot);
+  } catch (error) {
+    logger.warn("[feature-forge] Failed to load or reconcile worktree registry", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  // Capture the pi session id (UUIDv7) as soon as it is observable so
+  // registry entries created by this process are attributed to the owning
+  // session. Refreshed on every session hook — /new and /resume swap the
+  // session mid-process. The id can legitimately be absent before the
+  // first hook fires; entries then stay unstamped.
+  let sessionId: string | undefined;
+  pi.on("session_start", (_event, ctx) => {
+    sessionId = ctx.sessionManager.getSessionId();
+  });
+  pi.on("before_agent_start", (_event, ctx) => {
+    sessionId = ctx.sessionManager.getSessionId();
+  });
+  worktreeRegistry.setSessionIdProvider(() => sessionId);
+
   const workspaceManager = new WorkspaceManager(worktreeProvider, worktreeRegistry);
 
   // ── Signal handlers ────────────────────────────────────────────────
@@ -235,9 +258,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     ForgeInitCommand,
   );
 
-  const workspaceProviderRegistry = new WorkspaceProviderRegistry()
-    .register("git-worktree", worktreeProvider)
-    .register("current-dir", new CurrentDirProvider());
+  const workspaceProviderRegistry = new WorkspaceProviderRegistry().register(
+    "git-worktree",
+    worktreeProvider,
+  );
 
   // ── Step executor registry ───────────────────────────────────────
   const stepExecutorRegistry = createStepExecutorRegistry(

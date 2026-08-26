@@ -60,7 +60,7 @@ describe("registerSignalHandlers", () => {
 
   it("removes listeners after cleanup completes", async () => {
     vi.useFakeTimers();
-    const h1 = new WorkspaceHandle("/tmp/ws-1", new Date());
+    const h1 = new WorkspaceHandle("/tmp/ws-1", new Date(), "forge/ws-test");
     await registry.register(h1);
     workspaceManager.trackPath("/tmp/ws-1");
 
@@ -83,9 +83,9 @@ describe("registerSignalHandlers", () => {
     vi.useFakeTimers();
     const exit = vi.fn();
 
-    const hA = new WorkspaceHandle("/tmp/ws-A", new Date());
-    const hB = new WorkspaceHandle("/tmp/ws-B", new Date());
-    const hC = new WorkspaceHandle("/tmp/ws-C", new Date());
+    const hA = new WorkspaceHandle("/tmp/ws-A", new Date(), "forge/ws-test");
+    const hB = new WorkspaceHandle("/tmp/ws-B", new Date(), "forge/ws-test");
+    const hC = new WorkspaceHandle("/tmp/ws-C", new Date(), "forge/ws-test");
     await registry.register(hA);
     await registry.register(hB);
     await registry.register(hC);
@@ -100,9 +100,9 @@ describe("registerSignalHandlers", () => {
     await vi.runAllTimersAsync();
 
     expect(destroySpy).toHaveBeenCalledTimes(2);
-    expect(destroySpy).toHaveBeenCalledWith("/tmp/ws-A", undefined);
-    expect(destroySpy).toHaveBeenCalledWith("/tmp/ws-B", undefined);
-    expect(destroySpy).not.toHaveBeenCalledWith("/tmp/ws-C", undefined);
+    expect(destroySpy).toHaveBeenCalledWith("/tmp/ws-A", "forge/ws-test");
+    expect(destroySpy).toHaveBeenCalledWith("/tmp/ws-B", "forge/ws-test");
+    expect(destroySpy).not.toHaveBeenCalledWith("/tmp/ws-C", "forge/ws-test");
 
     vi.useRealTimers();
   });
@@ -146,7 +146,7 @@ describe("cleanupWorkspaces", () => {
   });
 
   function createHandle(path: string): WorkspaceHandle {
-    return new WorkspaceHandle(path, new Date());
+    return new WorkspaceHandle(path, new Date(), "forge/ws-test");
   }
 
   describe("no session workspaces", () => {
@@ -289,8 +289,8 @@ describe("cleanupWorkspaces", () => {
       await vi.runAllTimersAsync();
 
       expect(destroySpy).toHaveBeenCalledTimes(1);
-      expect(destroySpy).toHaveBeenCalledWith("/tmp/ws-session", undefined);
-      expect(destroySpy).not.toHaveBeenCalledWith("/tmp/ws-other", undefined);
+      expect(destroySpy).toHaveBeenCalledWith("/tmp/ws-session", "forge/ws-test");
+      expect(destroySpy).not.toHaveBeenCalledWith("/tmp/ws-other", "forge/ws-test");
     });
   });
 });
