@@ -1,6 +1,6 @@
 import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, logger } from "@feature-forge/core";
-import type { TypedEventBus } from "@feature-forge/core/event-bus";
+import type { ForgeChannels, TypedEventBus } from "@feature-forge/core/event-bus";
 import type { FlowParams } from "@feature-forge/core/flows";
 import type { RoutineProgressEvent, RoutineResult } from "@feature-forge/core/routines";
 
@@ -35,6 +35,22 @@ const PROGRESS_CHANNELS = [
   "feature-forge:routine-ref-done",
   "feature-forge:routine-ref-error",
 ] as const;
+
+/**
+ * Compile-time parity guard between {@link ForgeChannels} and
+ * {@link PROGRESS_CHANNELS}. The display pipeline must never silently miss a
+ * channel: adding or removing a channel in ForgeChannels without updating
+ * PROGRESS_CHANNELS fails typecheck instead of degrading the UI.
+ */
+type AssertAllForgeChannelsCovered = [keyof ForgeChannels] extends [
+  (typeof PROGRESS_CHANNELS)[number],
+]
+  ? true
+  : never;
+type AssertNoExtraChannels = [(typeof PROGRESS_CHANNELS)[number]] extends [keyof ForgeChannels]
+  ? true
+  : never;
+const _assertChannelParity: [AssertAllForgeChannelsCovered, AssertNoExtraChannels] = [true, true];
 
 /** Constructor options for {@link RoutineProgressFeed}. */
 export interface RoutineProgressFeedOptions {
