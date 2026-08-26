@@ -8,52 +8,22 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { logger } from "@feature-forge/core";
-import { ForgeConfig } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/agents";
 import type { RoutineDefinition } from "@feature-forge/core/flows";
-import type { RoutineProgressEvent } from "@feature-forge/core/routines";
 import type { RoutineResult } from "@feature-forge/core/routines";
 import { RoutineExecutor } from "@feature-forge/core/routines";
 import type { TObject, TProperties } from "typebox";
-import { Type } from "typebox";
 
+import { AgentViewerLifecycle } from "../tui/AgentViewerLifecycle";
 import type { AccumulatedState } from "../tui/progress/AccumulatedState";
 import { createAccumulatedState } from "../tui/progress/AccumulatedState";
-import { applyEvent } from "../tui/progress/DisplayProjection";
 import { NoOpProgressReporter } from "../tui/progress/NoOpProgressReporter";
 import { ProgressRenderer } from "../tui/progress/ProgressRenderer";
 import type { ProgressWidget } from "../tui/progress/ProgressWidget";
+import { RoutineProgressFeed } from "../tui/progress/RoutineProgressFeed";
 import type { RoutineProgressState } from "../tui/progress/RoutineProgressState";
 import { TuiRoutineWidget } from "../tui/progress/TuiRoutineWidget";
-import type { AgentViewerHandle } from "../tui/showAgentViewer";
-import { showAgentViewer } from "../tui/showAgentViewer";
-
-/**
- * Channels the handler subscribes to for contribution accumulation and
- * progress widget rendering. Agent channels are included so the widget
- * shows agent lifecycle status — the overlay is driven separately via
- * {@link showAgentViewer}.
- */
-const PROGRESS_CHANNELS = [
-  "feature-forge:workspace-ready",
-  "feature-forge:agent-started",
-  "feature-forge:agent-stream",
-  "feature-forge:agent-done",
-  "feature-forge:loop-round-start",
-  "feature-forge:loop-round-complete",
-  "feature-forge:parallel-start",
-  "feature-forge:parallel-done",
-  "feature-forge:cleanup-start",
-  "feature-forge:cleanup-done",
-  "feature-forge:git-start",
-  "feature-forge:git-done",
-  "feature-forge:shell-start",
-  "feature-forge:shell-done",
-  "feature-forge:session-set",
-  "feature-forge:routine-ref-start",
-  "feature-forge:routine-ref-done",
-  "feature-forge:routine-ref-error",
-] as const;
+import { RoutineToolSchema } from "./RoutineToolSchema";
 
 /**
  * Internal state for tool-row invalidation.
@@ -103,8 +73,16 @@ export class RoutineTool
   /** Private backing fields — exposed through {@link RoutineProgressState} getters. */
   private readonly _routineName: string;
 
-  /** Live accumulated display state, folded from the event stream via applyEvent. */
-  private _accumulatedState: AccumulatedState = createAccumulatedState();
+  /**
+   * Progress feed for the current execution — owns subscriptions, the
+   * {@link import("../tui/progress/DisplayProjection").applyEvent} fold, and the
+   * accumulated state. Reassigned per execute() call; stays assigned after
+   * completion so callers can read the final state.
+   */
+  private feed: RoutineProgressFeed | undefined;
+
+  /** Empty state returned while no execution is in flight. */
+  private readonly idleState: AccumulatedState = createAccumulatedState();
 
   /** Tool-row invalidation handle for renderCall/renderResult. */
   private readonly toolRowState: ToolRowInvalidation = { invalidate: undefined };
@@ -121,8 +99,8 @@ export class RoutineTool
     this._routineName = routineDef.id;
     this.name = routineDef.id;
     this.label = `Routine: ${flowName}/${routineDef.id}`;
-    this.description = this.buildDescription(routineDef.id, routineDef);
-    this.parameters = RoutineTool.buildParamsSchema(routineDef);
+    this.description = RoutineToolSchema.buildDescription(routineDef.id, routineDef);
+    this.parameters = RoutineToolSchema.buildParamsSchema(routineDef);
 
     this.renderer = new ProgressRenderer(this);
   }
@@ -136,7 +114,7 @@ export class RoutineTool
 
   /** Accumulated display state folded from the event stream. */
   get accumulatedState(): AccumulatedState {
-    return this._accumulatedState;
+    return this.feed?.accumulatedState ?? this.idleState;
   }
 
   // ── ToolDefinition rendering ───────────────────────────────
@@ -184,9 +162,6 @@ export class RoutineTool
       }
     }
 
-    // Reset accumulated state for this execution.
-    this.resetState();
-
     const widget: ProgressWidget = ctx.ui
       ? new TuiRoutineWidget({
           ctx,
@@ -197,89 +172,27 @@ export class RoutineTool
       : new NoOpProgressReporter();
 
     // Agent viewer overlay — opened lazily on the first agent progress
-    // event, not eagerly, so routines without agent steps never create an
-    // overlay. The composer owns the full lifecycle (wire → open via
-    // ctx.ui.custom → connect → dispose/dismiss). The call is deliberately
-    // not awaited: `ctx.ui.custom` resolves only when the overlay is
-    // dismissed, so awaiting would stall the routine until the user closes
-    // it. The resolved handle is captured for finally — in headless mocks
-    // `custom` resolves without opening an overlay and the composer already
-    // released the wiring, so finally's dispose is an idempotent safety
-    // net; in the TUI the overlay stays open until the user dismisses it
-    // and the composer's own dispose tears everything down. If the routine
-    // completes first, the handle may not be assigned yet — that is
-    // intentional: teardown stays with the composer (its onDone path /
-    // headless self-dispose), never with this tool.
-    let viewerHandle: AgentViewerHandle | undefined;
-    let viewerOpened = false;
-    const openViewer = (): void => {
-      if (!ctx.hasUI || viewerOpened) return;
-      viewerOpened = true;
-      void showAgentViewer({
-        ctx,
-        config: ForgeConfig.getInstance(),
-        toolRegistry: this.executor.toolRegistry,
-        eventBus: this.executor.eventBus,
-        agentQuery: this.supervisor,
-      })
-        .then((handle) => {
-          viewerHandle = handle;
-        })
-        .catch((err) => {
-          logger.warn("Agent viewer overlay creation failed", { err });
-        });
-    };
+    // event via the one-shot {@link AgentViewerLifecycle}, so routines
+    // without agent steps never create an overlay.
+    const viewer = new AgentViewerLifecycle({
+      ctx,
+      toolRegistry: this.executor.toolRegistry,
+      eventBus: this.executor.eventBus,
+      agentQuery: this.supervisor,
+    });
 
-    // Read lazily on the first progress event — the flag is only needed when
-    // a debug entry is actually written, so avoid config access otherwise.
-    let logPayloads: boolean | undefined;
-    const handler = (data: unknown): void => {
-      const event = data as RoutineProgressEvent;
-
-      // Open the viewer on the first agent-tagged progress event. Only
-      // agent-started/stream/done carry `agentId`; all other phases don't,
-      // so routines without agent steps never open the overlay.
-      const agentId = (event.details as { agentId?: string }).agentId;
-      if (agentId) openViewer();
-
-      logPayloads ??= ForgeConfig.getInstance().getLogPayloads();
-      logger.debug(
-        "RoutineTool progress",
-        logPayloads ? { ...event } : { phase: event.phase, message: event.message },
-      );
-
-      // Fold the event into the accumulated display state. Stream-only
-      // events (agent-stream chunks) are no-ops in the projection.
-      applyEvent(this._accumulatedState, event);
-
-      this.renderProgress(widget, ctx);
-
-      if (onUpdate) {
-        const resultDetails = event.details as Partial<RoutineResult>;
-        onUpdate({
-          content: [
-            {
-              type: "text",
-              text: `[${event.phase}] ${event.message}`,
-            },
-          ],
-          details: {
-            routine: resultDetails.routine ?? this._routineName,
-            passed: resultDetails.passed ?? false,
-            status: resultDetails.status ?? "success",
-            rounds: resultDetails.rounds ?? 0,
-            workspace: resultDetails.workspace,
-            results: {},
-            summary: resultDetails.summary ?? "",
-            session: this.executor.store.toObject(),
-          },
-        });
-      }
-    };
-
-    const unsubscribers = PROGRESS_CHANNELS.map((channel) =>
-      this.executor.eventBus.on(channel, handler),
-    );
+    // Progress feed — owns subscriptions, the display-projection fold, and
+    // the accumulated state. reset() runs inside subscribe(), so each
+    // execution starts from a fresh fold.
+    this.feed = new RoutineProgressFeed({
+      routineName: this._routineName,
+      eventBus: this.executor.eventBus,
+      session: () => this.executor.store.toObject(),
+      onUpdate,
+      onAgentEvent: () => viewer.open(),
+      onProgress: () => this.renderProgress(widget, ctx),
+    });
+    const unsubscribe = this.feed.subscribe();
 
     try {
       const result = await this.executor.run(
@@ -301,46 +214,16 @@ export class RoutineTool
       throw error;
     } finally {
       widget.clear();
-      viewerHandle?.dispose();
-      unsubscribers.forEach((u) => u());
+      unsubscribe();
+      viewer.dispose();
     }
   }
 
   // ── Private helpers ────────────────────────────────────────
 
-  /** Reset accumulated display state before each execution. */
-  private resetState(): void {
-    this._accumulatedState = createAccumulatedState();
-  }
-
   /** Build and render progress surfaces via the renderer. */
   private renderProgress(widget: ProgressWidget, ctx: ExtensionContext): void {
     const theme = ctx.ui?.theme ?? { fg: (_c: string, t: string) => t };
     this.renderer.renderToWidget(widget, theme);
-  }
-
-  private static buildParamsSchema(routineDef: RoutineDefinition): TObject<TProperties> {
-    const properties: Record<string, ReturnType<typeof Type.String>> = {};
-    for (const param of routineDef.params) {
-      const schema = Type.String({
-        description: param.description,
-      });
-      properties[param.name] = param.optional ? Type.Optional(schema) : schema;
-    }
-    return Type.Object(properties);
-  }
-
-  private buildDescription(routineName: string, routineDef: RoutineDefinition): string {
-    if (routineDef.params.length === 0) {
-      return routineDef.description ?? `Run the "${routineName}" routine.`;
-    }
-    const paramList = routineDef.params
-      .map(
-        (p) =>
-          `${p.name}${p.description ? ` (${p.description})` : ""}${p.optional ? " [optional]" : ""}`,
-      )
-      .join(", ");
-    const base = routineDef.description ?? `Run the "${routineName}" routine with params`;
-    return `${base}: ${paramList}.`;
   }
 }
