@@ -2413,9 +2413,11 @@ describe("AgentViewerOverlay", () => {
         expect(joined).toContain("⟳");
         expect(joined).toContain("builder");
 
-        // The orphaned stream file should create a "done" entry.
+        // The orphaned stream file should create a "done" entry. With no
+        // parsed result on disk, `passed` stays undefined so it renders
+        // "completed" (green ✓), never "failed".
         expect(joined).toContain("reviewer");
-        expect(joined).toContain("✗");
+        expect(joined).toContain("✓");
         expect(joined).toContain("Agent completed");
 
         const content = readFileSync(join(tmpDir, "reviewer.stream"), "utf-8");
