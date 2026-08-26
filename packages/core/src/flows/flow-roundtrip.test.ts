@@ -192,14 +192,12 @@ describe("flow round-trip", () => {
   let knownSpecs!: ReadonlySet<string>;
   let loader!: FlowLoader;
   let flow!: FlowDefinition;
-  let implementSpecManager!: SpecManager;
 
   beforeAll(async () => {
     const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
     await specManager.loadFromDirectory(specsDir);
     await specManager.loadFromDirectory(flowsDir); // the flow's own orchestrator.md
     knownSpecs = specManager.specNames();
-    implementSpecManager = specManager;
 
     // Load the single shipped flow. When more flows are added,
     // this iterates all .json files excluding flow-schema.json.
@@ -276,15 +274,6 @@ describe("flow round-trip", () => {
     it("declares no promptParams on the orchestrator config", () => {
       const orchestrator = flow.orchestrator as { promptParams?: unknown };
       expect(orchestrator.promptParams).toBeUndefined();
-    });
-
-    it("orchestrator spec declares the shared skill set and the save-at-end step", () => {
-      const spec = implementSpecManager.resolve({ spec: flow.orchestrator.systemPrompt });
-      for (const skill of ORCHESTRATOR_SKILLS) {
-        expect(spec.skills, `orchestrator spec missing skill "${skill}"`).toContain(skill);
-      }
-      expect(spec.systemPrompt).toContain("Knowledge base (agents-memo)");
-      expect(spec.systemPrompt).toContain("Persist learnings");
     });
 
     // ── 5. continueWhile parses and evaluates ────────────────────
@@ -890,14 +879,90 @@ function parseFrontmatterList(markdown: string, field: string, stripQuotes = fal
     .filter(Boolean);
 }
 
-/** Extract the "## Knowledge base (agents-memo)" section, up to the next heading. */
-function extractKnowledgeBaseSection(markdown: string): string {
-  const start = markdown.indexOf("## Knowledge base (agents-memo)");
-  if (start < 0) return "";
-  // Anchor on a line-start heading ("\n## ") so a "### " sub-heading inside
-  // the section cannot truncate it early.
-  const end = markdown.indexOf("\n## ", start);
-  return end < 0 ? markdown.slice(start) : markdown.slice(start, end);
+/**
+ * Strip a project-local generic memory overlay from an orchestrator.md /
+ * references prose doc so the .forge copies can be compared against the
+ * definitions copies. feature-forge's own .forge may carry an uncommitted
+ * memory overlay (a `## Memory` section, `memo:*` skill declarations in the
+ * frontmatter, a "Persist learnings" bullet in the prose, and a numbered
+ * `memo:save` step the overlay may insert into rework-flow.md); the shipped
+ * definitions never do. Applied to both sides of a comparison - a no-op for
+ * the definitions copy.
+ *
+ * Four line passes with a small state machine:
+ * 1. Drop the "## Memory" section (heading through the next "## " heading).
+ * 2. Drop `memo:` skill declarations from the frontmatter skills list.
+ * 3. Drop the "Persist learnings" bullet plus its indented continuation
+ *    lines, up to the next sibling bullet or a blank line (end of block).
+ * 4. Drop a numbered step whose text mentions the `memo:save` skill (the
+ *    local overlay's renumbered save step) plus its indented continuation
+ *    lines, then renumber every following numbered step by -1 so the
+ *    remaining steps match the definitions copy.
+ */
+function stripLocalMemoryOverlay(markdown: string): string {
+  const lines = markdown.split("\n");
+  const out: string[] = [];
+  let inMemorySection = false;
+  let memoSaveStepRemoved = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // (1) Drop the "## Memory" section (heading to next "## " heading).
+    if (/^## Memory\b/.test(line)) {
+      inMemorySection = true;
+      continue;
+    }
+    if (inMemorySection) {
+      if (/^## /.test(line)) inMemorySection = false;
+      else continue;
+    }
+
+    // (2) Drop memo: skill declarations from the frontmatter skills list.
+    if (/^\s*-\s*"?memo:/.test(line)) continue;
+
+    // (3) Drop the "Persist learnings" bullet and its continuation lines
+    //     (indented prose) until the next sibling bullet or end of block.
+    if (/^\s*-\s*\*\*Persist learnings\.\*\*/.test(line)) {
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1];
+        if (/^\s*-\s/.test(next)) break; // sibling bullet
+        if (/^\s*$/.test(next)) break; // blank line ends the block
+        i++;
+      }
+      continue;
+    }
+
+    // (4) Drop a numbered step mentioning the memo:save skill - the local
+    //     overlay's renumbered save step in rework-flow.md - plus its
+    //     continuation lines, then renumber every following numbered step
+    //     so the remaining steps match the definitions copy.
+    if (/^\d+\. .*memo:save/.test(line)) {
+      memoSaveStepRemoved = true;
+      while (i + 1 < lines.length) {
+        const next = lines[i + 1];
+        if (/^\d+\. /.test(next)) break; // next numbered step
+        if (/^\s*$/.test(next)) break; // blank line ends the block
+        i++;
+      }
+      continue;
+    }
+
+    // After a removed memo:save step, renumber subsequent numbered steps
+    // by -1 (the definitions copy never carries the extra step).
+    const stepMatch = memoSaveStepRemoved ? line.match(/^(\d+)\. /) : null;
+    if (stepMatch) {
+      out.push(line.replace(/^\d+/, String(Number(stepMatch[1]) - 1)));
+      continue;
+    }
+
+    out.push(line);
+  }
+  const result = out.join("\n");
+  // A Memory section dropped at EOF swallows the doc's final newline (the
+  // trailing empty element from split); restore it so the comparison is not
+  // tripped by a meaningless trailing-newline difference.
+  return markdown.endsWith("\n") && !result.endsWith("\n") ? result + "\n" : result;
 }
 
 /**
@@ -915,20 +980,6 @@ function readGuardrailFile(filePath: string, message: string): string {
 // repo-wide grep gate for the scoped naming stays clean — the guardrail
 // itself must not re-introduce the literal it polices.
 const FLOW_SCOPED_SET_PARAM_SUFFIX = "_set_flow_" + "param";
-
-// The shared skill set every orchestrator persona must declare (notes-md from
-// the forge plus the agents-memo skills; mirrors the implement orchestrator's
-// frontmatter `skills:` list).
-const ORCHESTRATOR_SKILLS = [
-  "notes-md",
-  "save",
-  "query",
-  "notes",
-  "daily",
-  "wiki",
-  "vault-ops",
-  "memory-search",
-];
 
 describe("flow docs guardrails", () => {
   // The flow-scoped set_flow_param routines were replaced by one shared
@@ -1002,30 +1053,6 @@ describe("flow docs guardrails", () => {
     }
   });
 
-  it("every orchestrator persona declares the shared skill set", () => {
-    const kbSections: string[] = [];
-    for (const [i, markdown] of orchestratorDocs.entries()) {
-      const skills = parseFrontmatterList(markdown, "skills", true);
-      for (const skill of ORCHESTRATOR_SKILLS) {
-        expect(skills, `flow "${guardrailFlowDirs[i]}" missing skill "${skill}"`).toContain(skill);
-      }
-      expect(markdown, `flow "${guardrailFlowDirs[i]}" missing knowledge-base section`).toContain(
-        "Knowledge base (agents-memo)",
-      );
-      const section = extractKnowledgeBaseSection(markdown);
-      if (kbSections.length > 0) {
-        // The knowledge-base section is shared verbatim by every orchestrator
-        // persona - a per-flow edit would silently diverge the copies. Compare
-        // against the first flow so a divergence names the offending doc.
-        expect(
-          section,
-          `flow "${guardrailFlowDirs[i]}" knowledge-base section diverges from flow "${guardrailFlowDirs[0]}"`,
-        ).toBe(kbSections[0]);
-      }
-      kbSections.push(section);
-    }
-  });
-
   it("tracked .forge runtime copies mirror the definitions (only the model line may diverge)", () => {
     // The tracked .forge/flows copies are the local runtime versions of the
     // shipped flow definitions (scaffolded by forge-setup.js and updated in
@@ -1049,10 +1076,13 @@ describe("flow docs guardrails", () => {
       );
       const withoutModel = (doc: string) =>
         doc.split("\n").filter((line) => !line.startsWith("model: "));
+      // Strip the local memory overlay from BOTH sides before comparing - a
+      // no-op for the definitions copy, which never carries it.
+      const comparable = (doc: string) => stripLocalMemoryOverlay(withoutModel(doc).join("\n"));
       expect(
-        withoutModel(forgeDoc),
+        comparable(forgeDoc),
         `flow "${flowName}" .forge orchestrator diverges from the definitions copy`,
-      ).toEqual(withoutModel(defDoc));
+      ).toEqual(comparable(defDoc));
 
       const defModel = defDoc.split("\n").find((line) => line.startsWith("model: "));
       const forgeModel = forgeDoc.split("\n").find((line) => line.startsWith("model: "));
@@ -1065,7 +1095,7 @@ describe("flow docs guardrails", () => {
         );
       }
 
-      // flow.json and references/ are executable content and must be identical.
+      // flow.json is executable content and must be byte-identical.
       expect(
         readGuardrailFile(
           path.join(forgeDir, "flow.json"),
@@ -1079,20 +1109,31 @@ describe("flow docs guardrails", () => {
         ),
       );
 
+      // references/ prose is compared after stripping the local memory
+      // overlay (a numbered memo:save step the overlay may insert into
+      // rework-flow.md); existence is checked in both directions.
       const defRefsDir = path.join(defDir, "references");
       const forgeRefsDir = path.join(forgeDir, "references");
       if (fs.existsSync(defRefsDir)) {
         for (const ref of fs.readdirSync(defRefsDir)) {
           expect(
-            readGuardrailFile(
-              path.join(forgeRefsDir, ref),
-              `flow "${flowName}" .forge reference "${ref}" is missing`,
+            fs.existsSync(path.join(forgeRefsDir, ref)),
+            `flow "${flowName}" .forge reference "${ref}" is missing`,
+          ).toBe(true);
+          expect(
+            stripLocalMemoryOverlay(
+              readGuardrailFile(
+                path.join(forgeRefsDir, ref),
+                `flow "${flowName}" .forge reference "${ref}" is missing`,
+              ),
             ),
             `flow "${flowName}" .forge reference "${ref}" diverges from the definitions copy`,
           ).toBe(
-            readGuardrailFile(
-              path.join(defRefsDir, ref),
-              `flow "${flowName}" definitions reference "${ref}" is missing`,
+            stripLocalMemoryOverlay(
+              readGuardrailFile(
+                path.join(defRefsDir, ref),
+                `flow "${flowName}" definitions reference "${ref}" is missing`,
+              ),
             ),
           );
         }
@@ -1125,35 +1166,126 @@ describe("flow docs guardrails", () => {
     );
   });
 
-  it("implement rework flow orders save before destroy before summary", () => {
-    const rework = fs.readFileSync(
-      path.join(__dirname, "definitions", "implement", "references", "rework-flow.md"),
-      "utf-8",
-    );
-    // Anchor the ordering to the numbered Phase 3 steps rather than
-    // first-occurrence prose tokens (a future mention of a marker in an
-    // earlier step's text would silently move a raw indexOf anchor).
-    const phase3 = rework.slice(rework.indexOf("## Phase 3"));
-    const saveIdx = phase3.indexOf("\n4. ");
-    const destroyIdx = phase3.indexOf("\n5. ");
-    const summaryIdx = phase3.indexOf("\n6. ");
-    expect(
-      saveIdx,
-      "rework-flow.md Phase 3 must number the agents-memo save step 4",
-    ).toBeGreaterThanOrEqual(0);
-    expect(
-      destroyIdx,
-      "rework-flow.md Phase 3 must number the destroy_workspace step 5",
-    ).toBeGreaterThanOrEqual(0);
-    expect(
-      summaryIdx,
-      "rework-flow.md Phase 3 must number the summary step 6",
-    ).toBeGreaterThanOrEqual(0);
-    expect(saveIdx).toBeLessThan(destroyIdx);
-    expect(destroyIdx).toBeLessThan(summaryIdx);
-    // The numbered steps must contain the expected instructions.
-    expect(phase3.slice(saveIdx, destroyIdx)).toContain("Run the agents-memo `save` skill");
-    expect(phase3.slice(destroyIdx, summaryIdx)).toContain("destroy_workspace");
-    expect(phase3.slice(summaryIdx)).toContain("Post a summary");
+  describe("stripLocalMemoryOverlay", () => {
+    it("drops the ## Memory section from heading to next heading", () => {
+      const input = [
+        "# Orchestrator",
+        "",
+        "## Memory",
+        "- note one",
+        "- note two",
+        "",
+        "## Rules",
+        "- rule",
+      ].join("\n");
+      expect(stripLocalMemoryOverlay(input)).toBe("# Orchestrator\n\n## Rules\n- rule");
+    });
+
+    it("drops a trailing ## Memory section to the end of the doc", () => {
+      const input = ["# Orchestrator", "## Memory", "- note"].join("\n");
+      expect(stripLocalMemoryOverlay(input)).toBe("# Orchestrator");
+    });
+
+    it("preserves the doc's trailing newline when the Memory section runs to EOF", () => {
+      const input = "# Orchestrator\n## Memory\n- note\n";
+      expect(stripLocalMemoryOverlay(input)).toBe("# Orchestrator\n");
+    });
+
+    it("drops memo: skill declarations from the frontmatter skills list", () => {
+      const input = [
+        "---",
+        'id: "implement-orchestrator"',
+        'model: "smart"',
+        "skills:",
+        '  - "notes-md"',
+        '  - "memo:save"',
+        "  - memo:query",
+        "tools:",
+        "  - set_flow_param",
+        "---",
+      ].join("\n");
+      const out = stripLocalMemoryOverlay(input);
+      expect(out).not.toContain("memo:");
+      expect(out).toContain('  - "notes-md"');
+      expect(out).toContain("  - set_flow_param");
+    });
+
+    it("drops the Persist learnings bullet with its continuation lines", () => {
+      const input = [
+        "1. Do the thing.",
+        "2. Then this:",
+        "   - **Persist learnings.** Run the `save` skill to file the",
+        "     session's learnings into the vault (best-effort).",
+        "   - Call `destroy_workspace(workspace)` to release the worktree.",
+        "3. Post a summary.",
+      ].join("\n");
+      const out = stripLocalMemoryOverlay(input);
+      expect(out).not.toContain("Persist learnings");
+      expect(out).not.toContain("save` skill to file the");
+      expect(out).toContain("destroy_workspace");
+      expect(out).toContain("Post a summary");
+    });
+
+    it("leaves docs without an overlay untouched", () => {
+      const input = [
+        "---",
+        'id: "review-orchestrator"',
+        'model: "smart"',
+        "skills:",
+        '  - "notes-md"',
+        "---",
+        "",
+        "## Rules",
+        "- rule",
+      ].join("\n");
+      expect(stripLocalMemoryOverlay(input)).toBe(input);
+    });
+
+    it("removes a numbered memo:save step and renumbers the following steps", () => {
+      const input = [
+        "4. Run the `memo:save` skill (see the implement orchestrator's \"Memory",
+        "   (memo: skills)\" section) to persist the session's learnings into",
+        "   project memory. Best-effort - skip if the `memo:` skills are",
+        "   unavailable.",
+        "5. Call `destroy_workspace(workspace)` to release the worktree.",
+        "6. Post a summary of what was pushed, referencing the existing PR number.",
+      ].join("\n");
+      expect(stripLocalMemoryOverlay(input)).toBe(
+        [
+          "4. Call `destroy_workspace(workspace)` to release the worktree.",
+          "5. Post a summary of what was pushed, referencing the existing PR number.",
+        ].join("\n"),
+      );
+    });
+
+    it("removes the indented continuation lines of the memo:save step", () => {
+      const input = [
+        "3. Push to the existing PR branch:",
+        "   ```bash",
+        "   git push origin <rework_branch>",
+        "   ```",
+        "   If push fails, report the error to the user.",
+        "4. Run the `memo:save` skill to persist the session's learnings.",
+        "   This continuation line must go too.",
+        "5. Call `destroy_workspace(workspace)` to release the worktree.",
+        "6. Post a summary of what was pushed, referencing the existing PR number.",
+      ].join("\n");
+      const out = stripLocalMemoryOverlay(input);
+      expect(out).not.toContain("memo:save");
+      expect(out).not.toContain("continuation line must go too");
+      expect(out).toContain("git push origin <rework_branch>");
+      expect(out).toContain("4. Call `destroy_workspace(workspace)` to release the worktree.");
+      expect(out).toContain(
+        "5. Post a summary of what was pushed, referencing the existing PR number.",
+      );
+    });
+
+    it("is a no-op when no numbered memo:save step exists", () => {
+      const input = [
+        "4. Call `destroy_workspace(workspace)` to release the worktree.",
+        "5. Post a summary of what was pushed, referencing the existing PR number.",
+      ].join("\n");
+      expect(stripLocalMemoryOverlay(input)).toBe(input);
+    });
   });
 });

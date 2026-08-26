@@ -84,6 +84,39 @@ describe("SkillResolver.resolveEffectiveSkillNames", () => {
       expect(result).toEqual(["build", "review", "verify", "research"]);
     });
   });
+
+  describe("prefix patterns", () => {
+    const memoSkills = new Map([
+      ["memo:save", "/path/memo/save/SKILL.md"],
+      ["memo:query", "/path/memo/query/SKILL.md"],
+      ["memo:notes", "/path/memo/notes/SKILL.md"],
+      ["build", "/path/build/SKILL.md"],
+    ]);
+
+    it("matches prefix patterns against discovered skills", () => {
+      const result = SkillResolver.resolveEffectiveSkillNames(memoSkills, ["memo:*"], []);
+      expect(result).toEqual(["memo:save", "memo:query", "memo:notes"]);
+    });
+
+    it("prefix patterns in excludedSkills exclude matching skills", () => {
+      const result = SkillResolver.resolveEffectiveSkillNames(
+        memoSkills,
+        ["memo:*"],
+        ["memo:notes"],
+      );
+      expect(result).toEqual(["memo:save", "memo:query"]);
+    });
+
+    it("exact names work alongside prefix patterns", () => {
+      const result = SkillResolver.resolveEffectiveSkillNames(memoSkills, ["build", "memo:*"], []);
+      expect(result).toEqual(["build", "memo:save", "memo:query", "memo:notes"]);
+    });
+
+    it("prefix pattern with no matches yields empty", () => {
+      const result = SkillResolver.resolveEffectiveSkillNames(memoSkills, ["nonexistent:*"], []);
+      expect(result).toEqual([]);
+    });
+  });
 });
 
 describe("skill discovery", () => {
