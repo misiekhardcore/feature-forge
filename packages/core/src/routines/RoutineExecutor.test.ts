@@ -272,7 +272,7 @@ describe("RoutineExecutor", () => {
               return context
                 .withWorkspace(
                   instruction.id,
-                  new WorkspaceHandle("/tmp/forge-worktree", new Date()),
+                  new WorkspaceHandle("/tmp/forge-worktree", new Date(), "forge/ws-test"),
                 )
                 .withResult(instruction.id, { raw: "ws created" });
             }

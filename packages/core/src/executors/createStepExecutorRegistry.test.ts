@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { InMemoryAgentSupervisor } from "../agents/supervisors";
-import { MockWorkspaceProvider } from "../test-utils";
-import { WorkspaceManager, WorkspaceProviderRegistry, WorktreeRegistry } from "../workspace";
+import { MockWorkspaceProvider, MockWorktreeRegistry } from "../test-utils";
+import { WorkspaceManager, WorkspaceProviderRegistry } from "../workspace";
 import { createStepExecutorRegistry } from "./createStepExecutorRegistry";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -12,7 +12,7 @@ function setup() {
     "mock",
     new MockWorkspaceProvider(),
   );
-  const worktreeRegistry = new WorktreeRegistry();
+  const worktreeRegistry = new MockWorktreeRegistry();
   const mockFactory = { create: async () => ({ id: "a" }) };
   const supervisor = new InMemoryAgentSupervisor(mockFactory as never);
   const specManager = { resolve: () => ({}) } as never;

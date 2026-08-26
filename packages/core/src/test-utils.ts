@@ -330,8 +330,9 @@ export class MockWorktreeRegistry extends WorktreeRegistry {
     // No-op: already in-memory
   }
 
-  override async register(handle: WorkspaceHandle): Promise<void> {
+  override async register(handle: WorkspaceHandle): Promise<WorkspaceHandle> {
     this.items.set(handle.path, handle);
+    return handle;
   }
 
   override async remove(path: string): Promise<void> {

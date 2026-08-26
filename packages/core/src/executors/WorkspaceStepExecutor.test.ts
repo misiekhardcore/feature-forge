@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { FlowContext } from "../flows/FlowContext";
 import type { WorkspaceInstruction } from "../flows/FlowInstruction";
-import { makeMockTypedEventBus } from "../test-utils";
+import { makeMockTypedEventBus, MockWorktreeRegistry } from "../test-utils";
 import { WorkspaceManager } from "../workspace/WorkspaceManager";
 import type { CreateWorkspaceOptions } from "../workspace/WorkspaceProvider";
 import { WorkspaceProvider } from "../workspace/WorkspaceProvider";
@@ -45,7 +45,7 @@ class CountingProvider extends WorkspaceProvider {
 }
 
 function stubWorktreeRegistry(): WorktreeRegistry {
-  const registry = new WorktreeRegistry();
+  const registry = new MockWorktreeRegistry();
   return registry;
 }
 

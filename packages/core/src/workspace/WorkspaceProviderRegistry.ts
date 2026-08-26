@@ -9,9 +9,10 @@ import { WorkspaceProvider } from "./WorkspaceProvider";
  * Built-in providers register at extension init:
  *
  * ```typescript
- * const registry = new WorkspaceProviderRegistry()
- *   .register("git-worktree", new GitWorktreeProvider(repoRoot))
- *   .register("current-dir", new CurrentDirProvider());
+ * const registry = new WorkspaceProviderRegistry().register(
+ *   "git-worktree",
+ *   new GitWorktreeProvider(repoRoot),
+ * );
  * ```
  */
 export class WorkspaceProviderRegistry {

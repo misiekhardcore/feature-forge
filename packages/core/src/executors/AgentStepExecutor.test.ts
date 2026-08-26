@@ -774,7 +774,10 @@ describe("AgentStepExecutor", () => {
         results: new Map(),
         prompt: "task",
       });
-      return base.withWorkspace(name, new WorkspaceHandle(path, new Date("2025-01-01T00:00:00Z")));
+      return base.withWorkspace(
+        name,
+        new WorkspaceHandle(path, new Date("2025-01-01T00:00:00Z"), "forge/ws-test"),
+      );
     }
 
     it("resolves a {workspace} workingDir to the workspace path and passes it as cwd to spawn", async () => {

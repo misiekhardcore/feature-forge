@@ -10,8 +10,10 @@ export class WorkspaceHandle {
     public readonly path: string,
     /** Timestamp when the workspace was created. */
     public readonly createdAt: Date,
-    /** Optional branch name associated with this workspace. */
-    public readonly branch?: string,
+    /** Branch name associated with this workspace. */
+    public readonly branch: string,
+    /** Optional pi session id that created this workspace. */
+    public readonly sessionId?: string,
   ) {}
 
   /**
@@ -24,18 +26,29 @@ export class WorkspaceHandle {
   /**
    * Serialize to a plain object for JSON persistence.
    */
-  toJSON(): { path: string; createdAt: string; branch?: string } {
+  toJSON(): { path: string; createdAt: string; branch: string; sessionId?: string } {
     return {
       path: this.path,
       createdAt: this.createdAt.toISOString(),
-      ...(this.branch !== undefined ? { branch: this.branch } : {}),
+      branch: this.branch,
+      ...(this.sessionId !== undefined ? { sessionId: this.sessionId } : {}),
     };
   }
 
   /**
    * Deserialize from a plain object (e.g., loaded from JSON storage).
    */
-  static fromJSON(data: { path: string; createdAt: string; branch?: string }): WorkspaceHandle {
-    return new WorkspaceHandle(data.path, new Date(data.createdAt), data.branch);
+  static fromJSON(data: {
+    path: string;
+    createdAt: string;
+    branch: string;
+    sessionId?: string;
+  }): WorkspaceHandle {
+    if (typeof data.branch !== "string") {
+      throw new TypeError(
+        `WorkspaceHandle.fromJSON requires a branch field (got ${typeof data.branch})`,
+      );
+    }
+    return new WorkspaceHandle(data.path, new Date(data.createdAt), data.branch, data.sessionId);
   }
 }

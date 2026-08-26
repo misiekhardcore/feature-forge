@@ -123,7 +123,7 @@ describe("ShellStepExecutor", () => {
       const context = new FlowContext({
         results: new Map(),
         prompt: "hello world",
-        workspaces: new Map([["ws", new WorkspaceHandle(wsDir, new Date())]]),
+        workspaces: new Map([["ws", new WorkspaceHandle(wsDir, new Date(), "forge/ws-test")]]),
       });
       await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
 

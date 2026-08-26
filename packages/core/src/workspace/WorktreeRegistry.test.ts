@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../logging";
 import { WorkspaceHandle } from "./WorkspaceHandle";
 import { WorktreeRegistry } from "./WorktreeRegistry";
+import { WorktreeRegistryCodec } from "./WorktreeRegistryCodec";
 
 const { mockExecFile } = vi.hoisted(() => ({
   mockExecFile: vi.fn((_cmd, _args, _opts, callback) => {
@@ -43,7 +44,7 @@ describe("WorktreeRegistry", () => {
   }
 
   function makeHandle(path: string, createdAt?: Date): WorkspaceHandle {
-    return new WorkspaceHandle(path, createdAt ?? new Date());
+    return new WorkspaceHandle(path, createdAt ?? new Date(), "forge/ws-test");
   }
 
   describe("load", () => {
@@ -103,6 +104,140 @@ describe("WorktreeRegistry", () => {
       const loaded = second.get("/tmp/task-1");
       expect(loaded!.createdAt.getTime()).toBe(date.getTime());
     });
+
+    it("round-trips sessionId through persist and load", async () => {
+      const first = makeRegistry();
+      await first.register(
+        new WorkspaceHandle("/tmp/task-1", new Date(), "forge/ws-test", "sess-001"),
+      );
+
+      const second = makeRegistry();
+      await second.load();
+
+      expect(second.get("/tmp/task-1")!.sessionId).toBe("sess-001");
+    });
+
+    it("loads a v1 envelope file", async () => {
+      writeFileSync(
+        storagePath,
+        JSON.stringify({
+          version: 1,
+          worktrees: [
+            {
+              path: "/tmp/a",
+              createdAt: "2026-06-01T00:00:00.000Z",
+              branch: "forge/ws-a",
+              sessionId: "sess-1",
+            },
+            { path: "/tmp/b", createdAt: "2026-06-02T00:00:00.000Z", branch: "forge/ws-b" },
+          ],
+        }),
+      );
+
+      const registry = makeRegistry();
+      await registry.load();
+
+      expect(registry.getAll()).toHaveLength(2);
+      expect(registry.get("/tmp/a")!.sessionId).toBe("sess-1");
+      expect(registry.get("/tmp/b")!.branch).toBe("forge/ws-b");
+    });
+
+    it("migrates a v0 legacy array, keeping valid entries and dropping invalid ones", async () => {
+      const warnSpy = vi.spyOn(logger, "warn");
+      writeFileSync(
+        storagePath,
+        JSON.stringify([
+          { path: "/tmp/legacy", createdAt: "2026-06-01T00:00:00.000Z" },
+          {
+            path: "/tmp/modern",
+            createdAt: "2026-06-02T00:00:00.000Z",
+            branch: "forge/ws-modern",
+            sessionId: "sess-9",
+          },
+        ]),
+      );
+
+      const registry = makeRegistry();
+      await registry.load();
+
+      expect(registry.get("/tmp/legacy")).toBeUndefined();
+      const modern = registry.get("/tmp/modern");
+      expect(modern).toBeDefined();
+      expect(modern!.branch).toBe("forge/ws-modern");
+      expect(modern!.sessionId).toBe("sess-9");
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Dropping invalid worktree registry entry during v0 migration",
+        expect.objectContaining({
+          entry: { path: "/tmp/legacy", createdAt: "2026-06-01T00:00:00.000Z" },
+        }),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("keeps the first entry when the file contains duplicate paths", async () => {
+      writeFileSync(
+        storagePath,
+        JSON.stringify({
+          version: 1,
+          worktrees: [
+            { path: "/tmp/dup", createdAt: "2026-06-01T00:00:00.000Z", branch: "forge/ws-a" },
+            { path: "/tmp/dup", createdAt: "2026-06-02T00:00:00.000Z", branch: "forge/ws-b" },
+          ],
+        }),
+      );
+
+      const registry = makeRegistry();
+      await registry.load();
+
+      expect(registry.getAll()).toHaveLength(1);
+      expect(registry.get("/tmp/dup")!.branch).toBe("forge/ws-a");
+    });
+
+    it("starts empty and warns when the file cannot be read", async () => {
+      // storagePath points at a directory — readFile fails with EISDIR.
+      mkdirSync(storagePath, { recursive: true });
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const registry = makeRegistry();
+      await expect(registry.load()).resolves.toBeUndefined();
+
+      expect(registry.getAll()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to read worktree registry file; starting with an empty registry",
+        expect.objectContaining({ path: storagePath }),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("starts empty and warns when the file contains invalid JSON", async () => {
+      writeFileSync(storagePath, "not valid json {{{{");
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const registry = makeRegistry();
+      await expect(registry.load()).resolves.toBeUndefined();
+
+      expect(registry.getAll()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to parse worktree registry file; starting with an empty registry",
+        expect.objectContaining({ path: storagePath }),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("starts empty and warns when the file is schema-invalid", async () => {
+      writeFileSync(storagePath, JSON.stringify({ version: 2, worktrees: [] }));
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const registry = makeRegistry();
+      await registry.load();
+
+      expect(registry.getAll()).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Failed to parse worktree registry file; starting with an empty registry",
+        expect.objectContaining({ path: storagePath }),
+      );
+      warnSpy.mockRestore();
+    });
   });
 
   describe("register", () => {
@@ -143,6 +278,166 @@ describe("WorktreeRegistry", () => {
       await expect(second.register(makeHandle("/tmp/task-1"))).rejects.toThrow(
         "Item already registered: /tmp/task-1",
       );
+    });
+
+    it("stamps sessionId from the provider when the handle has none", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      registry.setSessionIdProvider(() => "sess-42");
+
+      await registry.register(makeHandle("/tmp/task-1"));
+
+      expect(registry.get("/tmp/task-1")!.sessionId).toBe("sess-42");
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.get("/tmp/task-1")!.sessionId).toBe("sess-42");
+    });
+
+    it("returns the stamped handle from register", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      registry.setSessionIdProvider(() => "sess-42");
+
+      const stored = await registry.register(makeHandle("/tmp/task-1"));
+
+      expect(stored.path).toBe("/tmp/task-1");
+      expect(stored.sessionId).toBe("sess-42");
+      expect(registry.get("/tmp/task-1")).toBe(stored);
+    });
+
+    it("returns the original handle when no provider is set", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+
+      const handle = makeHandle("/tmp/task-1");
+      const stored = await registry.register(handle);
+
+      expect(stored).toBe(handle);
+      expect(stored.sessionId).toBeUndefined();
+    });
+
+    it("does not override an existing sessionId", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      registry.setSessionIdProvider(() => "sess-provider");
+
+      await registry.register(
+        new WorkspaceHandle("/tmp/task-1", new Date(), "forge/ws-test", "sess-handle"),
+      );
+
+      expect(registry.get("/tmp/task-1")!.sessionId).toBe("sess-handle");
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.get("/tmp/task-1")!.sessionId).toBe("sess-handle");
+    });
+
+    it("leaves sessionId unset when the provider returns undefined", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      registry.setSessionIdProvider(() => undefined);
+
+      await registry.register(makeHandle("/tmp/task-1"));
+
+      expect(registry.get("/tmp/task-1")!.sessionId).toBeUndefined();
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.get("/tmp/task-1")!.sessionId).toBeUndefined();
+    });
+  });
+
+  describe("persist", () => {
+    it("writes the v1 envelope format", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      await registry.register(makeHandle("/tmp/task-1"));
+
+      const raw = JSON.parse(readFileSync(storagePath, "utf-8"));
+      expect(raw).toEqual({
+        version: 1,
+        worktrees: [
+          {
+            path: "/tmp/task-1",
+            createdAt: expect.any(String),
+            branch: "forge/ws-test",
+          },
+        ],
+      });
+    });
+
+    it("preserves entries written by another process after our last load (merge-on-write)", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      await registry.register(makeHandle("/tmp/mine"));
+
+      // Simulate a second pi session writing an entry we have not seen.
+      writeFileSync(
+        storagePath,
+        WorktreeRegistryCodec.serialize([
+          { path: "/tmp/other", createdAt: "2026-08-18T12:00:00.000Z", branch: "forge/ws-other" },
+        ]),
+      );
+
+      await registry.register(makeHandle("/tmp/another"));
+
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.get("/tmp/mine")).toBeDefined();
+      expect(restored.get("/tmp/other")).toBeDefined();
+      expect(restored.get("/tmp/another")).toBeDefined();
+    });
+
+    it("serializes concurrent register calls (in-process mutex)", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+
+      await Promise.all(
+        Array.from({ length: 20 }, (_, i) => registry.register(makeHandle(`/tmp/task-${i}`))),
+      );
+
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.getAll()).toHaveLength(20);
+    });
+
+    it("serializes concurrent register and remove calls", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      await registry.register(makeHandle("/tmp/keep"));
+
+      await Promise.all([
+        registry.register(makeHandle("/tmp/task-1")),
+        registry.register(makeHandle("/tmp/task-2")),
+        registry.remove("/tmp/task-1"),
+      ]);
+
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.get("/tmp/keep")).toBeDefined();
+      expect(restored.get("/tmp/task-1")).toBeUndefined();
+      expect(restored.get("/tmp/task-2")).toBeDefined();
+    });
+
+    it("writes atomically via a temp file and leaves no temp files behind", async () => {
+      const registry = makeRegistry();
+      await registry.load();
+      await registry.register(makeHandle("/tmp/task-1"));
+
+      const leftovers = readdirSync(tmpDir).filter((name) => name.includes(".tmp-"));
+      expect(leftovers).toEqual([]);
+      expect(WorktreeRegistryCodec.parse(readFileSync(storagePath, "utf-8")).version).toBe(1);
+    });
+
+    it("self-heals a corrupt file on the next persist", async () => {
+      writeFileSync(storagePath, "corrupt {{{");
+      const registry = makeRegistry();
+      await registry.load();
+      expect(registry.getAll()).toEqual([]);
+
+      await registry.register(makeHandle("/tmp/task-1"));
+
+      const restored = makeRegistry();
+      await restored.load();
+      expect(restored.get("/tmp/task-1")).toBeDefined();
     });
   });
 
@@ -209,16 +504,6 @@ describe("WorktreeRegistry", () => {
       const path = WorktreeRegistry.defaultStoragePath();
       expect(path).toContain(".forge/worktrees.json");
       expect(path.startsWith(process.cwd())).toBe(true);
-    });
-  });
-
-  describe("load error handling", () => {
-    it("throws WorkspaceError when file contains invalid JSON", async () => {
-      writeFileSync(storagePath, "not valid json {{{{");
-      const registry = makeRegistry();
-      await expect(registry.load()).rejects.toThrow(
-        `Failed to load worktree registry from ${storagePath}`,
-      );
     });
   });
 
