@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { jsonParse } from "../helpers";
 import { logger } from "../logging";
 import type { FlowDefinition } from "./FlowInstruction";
+import { FLOW_SCHEMA_URL, LEGACY_FLOW_SCHEMA_URLS } from "./FlowInstruction";
 import { FlowValidation } from "./flowValidation";
 
 /**
@@ -58,6 +59,13 @@ export class FlowLoader {
       });
     }
 
+    // One-shot auto-migration: a known legacy $schema URL is rewritten to
+    // the current location (in memory always, file write best-effort). Runs
+    // after parsing so a file that is not valid JSON is never rewritten.
+    // Unknown/missing URLs are left untouched so validation still rejects
+    // them loudly.
+    parsed = await this.migrateSchemaUrl(raw, parsed, filepath, name);
+
     try {
       FlowValidation.validateStructure(parsed);
     } catch (error) {
@@ -78,6 +86,63 @@ export class FlowLoader {
     }
 
     logger.info("Flow loaded successfully", { name });
+    return parsed;
+  }
+
+  /**
+   * One-shot `$schema` auto-migration. When the flow's `$schema` value is
+   * one of the known legacy URLs, it is pointed at the current
+   * {@link FLOW_SCHEMA_URL} in memory and, best-effort, on disk. Only the
+   * `$schema` member in the raw text is rewritten (a legacy URL inside any
+   * other string, e.g. prose in a prompt, is preserved) and the write is
+   * atomic (temp file + rename). A failed write leaves the file stale and
+   * is reported via a warning, never an error; the in-memory migration
+   * always succeeds.
+   */
+  private async migrateSchemaUrl(
+    raw: string,
+    parsed: unknown,
+    filepath: string,
+    name: string,
+  ): Promise<unknown> {
+    if (typeof parsed !== "object" || parsed === null || !("$schema" in parsed)) {
+      // Missing $schema - left for validation to reject loudly.
+      return parsed;
+    }
+    const schemaUrl = parsed.$schema;
+    if (typeof schemaUrl !== "string" || !LEGACY_FLOW_SCHEMA_URLS.includes(schemaUrl)) {
+      // Current or unknown $schema - untouched.
+      return parsed;
+    }
+
+    parsed.$schema = FLOW_SCHEMA_URL;
+
+    // Rewrite the URL only where it is the value of a "$schema" member,
+    // so a legacy URL appearing in any other string is preserved. The
+    // exact-match `includes` above keeps this to a single legacy URL, so
+    // overlapping future entries cannot double-replace. A
+    // `\u0024schema`-escaped key is valid JSON but is not matched here;
+    // the guard below then skips the write while the in-memory migration
+    // stands.
+    const schemaMember = new RegExp(`("\\$schema"\\s*:\\s*")${escapeRegExp(schemaUrl)}(")`, "g");
+    const next = raw.replace(schemaMember, `$1${FLOW_SCHEMA_URL}$2`);
+    if (next === raw) {
+      return parsed;
+    }
+
+    const tmpPath = `${filepath}.${process.pid}.tmp`;
+    try {
+      await fs.writeFile(tmpPath, next, "utf-8");
+      await fs.rename(tmpPath, filepath);
+      logger.warn("Flow $schema auto-migrated to current URL", { name, filepath });
+    } catch (error) {
+      await fs.rm(tmpPath, { force: true }).catch(() => {});
+      logger.warn("Flow $schema auto-migration write failed (file left stale)", {
+        name,
+        filepath,
+        error,
+      });
+    }
     return parsed;
   }
 
@@ -105,4 +170,11 @@ export class FlowLoader {
     logger.info("All flows loaded", { loaded: flows.size, failed: failures.size });
     return { flows, failures };
   }
+}
+
+/**
+ * Escape a literal string for safe interpolation into a RegExp source.
+ */
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
