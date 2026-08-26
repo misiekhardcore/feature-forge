@@ -109,8 +109,8 @@ export class SkillResolver {
    * - Non-empty `skills` → use only those (minus excluded)
    * - `excludedSkills` always overrides (subtracted from effective set)
    *
-   * An entry ending in `*` is a PREFIX pattern: "memo:*" matches every
-   * discovered skill name starting with "memo:". Exact names keep working
+   * An entry ending in `*` is a PREFIX pattern: "memo-*" matches every
+   * discovered skill name starting with "memo-". Exact names keep working
    * alongside prefix patterns. Allowlist order is preserved; each prefix
    * pattern expands to every matching discovered name in discovery order.
    *
