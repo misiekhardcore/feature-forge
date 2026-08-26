@@ -47,7 +47,7 @@ import {
   isLoopInstruction,
   isParallelInstruction,
 } from "./FlowInstruction";
-import { FlowLoader } from "./FlowLoader";
+import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -934,7 +934,13 @@ describe("flow docs guardrails", () => {
   // The flow-scoped set_flow_param routines were replaced by one shared
   // global tool (PR #218 rework). These tests keep the flows and their
   // orchestrator personas from regressing to flow-scoped names.
-  const guardrailFlowDirs = ["implement", "review", "verify", "resolve-pr-feedback"];
+  //
+  // The guarded flow list is derived dynamically instead of hardcoded so a
+  // new flow under definitions/ is guarded automatically. It reuses the
+  // runtime's own discovery (FlowRegistrar calls discoverFlowDirectories on
+  // the flows dir), filters to directories that actually contain flow.json,
+  // and sorts so the toEqual assertion against loadedFlows is deterministic.
+  let guardrailFlowDirs: string[] = [];
   const guardrailSpecsDir = path.join(__dirname, "..", "agents", "specifications", "templates");
 
   let loadedFlows: FlowDefinition[] = [];
@@ -943,6 +949,10 @@ describe("flow docs guardrails", () => {
   beforeAll(async () => {
     const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
     await specManager.loadFromDirectory(guardrailSpecsDir);
+    const definitionsDir = path.join(__dirname, "definitions");
+    guardrailFlowDirs = (await discoverFlowDirectories(definitionsDir))
+      .filter((name) => fs.existsSync(path.join(definitionsDir, name, "flow.json")))
+      .sort();
     loadedFlows = [];
     orchestratorDocs = [];
     for (const flowName of guardrailFlowDirs) {
@@ -955,6 +965,17 @@ describe("flow docs guardrails", () => {
       loadedFlows.push(await loader.load("flow"));
       orchestratorDocs.push(fs.readFileSync(path.join(flowDir, "orchestrator.md"), "utf-8"));
     }
+  });
+
+  it("guardrail discovers the shipped flows", () => {
+    // Guard against silent coverage loss: discoverFlowDirectories returns []
+    // on error, so a deleted flow dir (or a moved definitions/) would make
+    // every dynamic guardrail below pass vacuously. Pin the four canonical
+    // flows as a MINIMUM set - new flows may be added, but removals must
+    // fail loudly instead of shrinking the guardrail to nothing.
+    expect(guardrailFlowDirs).toEqual(
+      expect.arrayContaining(["implement", "review", "verify", "resolve-pr-feedback"]),
+    );
   });
 
   it("no flow declares a flow-scoped set_flow_param routine", () => {
