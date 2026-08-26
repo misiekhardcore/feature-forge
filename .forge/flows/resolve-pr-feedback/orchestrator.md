@@ -1,7 +1,7 @@
 ---
 id: "resolve-pr-feedback-orchestrator"
 role: "orchestrator"
-model: "dumb"
+model: "smart"
 skills:
   - "notes-md"
 tools:
