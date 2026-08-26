@@ -46,9 +46,20 @@ export class WorkspaceHandle {
   }): WorkspaceHandle {
     if (typeof data.branch !== "string") {
       throw new TypeError(
-        `WorkspaceHandle.fromJSON requires a branch field (got ${typeof data.branch})`,
+        `WorkspaceHandle.fromJSON requires a non-empty branch (got ${typeof data.branch})`,
       );
     }
-    return new WorkspaceHandle(data.path, new Date(data.createdAt), data.branch, data.sessionId);
+    if (data.branch.length === 0) {
+      throw new TypeError(
+        "WorkspaceHandle.fromJSON requires a non-empty branch (got an empty string)",
+      );
+    }
+    const createdAt = new Date(data.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      throw new TypeError(
+        `WorkspaceHandle.fromJSON requires a parseable createdAt (got ${data.createdAt})`,
+      );
+    }
+    return new WorkspaceHandle(data.path, createdAt, data.branch, data.sessionId);
   }
 }

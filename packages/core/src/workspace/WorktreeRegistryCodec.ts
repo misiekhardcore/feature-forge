@@ -53,11 +53,11 @@ function isParseableDate(value: string): boolean {
  * in-memory state.
  *
  * Format handling:
- * - **v1 envelope** — `{ version: 1, worktrees: [...] }`. `parse` is
+ * - **v1 envelope** - `{ version: 1, worktrees: [...] }`. `parse` is
  *   strict: any schema violation (including an unparseable `createdAt`)
  *   throws {@link WorkspaceError} with per-field details, mirroring the
  *   `FlowValidation` error format.
- * - **v0 legacy** — a bare JSON array predating the versioned envelope.
+ * - **v0 legacy** - a bare JSON array predating the versioned envelope.
  *   `parse` wraps it into the v1 envelope and drops entries that fail
  *   validation, logging a warning per dropped entry.
  */
@@ -83,7 +83,7 @@ export class WorktreeRegistryCodec {
       );
     }
 
-    // v0 legacy format — a bare array predating the versioned envelope.
+    // v0 legacy format - a bare array predating the versioned envelope.
     if (Array.isArray(parsed)) {
       return WorktreeRegistryCodec.migrateLegacy(parsed);
     }
@@ -139,15 +139,14 @@ export class WorktreeRegistryCodec {
   private static migrateLegacy(entries: unknown[]): WorktreeRegistryFile {
     const worktrees: WorktreeRegistryEntry[] = [];
     for (const entry of entries) {
-      const reasons = WorktreeRegistryCodec.entryIssues(entry, "");
-      if (reasons.length > 0) {
+      if (!WorktreeRegistryCodec.isValidEntry(entry)) {
         logger.warn("Dropping invalid worktree registry entry during v0 migration", {
           entry,
-          reasons,
+          reasons: WorktreeRegistryCodec.entryIssues(entry, ""),
         });
         continue;
       }
-      worktrees.push(entry as WorktreeRegistryEntry);
+      worktrees.push(entry); // narrowed by isValidEntry
     }
     return { version: 1, worktrees };
   }
@@ -170,6 +169,15 @@ export class WorktreeRegistryCodec {
       return [`${where}: not a parseable date-time string`];
     }
     return [];
+  }
+
+  /**
+   * Type guard for a fully valid entry (schema-conformant and with a
+   * parseable `createdAt`), so callers can push the narrowed entry
+   * without a cast.
+   */
+  private static isValidEntry(entry: unknown): entry is WorktreeRegistryEntry {
+    return Value.Check(WorktreeRegistryEntrySchema, entry) && isParseableDate(entry.createdAt);
   }
 
   /**
