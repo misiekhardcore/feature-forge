@@ -16,7 +16,9 @@ export interface CreateWorkspaceOptions {
   /**
    * Git ref to create the worktree from. Mutually exclusive with {@link branch}.
    * Overrides the provider's default baseRef when set. Use this to create
-   * a fresh worktree from a specific commit (e.g. "origin/HEAD").
+   * a fresh worktree from a specific commit (e.g. "main" or a commit SHA).
+   * An explicitly-provided "origin/HEAD" is equivalent to the default: it is
+   * refreshed best-effort with the same local-HEAD fallback.
    */
   baseRef?: string;
 }

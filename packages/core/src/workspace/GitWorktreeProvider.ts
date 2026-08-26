@@ -11,6 +11,12 @@ import {
 } from "./WorkspaceError";
 import { CreateWorkspaceOptions, WorkspaceProvider } from "./WorkspaceProvider";
 
+/** Default base ref: the remote's tip, refreshed best-effort before use. */
+const DEFAULT_BASE_REF = "origin/HEAD";
+
+/** Fallback base ref when the default cannot be resolved (e.g. no origin remote). */
+const FALLBACK_BASE_REF = "HEAD";
+
 /** Platform-level symlinks created in every worktree. */
 const PLATFORM_SYMLINKS = [
   ".pi/",
@@ -34,9 +40,15 @@ export class GitWorktreeProvider extends WorkspaceProvider {
 
   /**
    * @param repoRoot — Absolute path to the repository root. Defaults to `process.cwd()`.
-   * @param baseRef — Git ref to create the worktree from. Defaults to `"HEAD"`.
+   * @param baseRef - Git ref to create the worktree from. Defaults to `"origin/HEAD"`
+   * so new worktrees branch from the remote's tip rather than a possibly
+   * stale local `HEAD`. When this instance uses the default `origin/HEAD`
+   * base, remote refs are refreshed best-effort before each new worktree
+   * and the base falls back to the local `HEAD` if `origin/HEAD` cannot be
+   * resolved (e.g. the repo has no `origin` remote) - creation never
+   * blocks offline.
    */
-  constructor(repoRoot?: string, baseRef = "HEAD") {
+  constructor(repoRoot?: string, baseRef = DEFAULT_BASE_REF) {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
     this.baseRef = baseRef;
@@ -64,6 +76,15 @@ export class GitWorktreeProvider extends WorkspaceProvider {
    * then calls `git worktree add`. The dirty-tree state of the main
    * repo is not checked — worktrees are created from the commit, not
    * the working tree.
+   *
+   * Before creating a *new* worktree (generated branch or explicit branch
+   * that does not exist yet) from the default `origin/HEAD` base, remote
+   * refs are refreshed best-effort so `origin/HEAD` resolves to a recent
+   * commit; a failed fetch or unresolvable `origin/HEAD` falls back to the
+   * local `HEAD` and never blocks creation. Explicitly provided base refs
+   * are used as-is (no fetch, no fallback). Reusing an existing branch
+   * performs no `origin/HEAD` refresh (`branchExists` may still fetch a
+   * remote-only branch by name - targeted, not a full refresh).
    */
   public override async createWorkspace(
     workspaceId: string,
@@ -78,36 +99,25 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     // effectiveBaseRef determines the starting commit for new worktrees.
     // It matters when creating a branch from a ref (the "new branch" path
     // below). When branch is set and already exists, we just check it out
-    // directly — no ref needed.
+    // directly - no ref needed.
     const effectiveBaseRef = options?.baseRef ?? this.baseRef;
 
     if (options?.branch) {
-      // Explicit branch — allow reusing an existing branch (e.g. adding to open PR).
+      // Explicit branch - allow reusing an existing branch (e.g. adding to open PR).
       const exists = await this.branchExists(branchName);
       if (exists) {
         logger.info("Reusing existing branch", { branch: branchName });
         await this.execCommand("git", ["worktree", "add", worktreePath, branchName]);
       } else {
-        await this.execCommand("git", [
-          "worktree",
-          "add",
-          worktreePath,
-          effectiveBaseRef,
-          "-b",
-          branchName,
-        ]);
+        // New branch from an explicit ref.
+        const baseRef = await this.resolveNewWorktreeBaseRef(effectiveBaseRef);
+        await this.execCommand("git", ["worktree", "add", worktreePath, baseRef, "-b", branchName]);
       }
     } else {
-      // Default generated branch — must not already exist.
+      // Default generated branch - must not already exist.
       await this.assertNoConflictingBranch(branchName);
-      await this.execCommand("git", [
-        "worktree",
-        "add",
-        worktreePath,
-        effectiveBaseRef,
-        "-b",
-        branchName,
-      ]);
+      const baseRef = await this.resolveNewWorktreeBaseRef(effectiveBaseRef);
+      await this.execCommand("git", ["worktree", "add", worktreePath, baseRef, "-b", branchName]);
     }
 
     await this.resolveSymlinks(worktreePath, options?.symlinks);
@@ -276,6 +286,65 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     }
 
     return false;
+  }
+
+  /**
+   * Resolve the ref a *new* worktree is created from.
+   *
+   * For the default `origin/HEAD` base, remote refs are refreshed
+   * best-effort first and the ref is verified to resolve to a commit. If it
+   * still cannot be resolved (e.g. the repo has no `origin` remote, or the
+   * fetch failed), the base falls back to the local `HEAD` so worktree
+   * creation never blocks offline.
+   *
+   * Explicitly provided base refs are returned unchanged - no fetch, no
+   * fallback.
+   */
+  private async resolveNewWorktreeBaseRef(effectiveBaseRef: string): Promise<string> {
+    if (effectiveBaseRef !== DEFAULT_BASE_REF) {
+      return effectiveBaseRef;
+    }
+    await this.refreshRemoteRefs();
+    if (await this.refResolves(effectiveBaseRef)) {
+      return effectiveBaseRef;
+    }
+    logger.warn("Base ref does not resolve; falling back to local HEAD", {
+      baseRef: effectiveBaseRef,
+    });
+    return FALLBACK_BASE_REF;
+  }
+
+  /**
+   * Best-effort refresh of remote refs so the default base ref
+   * (`origin/HEAD`) resolves to a recent commit. Skips the fetch entirely
+   * when no `origin` remote is configured (a normal local-only state, not
+   * an error). Failures are logged as a warning and swallowed - a stale
+   * base is preferable to failing worktree creation entirely.
+   */
+  private async refreshRemoteRefs(): Promise<void> {
+    try {
+      const remotes = await this.execCommand("git", ["remote"]);
+      if (!remotes.split(/\r?\n/).some((line) => line.trim() === "origin")) {
+        return;
+      }
+      await this.execCommand("git", ["fetch", "origin"]);
+    } catch (error) {
+      logger.warn("Remote ref refresh failed; continuing with existing refs", { error });
+    }
+  }
+
+  /**
+   * Whether a git ref resolves to a commit. Best-effort: failures return
+   * false rather than throwing.
+   */
+  private async refResolves(ref: string): Promise<boolean> {
+    try {
+      await this.execCommand("git", ["rev-parse", "--verify", `${ref}^{commit}`]);
+      return true;
+    } catch (error) {
+      logger.debug("Base ref resolve check failed", { ref, error });
+      return false;
+    }
   }
 
   private async assertNoConflictingBranch(branchName: string): Promise<void> {
