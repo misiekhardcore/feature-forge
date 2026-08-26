@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mock setup ───────────────────────────────────────────────────────────
 
@@ -112,6 +112,7 @@ vi.mock("node:fs", async () => {
   };
 });
 
+import { logger } from "../logging";
 import { GitWorktreeProvider } from "./GitWorktreeProvider";
 import { WorktreeBranchExistsError, WorktreePathExistsError } from "./WorkspaceError";
 import { WorkspaceProvider } from "./WorkspaceProvider";
@@ -133,14 +134,18 @@ describe("GitWorktreeProvider", () => {
 
   beforeEach(() => {
     mocks.reset();
-    provider = new GitWorktreeProvider(repoRoot, "HEAD");
+    provider = new GitWorktreeProvider(repoRoot);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ── Constructor ──────────────────────────────────────────────────────
 
   describe("constructor", () => {
     it("defaults repoRoot to process.cwd()", () => {
-      const p = new GitWorktreeProvider(undefined, "HEAD");
+      const p = new GitWorktreeProvider(undefined);
       expect(p.repoRoot).toBe(process.cwd());
     });
 
@@ -148,9 +153,9 @@ describe("GitWorktreeProvider", () => {
       expect(provider.repoRoot).toBe(repoRoot);
     });
 
-    it("defaults baseRef to HEAD", () => {
-      const p = new GitWorktreeProvider(repoRoot, undefined);
-      expect(p.baseRef).toBe("HEAD");
+    it("defaults baseRef to origin/HEAD", () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      expect(p.baseRef).toBe("origin/HEAD");
     });
 
     it("accepts a custom baseRef", () => {
@@ -250,7 +255,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -276,7 +281,7 @@ describe("GitWorktreeProvider", () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -300,7 +305,7 @@ describe("GitWorktreeProvider", () => {
       mocks.willFail("git", ["branch", "--list", branchName], "fatal: not a git repo");
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -312,13 +317,280 @@ describe("GitWorktreeProvider", () => {
       mocks.willSucceed("git", ["branch", "--list", branchName], "");
       mocks.willFail(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "fatal: worktree add failed",
       );
 
       await expect(provider.createWorkspace("task-1")).rejects.toThrow(
         "Command failed: git worktree add",
       );
+    });
+
+    it("refreshes remote refs before creating a worktree", async () => {
+      branchCheckPasses();
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willSucceed("git", ["fetch", "origin"], "");
+      mocks.willSucceed("git", ["rev-parse", "--verify", "origin/HEAD^{commit}"], "abc123\n");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await provider.createWorkspace("task-1");
+
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      const fetchIndex = calls.indexOf(`git::${JSON.stringify(["fetch", "origin"])}`);
+      const verifyIndex = calls.indexOf(
+        `git::${JSON.stringify(["rev-parse", "--verify", "origin/HEAD^{commit}"])}`,
+      );
+      const addIndex = calls.indexOf(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName])}`,
+      );
+      expect(fetchIndex).toBeGreaterThanOrEqual(0);
+      expect(verifyIndex).toBeGreaterThan(fetchIndex);
+      expect(addIndex).toBeGreaterThan(verifyIndex);
+    });
+
+    it("proceeds when remote ref refresh fails", async () => {
+      // A failed fetch is non-fatal when origin/HEAD already resolves locally
+      // (e.g. a clone whose remote is temporarily unreachable).
+      branchCheckPasses();
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willFail(
+        "git",
+        ["fetch", "origin"],
+        "fatal: unable to access 'https://github.com/forge/test-repo/': Could not resolve host",
+      );
+      mocks.willSucceed("git", ["rev-parse", "--verify", "origin/HEAD^{commit}"], "abc123\n");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await expect(provider.createWorkspace("task-1")).resolves.toBe(worktreePath);
+
+      // The worktree was created from the still-resolvable origin/HEAD (the
+      // possibly-stale ref), NOT the local HEAD fallback
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName])}`,
+      );
+      expect(calls).not.toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "HEAD", "-b", branchName])}`,
+      );
+    });
+
+    it("falls back to local HEAD when origin/HEAD cannot be resolved", async () => {
+      // Origin is configured but the fetch fails, and origin/HEAD does not
+      // resolve: creation must fall back to the local HEAD instead of
+      // hard-failing on `git worktree add ... origin/HEAD`.
+      branchCheckPasses();
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willFail(
+        "git",
+        ["fetch", "origin"],
+        "fatal: 'origin' does not appear to be a git repository",
+      );
+      mocks.willFail(
+        "git",
+        ["rev-parse", "--verify", "origin/HEAD^{commit}"],
+        "fatal: Needed a single revision",
+      );
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(worktreePath);
+
+      // The worktree was created from the fallback ref, not origin/HEAD
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).not.toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName])}`,
+      );
+    });
+
+    it("falls back to local HEAD when fetch succeeds but origin/HEAD does not resolve", async () => {
+      // Repos whose origin was added via `git remote add` after `git init` on
+      // git < 2.48, and clones taken from an empty remote (version-independent):
+      // the fetch succeeds but origin/HEAD still does not resolve, so the base
+      // must fall back to the local HEAD without hard-failing.
+      const warnSpy = vi.spyOn(logger, "warn");
+      branchCheckPasses();
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willSucceed("git", ["fetch", "origin"], "");
+      mocks.willFail(
+        "git",
+        ["rev-parse", "--verify", "origin/HEAD^{commit}"],
+        "fatal: Needed a single revision",
+      );
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(worktreePath);
+
+      // The worktree was created from the fallback ref, not origin/HEAD
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "HEAD", "-b", branchName])}`,
+      );
+      expect(calls).not.toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName])}`,
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Base ref does not resolve; falling back to local HEAD",
+        {
+          baseRef: "origin/HEAD",
+        },
+      );
+    });
+
+    it("skips origin fetch when no origin remote is configured", async () => {
+      // Local-only repo: `git remote` lists no origin, so the best-effort
+      // fetch is skipped entirely - no pointless failing subprocess and no
+      // "Remote ref refresh failed" warning. The base still falls back to the
+      // local HEAD, and that fallback warning fires deliberately - the
+      // fallback is a real state change worth signaling.
+      const warnSpy = vi.spyOn(logger, "warn");
+      branchCheckPasses();
+      mocks.willSucceed("git", ["remote"], "");
+      mocks.willFail(
+        "git",
+        ["rev-parse", "--verify", "origin/HEAD^{commit}"],
+        "fatal: Needed a single revision",
+      );
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      const path = await provider.createWorkspace("task-1");
+      expect(path).toBe(worktreePath);
+
+      // No fetch was attempted and the worktree used the HEAD fallback
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).not.toContain(`git::${JSON.stringify(["fetch", "origin"])}`);
+      expect(calls).toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "HEAD", "-b", branchName])}`,
+      );
+      expect(calls).not.toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName])}`,
+      );
+
+      // The fetch-skip path emits no "Remote ref refresh failed" warning, but
+      // the fallback warning fires on purpose: creation silently switched the
+      // base ref to the local HEAD, which is a real state change.
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Base ref does not resolve; falling back to local HEAD",
+        { baseRef: "origin/HEAD" },
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        "Remote ref refresh failed; continuing with existing refs",
+        expect.anything(),
+      );
+    });
+
+    it("explicit origin/HEAD baseRef option is equivalent to the default (fetch + fallback)", async () => {
+      // Passing baseRef: "origin/HEAD" via options behaves like the default:
+      // the ref is still refreshed best-effort and verified, unlike other
+      // explicit refs which are used as-is with no fetch.
+      branchCheckPasses();
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willSucceed("git", ["fetch", "origin"], "");
+      mocks.willSucceed("git", ["rev-parse", "--verify", "origin/HEAD^{commit}"], "abc123\n");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      const path = await provider.createWorkspace("task-1", { baseRef: "origin/HEAD" });
+      expect(path).toBe(worktreePath);
+
+      // The explicit origin/HEAD was still refreshed before use
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).toContain(`git::${JSON.stringify(["fetch", "origin"])}`);
+      expect(calls).toContain(
+        `git::${JSON.stringify(["rev-parse", "--verify", "origin/HEAD^{commit}"])}`,
+      );
+      expect(calls).toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName])}`,
+      );
+    });
+
+    it("does not fetch or fall back when baseRef is provided via options", async () => {
+      // Explicit immutable baseRef (e.g. create_workspace(baseRef=<sha>)):
+      // no best-effort fetch and no fallback - the ref is used as-is.
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "abc123", "-b", branchName],
+        "worktree created",
+      );
+
+      const path = await provider.createWorkspace("task-1", { baseRef: "abc123" });
+      expect(path).toBe(worktreePath);
+
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).not.toContain(`git::${JSON.stringify(["fetch", "origin"])}`);
+      expect(calls).not.toContain(
+        `git::${JSON.stringify(["rev-parse", "--verify", "origin/HEAD^{commit}"])}`,
+      );
+    });
+
+    it("does not fetch or fall back for a custom constructor baseRef", async () => {
+      const p = new GitWorktreeProvider(repoRoot, "main");
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "main", "-b", branchName],
+        "worktree created",
+      );
+
+      const path = await p.createWorkspace("task-1");
+      expect(path).toBe(worktreePath);
+
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).not.toContain(`git::${JSON.stringify(["fetch", "origin"])}`);
+    });
+
+    it("fails when an explicit baseRef does not resolve", async () => {
+      // Explicit refs are trusted as-is: an unresolvable explicit ref is a
+      // loud failure, never a silent fallback to HEAD.
+      const p = new GitWorktreeProvider(repoRoot, "main");
+      mocks.willSucceed("git", ["branch", "--list", branchName], "");
+      mocks.willFail(
+        "git",
+        ["worktree", "add", worktreePath, "main", "-b", branchName],
+        "fatal: invalid reference: main",
+      );
+
+      await expect(p.createWorkspace("task-1")).rejects.toThrow("Command failed: git worktree add");
     });
   });
 
@@ -462,7 +734,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -485,7 +757,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -504,7 +776,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -526,7 +798,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -544,7 +816,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -559,7 +831,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -579,7 +851,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -599,7 +871,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -626,7 +898,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -648,7 +920,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -669,7 +941,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -687,7 +959,7 @@ describe("GitWorktreeProvider", () => {
       branchCheckPasses();
       mocks.willSucceed(
         "git",
-        ["worktree", "add", worktreePath, "HEAD", "-b", branchName],
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
         "worktree created",
       );
 
@@ -729,6 +1001,41 @@ describe("GitWorktreeProvider", () => {
       mocks.willSucceed("git", ["branch", "--list", existingBranch], "");
       // also not found on remote
       mocks.willSucceed("git", ["ls-remote", "--heads", "origin", existingBranch], "");
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willSucceed("git", ["fetch", "origin"], "");
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", existingBranch],
+        "worktree created",
+      );
+
+      const path = await p.createWorkspace("task-1", { branch: existingBranch });
+      expect(path).toBe(worktreePath);
+
+      // remote refs are refreshed before the new branch is created from origin/HEAD
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).toContain(`git::${JSON.stringify(["fetch", "origin"])}`);
+    });
+
+    it("falls back to local HEAD when origin/HEAD cannot be resolved for an explicit new branch", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      // branch not found locally or on remote
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], "");
+      mocks.willSucceed("git", ["ls-remote", "--heads", "origin", existingBranch], "");
+      // fetch fails (e.g. remote unreachable) and origin/HEAD does not exist
+      mocks.willSucceed("git", ["remote"], "origin\n");
+      mocks.willFail(
+        "git",
+        ["fetch", "origin"],
+        "fatal: 'origin' does not appear to be a git repository",
+      );
+      mocks.willFail(
+        "git",
+        ["rev-parse", "--verify", "origin/HEAD^{commit}"],
+        "fatal: Needed a single revision",
+      );
       mocks.willSucceed(
         "git",
         ["worktree", "add", worktreePath, "HEAD", "-b", existingBranch],
@@ -737,6 +1044,35 @@ describe("GitWorktreeProvider", () => {
 
       const path = await p.createWorkspace("task-1", { branch: existingBranch });
       expect(path).toBe(worktreePath);
+
+      // The worktree was created from the local HEAD fallback, not origin/HEAD
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "HEAD", "-b", existingBranch])}`,
+      );
+      expect(calls).not.toContain(
+        `git::${JSON.stringify(["worktree", "add", worktreePath, "origin/HEAD", "-b", existingBranch])}`,
+      );
+    });
+
+    it("does not fetch origin when reusing an existing branch", async () => {
+      const p = new GitWorktreeProvider(repoRoot);
+      mocks.willSucceed("git", ["branch", "--list", existingBranch], `  ${existingBranch}`);
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, existingBranch],
+        "worktree created",
+      );
+
+      await p.createWorkspace("task-1", { branch: existingBranch });
+
+      // Branch reuse must never trigger the best-effort fetch
+      const calls = mocks.execFile.mock.calls.map(
+        (call: unknown[]) => `${String(call[0])}::${JSON.stringify(call[1])}`,
+      );
+      expect(calls).not.toContain(`git::${JSON.stringify(["fetch", "origin"])}`);
     });
 
     it("fetches and reuses branch found on remote but not locally", async () => {

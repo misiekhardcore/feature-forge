@@ -50,6 +50,10 @@ function expectedBranchName(workspaceId: string): string {
 describe("GitWorktreeProvider (e2e)", () => {
   let repoRoot: string;
   let provider: GitWorktreeProvider;
+  // Temp dirs created outside repoRoot (e.g. the stale-main test's bare remote
+  // and second clone). Tracked at describe scope and removed in afterEach so a
+  // mid-test failure (assertion or provider throw) cannot leak them.
+  const cleanupDirs: string[] = [];
 
   beforeEach(() => {
     repoRoot = createTempRepo();
@@ -57,13 +61,20 @@ describe("GitWorktreeProvider (e2e)", () => {
   });
 
   afterEach(() => {
-    // Best-effort cleanup: prune all worktrees, then remove the temp dir
+    // Best-effort cleanup: prune all worktrees, then remove the temp dirs
     try {
       execSync("git worktree prune", { cwd: repoRoot });
     } catch {
       // ignore
     }
     rmSync(repoRoot, { recursive: true, force: true });
+    // Extra dirs tracked at describe scope are removed even when the test that
+    // created them failed mid-way; clear the list so a later test's afterEach
+    // does not re-remove stale paths.
+    for (const dir of cleanupDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    cleanupDirs.length = 0;
   });
 
   // ── Happy path ──────────────────────────────────────────────────────
@@ -119,6 +130,67 @@ describe("GitWorktreeProvider (e2e)", () => {
     // revert checkout in main repo
     git(repoRoot, "branch -D develop");
 
+    await p.destroyWorkspace(workspacePath);
+  });
+
+  it("creates a worktree with the default baseRef in a repo without a remote", async () => {
+    // Local-only repo (no origin remote): the default origin/HEAD base cannot
+    // be resolved, so the provider must refresh remote refs best-effort (the
+    // fetch genuinely fails here) and fall back to the local HEAD.
+    const p = new GitWorktreeProvider(repoRoot);
+    const workspacePath = await p.createWorkspace("task-default");
+
+    expect(existsSync(workspacePath)).toBe(true);
+    expect(existsSync(join(workspacePath, ".git"))).toBe(true);
+
+    // The worktree was created on the generated branch from the local HEAD
+    const branch = git(workspacePath, "branch --show-current");
+    expect(branch).toBe(expectedBranchName("task-default"));
+
+    await p.destroyWorkspace(workspacePath);
+  });
+
+  it("branches from fresh origin/HEAD when local main is stale", async () => {
+    // Issue #238: a stale local main must not leak into new worktrees. With
+    // the DEFAULT baseRef (the production path) the provider fetches the
+    // remote and cuts the worktree from the fresh origin/HEAD.
+    const remoteDir = mkdtempSync(join(tmpdir(), "forge-e2e-remote-"));
+    cleanupDirs.push(remoteDir);
+    execSync(`git init --bare --initial-branch=main "${remoteDir}"`, { cwd: tmpdir() });
+
+    // repoRoot (commit A) becomes the "stale" local repo: it pushes main, then
+    // the remote advances past it via a second clone.
+    git(repoRoot, `remote add origin ${remoteDir}`);
+    git(repoRoot, "push -u origin main");
+    // origin/HEAD only exists after clone / `git remote set-head` (git < 2.48
+    // does not create it on fetch), so pin it explicitly — otherwise the
+    // provider's fallback would mask the stale-main scenario it guards.
+    git(repoRoot, "remote set-head origin -a");
+
+    // otherDir advances the remote: commit B lands on origin/main, while
+    // repoRoot's local main stays at A (STALE).
+    const otherDir = mkdtempSync(join(tmpdir(), "forge-e2e-other-"));
+    cleanupDirs.push(otherDir);
+    execSync(`git clone "${remoteDir}" "${otherDir}"`, { cwd: tmpdir() });
+    git(otherDir, 'config user.email "test@forge.local"');
+    git(otherDir, 'config user.name "Forge E2E"');
+    writeFileSync(join(otherDir, "feature-b.ts"), "export const b = 2;");
+    git(otherDir, "add feature-b.ts");
+    git(otherDir, 'commit -m "commit B"');
+    git(otherDir, "push origin main");
+
+    // DEFAULT baseRef — the production path (fresh fetch + origin/HEAD).
+    const p = new GitWorktreeProvider(repoRoot);
+    const workspacePath = await p.createWorkspace("task-fresh");
+
+    const localMain = git(repoRoot, "rev-parse main");
+    const remoteMain = git(repoRoot, "rev-parse origin/main");
+    const wtHead = git(workspacePath, "rev-parse HEAD");
+
+    expect(remoteMain).not.toBe(localMain); // sanity: remote really advanced
+    expect(wtHead).toBe(remoteMain); // cut from FRESH origin/HEAD, not stale local main
+
+    // remoteDir and otherDir are cleaned up by afterEach via cleanupDirs
     await p.destroyWorkspace(workspacePath);
   });
 

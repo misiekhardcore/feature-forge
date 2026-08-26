@@ -40,6 +40,7 @@ import type {
   LoopInstruction,
   RoutineRefInstruction,
   ShellInstruction,
+  WorkspaceInstruction,
 } from "./FlowInstruction";
 import {
   isContainerInstruction,
@@ -338,6 +339,36 @@ describe("flow round-trip", () => {
       expect(rebaseIdx).toBe(fetchIdx + 1);
       expect(checkCleanIdx).toBe(rebaseIdx + 1);
       expect(branchIdx).toBe(rebaseIdx + 2);
+
+      // The fetch/rebase steps must target a freshly-fetched base: the raw
+      // commands pin the session base so the branch is rebased onto the
+      // remote's current tip, never a stale local main.
+      const fetchStep = steps.find(
+        (s): s is ShellInstruction => s.type === "shell" && s.id === "fetch",
+      );
+      const rebaseStep = steps.find(
+        (s): s is ShellInstruction => s.type === "shell" && s.id === "rebase",
+      );
+      expect(fetchStep).toBeDefined();
+      expect(rebaseStep).toBeDefined();
+      expect(fetchStep!.command).toBe("git fetch origin {{session.base}}");
+      expect(rebaseStep!.command).toBe("git rebase origin/{{session.base}}");
+    });
+
+    it("create_workspace workspace step defers branch and baseRef to templates", () => {
+      // An absent baseRef must fall through to the provider default
+      // (origin/HEAD) and an absent branch must generate a forge/ws-* name.
+      // The step defers both to templates instead of hardcoding a base.
+      const routine = flow.routines.find((r) => r.id === "create_workspace");
+      expect(routine).toBeDefined();
+
+      const ws = (routine?.steps as FlowInstruction[]).find(
+        (s): s is WorkspaceInstruction => s.type === "workspace",
+      );
+      expect(ws).toBeDefined();
+      expect(ws!.provider).toBe("git-worktree");
+      expect(ws!.branch).toBe("{{branch}}");
+      expect(ws!.baseRef).toBe("{{baseRef}}");
     });
 
     it("open_pr shell command uses heredoc and --body-file for shell-safe PR bodies", () => {
