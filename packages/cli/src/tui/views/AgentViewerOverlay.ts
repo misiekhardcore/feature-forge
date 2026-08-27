@@ -245,8 +245,9 @@ export class AgentViewerOverlay implements Component {
    * Configure the stream file directory.
    *
    * When set, every {@link pushStreamEvent} call persists the formatted
-   * event line to an append-only log file named
-   * `{agentId}.stream` under the given directory.
+   * event line to the agent's append-only journal file named
+   * `{agentId}.journal.jsonl` under the given directory, and
+   * {@link recordLifecycle} appends lifecycle markers to the same journal.
    *
    * @param streamDir — Directory for filesystem-backed stream buffers.
    */
@@ -286,9 +287,8 @@ export class AgentViewerOverlay implements Component {
   /**
    * Remove all in-memory agent entries and reset view state.
    *
-   * Does NOT clean up filesystem stream files — use {@link dispose}
-   * for full cleanup when stream file persistence was configured via
-   * {@link setStreamDir}.
+   * Does NOT delete filesystem journal files — like {@link dispose}, the
+   * journals persist on disk as the record of the agent run.
    */
   clearMemory(): void {
     this.state.clearMemory();
@@ -337,9 +337,10 @@ export class AgentViewerOverlay implements Component {
    * Return the raw stream events for an agent, in insertion order.
    *
    * Only returns events currently held in the in-memory sliding window
-   * (up to {@link getDisplayMaxAgentEvents} per agent). Use
-   * {@link loadConversationEvents} for disk-backed history beyond the
-   * window.
+   * (up to {@link getDisplayMaxAgentEvents} per agent). Raw events are no
+   * longer persisted to disk (the journal keeps the derived stream/message/
+   * tool records), so there is no history beyond the window —
+   * {@link loadConversationEvents} serves the same window.
    */
   getConversation(agentId: string): JsonAgentSessionEvent[] {
     return this.state.getConversation(agentId);
@@ -349,8 +350,9 @@ export class AgentViewerOverlay implements Component {
    * Return the cached {@link AgentMessage} objects for an agent, in order.
    *
    * Messages are populated live from {@link pushStreamEvent} on each
-   * {@code message_end} event, and loaded from {@code messages.jsonl} at
-   * startup by {@link prepopulateStreamFiles}.
+   * {@code message_end} event and replayed from the agent's journal at
+   * startup by {@link prepopulateStreamFiles}. The cache is the in-memory
+   * window only (capped at {@link getDisplayMaxAgentEvents} per agent).
    *
    * @param agentId — The agent to get messages for.
    * @returns An array of messages, most recent last. Empty array for unknown agents.
@@ -360,14 +362,15 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Load conversation events from the on-disk JSONL file for the given agent.
+   * Return the most recent conversation events for the given agent.
    *
-   * Streams the file line-by-line via {@code createReadStream} +
-   * {@code createInterface}, keeping a ring buffer of the last {@code count}
-   * lines in memory.
+   * In-memory window only: raw events are no longer persisted to disk
+   * (the journal keeps the derived stream/message/tool records), so this
+   * returns up to {@code count} events from the live sliding window —
+   * there is no disk history to load beyond it.
    *
-   * @param agentId — The agent to load events for.
-   * @param count — Maximum number of events to return.
+   * @param agentId — The agent to get events for.
+   * @param count — Maximum number of events to return (most recent wins).
    * @returns A promise that resolves to an array of events, most recent last.
    */
   async loadConversationEvents(
@@ -401,11 +404,35 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Clean up stream files written to disk and reset view state.
+   * Reset view state and release in-memory resources.
+   *
+   * Does NOT delete journal files from disk — they are the persistent
+   * record of the agent run and survive the overlay's lifetime.
    */
   dispose(): void {
     this.state.dispose();
     this.clearMemory();
+  }
+
+  /**
+   * Record a lifecycle phase in the agent's journal.
+   *
+   * Journal-only: no render is requested (the paired status event already
+   * rendered via {@link update}). No-op when no stream directory is
+   * configured — with persistence off there is no journal to write.
+   *
+   * @param agentId — The agent whose journal receives the entry.
+   * @param phase — Lifecycle phase of the agent run.
+   * @param passed — Whether the run passed (terminal phases only).
+   * @param summary — Human-readable run summary.
+   */
+  recordLifecycle(
+    agentId: string,
+    phase: "started" | "done" | "error" | "cancelled",
+    passed?: boolean,
+    summary?: string,
+  ): void {
+    this.state.appendLifecycle(agentId, phase, passed, summary);
   }
 
   // ── Static helpers ────────────────────────────────────────
@@ -418,6 +445,27 @@ export class AgentViewerOverlay implements Component {
    */
   static mapStatus(status: AgentStatus): AgentViewerEntryStatus {
     return AgentDisplayHelpers.mapAgentStatus(status);
+  }
+
+  /**
+   * Map a viewer entry status to a journal lifecycle phase.
+   *
+   * The journal has no "running" phase — an in-flight run is recorded as
+   * "started"; the terminal statuses map 1:1.
+   */
+  private static mapLifecyclePhase(
+    status: AgentViewerEntryStatus,
+  ): "started" | "done" | "error" | "cancelled" {
+    switch (status) {
+      case "done":
+        return "done";
+      case "error":
+        return "error";
+      case "cancelled":
+        return "cancelled";
+      default:
+        return "started";
+    }
   }
 
   /**
@@ -493,6 +541,16 @@ export class AgentViewerOverlay implements Component {
           thinkingLevel: agent?.specification.thinkingLevel,
           createdAt: agent?.createdAt ?? new Date(),
         }),
+      );
+      // Journal the lifecycle alongside the live entry: deliverStatusEvent is
+      // the single funnel for live AND buffered status events (never the
+      // agentQuery seeding loop), so every real lifecycle lands in the
+      // journal exactly once, in arrival order.
+      viewer.recordLifecycle(
+        agentId,
+        AgentViewerOverlay.mapLifecyclePhase(mappedStatus),
+        passed,
+        eventSummary,
       );
     };
 

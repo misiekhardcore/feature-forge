@@ -1,31 +1,22 @@
-import {
-  appendFileSync,
-  createReadStream,
-  mkdirSync,
-  readdirSync,
-  renameSync,
-  statSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { jsonParse, logger } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 
-import type { AgentViewerEntry } from "../types";
+import type { AgentViewerEntry, AgentViewerEntryStatus } from "../types";
+import type { AgentJournalEntry, AgentToolEntry } from "./AgentJournal";
+import { AgentJournal } from "./AgentJournal";
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).
- * Older events are evicted but persist on disk via JSONL for lazy loading.
+ * Older events are evicted but persist on disk via the journal for lazy loading.
+ *
+ * Exported for the viewer suites to assert the same cap without hardcoding
+ * the literal (the overlay test imports it).
  */
-const MAX_AGENT_EVENTS = 200;
-
-/**
- * Maximum lines per .events.jsonl file before it is rotated to
- * .events.1.jsonl and a fresh file is started (~250MB at 5KB/event).
- */
-export const MAX_EVENTS_FILE_LINES = 50_000;
+export const MAX_AGENT_EVENTS = 200;
 
 /**
  * Pure logic class managing agent viewer state.
@@ -33,7 +24,7 @@ export const MAX_EVENTS_FILE_LINES = 50_000;
  * Handles:
  * - Map of agent entries
  * - Streaming event buffers
- * - Filesystem persistence (.stream, .events.jsonl, .messages.jsonl)
+ * - Append-only journal persistence (.journal.jsonl)
  * - Zero TUI dependencies
  */
 export class AgentViewerState {
@@ -46,14 +37,8 @@ export class AgentViewerState {
   /** Maps agent id → most recent formatted stream line. */
   private lastLines = new Map<string, string>();
 
-  /** Maps agent id → stream file path on disk. */
-  private streamFiles = new Map<string, string>();
-
-  /** Maps agent id → events JSONL file path on disk (raw events, diagnostics only). */
-  private eventsFiles = new Map<string, string>();
-
-  /** Maps agent id → messages JSONL file path on disk (finalized messages). */
-  private messagesFiles = new Map<string, string>();
+  /** Maps agent id → tool-entry log in execution order (live mirror of journal tool records). */
+  private agentTools = new Map<string, AgentToolEntry[]>();
 
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
@@ -61,11 +46,14 @@ export class AgentViewerState {
   /** Maps agent id → raw stream events in insertion order. */
   private agentEvents = new Map<string, JsonAgentSessionEvent[]>();
 
-  /** Maps agent id → lines appended to its current .events.jsonl file this session. */
-  private eventsFileLineCounts = new Map<string, number>();
-
   /** Maps agent id → extracted AgentMessage objects in order. */
   private agentMessages = new Map<string, AgentMessage[]>();
+
+  /** Maps agent id → append-only journal for the agent run. */
+  private journals = new Map<string, AgentJournal>();
+
+  /** Maps agent id → toolCallId → args captured at tool_execution_start. */
+  private toolStartArgs = new Map<string, Map<string, unknown>>();
 
   /**
    * Get all agent entries as a read-only map.
@@ -99,8 +87,9 @@ export class AgentViewerState {
    * Get raw stream events for an agent from the in-memory buffer.
    *
    * Returns events currently held in the sliding window (up to
-   * {@link MAX_AGENT_EVENTS} per agent). Use {@link loadConversationEvents}
-   * for disk-backed history beyond the window.
+   * {@link MAX_AGENT_EVENTS} per agent). Raw events are no longer persisted
+   * to disk (the journal keeps the derived stream/message/tool records), so
+   * the window is the only source.
    *
    * @param agentId - The agent to get events for.
    * @returns An array of events in insertion order, most recent last. Empty for unknown agents.
@@ -113,7 +102,7 @@ export class AgentViewerState {
    * Get cached {@link AgentMessage} objects for an agent in order.
    *
    * Messages are populated live from {@link pushStreamEvent} on each
-   * {@code message_end} event and loaded from {@code messages.jsonl} on
+   * {@code message_end} event and replayed from the agent journal on
    * startup via {@link prepopulateStreamFiles}.
    *
    * @param agentId - The agent to get messages for.
@@ -121,6 +110,24 @@ export class AgentViewerState {
    */
   getAgentMessages(agentId: string): AgentMessage[] {
     return this.agentMessages.get(agentId) ?? [];
+  }
+
+  /**
+   * Get the tool-entry log for an agent, in execution order.
+   *
+   * Entries mirror the journal's {@code tool} records (the exported
+   * {@link AgentToolEntry} shape): each {@code tool_execution_start} pushes
+   * {@code { toolCallId, toolName, args, ts }} and each
+   * {@code tool_execution_end} pushes the merged
+   * {@code { toolCallId, toolName, args, result, isError, ts }} object. Live
+   * pushes happen alongside journal persistence, and startup replay
+   * populates the log from journal {@code tool} entries.
+   *
+   * @param agentId - The agent to get tool entries for.
+   * @returns The tool-entry log, most recent last. Empty for unknown agents.
+   */
+  getAgentTools(agentId: string): readonly AgentToolEntry[] {
+    return this.agentTools.get(agentId) ?? [];
   }
 
   /**
@@ -143,12 +150,19 @@ export class AgentViewerState {
    * Configure the stream file directory.
    *
    * When set, every pushStreamEvent call persists the formatted
-   * event line to an append-only log file named
-   * `{agentId}.stream` under the given directory.
+   * event line to the agent's append-only journal file named
+   * `{agentId}.journal.jsonl` under the given directory.
    *
    * @param streamDir — Directory for filesystem-backed stream buffers.
    */
   setStreamDir(streamDir: string): void {
+    if (streamDir !== this.streamDir) {
+      // Journal instances are bound to the directory they were created for.
+      // A directory change invalidates the cache so later appends land in
+      // the new directory instead of silently continuing to write the old
+      // one (journals are re-created lazily on the next append).
+      this.journals.clear();
+    }
     this.streamDir = streamDir;
   }
 
@@ -178,8 +192,8 @@ export class AgentViewerState {
     };
 
     // Timestamp lifecycle: terminal entries (done/error) always carry a
-    // finishedAt — a caller-provided stamp wins (e.g. prepopulateStreamFiles
-    // mtime seeding) and an existing stamp is preserved (same-run
+    // finishedAt — a caller-provided stamp wins (e.g. journal replay of a
+    // completed run) and an existing stamp is preserved (same-run
     // re-delivery: overlay reopen, restart redelivery after prepopulate,
     // duplicate terminal events), otherwise a fresh stamp is written (first
     // terminal transition or a new run whose started/running cleared it).
@@ -208,17 +222,19 @@ export class AgentViewerState {
   }
 
   /**
-   * Dispose of all state including filesystem handles.
+   * Dispose of all in-memory state.
+   *
+   * Does NOT delete journal files from disk — they are the persistent
+   * record of the agent run and survive the state's lifetime.
    */
   dispose(): void {
     this.agents.clear();
     this.lastLines.clear();
     this.agentEvents.clear();
     this.agentMessages.clear();
-    this.eventsFileLineCounts.clear();
-    this.streamFiles.clear();
-    this.eventsFiles.clear();
-    this.messagesFiles.clear();
+    this.agentTools.clear();
+    this.journals.clear();
+    this.toolStartArgs.clear();
     this.streamDir = undefined;
   }
 
@@ -227,7 +243,7 @@ export class AgentViewerState {
    *
    * Formats the event into a human-readable line (kept in memory as the
    * most recent stream line) and, when streamDir is
-   * configured, appends it to a per-agent log file on disk.
+   * configured, appends it to the agent's journal file on disk.
    */
   pushStreamEvent(
     agentId: string,
@@ -277,7 +293,64 @@ export class AgentViewerState {
   }
 
   /**
-   * Persist stream event to disk.
+   * Append a lifecycle marker to the agent's journal.
+   *
+   * No-op when no stream directory is configured (matching the legacy
+   * "persist only when streamDir is set" semantics). Never throws: journal
+   * appends are best-effort internally.
+   *
+   * @param agentId - The agent whose journal receives the entry.
+   * @param phase - Lifecycle phase of the agent run.
+   * @param passed - Whether the run passed (terminal phases only).
+   * @param summary - Human-readable run summary.
+   */
+  appendLifecycle(
+    agentId: string,
+    phase: "started" | "done" | "error" | "cancelled",
+    passed?: boolean,
+    summary?: string,
+  ): void {
+    if (!this.streamDir) return;
+    // Type-level guarantees hold at compile time; a runtime guard keeps
+    // malformed input from ever reaching the journal (best-effort, no-op
+    // rather than throw).
+    if (phase !== "started" && phase !== "done" && phase !== "error" && phase !== "cancelled") {
+      return;
+    }
+    if (passed !== undefined && typeof passed !== "boolean") return;
+    if (summary !== undefined && typeof summary !== "string") return;
+    const entry: AgentJournalEntry = {
+      type: "lifecycle",
+      phase,
+      passed,
+      summary,
+      ts: new Date().toISOString(),
+    };
+    this.journalFor(agentId)?.append(entry);
+  }
+
+  /**
+   * Get (and lazily build) the append-only journal for an agent.
+   *
+   * Journals only exist when a stream directory is configured. The journal
+   * instance is cached per agent for the lifetime of the state so every
+   * event appends to the same file. Failures inside append are handled
+   * there (best-effort, never throws).
+   */
+  private journalFor(agentId: string): AgentJournal | undefined {
+    if (!this.streamDir) return undefined;
+    const existing = this.journals.get(agentId);
+    if (existing) return existing;
+    const journal = AgentJournal.forAgent(this.streamDir, agentId);
+    this.journals.set(agentId, journal);
+    return journal;
+  }
+
+  /**
+   * Persist stream event to the agent journal.
+   *
+   * Best-effort: filesystem failures are logged and swallowed so a broken
+   * stream directory never interrupts the agent run.
    */
   private persistStreamEvent(agentId: string, event: JsonAgentSessionEvent, line: string): void {
     if (!this.streamDir) return;
@@ -285,57 +358,79 @@ export class AgentViewerState {
     try {
       mkdirSync(this.streamDir, { recursive: true });
 
-      // Persist formatted line to .stream file (sync, small writes).
-      if (this.shouldPersistToStreamFile(event, line)) {
-        const streamPath =
-          this.streamFiles.get(agentId) ?? join(this.streamDir, `${agentId}.stream`);
-        if (!this.streamFiles.has(agentId)) {
-          this.streamFiles.set(agentId, streamPath);
+      const journal = this.journalFor(agentId);
+      if (!journal) return;
+
+      const ts = new Date().toISOString();
+
+      // Persist the formatted line as a stream entry (gated by the same
+      // filter that decided .stream persistence before).
+      if (this.shouldPersistStreamEntry(event, line)) {
+        journal.append({ type: "stream", line, ts });
+      }
+
+      switch (event.type) {
+        case "tool_execution_start": {
+          // Remember args so the end event can replay a merged tool entry.
+          const argsByTool = this.toolStartArgs.get(agentId) ?? new Map<string, unknown>();
+          argsByTool.set(event.toolCallId, event.args);
+          this.toolStartArgs.set(agentId, argsByTool);
+          journal.append({
+            type: "tool",
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            args: event.args,
+            ts,
+          });
+          this.pushAgentTool(agentId, {
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            ts,
+            ...(event.args !== undefined ? { args: event.args } : {}),
+          });
+          break;
         }
-        appendFileSync(streamPath, `${line}\n`, "utf-8");
-      }
-
-      // Persist raw event to .events.jsonl (sync, small writes).
-      const eventsPath =
-        this.eventsFiles.get(agentId) ?? join(this.streamDir, `${agentId}.events.jsonl`);
-      if (!this.eventsFiles.has(agentId)) {
-        this.eventsFiles.set(agentId, eventsPath);
-      }
-      appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, "utf-8");
-
-      // Rotate the .events.jsonl file when it exceeds the line cap.
-      // Best-effort: on rename failure keep appending to the current file.
-      const currentCount = (this.eventsFileLineCounts.get(agentId) ?? 0) + 1;
-      this.eventsFileLineCounts.set(agentId, currentCount);
-
-      if (currentCount >= MAX_EVENTS_FILE_LINES) {
-        const archivePath = eventsPath.replace(/\.events\.jsonl$/, ".events.1.jsonl");
-        try {
-          renameSync(eventsPath, archivePath);
-          this.eventsFileLineCounts.set(agentId, 0);
-          // Next appendFileSync will create a fresh .events.jsonl.
-        } catch {
-          // Best-effort: keep appending to the current file and fall through
-          // to the .messages.jsonl persistence below. The counter stays at
-          // the cap so the next event retries rotation harmlessly.
-          logger.warn("Event file rotation failed", { agentId, eventsPath });
+        case "tool_execution_end": {
+          const argsByTool = this.toolStartArgs.get(agentId);
+          const args = argsByTool?.get(event.toolCallId);
+          journal.append({
+            type: "tool",
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            result: event.result,
+            // isError rides along only when defined — the same conditional
+            // shape replay produces, so live and replayed journal entries
+            // are structurally identical.
+            ...(event.isError !== undefined ? { isError: event.isError } : {}),
+            args,
+            ts,
+          });
+          this.pushAgentTool(agentId, {
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            ts,
+            ...(event.result !== undefined ? { result: event.result } : {}),
+            ...(event.isError !== undefined ? { isError: event.isError } : {}),
+            // args ride along only when a matching start recorded them — the
+            // same conditional shape replay produces, so live and replayed
+            // tool logs are structurally identical.
+            ...(args !== undefined ? { args } : {}),
+          });
+          // Prune the remembered start args now that the end entry has
+          // consumed them — bounded memory: one slot per in-flight call.
+          argsByTool?.delete(event.toolCallId);
+          break;
         }
-      }
-
-      // Persist finalized message to .messages.jsonl (sync, small writes).
-      // Only message_end events for user/assistant/toolResult carry a
-      // finalized message.
-      if (event.type === "message_end" && event.message) {
-        const message = event.message;
-        const role = message.role;
-        if (role === "user" || role === "assistant" || role === "toolResult") {
-          const messagesPath =
-            this.messagesFiles.get(agentId) ?? join(this.streamDir, `${agentId}.messages.jsonl`);
-          if (!this.messagesFiles.has(agentId)) {
-            this.messagesFiles.set(agentId, messagesPath);
+        case "message_end": {
+          const message = event.message;
+          const role = message?.role;
+          if (role === "user" || role === "assistant" || role === "toolResult") {
+            journal.append({ type: "message", message, ts });
           }
-          appendFileSync(messagesPath, `${JSON.stringify(message)}\n`, "utf-8");
+          break;
         }
+        default:
+          break;
       }
     } catch (err) {
       logger.warn("persistStreamEvent: failed to persist stream event", {
@@ -346,13 +441,29 @@ export class AgentViewerState {
   }
 
   /**
-   * Determine whether an event should be persisted to the .stream file.
+   * Append a tool log entry to the agent's live tool cache.
+   *
+   * Kept in sync with the journal's {@code tool} records (same events, same
+   * merged args) and capped with the same FIFO sliding window as the other
+   * in-memory buffers.
+   */
+  private pushAgentTool(agentId: string, tool: AgentToolEntry): void {
+    const tools = this.agentTools.get(agentId) ?? [];
+    tools.push(tool);
+    if (tools.length > MAX_AGENT_EVENTS) {
+      tools.splice(0, tools.length - MAX_AGENT_EVENTS);
+    }
+    this.agentTools.set(agentId, tools);
+  }
+
+  /**
+   * Determine whether an event should be persisted as a stream journal entry.
    *
    * Excludes noisy incremental events (message_update) and lifecycle markers
    * (turn_start, turn_end) whose content arrives through other events.
    * Also excludes message_end events that produced no extracted text.
    */
-  private shouldPersistToStreamFile(event: JsonAgentSessionEvent, line: string): boolean {
+  private shouldPersistStreamEntry(event: JsonAgentSessionEvent, line: string): boolean {
     switch (event.type) {
       case "message_update":
       case "turn_start":
@@ -413,24 +524,21 @@ export class AgentViewerState {
   }
 
   /**
-   * Load persisted stream events from disk for an agent.
-   * Returns lines from the .stream file.
+   * Load the formatted stream lines for an agent from its journal.
+   *
+   * Replays the journal and returns its {@code stream} entries' lines in
+   * order (the journal replaced the legacy .stream file as the persistence
+   * source). Empty for unknown agents or when no stream directory is set.
    */
   async loadStreamFile(agentId: string): Promise<string[]> {
-    const streamPath = this.streamFiles.get(agentId);
-    if (!streamPath) return [];
+    const journal = this.journalFor(agentId);
+    if (!journal || !existsSync(journal.filePath)) return [];
 
     try {
-      const lines: string[] = [];
-      const fileStream = createInterface({
-        input: createReadStream(streamPath, "utf-8"),
-      });
-
-      for await (const line of fileStream) {
-        lines.push(line);
-      }
-
-      return lines;
+      const { entries } = await journal.read();
+      return entries
+        .filter((e): e is Extract<AgentJournalEntry, { type: "stream" }> => e.type === "stream")
+        .map((e) => e.line);
     } catch (err) {
       logger.warn("loadStreamFile: failed to load stream file", { agentId, error: String(err) });
       return [];
@@ -438,23 +546,23 @@ export class AgentViewerState {
   }
 
   /**
-   * Load persisted messages from disk for an agent.
+   * Load the persisted {@link AgentMessage} objects for an agent from its
+   * journal.
+   *
+   * Replays the journal and returns its {@code message} entries in order
+   * (the journal replaced the legacy .messages.jsonl file as the
+   * persistence source). Empty for unknown agents or when no stream
+   * directory is set.
    */
   async loadMessagesFile(agentId: string): Promise<AgentMessage[]> {
-    const messagesPath = this.messagesFiles.get(agentId);
-    if (!messagesPath) return [];
+    const journal = this.journalFor(agentId);
+    if (!journal || !existsSync(journal.filePath)) return [];
 
     try {
-      const messages: AgentMessage[] = [];
-      const fileStream = createInterface({
-        input: createReadStream(messagesPath, "utf-8"),
-      });
-
-      for await (const line of fileStream) {
-        messages.push(JSON.parse(line) as AgentMessage);
-      }
-
-      return messages;
+      const { entries } = await journal.read();
+      return entries
+        .filter((e): e is Extract<AgentJournalEntry, { type: "message" }> => e.type === "message")
+        .map((e) => e.message);
     } catch (err) {
       logger.warn("loadMessagesFile: failed to load messages file", {
         agentId,
@@ -487,206 +595,309 @@ export class AgentViewerState {
   }
 
   /**
-   * Scan the stream directory for existing per-agent files and pre-populate
-   * state. Creates stale entries for agents with files but no entry,
-   * and loads messages from .messages.jsonl files into the cache.
+   * Scan the stream directory and replay persisted agent journals into
+   * viewer state.
    *
-   * Returns a promise that resolves when all message files have been
-   * fully streamed into the cache.
+   * Journal-first: agents with a {@code {agentId}.journal.jsonl} file are
+   * replayed directly. Agents with only legacy files (.stream,
+   * .messages.jsonl, .events*.jsonl) are first folded into a journal via
+   * {@link AgentJournal.migrateLegacy} (one-shot; the legacy files are
+   * removed on success) and then replayed. Raw {@code .events*.jsonl}
+   * siblings — current plus rotated archives — are all collected so
+   * migrateLegacy can order them by file mtime.
+   *
+   * Replay is read-only: it never appends to the journal. Returns a promise
+   * that resolves when every journal has been replayed (best-effort — a
+   * failing journal is logged and skipped, never thrown).
    */
   async prepopulateStreamFiles(streamDir: string): Promise<void> {
-    const ensureStaleEntry = (agentId: string, filePath?: string): void => {
-      if (this.agents.has(agentId)) return;
+    if (streamDir !== this.streamDir) {
+      // Same directory-binding rule as setStreamDir: journals cached under a
+      // different directory must not serve appends for this one.
+      this.journals.clear();
+    }
+    this.streamDir = streamDir;
 
-      // Use the stream file's birthtime as a best-effort createdAt and
-      // mtime as a best-effort finishedAt so elapsed displays meaningfully
-      // for agents whose lifecycle has long since ended.
-      let createdAt = new Date();
-      let finishedAt: Date | undefined;
-      if (filePath) {
-        try {
-          const stat = statSync(filePath);
-          createdAt = stat.birthtime;
-          finishedAt = stat.mtime;
-        } catch {
-          // Use current time as fallback for createdAt.
-        }
-      }
-
-      this.update({
-        id: agentId,
-        status: "done",
-        createdAt,
-        finishedAt,
-        summary: "Agent completed",
-      });
-    };
-
-    const loadPromises: Promise<void>[] = [];
+    const journaled = new Set<string>();
+    const legacy = new Map<string, { stream?: string; messages?: string; events: string[] }>();
 
     try {
       for (const entry of readdirSync(streamDir)) {
-        const filePath = join(streamDir, entry);
-
+        if (entry.endsWith(".journal.jsonl")) {
+          journaled.add(entry.slice(0, -".journal.jsonl".length));
+          continue;
+        }
         if (entry.endsWith(".stream")) {
           const agentId = entry.slice(0, -".stream".length);
-          this.streamFiles.set(agentId, filePath);
-          ensureStaleEntry(agentId, filePath);
+          const files = legacy.get(agentId) ?? { events: [] };
+          files.stream = join(streamDir, entry);
+          legacy.set(agentId, files);
           continue;
         }
-
         if (entry.endsWith(".messages.jsonl")) {
           const agentId = entry.slice(0, -".messages.jsonl".length);
-          this.messagesFiles.set(agentId, filePath);
-          ensureStaleEntry(agentId, filePath);
-          loadPromises.push(this.loadMessagesFromDiskIntoCache(agentId, filePath));
+          const files = legacy.get(agentId) ?? { events: [] };
+          files.messages = join(streamDir, entry);
+          legacy.set(agentId, files);
           continue;
         }
-
-        if (entry.endsWith(".events.jsonl")) {
-          const agentId = entry.slice(0, -".events.jsonl".length);
-          this.eventsFiles.set(agentId, filePath);
-          ensureStaleEntry(agentId, filePath);
-          // Seed the session line counter from the existing file so rotation
-          // triggers immediately when a pre-session file already exceeds the
-          // cap. Archives (.events.1.jsonl) are read-only and not counted.
-          loadPromises.push(this.seedEventsFileLineCount(agentId, filePath));
-          continue;
+        const eventsMatch = /^(.*)\.events(?:\.\d+)?\.jsonl$/.exec(entry);
+        if (eventsMatch) {
+          const agentId = eventsMatch[1];
+          const files = legacy.get(agentId) ?? { events: [] };
+          files.events.push(join(streamDir, entry));
+          legacy.set(agentId, files);
         }
       }
     } catch (err) {
       logger.warn("prepopulateStreamFiles: failed to scan stream directory", {
         error: String(err),
       });
+      return;
     }
 
-    await Promise.allSettled(loadPromises);
+    const jobs: Promise<void>[] = [];
+
+    // A journal's presence wins over legacy siblings (partial-migration
+    // state): journaled agents are replayed directly and their leftover
+    // legacy files are ignored.
+    for (const agentId of journaled) {
+      jobs.push(this.replayJournal(agentId));
+    }
+
+    // Legacy-only agents: fold the per-agent files into a journal (one-shot;
+    // migrateLegacy derives file order by mtime, including rotated .events.*
+    // archives) and replay the result.
+    for (const [agentId, files] of legacy) {
+      if (journaled.has(agentId)) continue;
+      const journal = AgentJournal.forAgent(streamDir, agentId);
+      jobs.push(
+        journal
+          .migrateLegacy({ stream: files.stream, messages: files.messages, events: files.events })
+          .then(() => this.replayJournal(agentId)),
+      );
+    }
+
+    // Preserve the fire-and-forget contract: prepopulate resolves when all
+    // replays settle, and a failing journal never rejects the caller.
+    await Promise.allSettled(jobs);
   }
 
   /**
-   * Count the lines in an existing .events.jsonl file and seed the session
-   * line counter, so rotation triggers immediately when a pre-session file
-   * already exceeds the cap. Best-effort: on failure the counter is left
-   * unseeded and in-session counting resumes from zero.
+   * Replay one agent's journal into viewer state.
+   *
+   * Lifecycle handling: the FIRST {@code started} entry's ts seeds createdAt
+   * and the LAST lifecycle entry wins for status — a trailing {@code done}/
+   * {@code error}/{@code cancelled} terminal determines status, passed,
+   * summary, and finishedAt, while a trailing {@code started} means a newer
+   * run is in flight (an earlier terminal must not relabel it) and leaves
+   * the entry "running" with no finishedAt. Replay reports history
+   * truthfully, it never invents a terminal state.
+   *
+   * Entry creation is guarded: an agent with an existing entry (live-seeded
+   * via connect's agentQuery or the pre-connect buffer) is the current truth
+   * and is never overwritten with a journal terminal from a prior run. The
+   * derived caches (messages, tools, last stream line) are populated
+   * regardless, so a live entry still gets its historical data.
+   *
+   * A journal that could not be read to EOF is still replayed from the
+   * partial entries (tolerated, warn logged). Agents with an empty journal
+   * get no entry.
    */
-  private async seedEventsFileLineCount(agentId: string, filePath: string): Promise<void> {
-    try {
-      let count = 0;
-      const rl = createInterface({
-        input: createReadStream(filePath, "utf-8"),
-        crlfDelay: Infinity,
-      });
+  private async replayJournal(agentId: string): Promise<void> {
+    const journal = this.journalFor(agentId);
+    if (!journal) return;
+    if (!existsSync(journal.filePath)) return;
 
-      for await (const _line of rl) {
-        count++;
+    const { entries, complete } = await journal.read();
+    if (!complete) {
+      logger.warn("prepopulateStreamFiles: journal read incomplete", { agentId });
+    }
+
+    let firstStartedAt: Date | undefined;
+    let lastLifecycle: Extract<AgentJournalEntry, { type: "lifecycle" }> | undefined;
+    const messages: AgentMessage[] = [];
+    const tools: AgentToolEntry[] = [];
+    let lastStreamLine: string | undefined;
+
+    for (const entry of entries) {
+      switch (entry.type) {
+        case "lifecycle":
+          if (entry.phase === "started") {
+            const startedAt = AgentViewerState.parseEntryTs(entry.ts);
+            if (startedAt) firstStartedAt ??= startedAt;
+          }
+          // Last lifecycle entry wins: started -> done -> started means run 2
+          // is in flight, so the done terminal must not relabel it.
+          lastLifecycle = entry;
+          break;
+        case "message":
+          messages.push(entry.message);
+          break;
+        case "stream":
+          lastStreamLine = entry.line;
+          break;
+        case "tool":
+          tools.push({
+            toolCallId: entry.toolCallId,
+            toolName: entry.toolName,
+            ts: entry.ts,
+            ...(entry.args !== undefined ? { args: entry.args } : {}),
+            ...(entry.result !== undefined ? { result: entry.result } : {}),
+            ...(entry.isError !== undefined ? { isError: entry.isError } : {}),
+          });
+          break;
+        case "forge":
+          // Replay-ignored: forge entries carry future loop/workspace/session
+          // context; no view renders them yet (see AgentJournalEntry).
+          break;
       }
+    }
 
-      this.eventsFileLineCounts.set(agentId, count);
-    } catch (err) {
-      logger.warn("seedEventsFileLineCount: failed to count events file lines", {
+    if (entries.length === 0) return;
+
+    let status: AgentViewerEntryStatus = "running";
+    let passed: boolean | undefined;
+    let summary: string | undefined;
+    let finishedAt: Date | undefined;
+    const terminal = lastLifecycle && lastLifecycle.phase !== "started" ? lastLifecycle : undefined;
+    if (terminal) {
+      status = terminal.phase;
+      passed = terminal.passed;
+      summary = terminal.summary;
+      finishedAt = AgentViewerState.parseEntryTs(terminal.ts);
+    }
+
+    let createdAt: Date;
+    if (firstStartedAt) {
+      createdAt = firstStartedAt;
+    } else {
+      // No started lifecycle (e.g. a migrated legacy journal): the earliest
+      // valid entry ts is the best creation stamp we have. Fall back to the
+      // journal file's birthtime — some filesystems report no birthtime
+      // (epoch 0), treated as absent.
+      createdAt =
+        entries.reduce<Date | undefined>((earliest, entry) => {
+          const ts = AgentViewerState.parseEntryTs(entry.ts);
+          if (!ts) return earliest;
+          return !earliest || ts.getTime() < earliest.getTime() ? ts : earliest;
+        }, undefined) ?? AgentViewerState.journalBirthtime(journal.filePath);
+    }
+
+    // Replayed caches carry the same FIFO cap as their live counterparts.
+    if (messages.length > 0) {
+      this.agentMessages.set(
         agentId,
-        error: String(err),
+        messages.length > MAX_AGENT_EVENTS ? messages.slice(-MAX_AGENT_EVENTS) : messages,
+      );
+    }
+    if (tools.length > 0) {
+      this.agentTools.set(
+        agentId,
+        tools.length > MAX_AGENT_EVENTS ? tools.slice(-MAX_AGENT_EVENTS) : tools,
+      );
+    }
+    if (lastStreamLine !== undefined) {
+      this.lastLines.set(agentId, lastStreamLine);
+    }
+
+    // No-overwrite guard (restores the pre-journal ensureStaleEntry
+    // contract): an entry already present was live-seeded by connect's
+    // agentQuery or the pre-connect buffer and reflects the current session.
+    // Overwriting it with a journal terminal from a prior run of the same
+    // agent id would relabel a live started/running agent as done/error with
+    // stale summary and timestamps. Caches above are still populated.
+    if (this.agents.has(agentId)) return;
+
+    if (status === "done") {
+      this.update({
+        id: agentId,
+        status: "done",
+        createdAt,
+        ...(finishedAt !== undefined ? { finishedAt } : {}),
+        // passed stays undefined when the journal carries no pass/fail — the
+        // entry then renders "completed" (green), never "failed".
+        ...(passed !== undefined ? { passed } : {}),
+        summary: summary ?? "",
       });
+      return;
+    }
+    if (status === "error") {
+      this.update({
+        id: agentId,
+        status: "error",
+        createdAt,
+        ...(finishedAt !== undefined ? { finishedAt } : {}),
+        ...(summary !== undefined ? { summary } : {}),
+        errorMessage: summary ?? "Agent failed",
+      });
+      return;
+    }
+    if (status === "cancelled") {
+      this.update({
+        id: agentId,
+        status: "cancelled",
+        createdAt,
+        ...(finishedAt !== undefined ? { finishedAt } : {}),
+        ...(summary !== undefined ? { summary } : {}),
+      });
+      return;
+    }
+
+    // started/running: the replayed run is in flight — no finishedAt, the
+    // last stream line rides on the entry for the list view.
+    this.update({
+      id: agentId,
+      status: "running",
+      createdAt,
+      ...(lastStreamLine !== undefined ? { lastStreamLine } : {}),
+    });
+  }
+
+  /**
+   * Parse an ISO timestamp from a journal entry, tolerating invalid values.
+   *
+   * Journal lines are the writer's own output, but a corrupted or
+   * hand-edited line can carry an unparseable ts. Returns undefined for
+   * invalid stamps so callers can fall back instead of deriving a
+   * NaN-based date (which would render as "Invalid Date").
+   */
+  private static parseEntryTs(ts: string): Date | undefined {
+    const date = new Date(ts);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  /**
+   * Best-effort creation stamp from the journal file's birthtime.
+   *
+   * Some filesystems report no birthtime (epoch 0) — treated as absent, in
+   * which case "now" is used so replay never produces an invalid date.
+   */
+  private static journalBirthtime(filePath: string): Date {
+    try {
+      const birthtime = statSync(filePath).birthtime;
+      return birthtime.getTime() > 0 ? birthtime : new Date();
+    } catch {
+      return new Date();
     }
   }
 
   /**
-   * Load conversation events from the on-disk JSONL file for the given agent.
+   * Return the most recent raw stream events for an agent.
+   *
+   * The in-memory sliding window is the only source — raw events are no
+   * longer persisted to disk, so there is no disk history to load beyond
+   * the window.
+   *
+   * @param agentId - The agent to get events for.
+   * @param count - Maximum number of events to return (most recent wins).
+   * @returns An array of events in insertion order, most recent last.
    */
   async loadConversationEvents(
     agentId: string,
     count: number = MAX_AGENT_EVENTS,
   ): Promise<JsonAgentSessionEvent[]> {
     const memoryEvents = this.agentEvents.get(agentId) ?? [];
-
-    if (count <= memoryEvents.length) {
-      return memoryEvents.slice(-count);
-    }
-
-    const eventsPath = this.eventsFiles.get(agentId);
-    if (!eventsPath) {
-      return memoryEvents.slice(-count);
-    }
-
-    try {
-      const lines: string[] = [];
-      const rl = createInterface({
-        input: createReadStream(eventsPath, "utf-8"),
-        crlfDelay: Infinity,
-      });
-
-      for await (const line of rl) {
-        if (!line) continue;
-        lines.push(line);
-        if (lines.length > count) {
-          lines.shift();
-        }
-      }
-
-      const diskEvents: JsonAgentSessionEvent[] = [];
-      for (const line of lines) {
-        try {
-          const parsed = jsonParse<JsonAgentSessionEvent>(line);
-          diskEvents.push(parsed);
-        } catch (err) {
-          logger.warn("loadConversationEvents: failed to parse event line", {
-            agentId,
-            error: String(err),
-          });
-        }
-      }
-
-      return diskEvents;
-    } catch (err) {
-      logger.warn("loadConversationEvents: failed to load events file", {
-        agentId,
-        error: String(err),
-      });
-      return memoryEvents.slice(-count);
-    }
-  }
-
-  /**
-   * Parse a .messages.jsonl file into cached agentMessages using streaming reads.
-   *
-   * Streams the file line-by-line via {@code createReadStream} +
-   * {@code createInterface}, avoiding loading the entire file into memory.
-   * Invalid JSON lines are silently skipped. Parsed messages are prepended
-   * to the in-memory cache (disk content precedes live content).
-   */
-  private async loadMessagesFromDiskIntoCache(agentId: string, filePath: string): Promise<void> {
-    try {
-      const disk: AgentMessage[] = [];
-      const rl = createInterface({
-        input: createReadStream(filePath, "utf-8"),
-        crlfDelay: Infinity,
-      });
-
-      for await (const line of rl) {
-        if (!line) continue;
-        try {
-          const parsed = jsonParse<AgentMessage>(line);
-          disk.push(parsed);
-        } catch (err) {
-          logger.warn("loadMessagesFromDiskIntoCache: failed to parse message line", {
-            agentId,
-            error: String(err),
-          });
-        }
-      }
-
-      if (disk.length === 0) return;
-      const existing = this.agentMessages.get(agentId) ?? [];
-      const merged = [...disk, ...existing];
-      if (merged.length > MAX_AGENT_EVENTS) {
-        merged.splice(0, merged.length - MAX_AGENT_EVENTS);
-      }
-      this.agentMessages.set(agentId, merged);
-    } catch (err) {
-      logger.warn("loadMessagesFromDiskIntoCache: failed to load messages from disk", {
-        agentId,
-        error: String(err),
-      });
-    }
+    return memoryEvents.slice(-count);
   }
 }
