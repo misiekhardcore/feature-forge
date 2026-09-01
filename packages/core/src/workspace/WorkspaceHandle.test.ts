@@ -130,7 +130,36 @@ describe("WorkspaceHandle", () => {
         createdAt: "2026-06-24T12:00:00.000Z",
       } as unknown as Parameters<typeof WorkspaceHandle.fromJSON>[0];
 
-      expect(() => WorkspaceHandle.fromJSON(legacy)).toThrow(/requires a branch field/);
+      expect(() => WorkspaceHandle.fromJSON(legacy)).toThrow(/requires a non-empty branch/);
+    });
+
+    it("throws on an empty branch string", () => {
+      expect(() =>
+        WorkspaceHandle.fromJSON({
+          path: "/tmp/.forge/worktrees/task-1",
+          createdAt: "2026-06-24T12:00:00.000Z",
+          branch: "",
+        }),
+      ).toThrow(/requires a non-empty branch/);
+    });
+
+    it("throws on an unparseable createdAt", () => {
+      expect(() =>
+        WorkspaceHandle.fromJSON({
+          path: "/tmp/.forge/worktrees/task-1",
+          createdAt: "not-a-date",
+          branch: "forge/ws-abc123",
+        }),
+      ).toThrow(/requires a parseable createdAt/);
+    });
+
+    it("throws when createdAt is missing at runtime", () => {
+      const legacy = {
+        path: "/tmp/.forge/worktrees/task-1",
+        branch: "forge/ws-abc123",
+      } as unknown as Parameters<typeof WorkspaceHandle.fromJSON>[0];
+
+      expect(() => WorkspaceHandle.fromJSON(legacy)).toThrow(/requires a parseable createdAt/);
     });
   });
 });

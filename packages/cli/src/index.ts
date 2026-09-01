@@ -201,7 +201,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   // Capture the pi session id (UUIDv7) as soon as it is observable so
   // registry entries created by this process are attributed to the owning
-  // session. Refreshed on every session hook — /new and /resume swap the
+  // session. Refreshed on every session hook - /new and /resume swap the
   // session mid-process. The id can legitimately be absent before the
   // first hook fires; entries then stay unstamped.
   let sessionId: string | undefined;

@@ -107,7 +107,7 @@ repeatable.
 
 **Pattern for future work:** when a task requires validating behavior the
 test suite cannot reach (real process, hooks, external tool, timing), build
-a self-tool — a script plus a skill that documents when/how to run it — and
+a self-tool - a script plus a skill that documents when/how to run it - and
 commit both together. Keep the script next to its skill (this directory), not
 in `packages/`, so the skill owns its tooling. Mirror the eslint/prettier
 treatment: `.forge/` is runtime scaffold, not lint target (see root

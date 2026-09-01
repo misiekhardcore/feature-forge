@@ -90,7 +90,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
    * the stamp is applied before persistence. Handles are immutable, so a
    * new stamped handle is stored in the registry.
    *
-   * @returns The handle actually stored — the session-stamped copy when
+   * @returns The handle actually stored - the session-stamped copy when
    *   the provider supplied a session id, otherwise the original.
    */
   async register(handle: WorkspaceHandle): Promise<WorkspaceHandle> {
@@ -196,7 +196,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
    * The persist cycles are serialized by an in-process mutex (promise
    * queue) so concurrent register/remove calls cannot interleave their
    * read-modify-write cycles. Each write merges the current file contents
-   * with the in-memory state — in-memory wins per path — preserving
+   * with the in-memory state - in-memory wins per path - preserving
    * entries written by other processes since our last load. The write is
    * atomic: contents go to `<storagePath>.tmp-<pid>` first, then
    * `rename()` over the target, so readers never observe a torn file.
@@ -241,7 +241,7 @@ export class WorktreeRegistry extends Registry<WorkspaceHandle> {
         }
       }
     } catch (cause) {
-      // Missing, unreadable, or corrupt file — nothing to preserve.
+      // Missing, unreadable, or corrupt file - nothing to preserve.
       logger.debug(
         "Worktree registry file unreadable during merge; preserving in-memory state only",
         {

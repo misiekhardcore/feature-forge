@@ -68,7 +68,7 @@ describe("WorktreeRegistryCodec", () => {
     });
   });
 
-  describe("parse — v1 envelope", () => {
+  describe("parse - v1 envelope", () => {
     it("returns the file for a valid envelope", () => {
       const raw = JSON.stringify({
         version: 1,
@@ -207,7 +207,7 @@ describe("WorktreeRegistryCodec", () => {
     });
   });
 
-  describe("parse — v0 legacy array migration", () => {
+  describe("parse - v0 legacy array migration", () => {
     it("wraps a bare array into the v1 envelope", () => {
       const raw = JSON.stringify([
         { path: "/a", createdAt: "2026-08-18T12:00:00.000Z", branch: "forge/a" },

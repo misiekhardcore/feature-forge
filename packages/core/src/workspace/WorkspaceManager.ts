@@ -33,8 +33,8 @@ export class WorkspaceManager {
   /**
    * Create an isolated workspace, register it, and persist the record.
    *
-   * @param workspaceId — Identifier passed to the provider to allocate the workspace.
-   * @param branch — Branch name associated with the workspace; defaults to `forge/${workspaceId}`.
+   * @param workspaceId - Identifier passed to the provider to allocate the workspace.
+   * @param branch - Branch name associated with the workspace; defaults to `forge/${workspaceId}`.
    * @returns The handle for the newly created workspace.
    */
   async create(workspaceId: string, branch = `forge/${workspaceId}`): Promise<WorkspaceHandle> {

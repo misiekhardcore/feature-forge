@@ -194,7 +194,7 @@ describe("WorktreeRegistry", () => {
     });
 
     it("starts empty and warns when the file cannot be read", async () => {
-      // storagePath points at a directory — readFile fails with EISDIR.
+      // storagePath points at a directory - readFile fails with EISDIR.
       mkdirSync(storagePath, { recursive: true });
       const warnSpy = vi.spyOn(logger, "warn");
 
