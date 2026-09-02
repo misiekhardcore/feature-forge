@@ -1,9 +1,10 @@
-import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, Theme } from "@earendil-works/pi-coding-agent";
 import { IpcTool } from "@feature-forge/core";
 import { SendTaskParams, SendTaskResult } from "@feature-forge/core/ipc";
+import type { Static } from "typebox";
 import { Type } from "typebox";
 
-import { ToolRenderer } from "../tui/views/ToolRenderer";
+import { RenderableTool, type ToolRenderContext, ToolRenderer } from "../tui/views/ToolRenderer";
 
 const SendTaskParameters = Type.Object({
   agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
@@ -21,7 +22,12 @@ const SendTaskParameters = Type.Object({
   ),
 });
 
-export class SendTaskTool extends IpcTool<typeof SendTaskParameters, SendTaskResult> {
+type SendTaskArgs = Static<typeof SendTaskParameters>;
+
+export class SendTaskTool
+  extends IpcTool<typeof SendTaskParameters, SendTaskResult>
+  implements RenderableTool<typeof SendTaskParameters, SendTaskResult | { error: string }>
+{
   readonly name = "send_task";
   readonly label = "Send Task";
   readonly description =
@@ -33,9 +39,23 @@ export class SendTaskTool extends IpcTool<typeof SendTaskParameters, SendTaskRes
   readonly parameters = SendTaskParameters;
   protected readonly messageType = "send_task";
 
-  renderShell = "self";
-  renderCall = ToolRenderer.sendTaskCall;
-  renderResult = ToolRenderer.sendTaskResult;
+  renderShell = "self" as const;
+
+  renderCall = (args: SendTaskArgs, theme: Theme, context: ToolRenderContext) =>
+    ToolRenderer.shell(context, theme, "toolSuccessBg", ({ line, expandable }) => {
+      if (context.expanded) {
+        line(ToolRenderer.header(theme, "accent", `send_task ${args.agentId}`));
+        expandable(args.prompt, "muted");
+      } else {
+        const full =
+          ToolRenderer.header(theme, "accent", `send_task ${args.agentId}`) +
+          " " +
+          theme.fg("muted", `"${args.prompt}"`);
+        line(full);
+      }
+    });
+
+  renderResult = ToolRenderer.simpleResult;
 
   async execute(
     _toolCallId: string,

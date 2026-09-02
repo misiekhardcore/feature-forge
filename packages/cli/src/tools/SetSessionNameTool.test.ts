@@ -1,8 +1,14 @@
+import { Box } from "@earendil-works/pi-tui";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
-import { makeMockPi } from "../test-utils";
-import { ToolRenderer } from "../tui/views/ToolRenderer";
+import {
+  makeMockPi,
+  makeRenderContext,
+  makeRenderOptions,
+  makeTheme,
+  renderLines,
+} from "../test-utils";
 import { SetSessionNameTool } from "./SetSessionNameTool";
 
 describe("SetSessionNameTool", () => {
@@ -24,16 +30,6 @@ describe("SetSessionNameTool", () => {
   it("runs in the current session (renderShell 'self')", () => {
     const tool = new SetSessionNameTool(makeMockPi());
     expect(tool.renderShell).toBe("self");
-  });
-
-  it("wires the set_session_name call renderer", () => {
-    const tool = new SetSessionNameTool(makeMockPi());
-    expect(tool.renderCall).toBe(ToolRenderer.setSessionNameCall);
-  });
-
-  it("wires the set_session_name result renderer", () => {
-    const tool = new SetSessionNameTool(makeMockPi());
-    expect(tool.renderResult).toBe(ToolRenderer.setSessionNameResult);
   });
 
   it("defines parameters requiring a non-empty name", () => {
@@ -75,6 +71,94 @@ describe("SetSessionNameTool", () => {
         DOMException,
       );
       expect(pi.setSessionName).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rendering", () => {
+    const tool = new SetSessionNameTool(makeMockPi());
+    const theme = makeTheme();
+
+    it("renderCall renders a Box and stores it in the render context state", () => {
+      const context = makeRenderContext();
+      const component = tool.renderCall({ name: "implement #172" }, theme, context);
+
+      expect(component).toBeInstanceOf(Box);
+      expect(context.state._box).toBe(component);
+      expect(renderLines(component).join(" ")).toContain("[bg:toolSuccessBg]");
+    });
+
+    it("renderCall header contains the session name", () => {
+      const lines = renderLines(
+        tool.renderCall({ name: "implement #172" }, theme, makeRenderContext()),
+      );
+
+      expect(lines.join(" ")).toContain("set_session_name implement #172");
+    });
+
+    it("renderResult renders nothing while the result is partial", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          {
+            content: [{ type: "text", text: "Session named: implement #172" }],
+            details: undefined,
+          },
+          makeRenderOptions({ isPartial: true }),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines).toEqual([]);
+    });
+
+    it("renderResult renders the confirmation message in the success colour", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          {
+            content: [{ type: "text", text: "Session named: implement #172" }],
+            details: undefined,
+          },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("Session named: implement #172");
+      expect(rendered).toContain("[success]");
+    });
+
+    it("renderResult renders an error marker when the context flags an error", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          {
+            content: [{ type: "text", text: "set_session_name: rename failed" }],
+            details: {},
+          },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext({ isError: true }),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("✗ set_session_name: rename failed");
+      expect(rendered).toContain("[error]");
+    });
+
+    it("renderResult falls back to a muted done marker when content is empty", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: undefined },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("✓ done");
     });
   });
 });

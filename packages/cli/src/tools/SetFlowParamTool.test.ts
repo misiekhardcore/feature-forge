@@ -1,10 +1,16 @@
+import { Box } from "@earendil-works/pi-tui";
 import { ActiveFlowRegistry } from "@feature-forge/core/flows";
 import { FlowStateStore } from "@feature-forge/core/flows";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
-import { makeMockTypedEventBus } from "../test-utils";
-import { ToolRenderer } from "../tui/views/ToolRenderer";
+import {
+  makeMockTypedEventBus,
+  makeRenderContext,
+  makeRenderOptions,
+  makeTheme,
+  renderLines,
+} from "../test-utils";
 import { SetFlowParamTool } from "./SetFlowParamTool";
 
 describe("SetFlowParamTool", () => {
@@ -26,16 +32,6 @@ describe("SetFlowParamTool", () => {
   it("runs in the current session (renderShell 'self')", () => {
     const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
     expect(tool.renderShell).toBe("self");
-  });
-
-  it("wires the set_flow_param call renderer", () => {
-    const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
-    expect(tool.renderCall).toBe(ToolRenderer.setFlowParamCall);
-  });
-
-  it("wires the set_flow_param result renderer", () => {
-    const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
-    expect(tool.renderResult).toBe(ToolRenderer.setFlowParamResult);
   });
 
   it("defines parameters requiring a non-empty key", () => {
@@ -123,6 +119,118 @@ describe("SetFlowParamTool", () => {
 
       expect(error).toBeInstanceOf(DOMException);
       expect((error as DOMException).name).toBe("AbortError");
+    });
+  });
+
+  describe("rendering", () => {
+    const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
+    const theme = makeTheme();
+
+    it("renderCall renders a Box and stores it in the render context state", () => {
+      const context = makeRenderContext();
+      const component = tool.renderCall({ key: "workspace", value: "/path" }, theme, context);
+
+      expect(component).toBeInstanceOf(Box);
+      expect(context.state._box).toBe(component);
+      expect(renderLines(component).join(" ")).toContain("[bg:toolSuccessBg]");
+    });
+
+    it("renderCall header shows the key and the collapsed value", () => {
+      const lines = renderLines(
+        tool.renderCall({ key: "workspace", value: "/path" }, theme, makeRenderContext()),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("set_flow_param workspace");
+      expect(rendered).toContain("/path");
+    });
+
+    it("renderCall truncates a long value instead of throwing", () => {
+      const lines = renderLines(
+        tool.renderCall({ key: "workspace", value: "v".repeat(500) }, theme, makeRenderContext()),
+      );
+
+      expect(lines.join(" ")).not.toContain("v".repeat(500));
+    });
+
+    it("renderCall renders the full value when expanded", () => {
+      const lines = renderLines(
+        tool.renderCall(
+          { key: "workspace", value: "alpha\nbeta" },
+          theme,
+          makeRenderContext({ expanded: true }),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("alpha");
+      expect(rendered).toContain("beta");
+    });
+
+    it("renderResult renders nothing while the result is partial", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          {
+            content: [{ type: "text", text: "Session param set: workspace: /path" }],
+            details: undefined,
+          },
+          makeRenderOptions({ isPartial: true }),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines).toEqual([]);
+    });
+
+    it("renderResult renders the confirmation message in the success colour", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          {
+            content: [{ type: "text", text: "Session param set: workspace: /path" }],
+            details: undefined,
+          },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("Session param set: workspace: /path");
+      expect(rendered).toContain("[success]");
+    });
+
+    it("renderResult renders an error marker when the context flags an error", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          {
+            content: [{ type: "text", text: "set_flow_param: no active flow" }],
+            details: {},
+          },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext({ isError: true }),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("✗ set_flow_param: no active flow");
+      expect(rendered).toContain("[error]");
+    });
+
+    it("renderResult falls back to a muted done marker when content is empty", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: undefined },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("✓ done");
     });
   });
 });

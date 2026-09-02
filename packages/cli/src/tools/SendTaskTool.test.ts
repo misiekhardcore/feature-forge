@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { makeMockSocketClient } from "../test-utils";
+import {
+  makeMockSocketClient,
+  makeRenderContext,
+  makeRenderOptions,
+  makeTheme,
+  renderLines,
+} from "../test-utils";
 import { SendTaskTool } from "./SendTaskTool";
 
 describe("SendTaskTool", () => {
@@ -184,6 +190,80 @@ describe("SendTaskTool", () => {
         ),
       ).rejects.toThrow(DOMException);
       expect(client.request).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rendering", () => {
+    const tool = new SendTaskTool(null);
+    const theme = makeTheme();
+
+    it("collapsed renderCall shows a single-line header with agent id and prompt", () => {
+      const lines = renderLines(
+        tool.renderCall(
+          { agentId: "agent-1", prompt: "review the code", await: true },
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("send_task agent-1");
+      expect(rendered).toContain('"review the code"');
+      expect(rendered).toContain("[bg:toolSuccessBg]");
+    });
+
+    it("expanded renderCall renders the header and prompt without throwing", () => {
+      const lines = renderLines(
+        tool.renderCall(
+          { agentId: "agent-1", prompt: "review the code", await: false },
+          theme,
+          makeRenderContext({ expanded: true }),
+        ),
+      );
+
+      const rendered = lines.join(" ");
+      expect(rendered).toContain("send_task agent-1");
+      expect(rendered).toContain("review the code");
+    });
+
+    it("renderResult renders a muted done marker for a successful result", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { result: "task completed" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✓ done");
+      expect(lines.join(" ")).toContain("[muted]");
+    });
+
+    it("renderResult renders nothing while the result is partial", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: undefined },
+          makeRenderOptions({ isPartial: true }),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines).toEqual([]);
+    });
+
+    it("renderResult renders an error marker when details carry an error", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { error: "Agent not found" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✗ Agent not found");
     });
   });
 });

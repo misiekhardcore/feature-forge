@@ -1,6 +1,13 @@
+import { Box } from "@earendil-works/pi-tui";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { makeMockSocketClient } from "../test-utils";
+import {
+  makeMockSocketClient,
+  makeRenderContext,
+  makeRenderOptions,
+  makeTheme,
+  renderLines,
+} from "../test-utils";
 import { SpawnAgentTool } from "./SpawnAgentTool";
 
 describe("SpawnAgentTool", () => {
@@ -172,6 +179,106 @@ describe("SpawnAgentTool", () => {
         ),
       ).rejects.toThrow(DOMException);
       expect(client.request).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rendering", () => {
+    const tool = new SpawnAgentTool(null);
+    const theme = makeTheme();
+
+    it("renderCall renders a Box and stores it in the render context state", () => {
+      const context = makeRenderContext();
+      const component = tool.renderCall(
+        { role: "researcher", systemPrompt: "You are a researcher", toolRestrictions: {} },
+        theme,
+        context,
+      );
+
+      expect(component).toBeInstanceOf(Box);
+      expect(context.state._box).toBe(component);
+      expect(renderLines(component).join(" ")).toContain("[bg:toolPendingBg]");
+    });
+
+    it("renderCall header contains spawn_agent and the role", () => {
+      const lines = renderLines(
+        tool.renderCall(
+          { role: "researcher", systemPrompt: "You are a researcher", toolRestrictions: {} },
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("spawn_agent researcher");
+    });
+
+    it("renderCall shows a muted model override when set", () => {
+      const lines = renderLines(
+        tool.renderCall(
+          {
+            role: "researcher",
+            systemPrompt: "You are a researcher",
+            toolRestrictions: {},
+            model: "claude-sonnet-4-5",
+          },
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("claude-sonnet-4-5");
+      expect(lines.join(" ")).toContain("[muted]");
+    });
+
+    it("renderCall handles a 500-char system prompt without throwing", () => {
+      expect(() =>
+        renderLines(
+          tool.renderCall(
+            { role: "researcher", systemPrompt: "x".repeat(500), toolRestrictions: {} },
+            theme,
+            makeRenderContext(),
+          ),
+        ),
+      ).not.toThrow();
+    });
+
+    it("renderResult renders a muted done marker for a successful result", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { agentId: "agent-1", role: "researcher" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✓ done");
+      expect(lines.join(" ")).toContain("[muted]");
+    });
+
+    it("renderResult renders nothing while the result is partial", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: undefined },
+          makeRenderOptions({ isPartial: true }),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines).toEqual([]);
+    });
+
+    it("renderResult renders an error marker when details carry an error", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { error: "Connection refused" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✗ Connection refused");
     });
   });
 });
