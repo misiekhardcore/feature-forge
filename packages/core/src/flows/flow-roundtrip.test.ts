@@ -47,7 +47,7 @@ import {
   isLoopInstruction,
   isParallelInstruction,
 } from "./FlowInstruction";
-import { FlowLoader } from "./FlowLoader";
+import { discoverFlowDirectories, FlowLoader } from "./FlowLoader";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -854,17 +854,39 @@ describe("flow round-trip", () => {
   });
 });
 
-// ── set_flow_param guardrails ────────────────────────────────
+// ── flow docs guardrails ─────────────────────────────────────
 
-/** Extract the frontmatter `tools:` list from an orchestrator.md file. */
-function parseFrontmatterTools(markdown: string): string[] {
+/** Extract a frontmatter `{field}:` list (e.g. `tools:`, `skills:`) from an orchestrator.md file. */
+function parseFrontmatterList(markdown: string, field: string, stripQuotes = false): string[] {
   const frontmatter = markdown.split(/^---\s*$/m)[1] ?? "";
-  const toolsMatch = frontmatter.match(/^tools:\n((?:^ {2}- .*$\n?)+)/m);
-  if (!toolsMatch) return [];
-  return toolsMatch[1]
+  const listMatch = frontmatter.match(new RegExp(`^${field}:\\n((?:^ {2}- .*$\\n?)+)`, "m"));
+  if (!listMatch) {
+    // Fail loudly instead of returning [] - a frontmatter format change would
+    // otherwise surface as a misleading "missing skill/tool" failure.
+    const idLine =
+      frontmatter
+        .split("\n")
+        .find((line) => /^id:/.test(line.trim()))
+        ?.trim() ?? "";
+    throw new Error(`orchestrator frontmatter has no "${field}" list (${idLine})`);
+  }
+  return listMatch[1]
     .split("\n")
-    .map((line) => line.trim().replace(/^-\s+/, ""))
+    .map((line) => {
+      const item = line.trim().replace(/^-\s+/, "");
+      return stripQuotes ? item.replace(/^"|"$/g, "") : item;
+    })
     .filter(Boolean);
+}
+
+/**
+ * Read a UTF-8 file with an existence guard: a missing file must fail the
+ * enclosing test with an actionable message naming the file (a bare ENOENT
+ * thrown before the expect wrapper evaluates would report a generic error).
+ */
+function readGuardrailFile(filePath: string, message: string): string {
+  expect(fs.existsSync(filePath), message).toBe(true);
+  return fs.readFileSync(filePath, "utf-8");
 }
 
 // The legacy flow-scoped naming this guardrail protects against (e.g.
@@ -873,11 +895,17 @@ function parseFrontmatterTools(markdown: string): string[] {
 // itself must not re-introduce the literal it polices.
 const FLOW_SCOPED_SET_PARAM_SUFFIX = "_set_flow_" + "param";
 
-describe("set_flow_param guardrails", () => {
+describe("flow docs guardrails", () => {
   // The flow-scoped set_flow_param routines were replaced by one shared
   // global tool (PR #218 rework). These tests keep the flows and their
   // orchestrator personas from regressing to flow-scoped names.
-  const guardrailFlowDirs = ["implement", "review", "verify", "resolve-pr-feedback"];
+  //
+  // The guarded flow list is derived dynamically instead of hardcoded so a
+  // new flow under definitions/ is guarded automatically. It reuses the
+  // runtime's own discovery (FlowRegistrar calls discoverFlowDirectories on
+  // the flows dir), filters to directories that actually contain flow.json,
+  // and sorts so the toEqual assertion against loadedFlows is deterministic.
+  let guardrailFlowDirs: string[] = [];
   const guardrailSpecsDir = path.join(__dirname, "..", "agents", "specifications", "templates");
 
   let loadedFlows: FlowDefinition[] = [];
@@ -886,6 +914,10 @@ describe("set_flow_param guardrails", () => {
   beforeAll(async () => {
     const specManager = new SpecManager(new SpecRegistry(), new SpecLoader());
     await specManager.loadFromDirectory(guardrailSpecsDir);
+    const definitionsDir = path.join(__dirname, "definitions");
+    guardrailFlowDirs = (await discoverFlowDirectories(definitionsDir))
+      .filter((name) => fs.existsSync(path.join(definitionsDir, name, "flow.json")))
+      .sort();
     loadedFlows = [];
     orchestratorDocs = [];
     for (const flowName of guardrailFlowDirs) {
@@ -898,6 +930,17 @@ describe("set_flow_param guardrails", () => {
       loadedFlows.push(await loader.load("flow"));
       orchestratorDocs.push(fs.readFileSync(path.join(flowDir, "orchestrator.md"), "utf-8"));
     }
+  });
+
+  it("guardrail discovers the shipped flows", () => {
+    // Guard against silent coverage loss: discoverFlowDirectories returns []
+    // on error, so a deleted flow dir (or a moved definitions/) would make
+    // every dynamic guardrail below pass vacuously. Pin the four canonical
+    // flows as a MINIMUM set - new flows may be added, but removals must
+    // fail loudly instead of shrinking the guardrail to nothing.
+    expect(guardrailFlowDirs).toEqual(
+      expect.arrayContaining(["implement", "review", "verify", "resolve-pr-feedback"]),
+    );
   });
 
   it("no flow declares a flow-scoped set_flow_param routine", () => {
@@ -914,7 +957,7 @@ describe("set_flow_param guardrails", () => {
 
   it("every orchestrator persona lists the shared set_flow_param tool", () => {
     for (const [i, markdown] of orchestratorDocs.entries()) {
-      const tools = parseFrontmatterTools(markdown);
+      const tools = parseFrontmatterList(markdown, "tools");
       expect(tools, `flow "${guardrailFlowDirs[i]}" has no tools list`).toContain("set_flow_param");
       const flowScopedTools = tools.filter((tool) => tool.endsWith(FLOW_SCOPED_SET_PARAM_SUFFIX));
       expect(
@@ -922,5 +965,158 @@ describe("set_flow_param guardrails", () => {
         `flow "${guardrailFlowDirs[i]}" lists flow-scoped tools: ${flowScopedTools.join(", ")}`,
       ).toEqual([]);
     }
+  });
+
+  it("tracked .forge runtime copies mirror the definitions (only the model line may diverge)", () => {
+    // The tracked .forge/flows copies are the local runtime versions of the
+    // shipped flow definitions (scaffolded by forge-setup.js and updated in
+    // lockstep). The one intentional divergence is the orchestrator model
+    // override; every other file must be byte-identical - the unhardened gh
+    // reply commands in an older resolve-pr-feedback copy predating PR #233
+    // showed exactly how silently drifting copies regress.
+    const forgeFlowsDir = path.join(__dirname, "..", "..", "..", "..", ".forge", "flows");
+    for (const flowName of guardrailFlowDirs) {
+      const defDir = path.join(__dirname, "definitions", flowName);
+      const forgeDir = path.join(forgeFlowsDir, flowName);
+
+      // orchestrator.md: byte-identical apart from the frontmatter model line.
+      const defDoc = readGuardrailFile(
+        path.join(defDir, "orchestrator.md"),
+        `flow "${flowName}" definitions orchestrator.md is missing`,
+      );
+      const forgeDoc = readGuardrailFile(
+        path.join(forgeDir, "orchestrator.md"),
+        `flow "${flowName}" .forge orchestrator.md is missing`,
+      );
+      const withoutModel = (doc: string) =>
+        doc.split("\n").filter((line) => !line.startsWith("model: "));
+      expect(
+        withoutModel(forgeDoc).join("\n"),
+        `flow "${flowName}" .forge orchestrator diverges from the definitions copy`,
+      ).toEqual(withoutModel(defDoc).join("\n"));
+
+      const defModel = defDoc.split("\n").find((line) => line.startsWith("model: "));
+      const forgeModel = forgeDoc.split("\n").find((line) => line.startsWith("model: "));
+      expect(defModel, `flow "${flowName}" definition must declare the "smart" preset`).toBe(
+        'model: "smart"',
+      );
+      if (forgeModel !== defModel) {
+        expect(forgeModel, `flow "${flowName}" .forge copy may only override to "dumb"`).toBe(
+          'model: "dumb"',
+        );
+      }
+
+      // flow.json is executable content and must be byte-identical.
+      expect(
+        readGuardrailFile(
+          path.join(forgeDir, "flow.json"),
+          `flow "${flowName}" .forge flow.json is missing`,
+        ),
+        `flow "${flowName}" .forge flow.json diverges from the definitions copy`,
+      ).toBe(
+        readGuardrailFile(
+          path.join(defDir, "flow.json"),
+          `flow "${flowName}" definitions flow.json is missing`,
+        ),
+      );
+
+      // references/ prose must be byte-identical; existence is checked in
+      // both directions so a stale or missing copy cannot silently drift.
+      const defRefsDir = path.join(defDir, "references");
+      const forgeRefsDir = path.join(forgeDir, "references");
+      if (fs.existsSync(defRefsDir)) {
+        for (const ref of fs.readdirSync(defRefsDir)) {
+          expect(
+            fs.existsSync(path.join(forgeRefsDir, ref)),
+            `flow "${flowName}" .forge reference "${ref}" is missing`,
+          ).toBe(true);
+          expect(
+            readGuardrailFile(
+              path.join(forgeRefsDir, ref),
+              `flow "${flowName}" .forge reference "${ref}" is missing`,
+            ),
+            `flow "${flowName}" .forge reference "${ref}" diverges from the definitions copy`,
+          ).toBe(
+            readGuardrailFile(
+              path.join(defRefsDir, ref),
+              `flow "${flowName}" definitions reference "${ref}" is missing`,
+            ),
+          );
+        }
+      }
+      // Reverse direction: a reference present only in .forge is stale cruft
+      // the runtime would keep loading - flag it explicitly.
+      if (fs.existsSync(forgeRefsDir)) {
+        for (const ref of fs.readdirSync(forgeRefsDir)) {
+          expect(
+            fs.existsSync(path.join(defRefsDir, ref)),
+            `flow "${flowName}" .forge has unexpected reference "${ref}"`,
+          ).toBe(true);
+        }
+      }
+    }
+
+    // The runtime tree also carries the flow schema copy (scaffolded by
+    // forge-setup.js) - it must stay byte-identical to the definitions copy.
+    expect(
+      readGuardrailFile(
+        path.join(forgeFlowsDir, "flow-schema.json"),
+        ".forge flow-schema.json is missing",
+      ),
+      ".forge flow-schema.json diverges from the definitions copy",
+    ).toBe(
+      readGuardrailFile(
+        path.join(__dirname, "flow-schema.json"),
+        "definitions flow-schema.json is missing",
+      ),
+    );
+  });
+
+  // ── Shipped memory content guardrails ─────────────────────────
+  //
+  // The `memo-*` skill namespace and the "Memory (memo- skills)" section
+  // ship inside the flow definitions themselves (all orchestrators declare
+  // the shared memory skills). These tests lock the shipped content in
+  // place: a future refactor that drops the skills declaration, the Memory
+  // section, or the persistence instructions regresses the shipped flows.
+
+  it("every orchestrator persona declares the shared memory skills", () => {
+    const definitionsDir = path.join(__dirname, "definitions");
+    for (const flowName of guardrailFlowDirs) {
+      const doc = readGuardrailFile(
+        path.join(definitionsDir, flowName, "orchestrator.md"),
+        `flow "${flowName}" definitions orchestrator.md is missing`,
+      );
+      const skills = parseFrontmatterList(doc, "skills", true);
+      expect(skills, `flow "${flowName}" skills list missing notes-md`).toContain("notes-md");
+      expect(skills, `flow "${flowName}" skills list missing memo-*`).toContain("memo-*");
+      expect(
+        doc,
+        `flow "${flowName}" orchestrator.md missing the "## Memory (memo- skills)" section`,
+      ).toContain("## Memory (memo- skills)");
+    }
+  });
+
+  it("implement flow instructs memory persistence", () => {
+    const definitionsDir = path.join(__dirname, "definitions");
+    const implementDoc = readGuardrailFile(
+      path.join(definitionsDir, "implement", "orchestrator.md"),
+      "implement definitions orchestrator.md is missing",
+    );
+    expect(implementDoc).toContain("**Persist learnings.**");
+    expect(implementDoc).toContain("memo-save");
+
+    const reworkDoc = readGuardrailFile(
+      path.join(definitionsDir, "implement", "references", "rework-flow.md"),
+      "implement definitions references/rework-flow.md is missing",
+    );
+    const saveIdx = reworkDoc.indexOf("Run the `memo-save` skill");
+    const destroyIdx = reworkDoc.indexOf("Call `destroy_workspace(workspace)`");
+    const summaryIdx = reworkDoc.indexOf("Post a summary");
+    expect(saveIdx, "rework-flow.md must run the memo-save skill").toBeGreaterThanOrEqual(0);
+    expect(destroyIdx, "rework-flow.md must call destroy_workspace").toBeGreaterThan(saveIdx);
+    expect(summaryIdx, "rework-flow.md must post a summary after destroy").toBeGreaterThan(
+      destroyIdx,
+    );
   });
 });
