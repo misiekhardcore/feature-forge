@@ -1,6 +1,6 @@
 import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message, TextContent } from "@earendil-works/pi-ai";
-import type { ThemeColor } from "@earendil-works/pi-coding-agent";
+import type { JsonAgentSessionEvent, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { AgentStatus } from "@feature-forge/core";
 
 import type { AgentEntryBase, AgentViewerEntry, AgentViewerEntryStatus } from "../types";
@@ -210,6 +210,73 @@ export class AgentDisplayHelpers {
         return { char: "○", color: "muted" };
       default:
         return { char: "○", color: "muted" };
+    }
+  }
+
+  /**
+   * Format a stream event into a single-line human-readable description.
+   *
+   * Shared by the agent viewer overlay (display path) and the journal
+   * recorder (persistence path) so both derive byte-identical stream lines
+   * for the journal. Falls back to the raw event type when no known detail
+   * formats (e.g. out-of-schema events).
+   */
+  static formatStreamEvent(event: JsonAgentSessionEvent): string {
+    return AgentDisplayHelpers.formatDetail(event) || event.type;
+  }
+
+  /**
+   * Format the human-readable detail string for a stream event.
+   *
+   * Exhaustive dispatch on {@code event.type}; returns an empty string for
+   * unknown types so {@link formatStreamEvent} falls back to the raw type.
+   */
+  private static formatDetail(event: JsonAgentSessionEvent): string {
+    switch (event.type) {
+      case "agent_start":
+        return "started";
+      case "agent_end":
+        return "completed";
+      case "turn_start":
+        return "turn start";
+      case "turn_end":
+        return "turn end";
+
+      case "message_start":
+        return event.message?.role ?? "";
+
+      case "message_end": {
+        return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
+      }
+
+      case "tool_execution_start": {
+        const toolName = event.toolName;
+        if ("args" in event && event.args !== undefined) {
+          const serialized = AgentDisplayHelpers.serializeToolArgs(event.args);
+          return toolName + " | " + serialized;
+        }
+        return toolName;
+      }
+
+      case "tool_execution_end": {
+        const name = event.toolName;
+        const status = event.isError ? " (error)" : " (ok)";
+        return name + status;
+      }
+
+      case "tool_execution_update": {
+        const name = event.toolName;
+        const partial: string =
+          typeof event.partialResult === "string"
+            ? event.partialResult
+            : event.partialResult !== undefined && event.partialResult !== null
+              ? AgentDisplayHelpers.serializeToolResultText(event.partialResult)
+              : "";
+        return partial ? `${name}: ${partial}` : name;
+      }
+
+      default:
+        return "";
     }
   }
 

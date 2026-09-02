@@ -732,6 +732,91 @@ describe("AgentViewerState", () => {
       }
     });
 
+    // ── journaling gate ──────────────────────────────────────
+
+    describe("journaling gate", () => {
+      it("a display-mode state (journaling=false) never writes yet keeps live caches updating", () => {
+        state.setStreamDir(tmpDir);
+        state.setJournaling(false);
+
+        state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
+        state.appendLifecycle("agent-x", "done", true, "must not hit disk");
+
+        // In-memory display caches still update...
+        expect(state.getLastLine("agent-x")).toBe("agent_start: detail");
+        expect(state.getConversation("agent-x")).toHaveLength(1);
+
+        // ...but no journal file was created (single-writer proof: the
+        // journal recorder owns disk writes in display mode).
+        const files = readdirSync(tmpDir).filter((f) => f.endsWith(".journal.jsonl"));
+        expect(files).toEqual([]);
+      });
+
+      it("journaling=false keeps replay reads working from a pre-existing journal", async () => {
+        writeFileSync(
+          join(tmpDir, "agent-x.journal.jsonl"),
+          JSON.stringify({ type: "lifecycle", phase: "started", ts: "2026-01-01T00:00:00.000Z" }) +
+            "\n" +
+            JSON.stringify({
+              type: "lifecycle",
+              phase: "done",
+              passed: true,
+              summary: "ran",
+              ts: "2026-01-01T00:05:00.000Z",
+            }) +
+            "\n",
+          "utf-8",
+        );
+
+        state.setStreamDir(tmpDir);
+        state.setJournaling(false);
+        await state.prepopulateStreamFiles(tmpDir);
+
+        const entry = state.getAgentEntry("agent-x");
+        expect(entry?.status).toBe("done");
+        if (entry?.status === "done") {
+          expect(entry.passed).toBe(true);
+        }
+
+        // Reads never append: the pre-existing journal is byte-identical.
+        expect(readJournal(tmpDir, "agent-x")).toHaveLength(2);
+      });
+
+      it("re-enabling journaling resumes disk writes on the same state", () => {
+        state.setStreamDir(tmpDir);
+        state.setJournaling(false);
+        state.appendLifecycle("agent-x", "started");
+        expect(readJournal(tmpDir, "agent-x")).toEqual([]);
+
+        state.setJournaling(true);
+        state.appendLifecycle("agent-x", "done", true, "now writing again");
+        const entries = readJournal(tmpDir, "agent-x");
+        expect(entries).toHaveLength(1);
+        expect(entries[0]).toMatchObject({
+          type: "lifecycle",
+          phase: "done",
+          passed: true,
+          summary: "now writing again",
+        });
+      });
+
+      it("legacy migration during replay stays ungated by journaling=false", async () => {
+        // A display-only state still folds legacy files into journals on
+        // prepopulate (display replay must fold legacy agents) - the one
+        // deliberate write exception to the journaling gate.
+        writeFileSync(join(tmpDir, "agent-x.stream"), "tool_execution_start: read\n", "utf-8");
+
+        state.setStreamDir(tmpDir);
+        state.setJournaling(false);
+        await state.prepopulateStreamFiles(tmpDir);
+
+        // The legacy file was folded into a journal (migration write) and
+        // the replay derived an entry from it.
+        expect(existsSync(join(tmpDir, "agent-x.journal.jsonl"))).toBe(true);
+        expect(state.getAgentEntry("agent-x")).toBeDefined();
+      });
+    });
+
     // ── prepopulateStreamFiles: journal replay ──────────────
 
     it("replays a completed run from the journal", async () => {

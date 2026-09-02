@@ -1,3 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { TextContent } from "@earendil-works/pi-ai";
 import type {
   AgentToolResult,
@@ -6,7 +11,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
 import { ForgeConfig, jsonParse, logger } from "@feature-forge/core";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SharedStreamDir } from "@feature-forge/core/progress";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { showAgentViewerMock, realShowAgentViewer } = vi.hoisted(() => {
   type ShowAgentViewer = (
@@ -172,6 +178,23 @@ function makeMockSupervisor(): AgentSupervisor {
 
 describe("RoutineTool", () => {
   const mockSupervisor = makeMockSupervisor();
+
+  // Journal I/O hygiene: RoutineTool.execute now wires an
+  // AgentJournalRecorder that writes into the process-shared stream dir
+  // under ForgeConfig's logDir. Redirect that logDir to a per-suite temp
+  // dir so unit tests never journal into the repo config log dir, and
+  // remove the temp dir when the suite is done.
+  let suiteLogDir: string;
+
+  beforeAll(() => {
+    suiteLogDir = mkdtempSync(join(tmpdir(), "routine-tool-journal-"));
+    vi.spyOn(ForgeConfig.getInstance(), "getLogDir").mockReturnValue(suiteLogDir);
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
+    rmSync(suiteLogDir, { recursive: true, force: true });
+  });
 
   beforeEach(() => {
     // Default to the real composer; individual tests override with mocks.
@@ -1121,6 +1144,93 @@ describe("RoutineTool", () => {
       expect(showAgentViewerMock).toHaveBeenCalledTimes(1);
       // finally still releases the handle from the single opening call.
       expect(dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it("subscribes an AgentJournalRecorder that journals routine agents before executor.run", async () => {
+      // Unique agent id so this run's journal is isolated from other tests'
+      // appends in the shared stream directory.
+      const agentId = `routine-journal-${randomUUID().slice(0, 8)}`;
+      const registry = new StepExecutorRegistry();
+      registry.register(
+        () =>
+          new (class extends StepExecutor {
+            readonly type = "agent";
+            async execute(
+              _instruction: FlowInstruction,
+              context: FlowContext,
+              _executeStep: (
+                instruction: FlowInstruction,
+                context: FlowContext,
+                signal?: AbortSignal,
+              ) => Promise<FlowContext>,
+              eventBus: EventBus,
+              _signal?: AbortSignal,
+            ): Promise<FlowContext> {
+              eventBus.emit("feature-forge:agent-started", {
+                phase: "agent-started",
+                message: `Agent "${agentId}" started`,
+                details: { executionId: "exec-routine-1", agentId },
+              });
+              eventBus.emit("feature-forge:agent-done", {
+                phase: "agent-done",
+                message: `Agent "${agentId}" done`,
+                details: {
+                  executionId: "exec-routine-1",
+                  agentId,
+                  passed: true,
+                  summary: "ok",
+                },
+              });
+              return context;
+            }
+          })(),
+      );
+
+      const flow: FlowDefinition = {
+        $schema: FLOW_SCHEMA_URL,
+        name: "test-flow",
+        command: "/test",
+        orchestrator: { systemPrompt: "t" },
+        routines: [
+          {
+            id: "build",
+            params: [],
+            steps: [
+              {
+                type: "agent",
+                id: agentId,
+                systemPrompt: "build",
+                prompt: "do stuff",
+              } as unknown as FlowInstruction,
+            ],
+          },
+        ],
+      };
+
+      const eventBus = makeMockTypedEventBus();
+      const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+
+      // Headless context: no overlay ever opens, yet the routine-layer
+      // recorder must capture the full run.
+      await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
+
+      // The recorder writes into the same shared stream directory the
+      // viewer uses for replay reads.
+      const streamDir = SharedStreamDir.get(ForgeConfig.getInstance().getLogDir());
+      const journalPath = join(streamDir, `${agentId}.journal.jsonl`);
+      try {
+        expect(existsSync(journalPath)).toBe(true);
+        const phases = readFileSync(journalPath, "utf-8")
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as Record<string, unknown>)
+          .filter((entry) => entry.type === "lifecycle")
+          .map((entry) => entry.phase);
+        expect(phases).toEqual(["started", "done"]);
+      } finally {
+        rmSync(journalPath, { force: true });
+      }
     });
   });
 });

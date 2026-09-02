@@ -7,9 +7,10 @@ import {
   type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { logger } from "@feature-forge/core";
+import { ForgeConfig, logger } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/agents";
 import type { RoutineDefinition } from "@feature-forge/core/flows";
+import { SharedStreamDir } from "@feature-forge/core/progress";
 import type { RoutineResult } from "@feature-forge/core/routines";
 import { RoutineExecutor } from "@feature-forge/core/routines";
 import type { TObject, TProperties } from "typebox";
@@ -23,6 +24,7 @@ import type { ProgressWidget } from "../tui/progress/ProgressWidget";
 import { RoutineProgressFeed } from "../tui/progress/RoutineProgressFeed";
 import type { RoutineProgressState } from "../tui/progress/RoutineProgressState";
 import { TuiRoutineWidget } from "../tui/progress/TuiRoutineWidget";
+import { AgentJournalRecorder } from "../tui/state/AgentJournalRecorder";
 import { RoutineToolSchema } from "./RoutineToolSchema";
 
 /**
@@ -181,6 +183,27 @@ export class RoutineTool
       agentQuery: this.supervisor,
     });
 
+    // Agent journal recorder - the single disk writer for per-agent
+    // journals. Created and subscribed here, before executor.run spawns any
+    // agent, so the FIRST agent's started lifecycle is captured even though
+    // the viewer overlay may open later (or never, headless) - journal
+    // completeness must not depend on the display lifetime. Setup is
+    // best-effort: a failure to resolve the shared stream dir or subscribe
+    // must not break the routine, so it degrades to "no journaling" with a
+    // warning.
+    let journalRecorder: AgentJournalRecorder | undefined;
+    try {
+      journalRecorder = new AgentJournalRecorder({
+        eventBus: this.executor.eventBus,
+        streamDir: SharedStreamDir.get(ForgeConfig.getInstance().getLogDir()),
+      });
+      journalRecorder.subscribe();
+    } catch (err) {
+      logger.warn("Agent journal recorder setup failed - routine proceeds without journaling", {
+        err,
+      });
+    }
+
     // Progress feed — owns subscriptions, the display-projection fold, and
     // the accumulated state. reset() runs inside subscribe(), so each
     // execution starts from a fresh fold.
@@ -216,6 +239,7 @@ export class RoutineTool
       widget.clear();
       unsubscribe();
       viewer.dispose();
+      journalRecorder?.dispose();
     }
   }
 

@@ -144,6 +144,11 @@ export class AgentViewerOverlay implements Component {
    * @param params — Configuration object with tui, theme, onDone, markdownTheme, and cwd.
    */
   constructor(params: AgentViewerOverlayParams) {
+    // Display-only state: the overlay renders and replays, but never writes
+    // journals - the AgentJournalRecorder is the sole disk writer. streamDir
+    // (set via connect/prepopulate) serves replay reads only.
+    this.state.setJournaling(false);
+
     this.tui = params.tui;
     this.theme = params.theme;
     this.onDone = params.onDone;
@@ -242,14 +247,15 @@ export class AgentViewerOverlay implements Component {
   // ── Public data methods ───────────────────────────────────
 
   /**
-   * Configure the stream file directory.
+   * Configure the stream file directory for replay reads.
    *
-   * When set, every {@link pushStreamEvent} call persists the formatted
-   * event line to the agent's append-only journal file named
-   * `{agentId}.journal.jsonl` under the given directory, and
-   * {@link recordLifecycle} appends lifecycle markers to the same journal.
+   * The overlay is display-only: this directory backs journal replay
+   * ({@link prepopulateStreamFiles}, {@link loadConversationEvents} lazy
+   * loaders). Journal writes are exclusively the
+   * {@link import("../state/AgentJournalRecorder").AgentJournalRecorder}'s
+   * job - pushing events never creates or appends journal files here.
    *
-   * @param streamDir — Directory for filesystem-backed stream buffers.
+   * @param streamDir - Directory holding the per-agent journal files.
    */
   setStreamDir(streamDir: string): void {
     this.state.setStreamDir(streamDir);
@@ -308,8 +314,9 @@ export class AgentViewerOverlay implements Component {
    * Push a streaming event for an agent.
    *
    * Formats the event into a human-readable line (kept in memory as the
-   * most recent stream line) and, when {@link streamDir} is
-   * configured, appends it to a per-agent log file on disk.
+   * most recent stream line). Display-only: journal persistence is the
+   * recorder's job, so a configured {@link streamDir} never receives writes
+   * from here.
    */
   pushStreamEvent(agentId: string, event: JsonAgentSessionEvent): void {
     this.state.pushStreamEvent(agentId, event, (e) => AgentViewerOverlay.formatStreamEvent(e));
@@ -414,27 +421,6 @@ export class AgentViewerOverlay implements Component {
     this.clearMemory();
   }
 
-  /**
-   * Record a lifecycle phase in the agent's journal.
-   *
-   * Journal-only: no render is requested (the paired status event already
-   * rendered via {@link update}). No-op when no stream directory is
-   * configured — with persistence off there is no journal to write.
-   *
-   * @param agentId — The agent whose journal receives the entry.
-   * @param phase — Lifecycle phase of the agent run.
-   * @param passed — Whether the run passed (terminal phases only).
-   * @param summary — Human-readable run summary.
-   */
-  recordLifecycle(
-    agentId: string,
-    phase: "started" | "done" | "error" | "cancelled",
-    passed?: boolean,
-    summary?: string,
-  ): void {
-    this.state.appendLifecycle(agentId, phase, passed, summary);
-  }
-
   // ── Static helpers ────────────────────────────────────────
 
   /**
@@ -448,31 +434,14 @@ export class AgentViewerOverlay implements Component {
   }
 
   /**
-   * Map a viewer entry status to a journal lifecycle phase.
-   *
-   * The journal has no "running" phase — an in-flight run is recorded as
-   * "started"; the terminal statuses map 1:1.
-   */
-  private static mapLifecyclePhase(
-    status: AgentViewerEntryStatus,
-  ): "started" | "done" | "error" | "cancelled" {
-    switch (status) {
-      case "done":
-        return "done";
-      case "error":
-        return "error";
-      case "cancelled":
-        return "cancelled";
-      default:
-        return "started";
-    }
-  }
-
-  /**
    * Format a stream event into a single-line human-readable description.
+   *
+   * Delegates to the shared {@link AgentDisplayHelpers.formatStreamEvent} so
+   * the viewer and the journal recorder (which must never import a view)
+   * derive byte-identical stream lines.
    */
   static formatStreamEvent(event: JsonAgentSessionEvent): string {
-    return AgentViewerOverlay.formatDetail(event) || event.type;
+    return AgentDisplayHelpers.formatStreamEvent(event);
   }
 
   // ── Event wiring ──────────────────────────────────────────
@@ -541,16 +510,6 @@ export class AgentViewerOverlay implements Component {
           thinkingLevel: agent?.specification.thinkingLevel,
           createdAt: agent?.createdAt ?? new Date(),
         }),
-      );
-      // Journal the lifecycle alongside the live entry: deliverStatusEvent is
-      // the single funnel for live AND buffered status events (never the
-      // agentQuery seeding loop), so every real lifecycle lands in the
-      // journal exactly once, in arrival order.
-      viewer.recordLifecycle(
-        agentId,
-        AgentViewerOverlay.mapLifecyclePhase(mappedStatus),
-        passed,
-        eventSummary,
       );
     };
 
@@ -651,58 +610,5 @@ export class AgentViewerOverlay implements Component {
     this.detailView.autoScroll = true;
     this.detailView.scrollOffsetEnd = 0;
     this.tui.requestRender();
-  }
-
-  /**
-   * Format a detail string from an event object using the pre-extracted
-   * {@code eventType} for type-safe dispatch.
-   */
-  private static formatDetail(event: JsonAgentSessionEvent): string {
-    switch (event.type) {
-      case "agent_start":
-        return "started";
-      case "agent_end":
-        return "completed";
-      case "turn_start":
-        return "turn start";
-      case "turn_end":
-        return "turn end";
-
-      case "message_start":
-        return event.message?.role ?? "";
-
-      case "message_end": {
-        return event.message ? AgentDisplayHelpers.extractMessageText(event.message) : "";
-      }
-
-      case "tool_execution_start": {
-        const toolName = event.toolName;
-        if ("args" in event && event.args !== undefined) {
-          const serialized = AgentDisplayHelpers.serializeToolArgs(event.args);
-          return toolName + " | " + serialized;
-        }
-        return toolName;
-      }
-
-      case "tool_execution_end": {
-        const name = event.toolName;
-        const status = event.isError ? " (error)" : " (ok)";
-        return name + status;
-      }
-
-      case "tool_execution_update": {
-        const name = event.toolName;
-        const partial: string =
-          typeof event.partialResult === "string"
-            ? event.partialResult
-            : event.partialResult !== undefined && event.partialResult !== null
-              ? AgentDisplayHelpers.serializeToolResultText(event.partialResult)
-              : "";
-        return partial ? `${name}: ${partial}` : name;
-      }
-
-      default:
-        return "";
-    }
   }
 }

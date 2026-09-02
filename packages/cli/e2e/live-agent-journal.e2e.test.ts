@@ -6,9 +6,9 @@
  * real model provider:
  *
  *   supervisor.spawnGuest(spec)            -> real pi --mode rpc child
- *   feature-forge:agent-started           -> viewer journals lifecycle started
+ *   feature-forge:agent-started           -> recorder journals lifecycle started
  *   agent.executeTask(prompt, { onEvent }) -> feature-forge:agent-stream     -> journal stream/message/tool
- *   feature-forge:agent-done              -> viewer journals lifecycle done (passed + summary)
+ *   feature-forge:agent-done              -> recorder journals lifecycle done (passed + summary)
  *   supervisor.destroyAgent(id)
  *
  * Two agents run in PARALLEL to reproduce the review+verify concurrency
@@ -16,11 +16,12 @@
  * journal is replayed by a fresh AgentViewerState to verify truthful reopen.
  *
  * Why this test exists: unit and e2e suites use mock agents / fake models
- * (see e2e/helpers.ts createMockAgent), and the TUI viewer only journals in
- * interactive pi sessions (`ctx.hasUI`). This harness wires the real viewer
- * pipeline (AgentViewerOverlay + wireOverlayEvents) against the real event
- * bus and the real supervisor, so real agent payloads flow through
- * deliverStatusEvent -> recordLifecycle -> journal append.
+ * (see e2e/helpers.ts createMockAgent), and the TUI viewer only displays in
+ * interactive pi sessions (`ctx.hasUI`). This harness drives the routine-layer
+ * journal pipeline (AgentJournalRecorder over the real event bus and the real
+ * supervisor) so real agent payloads flow through recorder -> journal append,
+ * and re-verifies that a fresh AgentViewerState replays the journals
+ * truthfully - the same path the viewer overlay uses for reopen replay.
  *
  * Usage (real model, ~2 short LLM calls):
  *   FORGE_LIVE_AGENT_TEST=1 npx vitest run --project cli-e2e \
@@ -33,17 +34,15 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createEventBus, initTheme, type Theme } from "@earendil-works/pi-coding-agent";
-import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
+import { createEventBus } from "@earendil-works/pi-coding-agent";
 import { DynamicAgentSpecification } from "@feature-forge/core/agents";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
 import { PiSubprocessAgentFactory } from "@feature-forge/core/agents";
 import { TypedEventBus } from "@feature-forge/core/event-bus";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import type { ToolFormatter } from "../src/tui/api";
+import { AgentJournalRecorder } from "../src/tui/state/AgentJournalRecorder";
 import { AgentViewerState } from "../src/tui/state/AgentViewerState";
-import { AgentViewerOverlay } from "../src/tui/views/AgentViewerOverlay";
 
 const LIVE = process.env.FORGE_LIVE_AGENT_TEST === "1";
 const MODEL = process.env.FORGE_LIVE_AGENT_MODEL;
@@ -64,42 +63,9 @@ function lifecyclePhases(journal: Array<Record<string, unknown>>): string[] {
     .map((entry) => entry.phase as string);
 }
 
-// ── Minimal viewer fakes (mirror AgentViewerOverlay.test.ts) ─────────────
-
-function makeTheme(): Theme {
-  return {
-    fg: vi.fn((_c: string, text: string) => text),
-    bg: vi.fn((_c: string, text: string) => text),
-    bold: vi.fn((text: string) => text),
-    italic: vi.fn((text: string) => text),
-    inverse: vi.fn((text: string) => text),
-  } as unknown as Theme;
-}
-
-function makeMarkdownTheme(): MarkdownTheme {
-  return {} as unknown as MarkdownTheme;
-}
-
-function makeTui(): TUI {
-  return { requestRender: vi.fn() } as unknown as TUI;
-}
-
-function makeConfig() {
-  return {
-    getDisplayMaxAgentEvents: () => 200,
-    getDisplayMaxPreconnectBuffer: () => 100,
-    getDisplayMaxOverlayHeight: () => "85%",
-    getHideThinkingBlock: () => false,
-  };
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 describe.skipIf(!LIVE)("live agent journal (real subprocess agents)", () => {
-  beforeAll(() => {
-    initTheme("dark");
-  });
-
   it("journals two parallel real agents with truthful terminals and replays them", async () => {
     const scratch = mkdtempSync(join(tmpdir(), "forge-live-journal-"));
     const streamDir = join(scratch, "streams");
@@ -117,26 +83,14 @@ describe.skipIf(!LIVE)("live agent journal (real subprocess agents)", () => {
       ),
     );
 
-    // Real event bus shared by the emitters and the viewer wiring.
+    // Real event bus shared by the emitters and the recorder.
     const eventBus = new TypedEventBus(createEventBus());
 
-    // Real viewer pipeline: overlay + wireOverlayEvents + connect.
-    const overlay = new AgentViewerOverlay({
-      tui: makeTui(),
-      theme: makeTheme(),
-      onDone: vi.fn(),
-      markdownTheme: makeMarkdownTheme(),
-      cwd: scratch,
-      toolRegistry: {} as ToolFormatter,
-      config: makeConfig(),
-    });
-    const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-      eventBus,
-      agentQuery: supervisor,
-      config: makeConfig(),
-      toolRegistry: {} as ToolFormatter,
-    });
-    connect(overlay, streamDir);
+    // Routine-layer journal recorder: the single disk writer (mirrors
+    // RoutineTool's wiring - subscribe BEFORE agents spawn so the first
+    // agent-started is captured).
+    const recorder = new AgentJournalRecorder({ eventBus, streamDir });
+    recorder.subscribe();
 
     const agents = [
       { id: "live-review", role: "live-review", token: "LIVE_REVIEW_OK" },
@@ -203,7 +157,7 @@ describe.skipIf(!LIVE)("live agent journal (real subprocess agents)", () => {
 
         // Stream-path proof: the assistant's real reply must also be journaled
         // as a message record. Lifecycle-only assertions above would pass even
-        // if agent-stream events never reached the viewer - this check proves
+        // if agent-stream events never reached the recorder - this check proves
         // the agent-stream -> pushStreamEvent -> journal-append path carried
         // genuine payloads. User-role records are ignored (the task prompt
         // embeds the token too).
@@ -238,7 +192,7 @@ describe.skipIf(!LIVE)("live agent journal (real subprocess agents)", () => {
         expect(JSON.stringify(assistantMessages)).toContain(token);
       }
     } finally {
-      unsubs.forEach((unsub) => unsub());
+      recorder.dispose();
       for (const { id } of agents) {
         await supervisor.destroyAgent(id).catch(() => undefined);
       }
