@@ -1,6 +1,6 @@
 # Feature Forge
 
-Autonomous software engineering platform for [pi](https://github.com/earendil-works/pi-coding-agent) — takes ideas from discovery through implementation, driven by structured planning, ADR-driven design, and multi-agent orchestration.
+Autonomous software engineering platform for [pi](https://github.com/earendil-works/pi-coding-agent), taking ideas from discovery through implementation with structured planning, ADR-driven design, and multi-agent orchestration.
 
 ## Install
 
@@ -10,7 +10,7 @@ pi install npm:@misiekhardcore/feature-forge
 
 ## Initialize a project
 
-Run inside any git repository:
+Invoke it from inside any git repository:
 
 ```
 /forge:init
@@ -52,33 +52,33 @@ Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your pr
 }
 ```
 
-`logRetentionDays` controls how long session log files are kept before startup pruning (set to 0 to disable pruning).
+`logRetentionDays` sets how many days session log files are retained before startup pruning removes them (use 0 to disable pruning).
 
-Environment variables override config: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
+Environment variables take precedence over config values: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
 
 ## Packages
 
 The monorepo is layered strictly one-directionally: `core <- cli <- debug`.
 
-| Package                | Role                                                                                                                                                                        | Publishes   |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `@feature-forge/core`  | Engine + platform: agents, flows, executors, routines, IPC, workspace, config, logging, commands, registries, tool bases, skills, flow definitions. Source-only, no pi-tui. | no (source) |
-| `@feature-forge/cli`   | pi extension + TUI display: composition root, cli-owned commands/tools (incl. `RoutineTool`), folded TUI views/progress.                                                    | yes (tsup)  |
-| `@feature-forge/debug` | Dev-only test scenarios and commands; accepts cli-shaped components via dependency interfaces.                                                                              | no (source) |
+| Package                | Role                                                                                                                                                                                | Publishes   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `@feature-forge/core`  | Engine and platform: agents, flows, executors, routines, IPC, workspace, config, logging, commands, registries, tool bases, skills, flow definitions. Source-only, ships no pi-tui. | no (source) |
+| `@feature-forge/cli`   | pi extension and TUI display: composition root, cli-owned commands and tools (incl. `RoutineTool`), folded TUI views and progress.                                                  | yes (tsup)  |
+| `@feature-forge/debug` | Dev-only test scenarios and commands; consumes cli-shaped components through dependency interfaces.                                                                                 | no (source) |
 
-`core` and `debug` are consumed as source via the npm workspace
-(`main: ./src/index.ts`); only `cli` builds with tsup and publishes the pi
-extension bundle. See [ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md)
-for the layering decisions.
+`core` and `debug` are pulled in as source through the npm workspace
+(`main: ./src/index.ts`), while only `cli` builds with tsup and publishes the pi
+extension bundle. The layering rules are recorded in
+[ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md).
 
-Import `core` through its package exports: the root barrel
-(`@feature-forge/core` - full public API) or a public subpath
+Import `core` only via its package exports: either the root barrel
+(`@feature-forge/core`, the full public API) or a public subpath
 (`@feature-forge/core/workspace`, `@feature-forge/core/test-utils`, ...).
-`/src/` deep imports are not part of the public surface.
+Deep imports into `/src/` are not part of the public surface.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, repository structure, pull request guidelines, and release process. The codebase is object-oriented: modules expose classes (instance classes for stateful logic, static-only utility classes per [ADR 0017](docs/adr/0017-static-utility-classes.md) for stateless helpers).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, repository structure, pull request guidelines, and release process. The codebase follows an object-oriented style: modules expose classes, using instance classes for stateful logic and static-only utility classes (per [ADR 0017](docs/adr/0017-static-utility-classes.md)) for stateless helpers.
 
 ## License
 
