@@ -1,10 +1,10 @@
-import { appendFileSync, createReadStream, mkdirSync, statSync, unlinkSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { createReadStream, type Dirent, readdirSync, statSync, unlinkSync } from "node:fs";
+import { basename, dirname, extname, join } from "node:path";
 import { createInterface } from "node:readline";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { jsonParse, logger } from "@feature-forge/core";
+import { ForgeConfig, jsonParse, logger, RotatingFileSink } from "@feature-forge/core";
 
 /**
  * One persisted tool-log record (the journal's `tool` entry shape).
@@ -54,14 +54,53 @@ export type AgentJournalEntry =
     };
 
 /**
+ * Sink overrides for an {@link AgentJournal}.
+ *
+ * Tests pass small `maxBytes`/`maxFiles` values to exercise rotation and
+ * segment-count retention without writing megabytes. When omitted, the
+ * values come from ForgeConfig (`logMaxBytes`/`logMaxFiles`) - the same
+ * bounded-retention knobs as the file logger, so both persistence
+ * surfaces share one retention policy.
+ */
+export interface AgentJournalOptions {
+  /** Rotate to a new segment once the active file exceeds this many bytes. */
+  maxBytes?: number;
+  /**
+   * Maximum numeric segments kept (the base segment is never removed).
+   *
+   * CAUTION: a value of 0 keeps only the base segment - rotation still
+   * opens new segments, but each is evicted immediately by retention, so
+   * history beyond the current segment is silently dropped. Prefer a value
+   * of at least 1.
+   */
+  maxFiles?: number;
+}
+
+/**
  * Append-only JSONL journal for a single agent run.
  *
  * Writes are synchronous and best-effort (never throw). Reads are
  * line-by-line and tolerant of corrupted lines so replay can proceed
  * past partial writes.
+ *
+ * Large journals rotate through numeric segments: the base file is
+ * segment 0 (oldest) and rotated segments `{base}.1`, `{base}.2`, ...
+ * hold progressively newer entries. Retention keeps at most `maxFiles`
+ * numeric segments, evicting the lowest indices - the base segment is
+ * never removed. Reads replay 0 → N so append-order chronology is
+ * preserved across segments.
  */
 export class AgentJournal {
-  constructor(readonly filePath: string) {}
+  readonly filePath: string;
+  private readonly sink: RotatingFileSink;
+
+  constructor(filePath: string, options: AgentJournalOptions = {}) {
+    this.filePath = filePath;
+    const config = ForgeConfig.getInstance();
+    const maxBytes = options.maxBytes ?? config.getLogMaxBytes();
+    const maxFiles = options.maxFiles ?? config.getLogMaxFiles();
+    this.sink = AgentJournal.createSink(filePath, maxBytes, maxFiles);
+  }
 
   /**
    * Create a journal for an agent under the shared stream directory.
@@ -73,8 +112,10 @@ export class AgentJournal {
   /**
    * Append one entry to the journal.
    *
-   * Best-effort: mkdir the parent, append the JSON line. Failures are
-   * logged and swallowed so journaling never interrupts an agent run.
+   * Best-effort: the entry is serialized and written through the rotating
+   * sink (which creates the parent directory on first use and rotates
+   * when the active segment exceeds `maxBytes`). Failures are logged and
+   * swallowed so journaling never interrupts an agent run.
    *
    * Returns whether the entry was persisted. Migration callers use this
    * to decide whether their source files may be removed (see
@@ -82,9 +123,15 @@ export class AgentJournal {
    */
   append(entry: AgentJournalEntry): boolean {
     try {
-      mkdirSync(dirname(this.filePath), { recursive: true });
-      appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, "utf-8");
-      return true;
+      // The sink appends the platform line ending itself.
+      const persisted = this.sink.write(JSON.stringify(entry));
+      if (!persisted) {
+        logger.warn("AgentJournal.append: failed to append entry", {
+          filePath: this.filePath,
+          error: "sink write failed",
+        });
+      }
+      return persisted;
     } catch (err) {
       logger.warn("AgentJournal.append: failed to append entry", {
         filePath: this.filePath,
@@ -95,23 +142,87 @@ export class AgentJournal {
   }
 
   /**
-   * Read all entries in file order.
+   * Read all entries in append order (0 → N across segments).
+   *
+   * The base file (segment 0, oldest) is read first, then each numeric
+   * segment in ascending index order (newest last). Missing intermediate
+   * segments are normal (count retention evicts the lowest indices) and
+   * are simply skipped.
    *
    * Tolerant replay: empty lines are skipped; lines that fail to parse
    * and lines that parse to JSON but do not match the entry union are
-   * logged and skipped rather than aborting the read.
+   * logged and skipped rather than aborting the read. The same tolerance
+   * pass applies to every segment.
    *
-   * `complete` reports whether the read reached EOF: false when the file
-   * could not be opened or the stream failed mid-read (a truncated
-   * journal), true otherwise - including an empty file and reads that
-   * skipped corrupt lines. Per-line parse failures never make the read
-   * incomplete, because the read still reaches EOF.
+   * `complete` reports whether every segment read reached EOF: false
+   * when the base file could not be opened or any segment stream failed
+   * mid-read (a truncated journal), true otherwise - including an empty
+   * journal and reads that skipped corrupt lines. Per-line parse
+   * failures never make the read incomplete, because the read still
+   * reaches EOF.
    */
   async read(): Promise<{ entries: AgentJournalEntry[]; complete: boolean }> {
     const entries: AgentJournalEntry[] = [];
+    let complete = true;
+    for (const segmentPath of this.segmentPaths()) {
+      const result = await this.readFile(segmentPath);
+      entries.push(...result.entries);
+      complete = complete && result.complete;
+    }
+    return { entries, complete };
+  }
+
+  /**
+   * Segment read order for the journal: the base file first, then each
+   * existing numeric segment in ascending index order.
+   *
+   * Only canonical, non-zero-padded indexes count (`.01` would alias
+   * `.1`); missing intermediate segments are skipped - retention evicts
+   * the lowest indices, so a gap between the base and the newest segment
+   * is a normal state, never an error.
+   */
+  private segmentPaths(): string[] {
+    const base = basename(this.filePath);
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dirname(this.filePath), { withFileTypes: true });
+    } catch {
+      // Unreadable directory: fall back to reading the base file alone so
+      // the missing-base contract (entries [], complete false) holds.
+      return [this.filePath];
+    }
+
+    const indices: number[] = [];
+    for (const entry of entries) {
+      // Only regular files are segment candidates: a directory whose name
+      // matches `{base}.N` (e.g. a workspace collision) must never be read
+      // as a segment, so it cannot break the replay.
+      if (!entry.isFile()) continue;
+      if (!entry.name.startsWith(`${base}.`)) continue;
+      const indexPart = entry.name.slice(base.length + 1);
+      if (/^(?:0|[1-9]\d*)$/.test(indexPart)) {
+        indices.push(Number(indexPart));
+      }
+    }
+    indices.sort((a, b) => a - b);
+    return [this.filePath, ...indices.map((index) => `${this.filePath}.${index}`)];
+  }
+
+  /**
+   * Tolerant line-by-line read of one segment file.
+   *
+   * Empty lines are skipped; lines that fail to parse and lines that
+   * parse to JSON but do not match the entry union are logged and
+   * skipped rather than aborting the read. `complete` is false only when
+   * the file could not be opened or the stream failed mid-read.
+   */
+  private async readFile(
+    filePath: string,
+  ): Promise<{ entries: AgentJournalEntry[]; complete: boolean }> {
+    const entries: AgentJournalEntry[] = [];
     try {
       const rl = createInterface({
-        input: createReadStream(this.filePath, "utf-8"),
+        input: createReadStream(filePath, "utf-8"),
         crlfDelay: Infinity,
       });
 
@@ -121,26 +232,49 @@ export class AgentJournal {
           const value = jsonParse<unknown>(line);
           if (!AgentJournal.isAgentJournalEntry(value)) {
             logger.warn("AgentJournal.read: skipped structurally invalid journal line", {
-              filePath: this.filePath,
+              filePath,
             });
             continue;
           }
           entries.push(value);
         } catch (err) {
           logger.warn("AgentJournal.read: failed to parse journal line", {
-            filePath: this.filePath,
+            filePath,
             error: String(err),
           });
         }
       }
     } catch (err) {
       logger.warn("AgentJournal.read: failed to read journal file", {
-        filePath: this.filePath,
+        filePath,
         error: String(err),
       });
       return { entries, complete: false };
     }
     return { entries, complete: true };
+  }
+
+  /**
+   * Journal-mode sink for an explicit base path: writes to exactly
+   * `filePath` as the index-0 segment, no day rotation, no audit ledger.
+   * Mirrors FileLogger.createExplicitSink so the journal base file is
+   * byte-for-byte the given path and segments derive as `{base}.N`.
+   */
+  private static createSink(
+    filePath: string,
+    maxBytes: number,
+    maxFiles: number,
+  ): RotatingFileSink {
+    const extension = extname(filePath).slice(1);
+    return new RotatingFileSink({
+      directory: dirname(filePath),
+      filenamePrefix: basename(filePath, extension ? `.${extension}` : ""),
+      filenameSuffix: "",
+      extension,
+      dayRotation: false,
+      maxBytes,
+      maxFiles,
+    });
   }
 
   /**

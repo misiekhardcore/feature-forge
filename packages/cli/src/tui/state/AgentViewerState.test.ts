@@ -791,6 +791,60 @@ describe("AgentViewerState", () => {
       expect(state.getLastLine("replay-ok")).toBe("agent_start: detail");
     });
 
+    it("replays a segmented journal (base + rotated segments) as one run", async () => {
+      const started = "2026-01-01T00:00:00.000Z";
+      const done = "2026-01-01T00:05:00.000Z";
+      // The base file is segment 0 (OLDEST); rotated segments hold newer
+      // entries. Discovery must map both to the same agent id and replay
+      // must concatenate 0 → N so the done terminal in the .1 segment wins.
+      writeFileSync(
+        join(tmpDir, "seg-agent.journal.jsonl"),
+        [
+          JSON.stringify({ type: "lifecycle", phase: "started", ts: started }),
+          JSON.stringify({
+            type: "stream",
+            line: "early stream line",
+            ts: "2026-01-01T00:00:01.000Z",
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+      writeFileSync(
+        join(tmpDir, "seg-agent.journal.jsonl.1"),
+        [
+          JSON.stringify({
+            type: "stream",
+            line: "late stream line",
+            ts: "2026-01-01T00:04:00.000Z",
+          }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "ok across segments",
+            ts: done,
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // One agent entry, built from both segments: createdAt from the base
+      // started entry, status/passed/summary/finishedAt from the .1 done
+      // entry (last-lifecycle-wins across the concat), last stream line
+      // from the newest segment.
+      const entry = state.getAgentEntry("seg-agent")!;
+      expect(entry.status).toBe("done");
+      if (entry.status === "done") {
+        expect(entry.passed).toBe(true);
+        expect(entry.summary).toBe("ok across segments");
+      }
+      expect(entry.createdAt.getTime()).toBe(new Date(started).getTime());
+      expect(entry.finishedAt!.getTime()).toBe(new Date(done).getTime());
+      expect(state.getLastLine("seg-agent")).toBe("late stream line");
+    });
+
     it("replays a failed run as passed=false (renders ✗ failed)", async () => {
       writeFileSync(
         join(tmpDir, "replay-fail.journal.jsonl"),

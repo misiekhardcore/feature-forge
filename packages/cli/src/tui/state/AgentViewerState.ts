@@ -598,8 +598,9 @@ export class AgentViewerState {
    * Scan the stream directory and replay persisted agent journals into
    * viewer state.
    *
-   * Journal-first: agents with a {@code {agentId}.journal.jsonl} file are
-   * replayed directly. Agents with only legacy files (.stream,
+   * Journal-first: agents with a {@code {agentId}.journal.jsonl} file - or
+   * its rotated {@code .N} segments - are replayed directly. Agents with
+   * only legacy files (.stream,
    * .messages.jsonl, .events*.jsonl) are first folded into a journal via
    * {@link AgentJournal.migrateLegacy} (one-shot; the legacy files are
    * removed on success) and then replayed. Raw {@code .events*.jsonl}
@@ -621,10 +622,17 @@ export class AgentViewerState {
     const journaled = new Set<string>();
     const legacy = new Map<string, { stream?: string; messages?: string; events: string[] }>();
 
+    // Journal files may be segmented: the base `{agentId}.journal.jsonl`
+    // plus rotated `{agentId}.journal.jsonl.N` segments. All forms map to
+    // the same agent id (AgentJournal.read enumerates the segments itself),
+    // so the discovery set is keyed by agentId, not by file name.
+    const journalName = /^(.+)\.journal\.jsonl(?:\.\d+)?$/;
+
     try {
       for (const entry of readdirSync(streamDir)) {
-        if (entry.endsWith(".journal.jsonl")) {
-          journaled.add(entry.slice(0, -".journal.jsonl".length));
+        const journalMatch = journalName.exec(entry);
+        if (journalMatch) {
+          journaled.add(journalMatch[1]);
           continue;
         }
         if (entry.endsWith(".stream")) {

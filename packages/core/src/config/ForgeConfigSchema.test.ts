@@ -266,6 +266,86 @@ describe("ForgeConfigSchema", () => {
     expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
   });
 
+  it("accepts optional logMaxBytes field", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logMaxBytes: 10485760,
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("rejects logMaxBytes of 0 or negative", () => {
+    for (const logMaxBytes of [0, -1, -1024]) {
+      expect(
+        Value.Check(ForgeConfigSchema, {
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          logMaxBytes,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("rejects non-integer logMaxBytes", () => {
+    const invalid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logMaxBytes: 500.5,
+    };
+    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+  });
+
+  it("accepts optional logMaxFiles field", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logMaxFiles: 5,
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("accepts logMaxFiles of 0", () => {
+    const valid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logMaxFiles: 0,
+    };
+    expect(Value.Check(ForgeConfigSchema, valid)).toBe(true);
+  });
+
+  it("rejects negative logMaxFiles", () => {
+    const invalid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logMaxFiles: -1,
+    };
+    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+  });
+
+  it("rejects non-integer logMaxFiles", () => {
+    const invalid = {
+      logLevel: "info",
+      workspaceProvider: "git-worktree",
+      agents: {},
+      defaultAgent: { model: { model: "gpt-4" } },
+      logMaxFiles: 2.5,
+    };
+    expect(Value.Check(ForgeConfigSchema, invalid)).toBe(false);
+  });
+
   it("accepts optional logPayloads field", () => {
     const valid = {
       logLevel: "info",

@@ -37,7 +37,12 @@ truthfully instead of guessing it.
   synchronous, best-effort, and never throw, so journaling never interrupts
   an agent run. Reads are line-by-line and tolerant: empty lines are
   skipped and structurally invalid or unparseable lines are warned and
-  skipped so replay proceeds past partial writes. `AgentJournal`
+  skipped so replay proceeds past partial writes. A journal is
+  **segmented**: the base file is segment 0 (OLDEST) and rotated segments
+  `{agentId}.journal.jsonl.N` hold progressively newer entries, so large
+  runs never grow a single unbounded file. Reads replay 0 → N across the
+  segments; discovery treats the base and every `.N` segment as the same
+  agent's journal. `AgentJournal`
   (`cli/src/tui/state/AgentJournal.ts`) owns the file contract and
   migration; `AgentViewerState` owns replay and live fan-out.
 - **D2 - Entry union.** Every line is one of:
@@ -127,6 +132,26 @@ truthfully instead of guessing it.
   files - the EOF guard cannot protect a concurrently growing file. The
   caller migrates at startup (`prepopulateStreamFiles`) before any new
   writer starts, which satisfies the constraint for the shipped wiring.
+- **D9 - Segment rotation via RotatingFileSink (S5c plan item).** Journal
+  rotation uses the shared `RotatingFileSink` (core, exported from
+  `logging/index.ts`) in journal mode: `dayRotation: false`, no audit
+  ledger, `maxBytes`/`maxFiles` from `ForgeConfig` (`logMaxBytes` /
+  `logMaxFiles`, defaults 10 MB / 5) - the same bounded-retention knobs as
+  the file logger, so both persistence surfaces share one policy.
+  Segments are strictly ordered (segment 0 = OLDEST `{agentId}.journal.jsonl`,
+  highest index = active), reads replay 0→N, and the count cap evicts the
+  lowest indices via readdir enumeration - no audit ledger is written, so
+  the existing whole-directory 7-day prune keeps covering journals.
+  Journal-mode `maxFiles` semantics: the cap bounds the numeric segments
+  ONLY - the base segment is never removed, and when the segment count
+  exceeds `maxFiles` the earliest (lowest-index) segments are deleted, so
+  beyond `maxFiles` segments of history the oldest entries are evicted
+  (the same bounded-history tradeoff as the OMP logger's count retention).
+  Journal-mode selection never reuses a segment index across day
+  boundaries or across restarts (resumes at the newest existing segment),
+  so append-order chronology is preserved for truthful replay. Full ADR
+  treatment of the sink and the OMP naming/retention changes lands in
+  S5d; this entry records the contract S5c depends on.
 
 ## Consequences
 

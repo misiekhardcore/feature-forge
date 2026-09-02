@@ -9,6 +9,8 @@
   },
   "logDir": ".forge/logs/",
   "logRetentionDays": 7,
+  "logMaxBytes": 10485760,
+  "logMaxFiles": 5,
   "logPayloads": false,
   "worktreeSymlinks": [],
   "taskTimeoutMs": 3600000,

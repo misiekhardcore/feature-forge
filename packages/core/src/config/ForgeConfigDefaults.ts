@@ -55,6 +55,8 @@ function createDefaultConfig(): Required<ForgeConfig> {
     defaultAgent: DEFAULT_AGENT_CONFIG,
     logDir: defaultsJson.logDir,
     logRetentionDays: defaultsJson.logRetentionDays,
+    logMaxBytes: defaultsJson.logMaxBytes,
+    logMaxFiles: defaultsJson.logMaxFiles,
     logPayloads: defaultsJson.logPayloads,
     worktreeSymlinks: defaultsJson.worktreeSymlinks,
     taskTimeoutMs: defaultsJson.taskTimeoutMs,
@@ -128,6 +130,8 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     })(),
     logDir: overrides.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
     logRetentionDays: overrides.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
+    logMaxBytes: overrides.logMaxBytes ?? DEFAULT_FORGE_CONFIG.logMaxBytes,
+    logMaxFiles: overrides.logMaxFiles ?? DEFAULT_FORGE_CONFIG.logMaxFiles,
     logPayloads: overrides.logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads,
     // Deep-clone shared nested structures so mutating a resolved config
     // never corrupts DEFAULT_FORGE_CONFIG (or the caller's own overrides).

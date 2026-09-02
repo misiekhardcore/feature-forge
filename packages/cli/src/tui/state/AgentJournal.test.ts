@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -181,6 +182,129 @@ describe("AgentJournal", () => {
       // this from a truncated existing journal via existence separately.
       expect(complete).toBe(false);
       expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("returns entries [] and complete false when the journal directory is unreadable", async () => {
+    const dir = newTempDir();
+    const blocker = join(dir, "blocker");
+    writeFileSync(blocker, "a regular file, not a directory", "utf-8");
+    const journal = new AgentJournal(join(blocker, "agent.journal.jsonl"));
+
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    try {
+      const { entries, complete } = await journal.read();
+      expect(entries).toEqual([]);
+      // The segment directory could not be listed, so the base file cannot
+      // be read: same incomplete contract as a missing journal.
+      expect(complete).toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("rotates to numeric segments on overflow and reads all entries in order", async () => {
+    const dir = newTempDir();
+    const journal = new AgentJournal(join(dir, "agent.journal.jsonl"), {
+      maxBytes: 200,
+      maxFiles: 3,
+    });
+    const entries: AgentJournalEntry[] = [];
+    // Each entry is ~128 bytes: two fill the base past maxBytes, so the
+    // third append opens segment .1, the fifth opens .2, etc.
+    for (let i = 0; i < 6; i++) {
+      const entry: AgentJournalEntry = {
+        type: "stream",
+        line: `line-${String(i).padStart(2, "0")}-${"x".repeat(60)}`,
+        ts: TS,
+      };
+      entries.push(entry);
+      expect(journal.append(entry)).toBe(true);
+    }
+
+    // The base file (segment 0, oldest) and the first rotated segments
+    // exist; segments are derived from the base name ({base}.N).
+    const base = join(dir, "agent.journal.jsonl");
+    expect(existsSync(base)).toBe(true);
+    expect(existsSync(`${base}.1`)).toBe(true);
+    expect(existsSync(`${base}.2`)).toBe(true);
+
+    // read() replays 0 → N: every entry comes back in append order.
+    const { entries: readEntries, complete } = await journal.read();
+    expect(readEntries).toEqual(entries);
+    expect(complete).toBe(true);
+  });
+
+  it("evicts the oldest numeric segments beyond maxFiles but never the base", async () => {
+    const dir = newTempDir();
+    const journal = new AgentJournal(join(dir, "agent.journal.jsonl"), {
+      maxBytes: 200,
+      maxFiles: 2,
+    });
+    const entries: AgentJournalEntry[] = [];
+    for (let i = 0; i < 20; i++) {
+      const entry: AgentJournalEntry = {
+        type: "stream",
+        line: `line-${String(i).padStart(2, "0")}-${"x".repeat(60)}`,
+        ts: TS,
+      };
+      entries.push(entry);
+      expect(journal.append(entry)).toBe(true);
+    }
+
+    const base = join(dir, "agent.journal.jsonl");
+    // Journal-mode retention removes the lowest numeric indices only:
+    // the base segment is never evicted, the oldest rotated segment is.
+    expect(existsSync(base)).toBe(true);
+    expect(existsSync(`${base}.1`)).toBe(false);
+    const segments = readdirSync(dir)
+      .filter((name) => /^agent\.journal\.jsonl\.\d+$/.test(name))
+      .sort();
+    expect(segments).toHaveLength(2);
+
+    // Evicted history is gone for good (same tradeoff as the OMP logger):
+    // read() replays the surviving segments - the base (oldest) plus the
+    // two newest segments holding the latest entries, in append order.
+    const { entries: readEntries, complete } = await journal.read();
+    expect(readEntries).toEqual([...entries.slice(0, 2), ...entries.slice(-4)]);
+    expect(complete).toBe(true);
+  });
+
+  it("ignores a directory named {base}.N when discovering segments", async () => {
+    const dir = newTempDir();
+    const journal = new AgentJournal(join(dir, "agent.journal.jsonl"));
+    const valid: AgentJournalEntry = { type: "stream", line: "base-ok", ts: TS };
+    journal.append(valid);
+    // A stray directory with a segment-shaped name (e.g. a workspace
+    // collision) must not be treated as a segment: the isFile filter skips
+    // it, so the base read stays complete and no directory is opened.
+    mkdirSync(`${journal.filePath}.1`, { recursive: true });
+
+    const { entries, complete } = await journal.read();
+    expect(entries).toEqual([valid]);
+    expect(complete).toBe(true);
+  });
+
+  it("tolerates corrupt lines across segments (warn per line, complete stays true)", async () => {
+    const dir = newTempDir();
+    const journal = new AgentJournal(join(dir, "agent.journal.jsonl"));
+    const base = join(dir, "agent.journal.jsonl");
+    const validBase: AgentJournalEntry = { type: "stream", line: "base-ok", ts: TS };
+    const validSegment: AgentJournalEntry = { type: "stream", line: "segment-ok", ts: TS };
+    writeFileSync(base, `${JSON.stringify(validBase)}\nnot-json-base\n`, "utf-8");
+    writeFileSync(`${base}.1`, `not-json-segment\n${JSON.stringify(validSegment)}\n`, "utf-8");
+
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    try {
+      const { entries, complete } = await journal.read();
+      // Valid lines from both segments survive; each corrupt line is
+      // warned and skipped; the read still reaches EOF in every segment.
+      expect(entries).toEqual([validBase, validSegment]);
+      expect(complete).toBe(true);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
     } finally {
       warnSpy.mockRestore();
     }
@@ -556,6 +680,46 @@ describe("AgentJournal", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it("migrates legacy files with enough entries to overflow into segments", async () => {
+    const dir = newTempDir();
+    const journal = new AgentJournal(join(dir, "builder.journal.jsonl"), {
+      maxBytes: 200,
+      maxFiles: 5,
+    });
+
+    // ~129 bytes per derived entry: ten entries overflow the 200-byte base
+    // segment, so migration itself drives rotation.
+    const streamPath = join(dir, "builder.stream");
+    const lines = Array.from(
+      { length: 10 },
+      (_, i) => `legacy-line-${String(i).padStart(2, "0")}-${"x".repeat(60)}`,
+    );
+    writeFileSync(streamPath, `${lines.join("\n")}\n`, "utf-8");
+
+    await journal.migrateLegacy({ stream: streamPath });
+
+    // Rotation happened: rotated segments exist alongside the base file.
+    const base = join(dir, "builder.journal.jsonl");
+    expect(existsSync(base)).toBe(true);
+    const segments = readdirSync(dir).filter((name) => /^builder\.journal\.jsonl\.\d+$/.test(name));
+    expect(segments.length).toBeGreaterThan(0);
+
+    // Migrated entries replay in derivation order across the segments.
+    const { entries } = await journal.read();
+    expect(entries).toHaveLength(10);
+    expect(entries.every((entry) => entry.type === "stream")).toBe(true);
+
+    // Subsequent appends land after the migrated history and replay last.
+    const extra: AgentJournalEntry = { type: "stream", line: "post-migration", ts: LATER_TS };
+    expect(journal.append(extra)).toBe(true);
+    const { entries: replayed } = await journal.read();
+    expect(replayed).toHaveLength(11);
+    expect(replayed[10]).toEqual(extra);
+
+    // Legacy files are still removed after a successful migration.
+    expect(existsSync(streamPath)).toBe(false);
   });
 
   it("composes the journal path from streamDir and agentId", () => {
