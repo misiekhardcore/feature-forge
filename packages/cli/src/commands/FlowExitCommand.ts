@@ -52,6 +52,9 @@ export class FlowExitCommand extends Command {
       } else {
         // Tell the LLM the flow is over so it stops following flow instructions
         // still present in conversation history.
+        // The exit instruction is sent from a command handler that may run
+        // while the agent is mid-turn - deliverAs queues it until the
+        // in-flight tool calls finish instead of throwing or dropping it.
         this.pi.sendUserMessage(
           "All flow and role modes have been exited. " +
             "Return to standard default operation. " +
@@ -59,6 +62,7 @@ export class FlowExitCommand extends Command {
             "Use only the default tools and the base system prompt. " +
             "Do not continue or reference any previous flow tasks. " +
             'Acknowledge with "Flow exited. Ready."',
+          { deliverAs: "followUp" },
         );
 
         ctx.ui.notify("Flow exited. Default system prompt and tools restored.", "info");

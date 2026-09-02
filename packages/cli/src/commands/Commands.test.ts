@@ -153,6 +153,7 @@ describe("FlowExitCommand", () => {
       expect(agent.isMounted).toBe(false);
       expect(pi.sendUserMessage).toHaveBeenCalledWith(
         expect.stringContaining("Flow exited. Ready."),
+        { deliverAs: "followUp" },
       );
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         "Flow exited. Default system prompt and tools restored.",
