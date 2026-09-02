@@ -46,6 +46,8 @@ Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your pr
 {
   "logLevel": "info",
   "logRetentionDays": 7,
+  "logMaxBytes": 10485760,
+  "logMaxFiles": 5,
   "workspaceProvider": "git-worktree",
   "worktreeSymlinks": ["node_modules", ".env"],
   "specDirectories": { "flows": [], "agents": [] }
@@ -53,6 +55,8 @@ Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your pr
 ```
 
 `logRetentionDays` sets how many days session log files are retained before startup pruning removes them (use 0 to disable pruning).
+
+`logMaxBytes` (default 10 MB) is the size cap for one active log or journal segment: once it is exceeded, the next write rolls to a new numeric segment (`.1`, `.2`, ...). `logMaxFiles` (default 5) bounds how many segments are kept per process (session logs) or per agent (agent journals), evicting the oldest segments first, so disk usage stays hard-bounded regardless of write volume. Both knobs apply to session logs and agent journals alike.
 
 Environment variables take precedence over config values: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
 

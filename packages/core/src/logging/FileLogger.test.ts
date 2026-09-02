@@ -1,8 +1,10 @@
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   unlinkSync,
@@ -10,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,10 +20,12 @@ import { ForgeConfig, LogLevel } from "../config";
 import { jsonParse } from "../helpers";
 import { FileLogger } from "./FileLogger";
 import { Logger, logger as moduleLogger } from "./Logger";
+import { RotatingFileSink } from "./RotatingFileSink";
 
 describe("FileLogger", () => {
   let filePath: string;
   let logger: FileLogger;
+  let logDir: string;
   let configSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -29,19 +33,22 @@ describe("FileLogger", () => {
       tmpdir(),
       `forge-test-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
     );
+    // Isolate the configured log dir in a temp directory: the production
+    // path (no filePath) and both prune routines must never touch the
+    // real .forge/logs during tests.
+    logDir = mkdtempSync(join(tmpdir(), "forge-logdir-"));
     // Force retention to 0 so initialize()'s pruneOldLogs call returns before
     // touching any log dir, while keeping the initialize -> pruneOldLogs
     // wiring (with the configured retention and current file path) covered.
-    // Dir/prefix still delegate to the real config. Without this, the
-    // always-on retention summary would be forwarded to this test's own log
-    // file whenever a real log dir exists, polluting the exact-content
-    // assertions below. The pruneOldLogs describe replaces this spy.
+    // The pruneOldLogs and pruneStaleProcessLogs describes replace this spy.
     const realConfig = ForgeConfig.getInstance();
     configSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
       getLogRetentionDays: () => 0,
       getLogLevel: () => realConfig.getLogLevel(),
-      getLogDir: () => realConfig.getLogDir(),
+      getLogDir: () => logDir,
       getLogPrefix: () => realConfig.getLogPrefix(),
+      getLogMaxBytes: () => 10 * 1024 * 1024,
+      getLogMaxFiles: () => 5,
     } as unknown as ForgeConfig);
     logger = FileLogger.initialize(filePath);
     Logger.setLogLevel(LogLevel.DEBUG);
@@ -54,6 +61,7 @@ describe("FileLogger", () => {
     if (existsSync(filePath)) {
       unlinkSync(filePath);
     }
+    rmSync(logDir, { recursive: true, force: true });
   });
 
   function readLines(): Record<string, unknown>[] {
@@ -237,9 +245,10 @@ describe("FileLogger", () => {
   });
 
   describe("default log file path", () => {
-    it("falls back to .forge/logs by default", () => {
+    it("resolves forge.<day>.<pid>.log under the configured log dir", () => {
       const defaultPath = FileLogger.getDefaultLogFilePath();
-      expect(defaultPath).toContain(".forge/logs");
+      expect(dirname(defaultPath)).toBe(logDir);
+      expect(basename(defaultPath)).toMatch(/^forge\.\d{4}-\d{2}-\d{2}\.\d+\.log$/);
     });
   });
 
@@ -273,6 +282,23 @@ describe("FileLogger", () => {
       logger.info("before close");
       await logger.close();
       await logger.close(); // second call should not throw
+    });
+
+    it("keeps the bare basename when the explicit path has no extension", async () => {
+      const noExtPath = join(
+        tmpdir(),
+        `forge-noext-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      );
+      const noExtLogger = FileLogger.initialize(noExtPath);
+      noExtLogger.info("no extension");
+      await noExtLogger.close();
+
+      // The documented contract: a path without an extension keeps its bare
+      // basename - never a trailing dot ("foo.") or a "foo." segment.
+      expect(existsSync(noExtPath)).toBe(true);
+      expect(existsSync(`${noExtPath}.`)).toBe(false);
+      expect(existsSync(`${noExtPath}.1`)).toBe(false);
+      unlinkSync(noExtPath);
     });
 
     it("writes after close are best-effort and do not throw", async () => {
@@ -321,9 +347,12 @@ describe("FileLogger", () => {
       // pruning never touches the real log directory (the worktree's
       // .forge/logs symlinks to shared logs). The afterEach restore order
       // unwinds this back to the top-level spy, then to the real instance.
-      getInstanceSpy = vi
-        .spyOn(ForgeConfig, "getInstance")
-        .mockReturnValue({ getLogDir: () => logDir } as unknown as ForgeConfig);
+      getInstanceSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
+        getLogDir: () => logDir,
+        getLogPrefix: () => "forge",
+        getLogMaxBytes: () => 10 * 1024 * 1024,
+        getLogMaxFiles: () => 5,
+      } as unknown as ForgeConfig);
     });
 
     afterEach(() => {
@@ -355,6 +384,18 @@ describe("FileLogger", () => {
       FileLogger.pruneOldLogs(7);
 
       expect(existsSync(join(logDir, "forge-stale.log"))).toBe(false);
+    });
+
+    it("prunes rotated segments older than the retention window", () => {
+      writeLogFile("forge-stale.log.1", 10);
+      writeLogFile("forge-stale.log.2", 10);
+      writeLogFile("forge-recent.log.1", 3);
+
+      FileLogger.pruneOldLogs(7);
+
+      expect(existsSync(join(logDir, "forge-stale.log.1"))).toBe(false);
+      expect(existsSync(join(logDir, "forge-stale.log.2"))).toBe(false);
+      expect(existsSync(join(logDir, "forge-recent.log.1"))).toBe(true);
     });
 
     it("keeps files within the retention window", () => {
@@ -456,5 +497,266 @@ describe("FileLogger", () => {
 
       expect(infoSpy).not.toHaveBeenCalled();
     });
+  });
+
+  describe("production sink (initialize without filePath)", () => {
+    it("writes to forge.<day>.<pid>.log with rotation and an audit ledger", async () => {
+      // Freeze the clock so the sink's internally computed day (naming) and
+      // the test's expected day can never race across a midnight boundary.
+      vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-03-02T10:00:00") });
+      try {
+        const prod = FileLogger.initialize(undefined, { maxBytes: 100, maxFiles: 3 });
+        const message = "x".repeat(200);
+        prod.info(message);
+        prod.info(message);
+        prod.info(message);
+        await prod.close();
+
+        const day = RotatingFileSink.dayKey(new Date());
+        const base = `forge.${day}.${process.pid}.log`;
+        const auditName = `.forge-${process.pid}-audit.json`;
+        expect(readdirSync(logDir).sort()).toEqual(
+          [base, `${base}.1`, `${base}.2`, auditName].sort(),
+        );
+
+        // Each rotated segment holds exactly one oversized entry.
+        expect(readFileSync(join(logDir, base), "utf8").trim().split("\n")).toHaveLength(1);
+        expect(
+          readFileSync(join(logDir, `${base}.1`), "utf8")
+            .trim()
+            .split("\n"),
+        ).toHaveLength(1);
+        expect(
+          readFileSync(join(logDir, `${base}.2`), "utf8")
+            .trim()
+            .split("\n"),
+        ).toHaveLength(1);
+
+        const audit = JSON.parse(readFileSync(join(logDir, auditName), "utf8")) as {
+          files: Array<{ name: string }>;
+        };
+        expect(audit.files.map((file) => file.name)).toEqual([
+          join(logDir, base),
+          join(logDir, `${base}.1`),
+          join(logDir, `${base}.2`),
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("names the audit ledger after the configured log prefix", async () => {
+      const prefixedSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
+        getLogRetentionDays: () => 0,
+        getLogLevel: () => LogLevel.DEBUG,
+        getLogDir: () => logDir,
+        getLogPrefix: () => "agent-42",
+        getLogMaxBytes: () => 10 * 1024 * 1024,
+        getLogMaxFiles: () => 5,
+      } as unknown as ForgeConfig);
+
+      try {
+        const prod = FileLogger.initialize(undefined);
+        prod.info("hello");
+        await prod.close();
+
+        const auditName = `.agent-42-${process.pid}-audit.json`;
+        expect(existsSync(join(logDir, auditName))).toBe(true);
+        // The log file itself uses the configured prefix too.
+        expect(
+          readdirSync(logDir).some((name) => name.startsWith(`agent-42.`) && name.endsWith(".log")),
+        ).toBe(true);
+      } finally {
+        prefixedSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("rotation and retention through FileLogger", () => {
+    it("rotates an explicit-path logger into .N segments and caps them", async () => {
+      const rot = FileLogger.initialize(filePath, { maxBytes: 100, maxFiles: 2 });
+      const message = "x".repeat(200);
+      for (let i = 0; i < 4; i++) {
+        rot.info(message);
+      }
+      await rot.close();
+
+      // 4 oversized writes: base, .1, .2, .3 are created; the maxFiles cap
+      // of 2 numeric segments evicts the oldest (.1).
+      expect(existsSync(filePath)).toBe(true);
+      expect(existsSync(`${filePath}.2`)).toBe(true);
+      expect(existsSync(`${filePath}.3`)).toBe(true);
+      expect(existsSync(`${filePath}.1`)).toBe(false);
+
+      const newest = JSON.parse(readFileSync(`${filePath}.3`, "utf8")) as { message: string };
+      expect(newest.message).toBe(message);
+    });
+  });
+
+  describe("pruneStaleProcessLogs", () => {
+    let staleDir: string;
+    let staleSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      staleDir = mkdtempSync(join(tmpdir(), "forge-stale-test-"));
+      staleSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
+        getLogDir: () => staleDir,
+        getLogPrefix: () => "forge",
+        getLogRetentionDays: () => 0,
+        getLogLevel: () => LogLevel.DEBUG,
+        getLogMaxBytes: () => 10 * 1024 * 1024,
+        getLogMaxFiles: () => 5,
+      } as unknown as ForgeConfig);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      staleSpy.mockRestore();
+      rmSync(staleDir, { recursive: true, force: true });
+    });
+
+    /** Spawn and reap a child so its pid is guaranteed dead. */
+    function spawnDeadPid(): number {
+      const child = spawnSync(process.execPath, ["-e", ""]);
+      expect(child.status).toBe(0);
+      return child.pid;
+    }
+
+    it("deletes audits and out-of-window logs of dead processes", () => {
+      const pid = spawnDeadPid();
+      const today = RotatingFileSink.dayKey(new Date());
+      const oldDay = RotatingFileSink.dayKey(new Date(Date.now() - 10 * 86_400_000));
+      writeFileSync(join(staleDir, `forge.${today}.${pid}.log`), "x\n");
+      writeFileSync(join(staleDir, `forge.${oldDay}.${pid}.log`), "x\n");
+      writeFileSync(join(staleDir, `.forge-${pid}-audit.json`), "{}\n");
+
+      FileLogger.pruneStaleProcessLogs(staleDir);
+
+      expect(existsSync(join(staleDir, `.forge-${pid}-audit.json`))).toBe(false);
+      expect(existsSync(join(staleDir, `forge.${oldDay}.${pid}.log`))).toBe(false);
+      // A single in-window segment is retained for diagnostics.
+      expect(existsSync(join(staleDir, `forge.${today}.${pid}.log`))).toBe(true);
+    });
+
+    it("caps per-process-day segments to the newest RETAINED count", () => {
+      const pid = spawnDeadPid();
+      const today = RotatingFileSink.dayKey(new Date());
+      const now = Date.now();
+      const segments = [
+        { name: `forge.${today}.${pid}.log`, age: 4000 },
+        { name: `forge.${today}.${pid}.log.1`, age: 3000 },
+        { name: `forge.${today}.${pid}.log.2`, age: 2000 },
+        { name: `forge.${today}.${pid}.log.3`, age: 1000 },
+      ];
+      for (const segment of segments) {
+        const fullPath = join(staleDir, segment.name);
+        writeFileSync(fullPath, "x\n");
+        const old = new Date(now - segment.age);
+        utimesSync(fullPath, old, old);
+      }
+
+      FileLogger.pruneStaleProcessLogs(staleDir);
+
+      // 4 segments for one pid:day - the oldest mtime (the base) is evicted.
+      expect(existsSync(join(staleDir, `forge.${today}.${pid}.log`))).toBe(false);
+      expect(existsSync(join(staleDir, `forge.${today}.${pid}.log.1`))).toBe(true);
+      expect(existsSync(join(staleDir, `forge.${today}.${pid}.log.2`))).toBe(true);
+      expect(existsSync(join(staleDir, `forge.${today}.${pid}.log.3`))).toBe(true);
+    });
+
+    it("never touches live-pid namespaces", () => {
+      const today = RotatingFileSink.dayKey(new Date());
+      writeFileSync(join(staleDir, `forge.${today}.${process.pid}.log`), "x\n");
+      writeFileSync(join(staleDir, `.forge-${process.pid}-audit.json`), "{}\n");
+
+      FileLogger.pruneStaleProcessLogs(staleDir);
+
+      expect(existsSync(join(staleDir, `forge.${today}.${process.pid}.log`))).toBe(true);
+      expect(existsSync(join(staleDir, `.forge-${process.pid}-audit.json`))).toBe(true);
+    });
+
+    it("initialize() prunes dead-pid namespaces from the configured log dir", () => {
+      const pid = spawnDeadPid();
+      const oldDay = RotatingFileSink.dayKey(new Date(Date.now() - 10 * 86_400_000));
+      writeFileSync(join(staleDir, `forge.${oldDay}.${pid}.log`), "x\n");
+      writeFileSync(join(staleDir, `.forge-${pid}-audit.json`), "{}\n");
+
+      FileLogger.initialize();
+
+      expect(existsSync(join(staleDir, `.forge-${pid}-audit.json`))).toBe(false);
+      expect(existsSync(join(staleDir, `forge.${oldDay}.${pid}.log`))).toBe(false);
+    });
+
+    it("tolerates a missing log dir", () => {
+      expect(() =>
+        FileLogger.pruneStaleProcessLogs(
+          join(tmpdir(), `forge-missing-${Date.now()}-${Math.random().toString(36).slice(2)}`),
+        ),
+      ).not.toThrow();
+    });
+  });
+});
+
+describe("FileLogger with a real config file", () => {
+  let scratchDir: string;
+  let logsDir: string;
+  let prodLogger: FileLogger | undefined;
+
+  beforeEach(async () => {
+    scratchDir = mkdtempSync(join(tmpdir(), "forge-realconfig-"));
+    logsDir = join(scratchDir, "logs");
+    writeFileSync(
+      join(scratchDir, "forge.config.json"),
+      JSON.stringify({
+        logLevel: "debug",
+        logDir: logsDir,
+        logMaxBytes: 200,
+        logMaxFiles: 2,
+      }),
+    );
+    ForgeConfig.destroy();
+    await ForgeConfig.create({ cwd: scratchDir });
+  });
+
+  afterEach(async () => {
+    if (prodLogger) {
+      await prodLogger.close();
+      prodLogger = undefined;
+    }
+    ForgeConfig.destroy();
+    // Restore the default singleton created by test-setup for the rest of
+    // the suite (the FileLogger describe mocks getInstance anyway).
+    await ForgeConfig.create();
+    rmSync(scratchDir, { recursive: true, force: true });
+  });
+
+  it("initialize() honors logMaxBytes/logMaxFiles from a real config file", async () => {
+    prodLogger = FileLogger.initialize();
+    const message = "y".repeat(150);
+    for (let i = 0; i < 3; i++) {
+      prodLogger.info(message);
+    }
+    await prodLogger.close();
+    prodLogger = undefined;
+
+    const day = RotatingFileSink.dayKey(new Date());
+    const base = `forge.${day}.${process.pid}.log`;
+    const audit = `.forge-${process.pid}-audit.json`;
+    const files = readdirSync(logsDir).sort();
+
+    // maxBytes 200 with ~219-byte entries rotates on every write; maxFiles 2
+    // (audit mode: total incl. the base) evicts the base, keeping only the
+    // two newest segments plus the ledger.
+    expect(files).toContain(audit);
+    expect(files.filter((name) => name.startsWith(base))).toEqual([`${base}.1`, `${base}.2`]);
+    expect(existsSync(join(logsDir, base))).toBe(false);
+
+    const parsed = JSON.parse(readFileSync(join(logsDir, audit), "utf8")) as {
+      files: Array<{ name: string }>;
+    };
+    expect(parsed.files.map((file) => file.name)).toEqual([
+      join(logsDir, `${base}.1`),
+      join(logsDir, `${base}.2`),
+    ]);
   });
 });

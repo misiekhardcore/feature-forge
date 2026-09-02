@@ -1,16 +1,17 @@
 import {
-  mkdirSync,
+  existsSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
-  utimesSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { logger } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentDisplayHelpers } from "../display/AgentDisplayHelpers";
@@ -21,11 +22,13 @@ import {
   messageStartEvent,
   messageUpdateEvent,
   text,
+  toolResultMessage,
   turnEndEvent,
   turnStartEvent,
 } from "../test-utils";
 import type { AgentViewerEntry } from "../types";
-import { AgentViewerState, MAX_EVENTS_FILE_LINES } from "./AgentViewerState";
+import type { AgentJournalEntry, AgentToolEntry } from "./AgentJournal";
+import { AgentViewerState } from "./AgentViewerState";
 
 function makeTempDir(): string {
   return mkdtempSync(join(tmpdir(), "agent-viewer-state-test-"));
@@ -67,6 +70,16 @@ function makeTurnEndEvent(): JsonAgentSessionEvent {
 
 function defaultFormat(event: JsonAgentSessionEvent): string {
   return `${event.type}: detail`;
+}
+
+/** Parse the journal file of an agent into typed entries ([] when absent). */
+function readJournal(dir: string, agentId: string): AgentJournalEntry[] {
+  const journalPath = join(dir, `${agentId}.journal.jsonl`);
+  if (!existsSync(journalPath)) return [];
+  return readFileSync(journalPath, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as AgentJournalEntry);
 }
 
 // ── Tests ───────────────────────────────────────────────────
@@ -252,12 +265,12 @@ describe("AgentViewerState", () => {
           new Date("2026-01-01T00:05:00Z").getTime(),
         );
 
-        // After a restart, prepopulate seeds the stale entry from the stream
-        // file (birthtime createdAt, mtime finishedAt) and connect() then
-        // re-delivers done with the run-record createdAt — close to, but not
-        // identical to, the seeded one. A changed createdAt alone must NOT
-        // trigger a re-stamp: the existing stamp is the real finish time and
-        // re-stamping would inflate elapsed by the whole downtime.
+        // After a restart, prepopulate replays the journal (createdAt from
+        // the started lifecycle, finishedAt from the terminal) and connect()
+        // then re-delivers done with the run-record createdAt — close to, but
+        // not identical to, the replayed one. A changed createdAt alone must
+        // NOT trigger a re-stamp: the existing stamp is the real finish time
+        // and re-stamping would inflate elapsed by the whole downtime.
         vi.setSystemTime(new Date("2026-01-01T03:00:00Z"));
         state.update({
           id: "builder",
@@ -487,16 +500,23 @@ describe("AgentViewerState", () => {
       expect(state.getConversationMessages("builder")).toEqual([]);
       expect(state.getConversation("builder")).toEqual([]);
       expect(state.lastStreamLine).toBe("");
-      // The per-agent events file line counter must be reset too.
-      const internal = state as unknown as { eventsFileLineCounts: Map<string, number> };
-      expect(internal.eventsFileLineCounts.size).toBe(0);
     });
 
-    it("clears all internal maps including eventsFileLineCounts after persistence", () => {
+    it("clears all internal maps including journals after persistence", () => {
       const tmpDir = makeTempDir();
       try {
         state.setStreamDir(tmpDir);
         state.pushStreamEvent("builder", makeAgentStartEvent(), defaultFormat);
+        state.pushStreamEvent(
+          "builder",
+          {
+            type: "tool_execution_start",
+            toolCallId: "tc-1",
+            toolName: "bash",
+            args: { cmd: "ls" },
+          },
+          defaultFormat,
+        );
         state.pushStreamEvent("builder", makeMessageEndEvent("final"), defaultFormat);
 
         const internal = state as unknown as {
@@ -504,15 +524,17 @@ describe("AgentViewerState", () => {
           lastLines: Map<string, unknown>;
           agentEvents: Map<string, unknown>;
           agentMessages: Map<string, unknown>;
-          eventsFileLineCounts: Map<string, number>;
-          streamFiles: Map<string, unknown>;
-          eventsFiles: Map<string, unknown>;
-          messagesFiles: Map<string, unknown>;
+          agentTools: Map<string, AgentToolEntry[]>;
+          journals: Map<string, unknown>;
+          toolStartArgs: Map<string, Map<string, unknown>>;
           streamDir?: string;
         };
 
-        // Persistence populated the line counter before dispose.
-        expect(internal.eventsFileLineCounts.get("builder")).toBe(2);
+        // Journal persistence registered a journal, a tool log entry, and
+        // tool args for the agent.
+        expect(internal.journals.get("builder")).toBeDefined();
+        expect(internal.toolStartArgs.get("builder")?.size).toBe(1);
+        expect(internal.agentTools.get("builder")?.length).toBe(1);
 
         state.dispose();
 
@@ -520,10 +542,9 @@ describe("AgentViewerState", () => {
         expect(internal.lastLines.size).toBe(0);
         expect(internal.agentEvents.size).toBe(0);
         expect(internal.agentMessages.size).toBe(0);
-        expect(internal.eventsFileLineCounts.size).toBe(0);
-        expect(internal.streamFiles.size).toBe(0);
-        expect(internal.eventsFiles.size).toBe(0);
-        expect(internal.messagesFiles.size).toBe(0);
+        expect(internal.agentTools.size).toBe(0);
+        expect(internal.journals.size).toBe(0);
+        expect(internal.toolStartArgs.size).toBe(0);
         expect(internal.streamDir).toBeUndefined();
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
@@ -544,23 +565,31 @@ describe("AgentViewerState", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it("persists stream events to .stream file when streamDir is set", () => {
+    it("persists stream events to the agent journal when streamDir is set", () => {
       state.setStreamDir(tmpDir);
       state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
+      state.pushStreamEvent("agent-x", makeMessageEndEvent("Hello"), defaultFormat);
 
       state.dispose();
 
-      // .stream file should exist
-      const files = readdirSync(tmpDir);
-      const streamFile = files.find((f: string) => f.endsWith(".stream"));
-      expect(streamFile).toBeDefined();
-      if (streamFile) {
-        const content = readFileSync(join(tmpDir, streamFile), "utf-8");
-        expect(content).toContain("agent_start: detail");
-      }
+      // The journal file exists and its lines parse to journal entries.
+      const journalPath = join(tmpDir, "agent-x.journal.jsonl");
+      expect(existsSync(journalPath)).toBe(true);
+      const entries = readFileSync(journalPath, "utf-8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as AgentJournalEntry);
+
+      // A stream entry carries the formatted line for each persisted event.
+      const streamEntries = entries.filter(
+        (e): e is Extract<AgentJournalEntry, { type: "stream" }> => e.type === "stream",
+      );
+      expect(streamEntries).toHaveLength(2);
+      expect(streamEntries[0]).toMatchObject({ type: "stream", line: "agent_start: detail" });
+      expect(streamEntries[1]).toMatchObject({ type: "stream", line: "message_end: detail" });
     });
 
-    it("excludes turn_start, turn_end, message_update from .stream file", () => {
+    it("excludes turn_start, turn_end, message_update from journal stream entries", () => {
       state.setStreamDir(tmpDir);
       state.pushStreamEvent("agent-x", makeTurnStartEvent(), defaultFormat);
       state.pushStreamEvent("agent-x", makeTurnEndEvent(), defaultFormat);
@@ -569,214 +598,740 @@ describe("AgentViewerState", () => {
 
       state.dispose();
 
-      const files = readdirSync(tmpDir);
-      const streamFile = files.find((f: string) => f.endsWith(".stream"));
-      if (streamFile) {
-        const content = readFileSync(join(tmpDir, streamFile), "utf-8");
-        expect(content).not.toContain("turn_start");
-        expect(content).not.toContain("turn_end");
-        expect(content).not.toContain("message_update");
-        expect(content).toContain("agent_start");
-      }
+      const entries = readJournal(tmpDir, "agent-x");
+      const streamLines = entries
+        .filter((e): e is Extract<AgentJournalEntry, { type: "stream" }> => e.type === "stream")
+        .map((e) => e.line);
+      expect(streamLines).not.toContain("turn_start: detail");
+      expect(streamLines).not.toContain("turn_end: detail");
+      expect(streamLines).not.toContain("message_update: detail");
+      expect(streamLines).toContain("agent_start: detail");
     });
 
-    it("persists raw events to .events.jsonl", () => {
-      state.setStreamDir(tmpDir);
-      state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
-
-      state.dispose();
-
-      const files = readdirSync(tmpDir);
-      const eventsFile = files.find((f: string) => f.endsWith(".events.jsonl"));
-      expect(eventsFile).toBeDefined();
-      if (eventsFile) {
-        const content = readFileSync(join(tmpDir, eventsFile), "utf-8");
-        expect(content).toContain('"agent_start"');
-      }
-    });
-
-    it("persists message_end to .messages.jsonl", () => {
+    it("persists message_end messages to the agent journal", () => {
       state.setStreamDir(tmpDir);
       state.pushStreamEvent("agent-x", makeMessageEndEvent("Hello"), defaultFormat);
+      state.pushStreamEvent("agent-x", makeMessageEndEvent("Question", "user"), defaultFormat);
+      state.pushStreamEvent(
+        "agent-x",
+        messageEndEvent(toolResultMessage("tc-1", "bash", [text("tool output")])),
+        defaultFormat,
+      );
+      // Deltas and starts carry no finalized message: NOT persisted (AC 6).
+      state.pushStreamEvent("agent-x", makeMessageUpdateEvent("delta"), defaultFormat);
+      state.pushStreamEvent("agent-x", makeMessageStartEvent(), defaultFormat);
 
       state.dispose();
 
+      const entries = readJournal(tmpDir, "agent-x");
+      const messageEntries = entries.filter(
+        (e): e is Extract<AgentJournalEntry, { type: "message" }> => e.type === "message",
+      );
+      // Exactly the three message_end entries — update/start added none.
+      expect(messageEntries).toHaveLength(3);
+      expect(messageEntries[0]).toMatchObject({
+        type: "message",
+        message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+      });
+      expect(messageEntries[1]).toMatchObject({ type: "message", message: { role: "user" } });
+      expect(messageEntries[2]).toMatchObject({
+        type: "message",
+        message: { role: "toolResult", toolCallId: "tc-1", toolName: "bash" },
+      });
+    });
+
+    it("persists tool entries, merging args from the start into the end", () => {
+      state.setStreamDir(tmpDir);
+      state.pushStreamEvent(
+        "agent-x",
+        {
+          type: "tool_execution_start",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          args: { cmd: "ls" },
+        },
+        defaultFormat,
+      );
+      state.pushStreamEvent(
+        "agent-x",
+        {
+          type: "tool_execution_end",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          result: "file listing",
+          isError: false,
+        },
+        defaultFormat,
+      );
+
+      // The remembered start args are pruned once the end entry consumed
+      // them (bounded memory: one slot per in-flight tool call).
+      const internal = state as unknown as { toolStartArgs: Map<string, Map<string, unknown>> };
+      expect(internal.toolStartArgs.get("agent-x")?.size).toBe(0);
+
+      state.dispose();
+
+      const entries = readJournal(tmpDir, "agent-x");
+      const toolEntries = entries.filter(
+        (e): e is Extract<AgentJournalEntry, { type: "tool" }> => e.type === "tool",
+      );
+      expect(toolEntries).toHaveLength(2);
+      expect(toolEntries[0]).toMatchObject({
+        type: "tool",
+        toolCallId: "tc-1",
+        toolName: "bash",
+        args: { cmd: "ls" },
+      });
+      expect(toolEntries[0].result).toBeUndefined();
+      expect(toolEntries[1]).toMatchObject({
+        type: "tool",
+        toolCallId: "tc-1",
+        toolName: "bash",
+        result: "file listing",
+        isError: false,
+        // args are replayed from the start event.
+        args: { cmd: "ls" },
+      });
+    });
+
+    it("appendLifecycle writes a lifecycle entry when streamDir is set", () => {
+      state.setStreamDir(tmpDir);
+      state.appendLifecycle("agent-x", "done", true, "Build passed");
+
+      const entries = readJournal(tmpDir, "agent-x");
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({
+        type: "lifecycle",
+        phase: "done",
+        passed: true,
+        summary: "Build passed",
+      });
+      expect(entries[0].ts).toBeTypeOf("string");
+    });
+
+    it("appendLifecycle is a no-op without streamDir", () => {
+      state.appendLifecycle("agent-x", "error", false, "boom");
+
       const files = readdirSync(tmpDir);
-      const messagesFile = files.find((f: string) => f.endsWith(".messages.jsonl"));
-      expect(messagesFile).toBeDefined();
-      if (messagesFile) {
-        const content = readFileSync(join(tmpDir, messagesFile), "utf-8");
-        expect(content).toContain("Hello");
+      expect(files.some((f) => f.endsWith(".journal.jsonl"))).toBe(false);
+    });
+
+    it("does not throw when the stream directory is a regular file", () => {
+      const blocker = join(tmpDir, "blocker");
+      writeFileSync(blocker, "a regular file, not a directory", "utf-8");
+      state.setStreamDir(blocker);
+
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        expect(() =>
+          state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat),
+        ).not.toThrow();
+        expect(warnSpy).toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
       }
     });
 
-    it("prepopulateStreamFiles loads messages and creates stale entries", async () => {
-      // Pre-write a .messages.jsonl file mimicking a prior session.
-      const msgPath = join(tmpDir, "stale-agent.messages.jsonl");
+    // ── prepopulateStreamFiles: journal replay ──────────────
+
+    it("replays a completed run from the journal", async () => {
+      const started = "2026-01-01T00:00:00.000Z";
+      const done = "2026-01-01T00:05:00.000Z";
       writeFileSync(
-        msgPath,
+        join(tmpDir, "replay-ok.journal.jsonl"),
+        [
+          JSON.stringify({ type: "lifecycle", phase: "started", ts: started }),
+          JSON.stringify({
+            type: "stream",
+            line: "agent_start: detail",
+            ts: "2026-01-01T00:00:01.000Z",
+          }),
+          JSON.stringify({
+            type: "message",
+            message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+            ts: "2026-01-01T00:04:00.000Z",
+          }),
+          // forge entries carry future loop/workspace/session context —
+          // replay tolerates and skips them.
+          JSON.stringify({
+            type: "forge",
+            phase: "loop-round",
+            details: { round: 1 },
+            ts: "2026-01-01T00:04:30.000Z",
+          }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "ok",
+            ts: done,
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // Terminal lifecycle: done + passed + summary + finishedAt from the
+      // done entry's ts; createdAt from the started entry's ts.
+      const entry = state.getAgentEntry("replay-ok")!;
+      expect(entry.status).toBe("done");
+      if (entry.status === "done") {
+        expect(entry.passed).toBe(true);
+        expect(entry.summary).toBe("ok");
+      }
+      expect(entry.finishedAt!.getTime()).toBe(new Date(done).getTime());
+      expect(entry.createdAt.getTime()).toBe(new Date(started).getTime());
+
+      // message entries populate the message cache; stream lines the
+      // last-line cache (last wins).
+      const messages = state.getConversationMessages("replay-ok");
+      expect(messages.length).toBe(1);
+      expect(AgentDisplayHelpers.extractMessageText(messages[0])).toBe("Hello");
+      expect(state.getLastLine("replay-ok")).toBe("agent_start: detail");
+    });
+
+    it("replays a segmented journal (base + rotated segments) as one run", async () => {
+      const started = "2026-01-01T00:00:00.000Z";
+      const done = "2026-01-01T00:05:00.000Z";
+      // The base file is segment 0 (OLDEST); rotated segments hold newer
+      // entries. Discovery must map both to the same agent id and replay
+      // must concatenate 0 → N so the done terminal in the .1 segment wins.
+      writeFileSync(
+        join(tmpDir, "seg-agent.journal.jsonl"),
+        [
+          JSON.stringify({ type: "lifecycle", phase: "started", ts: started }),
+          JSON.stringify({
+            type: "stream",
+            line: "early stream line",
+            ts: "2026-01-01T00:00:01.000Z",
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+      writeFileSync(
+        join(tmpDir, "seg-agent.journal.jsonl.1"),
+        [
+          JSON.stringify({
+            type: "stream",
+            line: "late stream line",
+            ts: "2026-01-01T00:04:00.000Z",
+          }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "ok across segments",
+            ts: done,
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // One agent entry, built from both segments: createdAt from the base
+      // started entry, status/passed/summary/finishedAt from the .1 done
+      // entry (last-lifecycle-wins across the concat), last stream line
+      // from the newest segment.
+      const entry = state.getAgentEntry("seg-agent")!;
+      expect(entry.status).toBe("done");
+      if (entry.status === "done") {
+        expect(entry.passed).toBe(true);
+        expect(entry.summary).toBe("ok across segments");
+      }
+      expect(entry.createdAt.getTime()).toBe(new Date(started).getTime());
+      expect(entry.finishedAt!.getTime()).toBe(new Date(done).getTime());
+      expect(state.getLastLine("seg-agent")).toBe("late stream line");
+    });
+
+    it("replays a failed run as passed=false (renders ✗ failed)", async () => {
+      writeFileSync(
+        join(tmpDir, "replay-fail.journal.jsonl"),
+        JSON.stringify({
+          type: "lifecycle",
+          phase: "done",
+          passed: false,
+          summary: "build failed",
+          ts: "2026-01-01T00:05:00.000Z",
+        }) + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("replay-fail")!;
+      expect(entry.status).toBe("done");
+      expect(AgentDisplayHelpers.getEntryPassed(entry)).toBe(false);
+      expect(AgentDisplayHelpers.getStatusLabel("done", false).label).toBe("failed");
+      expect(entry.finishedAt).toBeInstanceOf(Date);
+      expect(entry.summary).toBe("build failed");
+    });
+
+    it("replays an interrupted run as running without finishedAt (never 'failed')", async () => {
+      // Only the started lifecycle was persisted before the process died —
+      // the replayed entry must stay in-flight, not fabricate a failure.
+      writeFileSync(
+        join(tmpDir, "replay-run.journal.jsonl"),
+        JSON.stringify({ type: "lifecycle", phase: "started", ts: "2026-01-01T00:00:00.000Z" }) +
+          "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("replay-run")!;
+      expect(entry.status).toBe("running");
+      expect(entry.finishedAt).toBeUndefined();
+      expect(AgentDisplayHelpers.getEntryPassed(entry)).toBeUndefined();
+    });
+
+    it("replays error and cancelled terminal lifecycles truthfully", async () => {
+      writeFileSync(
+        join(tmpDir, "replay-err.journal.jsonl"),
+        JSON.stringify({
+          type: "lifecycle",
+          phase: "error",
+          summary: "agent blew up",
+          ts: "2026-01-01T00:05:00.000Z",
+        }) + "\n",
+        "utf-8",
+      );
+      writeFileSync(
+        join(tmpDir, "replay-cancel.journal.jsonl"),
+        JSON.stringify({
+          type: "lifecycle",
+          phase: "cancelled",
+          summary: "user cancelled",
+          ts: "2026-01-01T00:03:00.000Z",
+        }) + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const errored = state.getAgentEntry("replay-err")!;
+      expect(errored.status).toBe("error");
+      expect(errored.finishedAt).toBeInstanceOf(Date);
+      expect(errored.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00.000Z").getTime());
+
+      const cancelled = state.getAgentEntry("replay-cancel")!;
+      expect(cancelled.status).toBe("cancelled");
+      expect(cancelled.summary).toBe("user cancelled");
+      // update() treats cancelled as non-terminal for stamping (loop re-runs
+      // must never inherit a stale finishedAt), so the replayed stamp is
+      // cleared — the status and summary still replay truthfully.
+      expect(cancelled.finishedAt).toBeUndefined();
+    });
+
+    it("replays started → done → started as in-flight (last lifecycle wins)", async () => {
+      // Run 1 completed; run 2 of the same agent id started afterwards and
+      // is still in flight. The trailing started must not be relabeled by
+      // run 1's terminal — the correct reduction is last-lifecycle-wins.
+      writeFileSync(
+        join(tmpDir, "rerun-agent.journal.jsonl"),
+        [
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "started",
+            ts: "2026-01-01T00:00:00.000Z",
+          }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "run 1 ok",
+            ts: "2026-01-01T00:05:00.000Z",
+          }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "started",
+            ts: "2026-01-01T00:10:00.000Z",
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("rerun-agent")!;
+      expect(entry.status).toBe("running");
+      expect(entry.finishedAt).toBeUndefined();
+      expect(AgentDisplayHelpers.getEntryPassed(entry)).toBeUndefined();
+    });
+
+    it("replay does not overwrite a live-seeded entry (no-overwrite guard)", async () => {
+      // The journal holds a terminal from a PRIOR run of the same agent id.
+      writeFileSync(
+        join(tmpDir, "builder.journal.jsonl"),
+        JSON.stringify({
+          type: "lifecycle",
+          phase: "done",
+          passed: true,
+          summary: "old run",
+          ts: "2026-01-01T00:05:00.000Z",
+        }) + "\n",
+        "utf-8",
+      );
+      // connect() seeds the live entry synchronously before prepopulate
+      // resolves (agentQuery seeding).
+      state.update({ id: "builder", status: "started", createdAt: new Date() });
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // Live truth wins — the stale terminal must not relabel a running agent.
+      const entry = state.getAgentEntry("builder")!;
+      expect(entry.status).toBe("started");
+      expect(entry.finishedAt).toBeUndefined();
+      expect(AgentDisplayHelpers.getEntryPassed(entry)).toBeUndefined();
+    });
+
+    it("replay still populates caches for an agent with a live entry", async () => {
+      writeFileSync(
+        join(tmpDir, "builder.journal.jsonl"),
+        JSON.stringify({
+          type: "stream",
+          line: "agent_start: detail",
+          ts: "2026-01-01T00:00:01.000Z",
+        }) +
+          "\n" +
+          JSON.stringify({
+            type: "message",
+            message: { role: "assistant", content: [{ type: "text", text: "Hello" }] },
+            ts: "2026-01-01T00:00:02.000Z",
+          }) +
+          "\n",
+        "utf-8",
+      );
+      state.update({ id: "builder", status: "running", createdAt: new Date() });
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // The entry is untouched but the derived caches are still replayed.
+      expect(state.getAgentEntry("builder")!.status).toBe("running");
+      expect(state.getLastLine("builder")).toBe("agent_start: detail");
+      expect(state.getConversationMessages("builder").length).toBe(1);
+    });
+
+    it("uses the earliest entry ts as createdAt when no started lifecycle exists (migrated journal)", async () => {
+      // A migrated legacy journal carries no lifecycle entries — createdAt
+      // must come from the earliest valid entry ts, not the file birthtime.
+      const firstTs = "2026-01-01T00:00:01.000Z";
+      writeFileSync(
+        join(tmpDir, "migrated-agent.journal.jsonl"),
+        [
+          JSON.stringify({ type: "stream", line: "agent_start: detail", ts: firstTs }),
+          JSON.stringify({
+            type: "message",
+            message: { role: "assistant" },
+            ts: "2026-01-01T00:00:03.000Z",
+          }),
+          JSON.stringify({
+            type: "stream",
+            line: "tool_execution_start: read",
+            ts: "2026-01-01T00:00:05.000Z",
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("migrated-agent")!;
+      expect(entry.status).toBe("running");
+      expect(entry.createdAt.getTime()).toBe(new Date(firstTs).getTime());
+    });
+
+    it("falls back to the journal birthtime when no started lifecycle and no entry ts parses", async () => {
+      // Neither a started lifecycle nor a parseable entry ts exists —
+      // createdAt falls back to the journal file's birthtime.
+      writeFileSync(
+        join(tmpDir, "no-lifecycle.journal.jsonl"),
+        JSON.stringify({ type: "stream", line: "agent_start: detail", ts: "not-a-date" }) + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("no-lifecycle")!;
+      expect(entry.status).toBe("running");
+      expect(entry.createdAt).toBeInstanceOf(Date);
+      const birthtime = statSync(join(tmpDir, "no-lifecycle.journal.jsonl")).birthtime;
+      // The fallback stamp is the file birthtime (or "now" on filesystems
+      // that report no birthtime — epoch 0 is treated as absent).
+      expect(entry.createdAt.getTime()).toBeGreaterThanOrEqual(
+        birthtime.getTime() > 0 ? birthtime.getTime() : 0,
+      );
+    });
+
+    it("skips invalid lifecycle timestamps on replay (never NaN dates)", async () => {
+      // A corrupted started stamp must not poison createdAt — replay skips
+      // it and resolves createdAt from the earliest valid entry ts.
+      writeFileSync(
+        join(tmpDir, "bad-ts.journal.jsonl"),
+        [
+          JSON.stringify({ type: "lifecycle", phase: "started", ts: "not-a-date" }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "ok",
+            ts: "2026-01-01T00:05:00.000Z",
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("bad-ts")!;
+      expect(entry.status).toBe("done");
+      expect(Number.isNaN(entry.createdAt.getTime())).toBe(false);
+      expect(entry.createdAt.getTime()).toBe(new Date("2026-01-01T00:05:00.000Z").getTime());
+      expect(entry.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00.000Z").getTime());
+    });
+
+    it("skips an invalid terminal ts (never a NaN finishedAt)", async () => {
+      // A corrupted terminal stamp must not poison finishedAt — the
+      // terminal status/passed/summary are kept, the stamp is dropped and
+      // update()'s fallback writes a valid fresh stamp instead.
+      writeFileSync(
+        join(tmpDir, "bad-terminal-ts.journal.jsonl"),
+        [
+          JSON.stringify({ type: "lifecycle", phase: "started", ts: "2026-01-01T00:00:00.000Z" }),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "ok",
+            ts: "garbage",
+          }),
+        ].join("\n") + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const entry = state.getAgentEntry("bad-terminal-ts")!;
+      expect(entry.status).toBe("done");
+      expect(AgentDisplayHelpers.getEntryPassed(entry)).toBe(true);
+      expect(entry.finishedAt).toBeDefined();
+      expect(Number.isNaN(entry.finishedAt!.getTime())).toBe(false);
+      expect(entry.createdAt.getTime()).toBe(new Date("2026-01-01T00:00:00.000Z").getTime());
+    });
+
+    it("logs a warn and returns cleanly when the stream directory cannot be scanned", async () => {
+      const blocker = join(tmpDir, "blocker-file");
+      writeFileSync(blocker, "a regular file, not a directory", "utf-8");
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        await state.prepopulateStreamFiles(blocker);
+
+        expect(state.entryCount).toBe(0);
+        expect(warnSpy).toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("setStreamDir with a new directory re-targets journal appends", () => {
+      const dir1 = makeTempDir();
+      const dir2 = makeTempDir();
+      try {
+        state.setStreamDir(dir1);
+        state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
+
+        // Switching directories must not keep appending to dir1's journal.
+        state.setStreamDir(dir2);
+        state.pushStreamEvent("agent-x", makeMessageEndEvent("in dir2"), defaultFormat);
+
+        const streamLines = (entries: AgentJournalEntry[]): string[] =>
+          entries
+            .filter((e): e is Extract<AgentJournalEntry, { type: "stream" }> => e.type === "stream")
+            .map((e) => e.line);
+
+        expect(streamLines(readJournal(dir1, "agent-x"))).toEqual(["agent_start: detail"]);
+        expect(streamLines(readJournal(dir2, "agent-x"))).toEqual(["message_end: detail"]);
+      } finally {
+        rmSync(dir1, { recursive: true, force: true });
+        rmSync(dir2, { recursive: true, force: true });
+      }
+    });
+
+    it("migrates legacy files into a journal on prepopulate", async () => {
+      // Legacy pre-journal layout: .stream, .messages.jsonl and BOTH the
+      // current .events.jsonl plus a rotated .events.1.jsonl archive.
+      writeFileSync(join(tmpDir, "legacy-agent.stream"), "tool_execution_start: read\n", "utf-8");
+      writeFileSync(
+        join(tmpDir, "legacy-agent.messages.jsonl"),
         JSON.stringify({ role: "assistant", content: [{ type: "text", text: "prior" }] }) + "\n",
         "utf-8",
       );
-      // Also write a .stream file.
-      writeFileSync(join(tmpDir, "stale-agent.stream"), "old line\n", "utf-8");
-      // Also write a .events.jsonl file.
       writeFileSync(
-        join(tmpDir, "stale-agent.events.jsonl"),
+        join(tmpDir, "legacy-agent.events.jsonl"),
+        JSON.stringify({ type: "agent_start" }) + "\n",
+        "utf-8",
+      );
+      writeFileSync(
+        join(tmpDir, "legacy-agent.events.1.jsonl"),
+        JSON.stringify({ type: "turn_start" }) + "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      // The journal now exists and every legacy file was folded in + removed.
+      expect(existsSync(join(tmpDir, "legacy-agent.journal.jsonl"))).toBe(true);
+      expect(existsSync(join(tmpDir, "legacy-agent.stream"))).toBe(false);
+      expect(existsSync(join(tmpDir, "legacy-agent.messages.jsonl"))).toBe(false);
+      expect(existsSync(join(tmpDir, "legacy-agent.events.jsonl"))).toBe(false);
+      expect(existsSync(join(tmpDir, "legacy-agent.events.1.jsonl"))).toBe(false);
+
+      // Legacy files carry no lifecycle, so the migrated entry is "running"
+      // (the truthful state — no terminal marker was ever recorded), with
+      // its messages and last stream line loaded. createdAt comes from the
+      // earliest entry ts (the legacy file mtimes), never invented.
+      const entry = state.getAgentEntry("legacy-agent")!;
+      expect(entry.status).toBe("running");
+      expect(entry.finishedAt).toBeUndefined();
+      expect(entry.createdAt).toBeInstanceOf(Date);
+      expect(entry.createdAt.getTime()).toBeGreaterThan(0);
+      expect(state.getConversationMessages("legacy-agent").length).toBe(1);
+      expect(state.getLastLine("legacy-agent")).toBe("tool_execution_start: read");
+    });
+
+    it("journal wins over legacy siblings — legacy files are left untouched", async () => {
+      // Partial-migration state: both the journal and legacy siblings exist
+      // for the same agent. The journal is authoritative — replay builds the
+      // entry from it, and the legacy files are NOT folded in or removed.
+      writeFileSync(
+        join(tmpDir, "coexist-agent.journal.jsonl"),
+        JSON.stringify({
+          type: "lifecycle",
+          phase: "done",
+          passed: true,
+          summary: "journal run ok",
+          ts: "2026-01-01T00:05:00.000Z",
+        }) + "\n",
+        "utf-8",
+      );
+      writeFileSync(join(tmpDir, "coexist-agent.stream"), "legacy stream line\n", "utf-8");
+      writeFileSync(
+        join(tmpDir, "coexist-agent.messages.jsonl"),
+        JSON.stringify({ role: "assistant", content: [{ type: "text", text: "legacy msg" }] }) +
+          "\n",
+        "utf-8",
+      );
+      writeFileSync(
+        join(tmpDir, "coexist-agent.events.jsonl"),
         JSON.stringify({ type: "agent_start" }) + "\n",
         "utf-8",
       );
 
       await state.prepopulateStreamFiles(tmpDir);
 
-      // Stale entry should have been created.
-      const entry = state.getAgentEntry("stale-agent");
-      expect(entry).toBeDefined();
-      expect(entry!.status).toBe("done");
-
-      // No parsed result on disk means `passed` stays undefined, so the
-      // entry renders "completed" (green) rather than "failed".
-      expect(AgentDisplayHelpers.getEntryPassed(entry!)).toBeUndefined();
-      expect(AgentDisplayHelpers.getStatusLabel("done", undefined).label).toBe("completed");
-
-      // Messages should have been loaded from disk.
-      const messages = state.getConversationMessages("stale-agent");
-      expect(messages.length).toBe(1);
-    });
-
-    it("prepopulateStreamFiles preserves mtime-based finishedAt seeding", async () => {
-      // A .stream file from a prior session carries its mtime as the
-      // finishedAt hint; update() must preserve an explicit finishedAt on
-      // terminal entries instead of overwriting it with a fresh stamp.
-      const past = new Date("2026-01-01T00:00:00Z");
-      const streamPath = join(tmpDir, "old-agent.stream");
-      writeFileSync(streamPath, "old line\n", "utf-8");
-      utimesSync(streamPath, past, past);
-
-      await state.prepopulateStreamFiles(tmpDir);
-
-      const entry = state.getAgentEntry("old-agent")!;
+      // The entry is built from the journal's done lifecycle, not the legacy
+      // files (which carry no lifecycle at all).
+      const entry = state.getAgentEntry("coexist-agent")!;
       expect(entry.status).toBe("done");
-      expect(entry.finishedAt).toBeInstanceOf(Date);
-      expect(entry.finishedAt!.getTime()).toBe(past.getTime());
+      expect(AgentDisplayHelpers.getEntryPassed(entry)).toBe(true);
+      expect(entry.summary).toBe("journal run ok");
+      expect(entry.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00.000Z").getTime());
+
+      // Legacy siblings are left in place — a journal existing means migration
+      // already happened (or never needed to), so they are ignored rather than
+      // re-folded (and thus never deleted).
+      expect(existsSync(join(tmpDir, "coexist-agent.stream"))).toBe(true);
+      expect(existsSync(join(tmpDir, "coexist-agent.messages.jsonl"))).toBe(true);
+      expect(existsSync(join(tmpDir, "coexist-agent.events.jsonl"))).toBe(true);
     });
 
-    it("prepopulateStreamFiles mtime seed survives connect-style terminal re-delivery", async () => {
-      // After prepopulate, AgentViewerOverlay.connect() re-delivers done for
-      // every still-Completed agent with the run-record createdAt — close to,
-      // but not identical to, the birthtime-seeded createdAt. The mtime seed
-      // must survive that re-delivery: it is the real finish time, and a
-      // re-stamp would inflate elapsed by the whole downtime.
-      const streamPath = join(tmpDir, "old-agent.stream");
-      writeFileSync(streamPath, "old line\n", "utf-8");
-      utimesSync(streamPath, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:05:00Z"));
+    it("replays a journal with a corrupted trailing line from the valid prefix (AC 7)", async () => {
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+      try {
+        writeFileSync(
+          join(tmpDir, "corrupt-agent.journal.jsonl"),
+          JSON.stringify({
+            type: "lifecycle",
+            phase: "done",
+            passed: true,
+            summary: "ok",
+            ts: "2026-01-01T00:05:00.000Z",
+          }) +
+            "\n" +
+            '{"type": "lifecycle", "phase": "done", "pass' +
+            "\n",
+          "utf-8",
+        );
+
+        await state.prepopulateStreamFiles(tmpDir);
+
+        // The corrupt tail is skipped with a warn; the valid prefix still
+        // builds the entry.
+        expect(warnSpy).toHaveBeenCalled();
+        const entry = state.getAgentEntry("corrupt-agent")!;
+        expect(entry.status).toBe("done");
+        expect(AgentDisplayHelpers.getEntryPassed(entry)).toBe(true);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("prepopulate replay is read-only — the journal bytes are unchanged", async () => {
+      const journalPath = join(tmpDir, "readonly-agent.journal.jsonl");
+      const content =
+        JSON.stringify({ type: "lifecycle", phase: "started", ts: "2026-01-01T00:00:00.000Z" }) +
+        "\n" +
+        JSON.stringify({
+          type: "stream",
+          line: "agent_start: detail",
+          ts: "2026-01-01T00:00:01.000Z",
+        }) +
+        "\n";
+      writeFileSync(journalPath, content, "utf-8");
+      const before = readFileSync(journalPath, "utf-8");
 
       await state.prepopulateStreamFiles(tmpDir);
 
-      const seeded = state.getAgentEntry("old-agent")!;
-      expect(seeded.status).toBe("done");
-      expect(seeded.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00Z").getTime());
-
-      // connect() re-delivery: same run, run-record createdAt (ms-level
-      // difference from the seed), no finishedAt.
-      state.update({
-        id: "old-agent",
-        status: "done",
-        passed: false,
-        summary: "Agent completed",
-        createdAt: new Date("2026-01-01T00:00:00.005Z"),
-      });
-
-      const redelivered = state.getAgentEntry("old-agent")!;
-      expect(redelivered.finishedAt!.getTime()).toBe(new Date("2026-01-01T00:05:00Z").getTime());
-      // Elapsed = mtime - run-record createdAt ≈ the real run duration.
-      expect(redelivered.finishedAt!.getTime() - redelivered.createdAt.getTime()).toBeLessThan(
-        10 * 60 * 1000,
-      );
+      // Replay reads the journal, it never appends to it.
+      expect(readFileSync(journalPath, "utf-8")).toBe(before);
     });
 
-    it("loadConversationEvents reads from disk when in-memory buffer is insufficient", async () => {
+    it("handles an empty stream directory without entries or throws", async () => {
+      await state.prepopulateStreamFiles(tmpDir);
+
+      expect(state.entryCount).toBe(0);
+      expect(state.getAgentIds()).toEqual([]);
+    });
+
+    it("loadConversationEvents serves only the in-memory sliding window", async () => {
       state.setStreamDir(tmpDir);
 
-      // Write 5 events to .events.jsonl
-      const eventsPath = join(tmpDir, "agent-x.events.jsonl");
-      const diskEvents: JsonAgentSessionEvent[] = [];
-      for (let i = 0; i < 5; i++) {
-        diskEvents.push({ type: "agent_start" });
-      }
+      // Raw events are no longer persisted: a legacy .events.jsonl on disk
+      // must NOT feed loadConversationEvents.
       writeFileSync(
-        eventsPath,
-        diskEvents.map((e) => JSON.stringify(e)).join("\n") + "\n",
+        join(tmpDir, "agent-x.events.jsonl"),
+        JSON.stringify({ type: "agent_start" }) + "\n",
         "utf-8",
       );
 
-      // Only push 1 event in-memory
       state.pushStreamEvent("agent-x", makeMessageEndEvent("latest"), defaultFormat);
 
-      // Events file should be registered during pushStreamEvent (it registers .events.jsonl
-      // too). Then we manually register the events path to ensure loadConversationEvents finds it.
-      // pushStreamEvent registers .events.jsonl, but since the write happens before the events
-      // file is created... Let's pre-create the files path registration by prepopulating.
       await state.prepopulateStreamFiles(tmpDir);
 
       const events = await state.loadConversationEvents("agent-x", 10);
-      // Should have at least the 5 disk events
-      expect(events.length).toBeGreaterThanOrEqual(5);
+      // Only the in-memory event is served — the disk file never loads.
+      expect(events.length).toBe(1);
+      expect(events[0].type).toBe("message_end");
     });
 
-    it("rotates .events.jsonl to .events.1.jsonl at the line cap and starts a fresh file", async () => {
-      // Pre-session .events.jsonl at exactly the cap, plus a stale archive
-      // that the POSIX rename should overwrite.
-      const eventsPath = join(tmpDir, "agent-x.events.jsonl");
-      const lines = new Array(MAX_EVENTS_FILE_LINES)
-        .fill(null)
-        .map(() => JSON.stringify({ type: "agent_start" }));
-      writeFileSync(eventsPath, lines.join("\n") + "\n", "utf-8");
-      const archivePath = join(tmpDir, "agent-x.events.1.jsonl");
-      writeFileSync(archivePath, "stale\n", "utf-8");
+    it("loadConversationEvents respects the count parameter (most recent wins)", async () => {
+      for (let i = 0; i < 5; i++) {
+        state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
+      }
 
-      state.setStreamDir(tmpDir);
-      await state.prepopulateStreamFiles(tmpDir);
-
-      // Arithmetic: seeded count 50_000. Push 1 appends the event first, so
-      // the count reaches 50_001 and the archive rotates with cap + 1 lines
-      // including the triggering event. Push 2 creates the fresh current file.
-      state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
-
-      const archiveContent = readFileSync(archivePath, "utf-8");
-      expect(archiveContent.split("\n").filter(Boolean)).toHaveLength(MAX_EVENTS_FILE_LINES + 1);
-      expect(archiveContent.split("\n")[0]).toBe(JSON.stringify({ type: "agent_start" }));
-      // The stale archive was overwritten, not appended to.
-      expect(archiveContent).not.toContain("stale");
-
-      state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
-      const currentContent = readFileSync(eventsPath, "utf-8");
-      expect(currentContent.trim()).toBe(JSON.stringify({ type: "agent_start" }));
-    });
-
-    it("falls through to .messages.jsonl persistence when rotation rename fails", async () => {
-      // Block the archive path with a directory so renameSync fails.
-      mkdirSync(join(tmpDir, "agent-x.events.1.jsonl"));
-
-      const eventsPath = join(tmpDir, "agent-x.events.jsonl");
-      const lines = new Array(MAX_EVENTS_FILE_LINES)
-        .fill(null)
-        .map(() => JSON.stringify({ type: "agent_start" }));
-      writeFileSync(eventsPath, lines.join("\n") + "\n", "utf-8");
-
-      state.setStreamDir(tmpDir);
-      await state.prepopulateStreamFiles(tmpDir);
-
-      // Push appends first, then the rotation rename fails; the method must
-      // fall through so the finalized message is still persisted.
-      state.pushStreamEvent("agent-x", makeMessageEndEvent("survives rotation"), defaultFormat);
-
-      const messagesPath = join(tmpDir, "agent-x.messages.jsonl");
-      expect(readFileSync(messagesPath, "utf-8")).toContain("survives rotation");
-
-      // The current events file still grew past the cap (best-effort append).
-      const currentContent = readFileSync(eventsPath, "utf-8");
-      expect(currentContent.split("\n").filter(Boolean)).toHaveLength(MAX_EVENTS_FILE_LINES + 1);
+      const events = await state.loadConversationEvents("agent-x", 3);
+      expect(events.length).toBe(3);
     });
   });
 
@@ -824,14 +1379,41 @@ describe("AgentViewerState", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it("loads lines from .stream file", async () => {
-      state.setStreamDir(tmpDir);
-      state.pushStreamEvent("agent-x", makeAgentStartEvent(), defaultFormat);
-      state.pushStreamEvent("agent-x", makeMessageEndEvent("hello"), defaultFormat);
+    it("returns stream lines from the journal", async () => {
+      writeFileSync(
+        join(tmpDir, "agent-x.journal.jsonl"),
+        JSON.stringify({
+          type: "stream",
+          line: "agent_start: detail",
+          ts: "2026-01-01T00:00:01.000Z",
+        }) +
+          "\n" +
+          JSON.stringify({
+            type: "stream",
+            line: "message_end: detail",
+            ts: "2026-01-01T00:00:02.000Z",
+          }) +
+          "\n",
+        "utf-8",
+      );
+      await state.prepopulateStreamFiles(tmpDir);
 
       const lines = await state.loadStreamFile("agent-x");
-      expect(lines.length).toBe(2);
-      expect(lines[0]).toBe("agent_start: detail");
+      expect(lines).toEqual(["agent_start: detail", "message_end: detail"]);
+    });
+
+    it("loads stream lines from a migrated legacy .stream file", async () => {
+      // Pre-write a legacy .stream file; prepopulate folds it into the
+      // journal, which loadStreamFile replays.
+      writeFileSync(
+        join(tmpDir, "agent-x.stream"),
+        "agent_start: detail\nmessage_end: detail\n",
+        "utf-8",
+      );
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const lines = await state.loadStreamFile("agent-x");
+      expect(lines).toEqual(["agent_start: detail", "message_end: detail"]);
     });
 
     it("returns empty array when no stream file registered", async () => {
@@ -858,9 +1440,30 @@ describe("AgentViewerState", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    it("loads messages from .messages.jsonl file", async () => {
-      state.setStreamDir(tmpDir);
-      state.pushStreamEvent("agent-x", makeMessageEndEvent("Hello world"), defaultFormat);
+    it("returns messages from the journal", async () => {
+      writeFileSync(
+        join(tmpDir, "agent-x.journal.jsonl"),
+        JSON.stringify({
+          type: "message",
+          message: { role: "assistant", content: [{ type: "text", text: "Hello world" }] },
+          ts: "2026-01-01T00:00:01.000Z",
+        }) + "\n",
+        "utf-8",
+      );
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const messages = await state.loadMessagesFile("agent-x");
+      expect(messages.length).toBe(1);
+      expect(AgentDisplayHelpers.extractMessageText(messages[0])).toBe("Hello world");
+    });
+
+    it("loads messages from a migrated legacy .messages.jsonl file", async () => {
+      writeFileSync(
+        join(tmpDir, "agent-x.messages.jsonl"),
+        `${JSON.stringify(assistantMessage([text("Hello world")]))}\n`,
+        "utf-8",
+      );
+      await state.prepopulateStreamFiles(tmpDir);
 
       const messages = await state.loadMessagesFile("agent-x");
       expect(messages.length).toBe(1);
@@ -877,9 +1480,9 @@ describe("AgentViewerState", () => {
     });
   });
 
-  // ── loadMessagesFromDiskIntoCache (via prepopulateStreamFiles) ─
+  // ── Message cache via prepopulate (journal replay) ───────
 
-  describe("loadMessagesFromDiskIntoCache", () => {
+  describe("message cache via prepopulate", () => {
     let tmpDir: string;
 
     beforeEach(() => {
@@ -937,6 +1540,173 @@ describe("AgentViewerState", () => {
 
       const messages = state.getConversationMessages("overflow-agent");
       expect(messages.length).toBeLessThanOrEqual(200);
+    });
+  });
+
+  // ── getAgentTools ─────────────────────────────────────────
+
+  describe("getAgentTools", () => {
+    let tmpDir: string;
+
+    beforeEach(() => {
+      tmpDir = makeTempDir();
+    });
+
+    afterEach(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it("populates the tool log live from pushStreamEvent (start + end)", () => {
+      state.setStreamDir(tmpDir);
+      state.pushStreamEvent(
+        "agent-x",
+        {
+          type: "tool_execution_start",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          args: { cmd: "ls" },
+        },
+        defaultFormat,
+      );
+      state.pushStreamEvent(
+        "agent-x",
+        {
+          type: "tool_execution_end",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          result: "file listing",
+          isError: false,
+        },
+        defaultFormat,
+      );
+
+      const tools = state.getAgentTools("agent-x");
+      expect(tools).toHaveLength(2);
+      expect(tools[0]).toMatchObject({
+        toolCallId: "tc-1",
+        toolName: "bash",
+        args: { cmd: "ls" },
+      });
+      // The entries are typed AgentToolEntry objects: every entry carries the
+      // ISO ts stamp, matching the journal record shape.
+      expect(typeof tools[0].ts).toBe("string");
+      // The end entry carries the args merged from the matching start.
+      expect(tools[1]).toMatchObject({
+        toolCallId: "tc-1",
+        toolName: "bash",
+        result: "file listing",
+        isError: false,
+        args: { cmd: "ls" },
+      });
+      expect(typeof tools[1].ts).toBe("string");
+    });
+
+    it("replays tool entries from the journal into the tool log", async () => {
+      writeFileSync(
+        join(tmpDir, "agent-x.journal.jsonl"),
+        JSON.stringify({
+          type: "tool",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          args: { cmd: "ls" },
+          ts: "2026-01-01T00:00:01.000Z",
+        }) +
+          "\n" +
+          JSON.stringify({
+            type: "tool",
+            toolCallId: "tc-1",
+            toolName: "bash",
+            result: "listing",
+            isError: false,
+            ts: "2026-01-01T00:00:02.000Z",
+          }) +
+          "\n",
+        "utf-8",
+      );
+
+      await state.prepopulateStreamFiles(tmpDir);
+
+      const tools = state.getAgentTools("agent-x");
+      expect(tools).toHaveLength(2);
+      expect(tools[0]).toMatchObject({
+        toolCallId: "tc-1",
+        toolName: "bash",
+        args: { cmd: "ls" },
+      });
+      // Replayed entries carry the journal's ts stamp (AgentToolEntry shape).
+      expect(tools[0].ts).toBe("2026-01-01T00:00:01.000Z");
+      expect(tools[1]).toMatchObject({
+        toolCallId: "tc-1",
+        toolName: "bash",
+        result: "listing",
+        isError: false,
+      });
+      expect(tools[1].ts).toBe("2026-01-01T00:00:02.000Z");
+    });
+
+    it("omits args from the live tool log when no start recorded them (matches replay)", () => {
+      state.setStreamDir(tmpDir);
+      // An end event with no preceding start — args were never captured.
+      state.pushStreamEvent(
+        "agent-x",
+        {
+          type: "tool_execution_end",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          result: "listing",
+          isError: false,
+        },
+        defaultFormat,
+      );
+
+      const tools = state.getAgentTools("agent-x");
+      expect(tools).toHaveLength(1);
+      // Live and replayed tool logs share one shape: no args key when the
+      // value would be undefined (replay omits it, so live must too).
+      expect(tools[0]).not.toHaveProperty("args");
+      expect(tools[0]).toMatchObject({
+        toolCallId: "tc-1",
+        toolName: "bash",
+        result: "listing",
+        isError: false,
+      });
+    });
+
+    it("omits isError from the live tool log and journal when the end event has none", () => {
+      state.setStreamDir(tmpDir);
+      // An end event without isError — the key must be omitted from both
+      // the live tool log and the journal entry, exactly as replay shapes
+      // them (M2 shape parity).
+      state.pushStreamEvent(
+        "agent-x",
+        {
+          type: "tool_execution_end",
+          toolCallId: "tc-1",
+          toolName: "bash",
+          result: "listing",
+        } as unknown as JsonAgentSessionEvent,
+        defaultFormat,
+      );
+
+      const tools = state.getAgentTools("agent-x");
+      expect(tools).toHaveLength(1);
+      expect(tools[0]).not.toHaveProperty("isError");
+      expect(tools[0]).toMatchObject({
+        toolCallId: "tc-1",
+        toolName: "bash",
+        result: "listing",
+      });
+
+      const journalTool = readJournal(tmpDir, "agent-x").find(
+        (e): e is Extract<AgentJournalEntry, { type: "tool" }> =>
+          e.type === "tool" && e.toolCallId === "tc-1" && "result" in e,
+      );
+      expect(journalTool).toBeDefined();
+      expect(journalTool).not.toHaveProperty("isError");
+    });
+
+    it("returns an empty array for unknown agents", () => {
+      expect(state.getAgentTools("nonexistent")).toEqual([]);
     });
   });
 

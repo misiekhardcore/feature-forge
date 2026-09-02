@@ -47,6 +47,14 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     expect(DEFAULT_FORGE_CONFIG.logRetentionDays).toBe(7);
   });
 
+  it("has default max log bytes of 10 MB", () => {
+    expect(DEFAULT_FORGE_CONFIG.logMaxBytes).toBe(10 * 1024 * 1024);
+  });
+
+  it("has default max log files of 5", () => {
+    expect(DEFAULT_FORGE_CONFIG.logMaxFiles).toBe(5);
+  });
+
   it("has payload logging disabled by default", () => {
     expect(DEFAULT_FORGE_CONFIG.logPayloads).toBe(false);
   });
@@ -122,6 +130,8 @@ describe("DEFAULT_FORGE_CONFIG", () => {
     );
     expect(DEFAULT_FORGE_CONFIG.logDir).toBe(defaultsJson.logDir);
     expect(DEFAULT_FORGE_CONFIG.logRetentionDays).toBe(defaultsJson.logRetentionDays);
+    expect(DEFAULT_FORGE_CONFIG.logMaxBytes).toBe(defaultsJson.logMaxBytes);
+    expect(DEFAULT_FORGE_CONFIG.logMaxFiles).toBe(defaultsJson.logMaxFiles);
     expect(DEFAULT_FORGE_CONFIG.logPayloads).toBe(defaultsJson.logPayloads);
     expect(DEFAULT_FORGE_CONFIG.worktreeSymlinks).toEqual(defaultsJson.worktreeSymlinks);
     expect(DEFAULT_FORGE_CONFIG.taskTimeoutMs).toBe(defaultsJson.taskTimeoutMs);
@@ -214,6 +224,16 @@ describe("resolveConfig", () => {
   it("overrides logRetentionDays", () => {
     const config = resolveConfig({ logRetentionDays: 14 });
     expect(config.logRetentionDays).toBe(14);
+  });
+
+  it("overrides logMaxBytes", () => {
+    const config = resolveConfig({ logMaxBytes: 123 });
+    expect(config.logMaxBytes).toBe(123);
+  });
+
+  it("overrides logMaxFiles", () => {
+    const config = resolveConfig({ logMaxFiles: 9 });
+    expect(config.logMaxFiles).toBe(9);
   });
 
   it("overrides logPayloads", () => {

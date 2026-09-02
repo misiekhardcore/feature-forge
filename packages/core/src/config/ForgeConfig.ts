@@ -195,6 +195,22 @@ export class ForgeConfig {
   }
 
   /**
+   * Return the maximum bytes per rotated log segment before rolling to
+   * the next segment (`.1`/`.2`). Defaults to 10485760 (10 MB).
+   */
+  getLogMaxBytes(): number {
+    return this.getConfig().logMaxBytes!;
+  }
+
+  /**
+   * Return the maximum number of log files kept by count retention
+   * (audit mode: total including the base file). Defaults to 5.
+   */
+  getLogMaxFiles(): number {
+    return this.getConfig().logMaxFiles!;
+  }
+
+  /**
    * Return whether full payload data is included in debug log entries.
    * Defaults to false.
    */

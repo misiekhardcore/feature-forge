@@ -408,6 +408,48 @@ describe("ForgeConfig", () => {
       expect(instance.getLogRetentionDays()).toBe(7);
     });
 
+    it("returns the configured log max bytes", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          logMaxBytes: 5242880,
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogMaxBytes()).toBe(5242880);
+    });
+
+    it("returns default 10 MB when logMaxBytes not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogMaxBytes()).toBe(10 * 1024 * 1024);
+    });
+
+    it("returns the configured log max files", async () => {
+      await fs.writeFile(
+        join(tempDir, "forge.config.json"),
+        JSON.stringify({
+          logLevel: "info",
+          workspaceProvider: "git-worktree",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+          logMaxFiles: 12,
+        }),
+      );
+
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogMaxFiles()).toBe(12);
+    });
+
+    it("returns default 5 when logMaxFiles not configured", async () => {
+      const instance = await ForgeConfig.create({ cwd: tempDir });
+      expect(instance.getLogMaxFiles()).toBe(5);
+    });
+
     it("returns the configured log payloads flag", async () => {
       await fs.writeFile(
         join(tempDir, "forge.config.json"),

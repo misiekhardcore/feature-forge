@@ -173,6 +173,23 @@ export const ForgeConfigSchema = Type.Object({
   logRetentionDays: Type.Readonly(Type.Optional(Type.Integer({ minimum: 0 }))),
 
   /**
+   * Maximum bytes per rotated log segment before rolling to `.1`/`.2`.
+   * Defaults to 10485760 (10 MB).
+   */
+  logMaxBytes: Type.Readonly(Type.Optional(Type.Integer({ minimum: 1 }))),
+
+  /**
+   * Maximum log files kept by count retention (audit mode: total including
+   * the base file). Defaults to 5.
+   *
+   * CAUTION: in audit mode (the production logger) a value of 0 deletes
+   * every file as it is written - the active file itself is evicted by
+   * retention, so nothing persists. Only journal mode (no audit ledger)
+   * keeps the base file at 0. Prefer a value of at least 1.
+   */
+  logMaxFiles: Type.Readonly(Type.Optional(Type.Integer({ minimum: 0 }))),
+
+  /**
    * When true, debug-level log entries include full payload data (LLM messages,
    * tool results). When false, only structural fields are logged. Defaults to false.
    */
