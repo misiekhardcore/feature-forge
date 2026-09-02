@@ -2,6 +2,7 @@ import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
 import { makeMockPi } from "../test-utils";
+import { ToolRenderer } from "../tui/views/ToolRenderer";
 import { SetSessionNameTool } from "./SetSessionNameTool";
 
 describe("SetSessionNameTool", () => {
@@ -23,6 +24,16 @@ describe("SetSessionNameTool", () => {
   it("runs in the current session (renderShell 'self')", () => {
     const tool = new SetSessionNameTool(makeMockPi());
     expect(tool.renderShell).toBe("self");
+  });
+
+  it("wires the set_session_name call renderer", () => {
+    const tool = new SetSessionNameTool(makeMockPi());
+    expect(tool.renderCall).toBe(ToolRenderer.setSessionNameCall);
+  });
+
+  it("wires the set_session_name result renderer", () => {
+    const tool = new SetSessionNameTool(makeMockPi());
+    expect(tool.renderResult).toBe(ToolRenderer.setSessionNameResult);
   });
 
   it("defines parameters requiring a non-empty name", () => {

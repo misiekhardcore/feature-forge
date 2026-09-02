@@ -4,6 +4,7 @@ import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 
 import { makeMockTypedEventBus } from "../test-utils";
+import { ToolRenderer } from "../tui/views/ToolRenderer";
 import { SetFlowParamTool } from "./SetFlowParamTool";
 
 describe("SetFlowParamTool", () => {
@@ -25,6 +26,16 @@ describe("SetFlowParamTool", () => {
   it("runs in the current session (renderShell 'self')", () => {
     const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
     expect(tool.renderShell).toBe("self");
+  });
+
+  it("wires the set_flow_param call renderer", () => {
+    const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
+    expect(tool.renderCall).toBe(ToolRenderer.setFlowParamCall);
+  });
+
+  it("wires the set_flow_param result renderer", () => {
+    const tool = new SetFlowParamTool(new ActiveFlowRegistry(), makeMockTypedEventBus());
+    expect(tool.renderResult).toBe(ToolRenderer.setFlowParamResult);
   });
 
   it("defines parameters requiring a non-empty key", () => {

@@ -16,6 +16,8 @@ const BG: Record<string, ToolBgColor> = {
   get_agent_result: "customMessageBg",
   list_agents: "selectedBg",
   destroy_agent: "toolErrorBg",
+  set_flow_param: "toolSuccessBg",
+  set_session_name: "toolSuccessBg",
 };
 
 function header(theme: Theme, color: ThemeColor, text: string): string {
@@ -183,4 +185,44 @@ export class ToolRenderer {
     });
 
   static listAgentsResult = ToolRenderer.spawnAgentResult;
+
+  // ── set_flow_param / set_session_name ──────────────────────────
+
+  static setFlowParamCall = (
+    args: { key: string; value: string },
+    theme: Theme,
+    context: { state: Record<string, unknown>; expanded?: boolean },
+  ) =>
+    ToolRenderer.build(context, theme, "set_flow_param", ({ line, expandable }) => {
+      line(header(theme, "success", `set_flow_param ${args.key}`));
+      expandable(args.value, "muted");
+    });
+
+  static setFlowParamResult = (
+    result: AgentToolResult<unknown>,
+    options: ToolRenderResultOptions,
+    theme: Theme,
+    context: { state: { _box?: Box }; isError?: boolean },
+  ) => {
+    if (options.isPartial) return new Text("", 1, 0);
+    const message = result.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text)
+      .join("\n");
+    if (context.isError) {
+      return new Text(theme.fg("error", message ? `✗ ${message}` : "✗ failed"), 1, 0);
+    }
+    return new Text(message ? theme.fg("success", message) : theme.fg("muted", "✓ done"), 1, 0);
+  };
+
+  static setSessionNameCall = (
+    args: { name: string },
+    theme: Theme,
+    context: { state: Record<string, unknown>; expanded?: boolean },
+  ) =>
+    ToolRenderer.build(context, theme, "set_session_name", ({ line }) => {
+      line(header(theme, "success", `set_session_name ${args.name}`));
+    });
+
+  static setSessionNameResult = ToolRenderer.setFlowParamResult;
 }
