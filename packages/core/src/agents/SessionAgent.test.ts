@@ -170,7 +170,11 @@ describe("SessionAgent", () => {
       agent.mount(pi, "Build: add auth");
 
       expect(pi.sendUserMessage).toHaveBeenCalledOnce();
-      expect(pi.sendUserMessage).toHaveBeenCalledWith("Build: add auth");
+      // Queued as followUp so a mid-turn mount (command handler context) does
+      // not throw - the message lands after in-flight tool calls finish.
+      expect(pi.sendUserMessage).toHaveBeenCalledWith("Build: add auth", {
+        deliverAs: "followUp",
+      });
     });
 
     it("sets active tools from the spec when any are declared", () => {

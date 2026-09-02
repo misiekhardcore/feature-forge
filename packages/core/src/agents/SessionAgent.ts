@@ -96,7 +96,10 @@ export class SessionAgent extends Agent {
     };
     pi.on("before_agent_start", this.handler);
 
-    pi.sendUserMessage(task);
+    // The persona task is delivered from a command handler that may run while
+    // the agent is mid-turn - deliverAs queues it until the in-flight tool
+    // calls finish instead of throwing or dropping the message.
+    pi.sendUserMessage(task, { deliverAs: "followUp" });
 
     const { fullExclusions, partialRestrictions } = AgentSpecification.parseExcludedTools(
       this.specification.excludedTools,
