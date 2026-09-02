@@ -43,6 +43,16 @@ export class AgentViewerState {
   /** Directory used for filesystem-backed stream buffers. */
   private streamDir?: string;
 
+  /**
+   * Whether journal writes are enabled.
+   *
+   * Defaults to true (back-compat): any state configured with a stream
+   * directory persists exactly as it did before the display/recorder split.
+   * A display-only state calls {@link setJournaling} with false so streamDir
+   * serves replay reads only - the journal recorder is the sole disk writer.
+   */
+  private journaling = true;
+
   /** Maps agent id → raw stream events in insertion order. */
   private agentEvents = new Map<string, JsonAgentSessionEvent[]>();
 
@@ -149,11 +159,14 @@ export class AgentViewerState {
   /**
    * Configure the stream file directory.
    *
-   * When set, every pushStreamEvent call persists the formatted
-   * event line to the agent's append-only journal file named
-   * `{agentId}.journal.jsonl` under the given directory.
+   * When set AND journaling is enabled, every pushStreamEvent call
+   * persists the formatted event line to the agent's append-only journal
+   * file named `{agentId}.journal.jsonl` under the given directory. With
+   * journaling disabled (display-only state) the directory serves replay
+   * reads only (prepopulate/loaders) and live events never hit the disk -
+   * the journal recorder owns writes.
    *
-   * @param streamDir — Directory for filesystem-backed stream buffers.
+   * @param streamDir - Directory for filesystem-backed stream buffers.
    */
   setStreamDir(streamDir: string): void {
     if (streamDir !== this.streamDir) {
@@ -173,6 +186,25 @@ export class AgentViewerState {
    */
   getStreamDir(): string | undefined {
     return this.streamDir;
+  }
+
+  /**
+   * Enable or disable journal persistence.
+   *
+   * Journaling is enabled by default, so a state configured with a stream
+   * directory alone writes journals (all pre-split behavior). A display-only
+   * state passes `false` here: streamDir keeps serving replay reads
+   * (prepopulate/loaders) and live events never touch the disk - the journal
+   * recorder owns writing. One deliberate exception: replay-time legacy
+   * migration ({@link prepopulateStreamFiles} → {@link AgentJournal.migrateLegacy})
+   * can still write journal files when legacy .stream/.messages.jsonl/.events
+   * files exist, because display replay must fold legacy agents regardless of
+   * the gate - do NOT gate migration.
+   *
+   * @param enabled - Whether stream/lifecycle writes may hit journal files.
+   */
+  setJournaling(enabled: boolean): void {
+    this.journaling = enabled;
   }
 
   /**
@@ -242,8 +274,10 @@ export class AgentViewerState {
    * Push a streaming event for an agent.
    *
    * Formats the event into a human-readable line (kept in memory as the
-   * most recent stream line) and, when streamDir is
-   * configured, appends it to the agent's journal file on disk.
+   * most recent stream line) and, when streamDir is configured AND
+   * journaling is enabled, appends it to the agent's journal file on disk.
+   * With journaling disabled (display-only state) the in-memory caches and
+   * tool bookkeeping stay live but no journal write happens.
    */
   pushStreamEvent(
     agentId: string,
@@ -295,9 +329,9 @@ export class AgentViewerState {
   /**
    * Append a lifecycle marker to the agent's journal.
    *
-   * No-op when no stream directory is configured (matching the legacy
-   * "persist only when streamDir is set" semantics). Never throws: journal
-   * appends are best-effort internally.
+   * No-op when no stream directory is configured OR journaling is disabled
+   * (display-only state) - either way there is no journal to write. Never
+   * throws: journal appends are best-effort internally.
    *
    * @param agentId - The agent whose journal receives the entry.
    * @param phase - Lifecycle phase of the agent run.
@@ -310,7 +344,9 @@ export class AgentViewerState {
     passed?: boolean,
     summary?: string,
   ): void {
-    if (!this.streamDir) return;
+    // No-op when no stream directory is configured OR journaling is disabled
+    // (display-only state) - with persistence off there is no journal to write.
+    if (!this.streamDir || !this.journaling) return;
     // Type-level guarantees hold at compile time; a runtime guard keeps
     // malformed input from ever reaching the journal (best-effort, no-op
     // rather than throw).
@@ -356,16 +392,22 @@ export class AgentViewerState {
     if (!this.streamDir) return;
 
     try {
-      mkdirSync(this.streamDir, { recursive: true });
-
-      const journal = this.journalFor(agentId);
-      if (!journal) return;
+      // journaling gates the disk-write half of this method (directory
+      // creation, journal instance, and every append). A display-only state
+      // (journaling=false) with a configured streamDir still runs the
+      // in-memory bookkeeping below so live tool entries keep the tool cache
+      // populated, but never creates or appends journal files - the journal
+      // recorder owns disk writes.
+      if (this.journaling) {
+        mkdirSync(this.streamDir, { recursive: true });
+      }
+      const journal = this.journaling ? this.journalFor(agentId) : undefined;
 
       const ts = new Date().toISOString();
 
       // Persist the formatted line as a stream entry (gated by the same
       // filter that decided .stream persistence before).
-      if (this.shouldPersistStreamEntry(event, line)) {
+      if (journal && this.shouldPersistStreamEntry(event, line)) {
         journal.append({ type: "stream", line, ts });
       }
 
@@ -375,13 +417,15 @@ export class AgentViewerState {
           const argsByTool = this.toolStartArgs.get(agentId) ?? new Map<string, unknown>();
           argsByTool.set(event.toolCallId, event.args);
           this.toolStartArgs.set(agentId, argsByTool);
-          journal.append({
-            type: "tool",
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            args: event.args,
-            ts,
-          });
+          if (journal) {
+            journal.append({
+              type: "tool",
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              args: event.args,
+              ts,
+            });
+          }
           this.pushAgentTool(agentId, {
             toolCallId: event.toolCallId,
             toolName: event.toolName,
@@ -393,31 +437,33 @@ export class AgentViewerState {
         case "tool_execution_end": {
           const argsByTool = this.toolStartArgs.get(agentId);
           const args = argsByTool?.get(event.toolCallId);
-          journal.append({
-            type: "tool",
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            result: event.result,
-            // isError rides along only when defined — the same conditional
-            // shape replay produces, so live and replayed journal entries
-            // are structurally identical.
-            ...(event.isError !== undefined ? { isError: event.isError } : {}),
-            args,
-            ts,
-          });
+          if (journal) {
+            journal.append({
+              type: "tool",
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              result: event.result,
+              // isError rides along only when defined - the same conditional
+              // shape replay produces, so live and replayed journal entries
+              // are structurally identical.
+              ...(event.isError !== undefined ? { isError: event.isError } : {}),
+              args,
+              ts,
+            });
+          }
           this.pushAgentTool(agentId, {
             toolCallId: event.toolCallId,
             toolName: event.toolName,
             ts,
             ...(event.result !== undefined ? { result: event.result } : {}),
             ...(event.isError !== undefined ? { isError: event.isError } : {}),
-            // args ride along only when a matching start recorded them — the
+            // args ride along only when a matching start recorded them - the
             // same conditional shape replay produces, so live and replayed
             // tool logs are structurally identical.
             ...(args !== undefined ? { args } : {}),
           });
           // Prune the remembered start args now that the end entry has
-          // consumed them — bounded memory: one slot per in-flight call.
+          // consumed them - bounded memory: one slot per in-flight call.
           argsByTool?.delete(event.toolCallId);
           break;
         }
@@ -425,7 +471,7 @@ export class AgentViewerState {
           const message = event.message;
           const role = message?.role;
           if (role === "user" || role === "assistant" || role === "toolResult") {
-            journal.append({ type: "message", message, ts });
+            journal?.append({ type: "message", message, ts });
           }
           break;
         }
@@ -607,9 +653,12 @@ export class AgentViewerState {
    * siblings — current plus rotated archives — are all collected so
    * migrateLegacy can order them by file mtime.
    *
-   * Replay is read-only: it never appends to the journal. Returns a promise
-   * that resolves when every journal has been replayed (best-effort — a
-   * failing journal is logged and skipped, never thrown).
+   * Replay of journal files is read-only - it never appends to an existing
+   * journal. The legacy fold (migrateLegacy) is the one write: it creates
+   * the journal one-shot and removes the legacy files, and stays ungated by
+   * the journaling switch so display replay always folds legacy agents.
+   * Returns a promise that resolves when every journal has been replayed
+   * (best-effort - a failing journal is logged and skipped, never thrown).
    */
   async prepopulateStreamFiles(streamDir: string): Promise<void> {
     if (streamDir !== this.streamDir) {

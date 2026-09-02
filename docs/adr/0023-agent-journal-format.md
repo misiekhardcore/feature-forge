@@ -72,7 +72,9 @@ truthfully instead of guessing it.
   `connect`) and `prepopulateStreamFiles` replay never write lifecycle
   entries - seeding reflects the current session's live agents and replay
   is read-only. AC 8: no lifecycle is journaled unless a real wire event
-  carried it.
+  carried it. **Updated by ADR 0025:** the writer is now the routine-layer
+  recorder (`AgentJournalRecorder`) - the overlay funnel only updates
+  display state; wire-event-only provenance is unchanged.
 - **D4 - Replay-first reopen.** `prepopulateStreamFiles` replays each
   journal into viewer state:
   - **Status** comes from the LAST lifecycle entry (last-lifecycle-wins):

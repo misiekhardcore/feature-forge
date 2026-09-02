@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -6,7 +6,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import type { MarkdownTheme, TUI } from "@earendil-works/pi-tui";
-import { AgentStatus, jsonParse } from "@feature-forge/core";
+import { AgentStatus } from "@feature-forge/core";
 import type { Agent, AgentKind } from "@feature-forge/core/agents";
 import type { AgentSpecification } from "@feature-forge/core/agents";
 import { AgentSupervisor } from "@feature-forge/core/agents";
@@ -25,7 +25,6 @@ import {
   text,
   toolCall,
   toolEndEvent,
-  toolResultMessage,
   toolStartEvent,
   toolUpdateEvent,
   turnEndEvent,
@@ -730,79 +729,9 @@ describe("AgentViewerOverlay", () => {
       expect(overlay.getLastStreamLine("reviewer")).toBe("lint");
     });
 
-    it("writes stream events to the agent journal when streamDir is configured", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      expect(content).toContain("read");
-      expect(content).toContain("assistant");
-
-      overlay.dispose();
-    });
-
-    it("writes journal files with agent id as filename", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      const expectedPath = join(tmpDir, "builder.journal.jsonl");
-      expect(existsSync(expectedPath)).toBe(true);
-
-      const content = readFileSync(expectedPath, "utf-8");
-      expect(content).toContain("read");
-
-      overlay.dispose();
-    });
-
-    it("writes to disk when streamDir is configured", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      // In-memory line should still be recorded.
-      expect(overlay.getLastStreamLine("builder")).toBe("read");
-
-      overlay.dispose();
-    });
-
-    it("creates the stream directory if it does not exist", () => {
-      const tmpDir = join(tmpdir(), `forge-stream-mkdir-${Date.now()}`);
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      expect(content).toContain("read");
-
-      overlay.dispose();
-    });
-
-    it("appends subsequent events from the same agent to the same journal", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-      overlay.pushStreamEvent("builder", toolStartEvent("write"));
-
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      expect(content).toContain("read");
-      expect(content).toContain("write");
-
-      overlay.dispose();
-    });
-
-    it("does not throw when streamDir filesystem operations fail", () => {
+    it("does not throw when a streamDir is configured (display-only, never writes)", () => {
+      // The overlay is display-only: a configured streamDir serves replay
+      // reads, so even an unusable path must not throw during live pushes.
       const overlay = makeOverlay();
       overlay.setStreamDir("/nonexistent/path/that/should/fail");
 
@@ -832,21 +761,6 @@ describe("AgentViewerOverlay", () => {
 
       expect(tui.requestRender).toHaveBeenCalled();
     });
-
-    it("handles pushStreamEvent with streamDir set gracefully", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-dir-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      // Should not throw.
-      expect(() => {
-        overlay.pushStreamEvent("builder", toolStartEvent("read"));
-      }).not.toThrow();
-
-      expect(overlay.getLastStreamLine("builder")).toBe("read");
-
-      overlay.dispose();
-    });
   });
 
   describe("lastStreamLine", () => {
@@ -861,57 +775,6 @@ describe("AgentViewerOverlay", () => {
       overlay.pushStreamEvent("reviewer", toolStartEvent("lint"));
 
       expect(overlay.lastStreamLine).toBe("lint");
-    });
-  });
-
-  describe("setStreamDir", () => {
-    it("configures stream directory for file persistence", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      expect(content).toContain("read");
-
-      overlay.dispose();
-    });
-
-    it("overwrites previous streamDir when called again", () => {
-      const tmpDir1 = mkdtempSync(join(tmpdir(), "forge-overwrite-1-"));
-      const tmpDir2 = mkdtempSync(join(tmpdir(), "forge-overwrite-2-"));
-
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir1);
-      overlay.setStreamDir(tmpDir2);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      // Journal should be written to the second (overwritten) directory.
-      const expectedPath = join(tmpDir2, "builder.journal.jsonl");
-      expect(existsSync(expectedPath)).toBe(true);
-
-      // Journal should NOT be in tmpDir1.
-      const oldPath = join(tmpDir1, "builder.journal.jsonl");
-      expect(existsSync(oldPath)).toBe(false);
-
-      overlay.dispose();
-    });
-
-    it("writes to disk when streamDir is an empty string", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-empty-exec-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      // In-memory line should still be recorded.
-      expect(overlay.getLastStreamLine("builder")).toBe("read");
-      // Disk journal IS written.
-      const files = existsSync(tmpDir) ? readdirSync(tmpDir) : [];
-      expect(files.filter((f: string) => f.endsWith(".journal.jsonl"))).toHaveLength(1);
-
-      overlay.dispose();
     });
   });
 
@@ -930,19 +793,22 @@ describe("AgentViewerOverlay", () => {
       }
     });
 
-    it("removes stream files written to disk", () => {
+    it("leaves recorder-written journal files on disk after dispose", () => {
+      // Journals are written by the AgentJournalRecorder (the disk writer);
+      // the display overlay's dispose must never delete them.
+      writeFileSync(
+        join(tmpDir, "builder.journal.jsonl"),
+        JSON.stringify({ type: "lifecycle", phase: "started", ts: "2026-01-01T00:00:00.000Z" }) +
+          "\n",
+        "utf-8",
+      );
+
       const overlay = makeOverlay();
       overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      const filePath = join(tmpDir, "builder.journal.jsonl");
-      expect(existsSync(filePath)).toBe(true);
-
+      overlay.update(makeEntry("builder", "started"));
       overlay.dispose();
 
-      // Files persist in shared dir.
-      expect(existsSync(filePath)).toBe(true);
+      expect(existsSync(join(tmpDir, "builder.journal.jsonl"))).toBe(true);
     });
 
     it("resets agent entries on dispose", () => {
@@ -1532,53 +1398,6 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("constructor with streamDir", () => {
-    let tmpDir: string;
-
-    beforeEach(() => {
-      tmpDir = mkdtempSync(join(tmpdir(), "forge-overlay-test-"));
-    });
-
-    afterEach(() => {
-      rmSync(tmpDir, { recursive: true, force: true });
-    });
-
-    it("writes stream events to the journal and provides readable tail", () => {
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-      overlay.pushStreamEvent(
-        "builder",
-        messageEndEvent(assistantMessage([text("I will now read the file.")])),
-      );
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      expect(content).toContain("assistant");
-      expect(content).toContain("I will now read the file.");
-      expect(content).toContain("read");
-
-      overlay.dispose();
-    });
-
-    it("journal content survives overlay instance lifetime", () => {
-      const overlay1 = makeOverlay();
-      overlay1.setStreamDir(tmpDir);
-      overlay1.pushStreamEvent("builder", toolStartEvent("read"));
-
-      const overlay2 = makeOverlay();
-      overlay2.setStreamDir(tmpDir);
-      overlay2.pushStreamEvent("builder", toolStartEvent("write"));
-
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      expect(content).toContain("write");
-
-      overlay1.dispose();
-      overlay2.dispose();
-    });
-  });
-
   describe("wireOverlayEvents", () => {
     function makeMockAgent(
       id: string,
@@ -2023,49 +1842,6 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("persists stream events to disk when connect sets streamDir", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-stream-test-"));
-      try {
-        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-        const agentQuery = makeMockSupervisor([agent]);
-        const eventBus = makeMockTypedEventBus();
-        const overlay = makeOverlay();
-
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-          eventBus,
-          agentQuery,
-          config: mockConfig,
-          toolRegistry: makeMockToolRegistry(),
-        });
-
-        connect(overlay, streamDir);
-
-        eventBus.emit("feature-forge:agent-stream", {
-          phase: "agent-stream",
-          message: 'Agent "builder" stream event',
-          details: {
-            executionId: "exec-1",
-            label: "builder",
-            agentId: "builder",
-            event: {
-              type: "tool_execution_start",
-              toolCallId: "call-1",
-              toolName: "read",
-              args: {},
-            },
-          },
-        });
-
-        const content = readFileSync(join(streamDir, "builder.journal.jsonl"), "utf-8");
-        expect(content).toContain("read");
-
-        unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
     it("returns three unsubs, one per subscribed channel", () => {
       const agentQuery = makeMockSupervisor();
       const eventBus = makeMockTypedEventBus();
@@ -2326,233 +2102,7 @@ describe("AgentViewerOverlay", () => {
       overlay.dispose();
     });
 
-    it("persists buffered events to disk when connect sets streamDir before replay", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-buf-persist-"));
-      try {
-        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-        const agentQuery = makeMockSupervisor([agent]);
-        const eventBus = makeMockTypedEventBus();
-        const overlay = makeOverlay();
-
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-          eventBus,
-          agentQuery,
-          config: mockConfig,
-          toolRegistry: makeMockToolRegistry(),
-        });
-
-        // Emit events BEFORE connect — they should be buffered.
-        eventBus.emit("feature-forge:agent-stream", {
-          phase: "agent-stream",
-          message: 'Agent "builder" stream event',
-          details: {
-            executionId: "exec-1",
-            label: "builder",
-            agentId: "builder",
-            event: {
-              type: "tool_execution_start",
-              toolCallId: "call-1",
-              toolName: "read",
-              args: {},
-            },
-          },
-        });
-
-        // Connect with streamDir — buffered events should be persisted.
-        connect(overlay, streamDir);
-
-        // Verify buffered event was written to the agent journal.
-        expect(existsSync(join(streamDir, "builder.journal.jsonl"))).toBe(true);
-        const streamContent = readFileSync(join(streamDir, "builder.journal.jsonl"), "utf-8");
-        expect(streamContent).toContain("read");
-
-        unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
     // ── lifecycle journaling ────────────────────────────────
-
-    it("journals agent-started as a lifecycle entry when connected with streamDir", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-        const agentQuery = makeMockSupervisor([agent]);
-        const eventBus = makeMockTypedEventBus();
-        const overlay = makeOverlay();
-
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-          eventBus,
-          agentQuery,
-          config: mockConfig,
-          toolRegistry: makeMockToolRegistry(),
-        });
-
-        connect(overlay, streamDir);
-
-        eventBus.emit("feature-forge:agent-started", {
-          phase: "agent-started",
-          message: 'Agent "builder" started',
-          details: { executionId: "exec-1", agentId: "builder" },
-        });
-
-        const lifecycle = readJournal(streamDir, "builder").filter((e) => e.type === "lifecycle");
-        expect(lifecycle).toHaveLength(1);
-        expect(lifecycle[0]).toMatchObject({ type: "lifecycle", phase: "started" });
-
-        unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
-    it("journals agent-done with passed and summary as a lifecycle entry", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const agent = makeMockAgent("builder", "builder", AgentStatus.Completed);
-        const agentQuery = makeMockSupervisor([agent]);
-        const eventBus = makeMockTypedEventBus();
-        const overlay = makeOverlay();
-
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-          eventBus,
-          agentQuery,
-          config: mockConfig,
-          toolRegistry: makeMockToolRegistry(),
-        });
-
-        connect(overlay, streamDir);
-
-        eventBus.emit("feature-forge:agent-done", {
-          phase: "agent-done",
-          message: 'Agent "builder" completed',
-          details: {
-            executionId: "exec-1",
-            agentId: "builder",
-            passed: true,
-            summary: "Build passed",
-          },
-        });
-
-        const lifecycle = readJournal(streamDir, "builder").filter((e) => e.type === "lifecycle");
-        expect(lifecycle).toHaveLength(1);
-        expect(lifecycle[0]).toMatchObject({
-          type: "lifecycle",
-          phase: "done",
-          passed: true,
-          summary: "Build passed",
-        });
-
-        unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
-    it("journals agent-done with passed false as { phase: 'done', passed: false }", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const agent = makeMockAgent("reviewer", "reviewer", AgentStatus.Completed);
-        const agentQuery = makeMockSupervisor([agent]);
-        const eventBus = makeMockTypedEventBus();
-        const overlay = makeOverlay();
-
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-          eventBus,
-          agentQuery,
-          config: mockConfig,
-          toolRegistry: makeMockToolRegistry(),
-        });
-
-        connect(overlay, streamDir);
-
-        eventBus.emit("feature-forge:agent-done", {
-          phase: "agent-done",
-          message: 'Agent "reviewer" completed',
-          details: {
-            executionId: "exec-1",
-            agentId: "reviewer",
-            passed: false,
-            summary: "Review failed",
-          },
-        });
-
-        const lifecycle = readJournal(streamDir, "reviewer").filter((e) => e.type === "lifecycle");
-        expect(lifecycle).toHaveLength(1);
-        expect(lifecycle[0]).toMatchObject({
-          type: "lifecycle",
-          phase: "done",
-          passed: false,
-          summary: "Review failed",
-        });
-
-        unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
-    it("journals buffered lifecycle events in order on connect (buffer replay is live-event replay)", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const agent = makeMockAgent("builder", "builder", AgentStatus.Running);
-        const agentQuery = makeMockSupervisor([agent]);
-        const eventBus = makeMockTypedEventBus();
-
-        const { connect, unsubs } = AgentViewerOverlay.wireOverlayEvents({
-          eventBus,
-          agentQuery,
-          config: mockConfig,
-          toolRegistry: makeMockToolRegistry(),
-        });
-
-        // Emit lifecycle events BEFORE connect — they are buffered. The
-        // query status moves to Completed before the done event so each
-        // event maps to its own phase (started, then done).
-        eventBus.emit("feature-forge:agent-started", {
-          phase: "agent-started",
-          message: 'Agent "builder" started',
-          details: { executionId: "exec-1", agentId: "builder" },
-        });
-        // The mock agent's status field is typed readonly — flip it through
-        // a mutable view so the done event resolves to a terminal phase.
-        (agent as { status: AgentStatus }).status = AgentStatus.Completed;
-        eventBus.emit("feature-forge:agent-done", {
-          phase: "agent-done",
-          message: 'Agent "builder" completed',
-          details: {
-            executionId: "exec-1",
-            agentId: "builder",
-            passed: true,
-            summary: "Build passed",
-          },
-        });
-
-        const overlay = makeOverlay();
-        connect(overlay, streamDir);
-
-        // Buffer replay runs through deliverStatusEvent, so both lifecycle
-        // entries are journaled truthfully, in arrival order.
-        const lifecycle = readJournal(streamDir, "builder").filter((e) => e.type === "lifecycle");
-        expect(lifecycle.map((e) => e.phase)).toEqual(["started", "done"]);
-        expect(lifecycle[1]).toMatchObject({
-          type: "lifecycle",
-          phase: "done",
-          passed: true,
-          summary: "Build passed",
-        });
-
-        unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
 
     it("seeding writes no lifecycle entries for agentQuery agents on connect", () => {
       const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
@@ -2578,65 +2128,6 @@ describe("AgentViewerOverlay", () => {
         expect(readJournal(streamDir, "builder")).toHaveLength(0);
 
         unsubs.forEach((u) => u());
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
-    it("recordLifecycle appends the given phase to the journal when streamDir is set", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const overlay = makeOverlay();
-        overlay.setStreamDir(streamDir);
-
-        overlay.recordLifecycle("builder", "done", false, "Review failed");
-
-        const lifecycle = readJournal(streamDir, "builder").filter((e) => e.type === "lifecycle");
-        expect(lifecycle).toHaveLength(1);
-        expect(lifecycle[0]).toMatchObject({
-          type: "lifecycle",
-          phase: "done",
-          passed: false,
-          summary: "Review failed",
-        });
-
-        overlay.dispose();
-      } finally {
-        rmSync(streamDir, { recursive: true, force: true });
-      }
-    });
-
-    it("recordLifecycle without streamDir creates no file and does not throw", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const overlay = makeOverlay();
-
-        expect(() => {
-          overlay.recordLifecycle("builder", "started");
-          overlay.recordLifecycle("builder", "done", true, "Build passed");
-        }).not.toThrow();
-
-        expect(existsSync(join(tmpDir, "builder.journal.jsonl"))).toBe(false);
-
-        overlay.dispose();
-      } finally {
-        rmSync(tmpDir, { recursive: true, force: true });
-      }
-    });
-
-    it("recordLifecycle alone does not request a render (journal-only)", () => {
-      const streamDir = mkdtempSync(join(tmpdir(), "forge-lifecycle-"));
-      try {
-        const tui = makeTui();
-        const overlay = makeOverlay({ tui });
-        overlay.setStreamDir(streamDir);
-
-        overlay.recordLifecycle("builder", "started");
-        overlay.recordLifecycle("builder", "done", true, "Build passed");
-
-        expect(tui.requestRender).not.toHaveBeenCalled();
-
         overlay.dispose();
       } finally {
         rmSync(streamDir, { recursive: true, force: true });
@@ -3675,70 +3166,6 @@ describe("AgentViewerOverlay", () => {
     });
   });
 
-  describe("journal persistence", () => {
-    it("writes stream entries to the agent journal", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-jsonl-test-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-
-      const journalPath = join(tmpDir, "builder.journal.jsonl");
-      expect(existsSync(journalPath)).toBe(true);
-
-      const entries = readJournal(tmpDir, "builder");
-      expect(entries).toHaveLength(1);
-      expect(entries[0]).toMatchObject({ type: "stream", line: "assistant" });
-
-      overlay.dispose();
-    });
-
-    it("appends multiple events as separate journal lines", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-jsonl-append-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-      overlay.pushStreamEvent("builder", toolStartEvent("read"));
-
-      const content = readFileSync(join(tmpDir, "builder.journal.jsonl"), "utf-8");
-      const lines = content.trimEnd().split("\n");
-      // stream(message_start) + stream(tool_start) + tool(tool_start).
-      expect(lines).toHaveLength(3);
-      const parsed = lines.map((line) => jsonParse<Record<string, unknown>>(line));
-      expect(parsed[0]).toMatchObject({ type: "stream", line: "assistant" });
-      expect(parsed[1]).toMatchObject({ type: "stream", line: "read" });
-      expect(parsed[2]).toMatchObject({ type: "tool", toolCallId: "tc-1", toolName: "read" });
-
-      overlay.dispose();
-    });
-
-    it("writes per-agent journal files independently", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-jsonl-multi-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("agent-a", messageStartEvent(assistantMessage()));
-      overlay.pushStreamEvent("agent-b", toolStartEvent("read"));
-
-      expect(existsSync(join(tmpDir, "agent-a.journal.jsonl"))).toBe(true);
-      expect(existsSync(join(tmpDir, "agent-b.journal.jsonl"))).toBe(true);
-
-      overlay.dispose();
-    });
-
-    it("does not throw when journal write fails", () => {
-      const overlay = makeOverlay();
-      overlay.setStreamDir("/nonexistent/path/that/should/fail");
-
-      expect(() => {
-        overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-      }).not.toThrow();
-
-      overlay.dispose();
-    });
-  });
-
   describe("loadConversationEvents", () => {
     it("returns in-memory events when streamDir is configured", async () => {
       const tmpDir = mkdtempSync(join(tmpdir(), "forge-load-events-"));
@@ -3888,109 +3315,6 @@ describe("AgentViewerOverlay", () => {
       // and removed; dispose clears in-memory state without touching files.
       expect(existsSync(jsonlPath)).toBe(false);
       expect(() => overlay.dispose()).not.toThrow();
-    });
-  });
-
-  describe("messages.jsonl persistence", () => {
-    it("writes finalized assistant message as a journal message entry", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-write-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      const assistantMsg = assistantMessage([text("Done.")]);
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMsg));
-      overlay.pushStreamEvent("builder", messageEndEvent(assistantMsg));
-
-      const entries = readJournal(tmpDir, "builder");
-      const messageEntries = entries.filter((e) => e.type === "message");
-      expect(messageEntries).toHaveLength(1);
-      expect(messageEntries[0]).toMatchObject({
-        type: "message",
-        message: { role: "assistant", content: [{ type: "text", text: "Done." }] },
-      });
-
-      overlay.dispose();
-    });
-
-    it("writes user messages as a journal message entry", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-user-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      const userMsg = userMessage([text("Do the thing")]);
-      overlay.pushStreamEvent("builder", messageStartEvent(userMsg));
-      overlay.pushStreamEvent("builder", messageEndEvent(userMsg));
-
-      const entries = readJournal(tmpDir, "builder");
-      const messageEntries = entries.filter((e) => e.type === "message");
-      expect(messageEntries).toHaveLength(1);
-      expect(messageEntries[0]).toMatchObject({ type: "message", message: { role: "user" } });
-
-      overlay.dispose();
-    });
-
-    it("writes toolResult messages as a journal message entry", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-toolresult-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      const toolResultMsg = toolResultMessage("call-1", "read", [text("file contents")]);
-      overlay.pushStreamEvent("builder", messageStartEvent(toolResultMsg));
-      overlay.pushStreamEvent("builder", messageEndEvent(toolResultMsg));
-
-      const entries = readJournal(tmpDir, "builder");
-      const messageEntries = entries.filter((e) => e.type === "message");
-      expect(messageEntries).toHaveLength(1);
-      expect(messageEntries[0]).toMatchObject({
-        type: "message",
-        message: { role: "toolResult", toolCallId: "call-1", toolName: "read" },
-      });
-
-      overlay.dispose();
-    });
-
-    it("does not write message_start to .messages.jsonl", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-start-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-
-      expect(existsSync(join(tmpDir, "builder.messages.jsonl"))).toBe(false);
-
-      overlay.dispose();
-    });
-
-    it("does not write message_update to .messages.jsonl", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-update-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", messageUpdateEvent("partial"));
-
-      expect(existsSync(join(tmpDir, "builder.messages.jsonl"))).toBe(false);
-
-      overlay.dispose();
-    });
-
-    it("writes one finalized message per message_end (no duplicates for streaming)", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-stream-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
-      overlay.pushStreamEvent("builder", messageUpdateEvent("thinking..."));
-      overlay.pushStreamEvent("builder", messageEndEvent(assistantMessage([text("final answer")])));
-
-      const entries = readJournal(tmpDir, "builder");
-      const messageEntries = entries.filter((e) => e.type === "message");
-      expect(messageEntries).toHaveLength(1);
-      expect(messageEntries[0]).toMatchObject({
-        type: "message",
-        message: { content: [{ type: "text", text: "final answer" }] },
-      });
-
-      overlay.dispose();
     });
   });
 
@@ -4178,21 +3502,6 @@ describe("AgentViewerOverlay", () => {
 
       overlay.dispose();
       rmSync(tmpDir, { recursive: true, force: true });
-    });
-  });
-
-  describe("journal cleanup", () => {
-    it("clears journal state on dispose", () => {
-      const tmpDir = mkdtempSync(join(tmpdir(), "forge-msgs-clean-"));
-      const overlay = makeOverlay();
-      overlay.setStreamDir(tmpDir);
-
-      // Finalized message write registers the journal path.
-      overlay.pushStreamEvent("builder", messageEndEvent(assistantMessage([text("ok")])));
-
-      expect(existsSync(join(tmpDir, "builder.journal.jsonl"))).toBe(true);
-      expect(() => overlay.dispose()).not.toThrow();
-      expect(existsSync(join(tmpDir, "builder.journal.jsonl"))).toBe(true);
     });
   });
 });
