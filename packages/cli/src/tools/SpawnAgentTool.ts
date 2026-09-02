@@ -1,8 +1,10 @@
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import { IpcTool } from "@feature-forge/core";
 import { SpawnAgentResult } from "@feature-forge/core/ipc";
+import type { Static } from "typebox";
 import { Type } from "typebox";
 
-import { ToolRenderer } from "../tui/views/ToolRenderer";
+import { RenderableTool, type ToolRenderContext, ToolRenderer } from "../tui/views/ToolRenderer";
 
 /**
  * Schema for the spawn_agent tool — single unambiguous mode.
@@ -56,7 +58,12 @@ export const SpawnAgentParameters = Type.Object({
   ),
 });
 
-export class SpawnAgentTool extends IpcTool<typeof SpawnAgentParameters, SpawnAgentResult> {
+type SpawnAgentArgs = Static<typeof SpawnAgentParameters>;
+
+export class SpawnAgentTool
+  extends IpcTool<typeof SpawnAgentParameters, SpawnAgentResult>
+  implements RenderableTool<typeof SpawnAgentParameters, SpawnAgentResult | { error: string }>
+{
   readonly name = "spawn_agent";
   readonly label = "Spawn Agent";
   readonly description =
@@ -66,7 +73,17 @@ export class SpawnAgentTool extends IpcTool<typeof SpawnAgentParameters, SpawnAg
   readonly parameters = SpawnAgentParameters;
   protected readonly messageType = "spawn_agent";
 
-  renderShell = "self";
-  renderCall = ToolRenderer.spawnAgentCall;
-  renderResult = ToolRenderer.spawnAgentResult;
+  renderShell = "self" as const;
+
+  renderCall = (args: SpawnAgentArgs, theme: Theme, context: ToolRenderContext) =>
+    ToolRenderer.shell(context, theme, "toolPendingBg", ({ line, expandable }) => {
+      let content = ToolRenderer.header(theme, "success", `spawn_agent ${args.role}`);
+      if (args.model) {
+        content += " " + theme.fg("muted", `(${args.model})`);
+      }
+      line(content);
+      expandable(args.systemPrompt, "muted");
+    });
+
+  renderResult = ToolRenderer.simpleResult;
 }

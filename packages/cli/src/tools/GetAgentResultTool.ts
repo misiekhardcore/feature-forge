@@ -1,17 +1,22 @@
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import { IpcTool } from "@feature-forge/core";
 import { GetAgentResultResult } from "@feature-forge/core/ipc";
+import type { Static } from "typebox";
 import { Type } from "typebox";
 
-import { ToolRenderer } from "../tui/views/ToolRenderer";
+import { RenderableTool, type ToolRenderContext, ToolRenderer } from "../tui/views/ToolRenderer";
 
 const GetAgentResultParameters = Type.Object({
   agentId: Type.String({ description: "Agent id returned by spawn_agent" }),
 });
 
-export class GetAgentResultTool extends IpcTool<
-  typeof GetAgentResultParameters,
-  GetAgentResultResult
-> {
+type GetAgentResultArgs = Static<typeof GetAgentResultParameters>;
+
+export class GetAgentResultTool
+  extends IpcTool<typeof GetAgentResultParameters, GetAgentResultResult>
+  implements
+    RenderableTool<typeof GetAgentResultParameters, GetAgentResultResult | { error: string }>
+{
   readonly name = "get_agent_result";
   readonly label = "Get Agent Result";
   readonly description =
@@ -21,7 +26,12 @@ export class GetAgentResultTool extends IpcTool<
   readonly parameters = GetAgentResultParameters;
   protected readonly messageType = "get_agent_result";
 
-  renderShell = "self";
-  renderCall = ToolRenderer.getAgentResultCall;
-  renderResult = ToolRenderer.getAgentResultResult;
+  renderShell = "self" as const;
+
+  renderCall = (args: GetAgentResultArgs, theme: Theme, context: ToolRenderContext) =>
+    ToolRenderer.shell(context, theme, "customMessageBg", ({ line }) => {
+      line(ToolRenderer.header(theme, "warning", `get_agent_result ${args.agentId}`));
+    });
+
+  renderResult = ToolRenderer.simpleResult;
 }

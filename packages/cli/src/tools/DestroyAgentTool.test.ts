@@ -1,6 +1,13 @@
+import { Box } from "@earendil-works/pi-tui";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { makeMockSocketClient } from "../test-utils";
+import {
+  makeMockSocketClient,
+  makeRenderContext,
+  makeRenderOptions,
+  makeTheme,
+  renderLines,
+} from "../test-utils";
 import { DestroyAgentTool } from "./DestroyAgentTool";
 
 describe("DestroyAgentTool", () => {
@@ -95,6 +102,68 @@ describe("DestroyAgentTool", () => {
         tool.execute("call-1", { agentId: "agent-1" }, controller.signal),
       ).rejects.toThrow(DOMException);
       expect(client.request).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rendering", () => {
+    const tool = new DestroyAgentTool(null);
+    const theme = makeTheme();
+
+    it("renderCall renders a Box and stores it in the render context state", () => {
+      const context = makeRenderContext();
+      const component = tool.renderCall({ agentId: "agent-1" }, theme, context);
+
+      expect(component).toBeInstanceOf(Box);
+      expect(context.state._box).toBe(component);
+      expect(renderLines(component).join(" ")).toContain("[bg:toolErrorBg]");
+    });
+
+    it("renderCall header contains destroy_agent and the agent id", () => {
+      const lines = renderLines(
+        tool.renderCall({ agentId: "agent-1" }, theme, makeRenderContext()),
+      );
+
+      expect(lines.join(" ")).toContain("destroy_agent agent-1");
+    });
+
+    it("renderResult renders a muted done marker for a successful result", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { status: "destroyed" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✓ done");
+      expect(lines.join(" ")).toContain("[muted]");
+    });
+
+    it("renderResult renders nothing while the result is partial", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: undefined },
+          makeRenderOptions({ isPartial: true }),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines).toEqual([]);
+    });
+
+    it("renderResult renders an error marker when details carry an error", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { error: "Agent not found" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✗ Agent not found");
     });
   });
 });

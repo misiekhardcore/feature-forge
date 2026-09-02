@@ -1,12 +1,20 @@
-import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { Tool } from "@feature-forge/core";
+import type { Static } from "typebox";
 import { Type } from "typebox";
+
+import { RenderableTool, type ToolRenderContext, ToolRenderer } from "../tui/views/ToolRenderer";
 
 const SetSessionNameParams = Type.Object({
   name: Type.String({ description: "Display name for the session", minLength: 1 }),
 });
 
-export class SetSessionNameTool extends Tool {
+type SetSessionNameArgs = Static<typeof SetSessionNameParams>;
+
+export class SetSessionNameTool
+  extends Tool
+  implements RenderableTool<typeof SetSessionNameParams>
+{
   readonly name = "set_session_name";
   readonly label = "Set Session Name";
   readonly description =
@@ -18,19 +26,27 @@ export class SetSessionNameTool extends Tool {
   // Tool-typed parameter (inferred `string` would not match "self").
   renderShell = "self" as const;
 
+  renderCall = (args: SetSessionNameArgs, theme: Theme, context: ToolRenderContext) =>
+    ToolRenderer.shell(context, theme, "toolSuccessBg", ({ line }) => {
+      line(ToolRenderer.header(theme, "success", `set_session_name ${args.name}`));
+    });
+
+  renderResult = ToolRenderer.messageResult;
+
   constructor(private pi: ExtensionAPI) {
     super();
   }
 
   async execute(
     _toolCallId: string,
-    params: { name: string },
+    params: SetSessionNameArgs,
     signal: AbortSignal | undefined,
   ): Promise<AgentToolResult<unknown>> {
     signal?.throwIfAborted();
-    this.pi.setSessionName(params.name);
+    const { name } = params;
+    this.pi.setSessionName(name);
     return {
-      content: [{ type: "text", text: `Session named: ${params.name}` }],
+      content: [{ type: "text", text: `Session named: ${name}` }],
       details: undefined,
     };
   }

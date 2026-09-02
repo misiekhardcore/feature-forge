@@ -1,7 +1,14 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Box } from "@earendil-works/pi-tui";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { makeMockSocketClient } from "../test-utils";
+import {
+  makeMockSocketClient,
+  makeRenderContext,
+  makeRenderOptions,
+  makeTheme,
+  renderLines,
+} from "../test-utils";
 import { ListAgentsTool } from "./ListAgentsTool";
 
 const mockCtx = {} as ExtensionContext;
@@ -106,6 +113,66 @@ describe("ListAgentsTool", () => {
         tool.execute("call-1", {}, controller.signal, undefined, mockCtx),
       ).rejects.toThrow(DOMException);
       expect(client.request).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rendering", () => {
+    const tool = new ListAgentsTool(null);
+    const theme = makeTheme();
+
+    it("renderCall renders a Box and stores it in the render context state", () => {
+      const context = makeRenderContext();
+      const component = tool.renderCall({}, theme, context);
+
+      expect(component).toBeInstanceOf(Box);
+      expect(context.state._box).toBe(component);
+      expect(renderLines(component).join(" ")).toContain("[bg:selectedBg]");
+    });
+
+    it("renderCall header contains list_agents", () => {
+      const lines = renderLines(tool.renderCall({}, theme, makeRenderContext()));
+
+      expect(lines.join(" ")).toContain("list_agents");
+    });
+
+    it("renderResult renders nothing while the result is partial", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: undefined },
+          makeRenderOptions({ isPartial: true }),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines).toEqual([]);
+    });
+
+    it("renderResult renders a muted done marker for a successful result", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { agents: [] } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✓ done");
+      expect(lines.join(" ")).toContain("[muted]");
+    });
+
+    it("renderResult renders an error marker when details carry an error", () => {
+      const lines = renderLines(
+        tool.renderResult(
+          { content: [], details: { error: "Connection lost" } },
+          makeRenderOptions(),
+          theme,
+          makeRenderContext(),
+        ),
+      );
+
+      expect(lines.join(" ")).toContain("✗ Connection lost");
     });
   });
 });
