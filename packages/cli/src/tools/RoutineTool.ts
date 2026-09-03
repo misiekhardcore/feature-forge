@@ -7,7 +7,8 @@ import {
   type ToolRenderResultOptions,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { ForgeConfig, logger } from "@feature-forge/core";
+import type { ForgeConfigData } from "@feature-forge/core";
+import { DEFAULT_FORGE_CONFIG, logger } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/agents";
 import type { RoutineDefinition } from "@feature-forge/core/flows";
 import { SharedStreamDir } from "@feature-forge/core/progress";
@@ -15,6 +16,7 @@ import type { RoutineResult } from "@feature-forge/core/routines";
 import { RoutineExecutor } from "@feature-forge/core/routines";
 import type { TObject, TProperties } from "typebox";
 
+import { AgentViewerConfig } from "../tui/AgentViewerConfig";
 import { AgentViewerLifecycle } from "../tui/AgentViewerLifecycle";
 import type { AccumulatedState } from "../tui/progress/AccumulatedState";
 import { createAccumulatedState } from "../tui/progress/AccumulatedState";
@@ -35,6 +37,17 @@ import { RoutineToolSchema } from "./RoutineToolSchema";
  */
 interface ToolRowInvalidation {
   invalidate: (() => void) | undefined;
+}
+
+/**
+ * Construction-time runtime values for a {@link RoutineTool}.
+ *
+ * The resolved forge config is threaded in explicitly by the composition
+ * root (index.ts) — the tool never reads the config singleton itself. When
+ * omitted, {@link execute} falls back to {@link DEFAULT_FORGE_CONFIG}.
+ */
+export interface RoutineToolRuntime {
+  config?: Readonly<ForgeConfigData>;
 }
 
 /**
@@ -97,6 +110,7 @@ export class RoutineTool
     private readonly routineDef: RoutineDefinition,
     private readonly executor: RoutineExecutor,
     private readonly supervisor: AgentSupervisor,
+    private readonly runtime: RoutineToolRuntime = {},
   ) {
     this._routineName = routineDef.id;
     this.name = routineDef.id;
@@ -173,6 +187,11 @@ export class RoutineTool
         })
       : new NoOpProgressReporter();
 
+    // Viewer, journal, and feed settings derive from the resolved config
+    // supplied at construction (index.ts threads it); DEFAULT_FORGE_CONFIG
+    // covers constructions without runtime config (tests, legacy callers).
+    const config = this.runtime.config ?? DEFAULT_FORGE_CONFIG;
+
     // Agent viewer overlay — opened lazily on the first agent progress
     // event via the one-shot {@link AgentViewerLifecycle}, so routines
     // without agent steps never create an overlay.
@@ -181,6 +200,7 @@ export class RoutineTool
       toolRegistry: this.executor.toolRegistry,
       eventBus: this.executor.eventBus,
       agentQuery: this.supervisor,
+      viewerConfig: new AgentViewerConfig(config, ctx.cwd),
     });
 
     // Agent journal recorder - the single disk writer for per-agent
@@ -193,9 +213,19 @@ export class RoutineTool
     // warning.
     let journalRecorder: AgentJournalRecorder | undefined;
     try {
+      // Journal retention mirrors the configured file-logger retention (the
+      // same two knobs the journals honor). Read once here so AgentJournal
+      // never touches the config itself.
       journalRecorder = new AgentJournalRecorder({
         eventBus: this.executor.eventBus,
-        streamDir: SharedStreamDir.get(ForgeConfig.getInstance().getLogDir()),
+        streamDir: SharedStreamDir.get(
+          config.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
+          config.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
+        ),
+        journalRetention: {
+          maxBytes: config.logMaxBytes ?? DEFAULT_FORGE_CONFIG.logMaxBytes,
+          maxFiles: config.logMaxFiles ?? DEFAULT_FORGE_CONFIG.logMaxFiles,
+        },
       });
       journalRecorder.subscribe();
     } catch (err) {
@@ -211,6 +241,7 @@ export class RoutineTool
       routineName: this._routineName,
       eventBus: this.executor.eventBus,
       session: () => this.executor.store.toObject(),
+      logPayloads: config.logPayloads ?? DEFAULT_FORGE_CONFIG.logPayloads,
       onUpdate,
       onAgentEvent: () => viewer.open(),
       onProgress: () => this.renderProgress(widget, ctx),

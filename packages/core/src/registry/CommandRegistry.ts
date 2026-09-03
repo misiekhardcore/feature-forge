@@ -3,6 +3,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
 import { Command, type CommandDeps } from "../commands/Command";
+import type { ForgeConfigData } from "../config";
 import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { WorkspaceManager, WorktreeRegistry } from "../workspace";
 import { Registry } from "./Registry";
@@ -34,6 +35,7 @@ export class CommandRegistry extends Registry<Command> {
     private readonly workspaceManager?: WorkspaceManager,
     private readonly worktreeRegistry?: WorktreeRegistry,
     private readonly activeFlow?: ActiveFlowRegistry,
+    private readonly config?: Readonly<ForgeConfigData>,
   ) {
     super();
   }
@@ -48,6 +50,7 @@ export class CommandRegistry extends Registry<Command> {
       commandRegistry: this,
       worktreeRegistry: this.worktreeRegistry,
       activeFlow: this.activeFlow,
+      config: this.config,
     });
     const registeredName = withForgePrefix(command.name);
     if (this.items.has(registeredName)) {

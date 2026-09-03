@@ -4,11 +4,13 @@ import type { AgentSupervisor } from "../agents";
 import { SessionAgent } from "../agents/SessionAgent";
 import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
-import { ForgeConfig, resolveModel } from "../config";
+import type { AgentModelConfig } from "../config";
+import { resolveModel } from "../config";
 import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "../flows/FlowInstruction";
 import type { FlowStateStore } from "../flows/FlowStateStore";
 import { TemplateResolver } from "../flows/TemplateResolver";
+import { logger } from "../logging";
 import { ToolRegistry } from "../registry/ToolRegistry";
 import type { WorkspaceManager } from "../workspace";
 import { Command, type CommandDeps } from "./Command";
@@ -16,6 +18,12 @@ import { Command, type CommandDeps } from "./Command";
 /**
  * Dependency bag for {@link OrchestratorCommand}. Extends {@link CommandDeps}
  * with the dependencies every flow command needs plus the flow itself.
+ *
+ * Model presets come from forge config, injected at the composition root
+ * (the cli package) rather than read from a global here.
+ * An absent or empty `models` map means preset aliases in specs are not
+ * resolved - model strings pass through raw, matching the previous
+ * behavior when no models were configured.
  */
 export interface OrchestratorCommandDeps extends CommandDeps {
   supervisor: AgentSupervisor;
@@ -25,6 +33,8 @@ export interface OrchestratorCommandDeps extends CommandDeps {
   flow: FlowDefinition;
   store: FlowStateStore;
   activeFlow: ActiveFlowRegistry;
+  /** Named model presets ("smart", "medium", ...) from forge config. */
+  models?: Readonly<Record<string, AgentModelConfig>>;
 }
 
 /**
@@ -47,6 +57,12 @@ export interface OrchestratorCommandDeps extends CommandDeps {
  *
  * The routine engine's `FlowContext` does not appear here - the prompt template
  * is resolved inline so only a plain `task` string reaches the agent (ADR 0007).
+ *
+ * Model/thinking-level resolution reads the preset map injected via
+ * {@link OrchestratorCommandDeps.models} (threaded from forge config at the
+ * composition root). An empty map leaves preset aliases unresolved - model
+ * strings pass through raw, matching the previous behavior when no models
+ * were configured.
  */
 export class OrchestratorCommand extends Command {
   readonly name: string;
@@ -62,6 +78,7 @@ export class OrchestratorCommand extends Command {
   // here even though the base Command class types it as optional.
   declare protected readonly activeFlow: ActiveFlowRegistry;
   private readonly store: FlowStateStore;
+  private readonly models: Readonly<Record<string, AgentModelConfig>>;
   // Cached after first resolution. Spec/agent changes require extension reload.
   private spec: AgentSpecification | undefined;
   private agent: SessionAgent | undefined;
@@ -72,6 +89,7 @@ export class OrchestratorCommand extends Command {
     this.flow = deps.flow;
     this.description = `Run the ${deps.flow.name} orchestrator workflow`;
     this.store = deps.store;
+    this.models = deps.models ?? {};
   }
 
   async handler(args: string, ctx: ExtensionCommandContext): Promise<void> {
@@ -104,21 +122,24 @@ export class OrchestratorCommand extends Command {
     }
 
     // Apply orchestrator model and thinking level to the main pi session.
-    // The spec's model field (from frontmatter) is resolved against forge config
-    // presets; the resolved model is looked up in pi's runtime registry.
+    // The spec's model field (from frontmatter) is resolved against the
+    // injected model presets; the resolved model is looked up in pi's runtime
+    // registry. Resolution reads only the injected plain preset map, so it
+    // cannot throw and stays outside the best-effort guard below - only the
+    // runtime application calls (setThinkingLevel / setModel) can fail, e.g.
+    // pi.setModel throws when no auth is configured for the model's provider.
     if (this.spec.model || this.spec.thinkingLevel) {
-      try {
-        const forgeConfig = ForgeConfig.getInstance();
-        const resolvedModel = resolveModel(this.spec.model, forgeConfig.getConfig().models);
+      const resolvedModel = resolveModel(this.spec.model, this.models);
 
-        // Apply thinkingLevel: explicit spec value wins over preset value
+      try {
+        // Apply thinkingLevel: explicit spec value wins over preset value.
         if (this.spec.thinkingLevel) {
           this.pi.setThinkingLevel(this.spec.thinkingLevel);
         } else if (resolvedModel?.thinkingLevel) {
           this.pi.setThinkingLevel(resolvedModel.thinkingLevel);
         }
 
-        // Apply model: find matching model in pi's runtime registry
+        // Apply model: find matching model in pi's runtime registry.
         if (resolvedModel) {
           const availableModels = ctx.modelRegistry.getAvailable();
           const match = availableModels.find((m) => {
@@ -130,9 +151,13 @@ export class OrchestratorCommand extends Command {
             await this.pi.setModel(match);
           }
         }
-      } catch {
-        // ForgeConfig might not be initialized (e.g. in tests without config).
-        // Swallow — model/thinkingLevel resolution is best-effort.
+      } catch (error) {
+        // Best-effort: a model/thinking-level apply failure (e.g. no auth for
+        // the provider) must not abort the orchestrator start - fall back to
+        // the session's current model.
+        logger.warn(`[feature-forge] Failed to apply orchestrator model/thinking level`, {
+          error,
+        });
       }
     }
 

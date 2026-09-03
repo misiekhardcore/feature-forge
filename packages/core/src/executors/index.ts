@@ -1,3 +1,4 @@
+export type { AgentStepExecutorOptions } from "./AgentStepExecutor";
 export { AgentStepExecutor } from "./AgentStepExecutor";
 export { CleanupStepExecutor } from "./CleanupStepExecutor";
 export { createStepExecutorRegistry } from "./createStepExecutorRegistry";

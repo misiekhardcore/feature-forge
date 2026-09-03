@@ -1,3 +1,7 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpcMock = vi.hoisted(() => {
@@ -34,6 +38,10 @@ const rpcMock = vi.hoisted(() => {
       ExtensionAPI: class {},
       ExtensionCommandContext: class {},
       ExtensionContext: class {},
+      // SkillResolver reads skill frontmatter via this package export; a real
+      // parser is not needed here since name resolution falls back to the
+      // directory basename when frontmatter is absent.
+      parseFrontmatter: () => ({ frontmatter: undefined, body: "" }),
     }),
   };
 });
@@ -63,8 +71,10 @@ vi.mock("../../logging", async (importOriginal) => {
   };
 });
 
+import { DEFAULT_FORGE_CONFIG } from "../../config/ForgeConfigDefaults";
 import { makeSpec } from "../../test-utils";
 import { PiSubprocessAgent } from "../PiSubprocessAgent";
+import { AgentSpecification } from "../specifications/AgentSpecification";
 import { AgentCreationError } from "./AgentFactory";
 import { PiSubprocessAgentFactory } from "./PiSubprocessAgentFactory";
 
@@ -167,5 +177,70 @@ describe("PiSubprocessAgentFactory", () => {
     factory = new PiSubprocessAgentFactory({}, { medium: { model: "claude-sonnet-4-5" } });
     await factory.create(makeSpec("raw-test", { model: "gpt-4o" }));
     expect(rpcMock.lastRpcOptions.model).toBe("gpt-4o");
+  });
+
+  it("forwards agentDefaults.defaultTimeoutMs to created agents", async () => {
+    factory = new PiSubprocessAgentFactory({}, {}, { defaultTimeoutMs: 500 });
+    const agent = await factory.create(makeSpec("timeout-forward"));
+
+    vi.useFakeTimers();
+    try {
+      const taskPromise = agent.executeTask("hang");
+      const settled = taskPromise.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(500);
+      const rejection = await settled;
+      expect((rejection as Error).message).toBe("Task timed out after 500ms");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("falls back to the default forge timeout when agentDefaults are omitted", async () => {
+    const agent = await factory.create(makeSpec("timeout-default"));
+
+    vi.useFakeTimers();
+    try {
+      const taskPromise = agent.executeTask("hang");
+      const settled = taskPromise.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(DEFAULT_FORGE_CONFIG.taskTimeoutMs);
+      const rejection = await settled;
+      expect((rejection as Error).message).toBe(
+        `Task timed out after ${DEFAULT_FORGE_CONFIG.taskTimeoutMs}ms`,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("threads agentDefaults.forgeDir into the skill CLI arguments", async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-factory-test-"));
+    try {
+      const skillName = path.basename(tempDir);
+      const skillDir = path.join(tempDir, "skills", skillName);
+      fs.mkdirSync(skillDir, { recursive: true });
+      fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# test skill\n");
+
+      const spec = new (class extends AgentSpecification {
+        constructor() {
+          super({
+            id: "skill-test",
+            role: "skill-tester",
+            systemPrompt: "You are a test.",
+            skills: [skillName],
+          });
+        }
+      })();
+
+      factory = new PiSubprocessAgentFactory({}, {}, { forgeDir: tempDir });
+      await factory.create(spec);
+
+      const args = rpcMock.lastRpcOptions.args as string[];
+      expect(args).toContain("--no-skills");
+      const skillIndex = args.indexOf("--skill");
+      expect(skillIndex).toBeGreaterThan(-1);
+      expect(args[skillIndex + 1]).toBe(path.join(skillDir, "SKILL.md"));
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

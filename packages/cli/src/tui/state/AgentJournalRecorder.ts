@@ -2,6 +2,7 @@ import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { TypedEventBus } from "@feature-forge/core/event-bus";
 
 import { AgentDisplayHelpers } from "../display";
+import type { AgentJournalOptions } from "./AgentJournal";
 import { AgentViewerState } from "./AgentViewerState";
 
 /**
@@ -12,6 +13,12 @@ export interface AgentJournalRecorderParams {
   eventBus: TypedEventBus;
   /** Directory where the per-agent journal files are written. */
   streamDir: string;
+  /**
+   * Sink retention for the journals written by this recorder. When omitted,
+   * journals fall back to the canonical retention defaults (the same
+   * behavior as a journal with no explicit options).
+   */
+  journalRetention?: AgentJournalOptions;
 }
 
 /**
@@ -60,7 +67,7 @@ export class AgentJournalRecorder {
 
   constructor(params: AgentJournalRecorderParams) {
     this.eventBus = params.eventBus;
-    this.state = new AgentViewerState();
+    this.state = new AgentViewerState({ journalRetention: params.journalRetention });
     // The recorder's state is the journaling writer by construction: streamDir
     // enables the journal-backed write path and journaling stays on - it never
     // doubles as a display, so the gate is never closed here.

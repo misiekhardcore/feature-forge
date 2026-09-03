@@ -1,22 +1,22 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle, TUI } from "@earendil-works/pi-tui";
-import { ForgeConfig } from "@feature-forge/core";
 import { SharedStreamDir } from "@feature-forge/core/progress";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
-import type { AgentQuery } from "./api";
+import type { AgentQuery, AgentViewerConfigSource } from "./api";
 import { showAgentViewer } from "./showAgentViewer";
 import { AgentViewerOverlay } from "./views/AgentViewerOverlay";
 
 const config = {
   getLogDir: () => "/tmp/forge-test-streams",
+  getLogRetentionDays: () => 7,
   getDisplayMaxAgentEvents: () => 200,
   getDisplayMaxPreconnectBuffer: () => 100,
   getDisplayMaxOverlayHeight: () => "85%",
   getHideThinkingBlock: () => false,
-} as unknown as ForgeConfig;
+} satisfies AgentViewerConfigSource;
 
 const STREAM_DIR = "/tmp/forge-test-streams";
 
@@ -294,7 +294,10 @@ describe("showAgentViewer", () => {
     });
 
     const viewer = harness.openOverlay();
-    expect(connect).toHaveBeenCalledWith(viewer, SharedStreamDir.get(config.getLogDir()));
+    expect(connect).toHaveBeenCalledWith(
+      viewer,
+      SharedStreamDir.get(config.getLogDir(), config.getLogRetentionDays()),
+    );
 
     harness.dismissOverlay();
     (await promise).dispose();

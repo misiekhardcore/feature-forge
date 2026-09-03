@@ -1,5 +1,5 @@
 import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 import type { TypedEventBus } from "@feature-forge/core/event-bus";
 import type { RoutineResult } from "@feature-forge/core/routines";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,6 +37,7 @@ function makeFeed(
     onUpdate?: AgentToolUpdateCallback<RoutineResult>;
     onAgentEvent?: () => void;
     onProgress?: () => void;
+    logPayloads?: boolean;
   } = {},
 ) {
   const eventBus = overrides.eventBus ?? makeMockTypedEventBus();
@@ -47,6 +48,7 @@ function makeFeed(
     onUpdate: overrides.onUpdate,
     onAgentEvent: overrides.onAgentEvent,
     onProgress: overrides.onProgress,
+    logPayloads: overrides.logPayloads,
   });
   return { feed, eventBus };
 }
@@ -260,22 +262,17 @@ describe("RoutineProgressFeed", () => {
 
   describe("debug logging", () => {
     let debugSpy: ReturnType<typeof vi.spyOn>;
-    let getInstanceSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
       debugSpy = vi.spyOn(logger, "debug").mockImplementation(() => {});
-      getInstanceSpy = vi.spyOn(ForgeConfig, "getInstance");
     });
 
     afterEach(() => {
       debugSpy.mockRestore();
-      getInstanceSpy.mockRestore();
     });
 
     it("logs the full event payload when logPayloads is enabled", () => {
-      getInstanceSpy.mockReturnValue({ getLogPayloads: () => true });
-
-      const { feed, eventBus } = makeFeed();
+      const { feed, eventBus } = makeFeed({ logPayloads: true });
       feed.subscribe();
 
       eventBus.emit("feature-forge:agent-stream", {
@@ -302,8 +299,31 @@ describe("RoutineProgressFeed", () => {
     });
 
     it("logs only phase and message when logPayloads is disabled", () => {
-      getInstanceSpy.mockReturnValue({ getLogPayloads: () => false });
+      const { feed, eventBus } = makeFeed({ logPayloads: false });
+      feed.subscribe();
 
+      eventBus.emit("feature-forge:agent-stream", {
+        phase: "agent-stream",
+        message: 'tool_call: read("file.ts")',
+        details: {
+          executionId: "exec-1",
+          agentId: "builder",
+          label: "builder",
+          event: { type: "agent_start" },
+        },
+      });
+
+      expect(debugSpy).toHaveBeenCalledWith("RoutineTool progress", {
+        phase: "agent-stream",
+        message: 'tool_call: read("file.ts")',
+      });
+      expect(debugSpy).not.toHaveBeenCalledWith(
+        "RoutineTool progress",
+        expect.objectContaining({ details: expect.anything() }),
+      );
+    });
+
+    it("logs only phase and message when logPayloads is absent (default off)", () => {
       const { feed, eventBus } = makeFeed();
       feed.subscribe();
 

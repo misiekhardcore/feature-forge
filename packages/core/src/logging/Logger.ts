@@ -70,8 +70,8 @@ export class Logger {
    * Prefers an explicitly set level; defaults to {@link LogLevel.INFO}
    * (the config schema default) when no level is set or no logger
    * instance exists yet. Concrete loggers apply the configured level
-   * during initialization - the level is never read from ForgeConfig
-   * on a per-call basis.
+   * during initialization - the level is not re-read from config on a
+   * per-call basis.
    */
   static getLogLevel(): LogLevel {
     return Logger.instance?.level ?? LogLevel.INFO;

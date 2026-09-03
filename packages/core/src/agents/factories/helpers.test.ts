@@ -1,3 +1,7 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { AgentSpecification } from "../specifications/AgentSpecification";
@@ -165,6 +169,37 @@ describe("buildPiCliArguments", () => {
       // disableSkills takes precedence — only one --no-skills
       const noSkillsCount = args.filter((a) => a === "--no-skills").length;
       expect(noSkillsCount).toBe(1);
+    });
+
+    it("resolves --skill paths under the provided forgeDir", () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-helpers-test-"));
+      try {
+        // Unique skill name derived from the temp dir so home-directory skill
+        // scans can never shadow the fixture skill.
+        const skillName = path.basename(tempDir);
+        const skillDir = path.join(tempDir, "skills", skillName);
+        fs.mkdirSync(skillDir, { recursive: true });
+        fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# test skill\n");
+
+        const spec = new (class extends AgentSpecification {
+          constructor() {
+            super({
+              id: "t",
+              role: "t",
+              systemPrompt: "p",
+              skills: [skillName],
+            });
+          }
+        })();
+
+        const args = buildPiCliArguments(spec, tempDir);
+        expect(args).toContain("--no-skills");
+        const skillIndex = args.indexOf("--skill");
+        expect(skillIndex).toBeGreaterThan(-1);
+        expect(args[skillIndex + 1]).toBe(path.join(skillDir, "SKILL.md"));
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
     });
   });
   describe("session flag", () => {

@@ -142,6 +142,7 @@ function makeParams(overrides: Partial<FlowRegistrarContext> = {}): FlowRegistra
     stepExecutorRegistry: overrides.stepExecutorRegistry ?? new StepExecutorRegistry(),
     eventBus: overrides.eventBus ?? makeMockTypedEventBus(),
     activeFlowRegistry: overrides.activeFlowRegistry ?? new ActiveFlowRegistry(),
+    models: overrides.models,
     // Local stub stands in for the cli RoutineTool (S6 seam) — the factory
     // is still provided by the composition root.
     createRoutineTool:
@@ -292,7 +293,10 @@ describe("FlowRegistrar", () => {
         registerInstance: vi.fn(),
       } as unknown as FlowRegistrarContext["cmdRegistry"];
       const pi = makeMockPi();
-      const params = makeParams({ pi, cmdRegistry });
+      const models = {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
+      } as const;
+      const params = makeParams({ pi, cmdRegistry, models });
       const registrar = new FlowRegistrar(params);
       await registrar.registerAll();
 
@@ -314,6 +318,9 @@ describe("FlowRegistrar", () => {
       expect((registeredCmd as unknown as { activeFlow: ActiveFlowRegistry }).activeFlow).toBe(
         params.activeFlowRegistry,
       );
+      // ctx.models (threaded from forge config at the composition root) is
+      // injected into the OrchestratorCommand for model preset resolution.
+      expect((registeredCmd as unknown as { models: typeof models }).models).toEqual(models);
       // The SAME store instance must be threaded to RoutineExecutor and
       // OrchestratorCommand so the shared set_flow_param tool and routine
       // session steps write into one FlowStateStore per flow.

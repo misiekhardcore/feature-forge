@@ -1,9 +1,11 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/core";
+import type { ForgeConfigData } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 import type { AgentSupervisor } from "@feature-forge/core/agents";
 import { Command } from "@feature-forge/core/commands";
 import { TypedEventBus } from "@feature-forge/core/event-bus";
 
+import { AgentViewerConfig } from "../tui/AgentViewerConfig";
 import { showAgentViewer } from "../tui/showAgentViewer";
 
 /**
@@ -14,6 +16,8 @@ import { showAgentViewer } from "../tui/showAgentViewer";
 export class AgentListCommand extends Command {
   // This command's handler requires a supervisor — CommandRegistry always supplies one.
   declare protected readonly supervisor: AgentSupervisor;
+  // The resolved forge config — CommandRegistry always supplies it via the deps bag.
+  declare protected readonly config: Readonly<ForgeConfigData>;
   readonly name = "agent:list";
   readonly description = "Open the agent viewer overlay with all tracked agents.";
 
@@ -27,7 +31,7 @@ export class AgentListCommand extends Command {
     if (ctx.hasUI) {
       await showAgentViewer({
         ctx,
-        config: ForgeConfig.getInstance(),
+        config: new AgentViewerConfig(this.config, ctx.cwd),
         toolRegistry,
         eventBus: new TypedEventBus(this.pi.events),
         agentQuery: this.supervisor,

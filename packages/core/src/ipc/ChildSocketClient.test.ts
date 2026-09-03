@@ -240,6 +240,31 @@ describe("ChildSocketClient error handling", () => {
     silentServer.close();
   });
 
+  it("throws IpcTimeoutError when request times out using the constructor defaultTimeoutMs", async () => {
+    // Create a server that accepts connections but never responds
+    const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));
+    const defaultTimeoutPath = join(tempDir, "default-timeout.sock");
+
+    const silentServer = createServer(() => {
+      // Accept but never write — client will time out
+    });
+
+    await new Promise<void>((resolve) => {
+      silentServer.listen(defaultTimeoutPath, resolve);
+    });
+
+    // Small defaultTimeoutMs so a request without an explicit timeout times out fast.
+    const client = new ChildSocketClient(defaultTimeoutPath, { defaultTimeoutMs: 100 });
+    await client.connect();
+
+    // No explicit timeout arg: the constructor default must apply.
+    await expect(
+      client.request("spawn_agent", { role: "x", systemPrompt: "x", toolRestrictions: {} }),
+    ).rejects.toThrow(IpcTimeoutError);
+
+    silentServer.close();
+  });
+
   it("aborts a pending request when signal is fired", async () => {
     // Create a server that accepts connections but never responds
     const tempDir = mkdtempSync(join(tmpdir(), "forge-ipc-test-"));

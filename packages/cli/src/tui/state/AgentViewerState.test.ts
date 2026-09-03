@@ -732,6 +732,38 @@ describe("AgentViewerState", () => {
       }
     });
 
+    it("applies constructor journalRetention to journal rotation (threaded, not config-read)", () => {
+      // Retention is threaded through AgentViewerStateOptions: a state
+      // constructed without options falls back to the canonical defaults
+      // (10MB/5), so six ~128-byte entries never rotate...
+      state.setStreamDir(tmpDir);
+      for (let i = 0; i < 6; i++) {
+        const line = `line-${String(i).padStart(2, "0")}-${"x".repeat(60)}`;
+        state.pushStreamEvent("default-agent", makeAgentStartEvent(), () => line);
+      }
+      const defaultBase = join(tmpDir, "default-agent.journal.jsonl");
+      expect(existsSync(defaultBase)).toBe(true);
+      expect(existsSync(`${defaultBase}.1`)).toBe(false);
+
+      // ...while an explicitly retained state honors the threaded 200-byte
+      // maxBytes: the same event volume rotates into numeric segments
+      // (mirrors AgentJournal's rotation tests with explicit options).
+      const retained = new AgentViewerState({
+        journalRetention: { maxBytes: 200, maxFiles: 3 },
+      });
+      retained.setStreamDir(tmpDir);
+      for (let i = 0; i < 6; i++) {
+        const line = `line-${String(i).padStart(2, "0")}-${"x".repeat(60)}`;
+        retained.pushStreamEvent("rot-agent", makeAgentStartEvent(), () => line);
+      }
+      retained.dispose();
+
+      const base = join(tmpDir, "rot-agent.journal.jsonl");
+      expect(existsSync(base)).toBe(true);
+      expect(existsSync(`${base}.1`)).toBe(true);
+      expect(existsSync(`${base}.2`)).toBe(true);
+    });
+
     // ── journaling gate ──────────────────────────────────────
 
     describe("journaling gate", () => {
@@ -1283,6 +1315,45 @@ describe("AgentViewerState", () => {
       expect(entry.createdAt.getTime()).toBeGreaterThan(0);
       expect(state.getConversationMessages("legacy-agent").length).toBe(1);
       expect(state.getLastLine("legacy-agent")).toBe("tool_execution_start: read");
+    });
+
+    it("legacy migration folds honor the state journalRetention (migration creation site)", async () => {
+      // prepopulate's legacy fold creates its journal through the same
+      // journalRetention field as live journalFor writes: a retained state
+      // folds oversized legacy content into rotated segments...
+      const retainedDir = makeTempDir();
+      const defaultDir = makeTempDir();
+      try {
+        const line = "x".repeat(80);
+        // Six ~140-byte stream entries (~830 bytes total).
+        const content = `${line}\n${line}\n${line}\n${line}\n${line}\n${line}\n`;
+        writeFileSync(join(retainedDir, "mig-agent.stream"), content, "utf-8");
+        writeFileSync(join(defaultDir, "mig-agent.stream"), content, "utf-8");
+
+        const segments = (dir: string): string[] =>
+          readdirSync(dir).filter((name) => /^mig-agent\.journal\.jsonl\.\d+$/.test(name));
+
+        const retained = new AgentViewerState({
+          journalRetention: { maxBytes: 200, maxFiles: 3 },
+        });
+        await retained.prepopulateStreamFiles(retainedDir);
+        retained.dispose();
+
+        // The threaded 200-byte cap rotated the fold into numeric segments.
+        expect(existsSync(join(retainedDir, "mig-agent.journal.jsonl"))).toBe(true);
+        expect(segments(retainedDir).length).toBeGreaterThan(0);
+        expect(existsSync(join(retainedDir, "mig-agent.stream"))).toBe(false);
+
+        // ...while a state without options (canonical 10MB cap) folds the
+        // same content into a single base journal with no segments.
+        await state.prepopulateStreamFiles(defaultDir);
+        expect(existsSync(join(defaultDir, "mig-agent.journal.jsonl"))).toBe(true);
+        expect(segments(defaultDir)).toEqual([]);
+        expect(existsSync(join(defaultDir, "mig-agent.stream"))).toBe(false);
+      } finally {
+        rmSync(retainedDir, { recursive: true, force: true });
+        rmSync(defaultDir, { recursive: true, force: true });
+      }
     });
 
     it("journal wins over legacy siblings — legacy files are left untouched", async () => {

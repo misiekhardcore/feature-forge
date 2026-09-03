@@ -6,8 +6,27 @@ import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { logger } from "@feature-forge/core";
 
 import type { AgentViewerEntry, AgentViewerEntryStatus } from "../types";
-import type { AgentJournalEntry, AgentToolEntry } from "./AgentJournal";
+import type { AgentJournalEntry, AgentJournalOptions, AgentToolEntry } from "./AgentJournal";
 import { AgentJournal } from "./AgentJournal";
+
+/**
+ * Constructor options for an {@link AgentViewerState}.
+ *
+ * `journalRetention` carries the sink retention applied to every journal
+ * this state creates (rotated segment size and count). When omitted,
+ * journals fall back to the canonical defaults inside AgentJournal
+ * (`DEFAULT_FORGE_CONFIG.logMaxBytes`/`logMaxFiles`). Configured values
+ * are threaded from the composition side (the journal recorder receives
+ * them from RoutineTool) - state never reads a config singleton itself.
+ * Display-only overlay states (AgentViewerOverlay) construct without
+ * options, so journals their replay-time legacy fold writes use the
+ * canonical retention; the composition rewire (S8b) threads configured
+ * values there too (accepted interim drift, legacy files only).
+ */
+export interface AgentViewerStateOptions {
+  /** Sink retention for journals this state creates. */
+  journalRetention?: AgentJournalOptions;
+}
 
 /**
  * Maximum raw events kept in memory per agent (sliding window FIFO).
@@ -28,6 +47,13 @@ export const MAX_AGENT_EVENTS = 200;
  * - Zero TUI dependencies
  */
 export class AgentViewerState {
+  /** Sink retention applied to journals this state creates (explicit, never config-derived). */
+  private readonly journalRetention: AgentJournalOptions;
+
+  constructor(options: AgentViewerStateOptions = {}) {
+    this.journalRetention = options.journalRetention ?? {};
+  }
+
   /** Maps agent id → agent entry. */
   private agents = new Map<string, AgentViewerEntry>();
 
@@ -377,7 +403,7 @@ export class AgentViewerState {
     if (!this.streamDir) return undefined;
     const existing = this.journals.get(agentId);
     if (existing) return existing;
-    const journal = AgentJournal.forAgent(this.streamDir, agentId);
+    const journal = AgentJournal.forAgent(this.streamDir, agentId, this.journalRetention);
     this.journals.set(agentId, journal);
     return journal;
   }
@@ -727,7 +753,7 @@ export class AgentViewerState {
     // archives) and replay the result.
     for (const [agentId, files] of legacy) {
       if (journaled.has(agentId)) continue;
-      const journal = AgentJournal.forAgent(streamDir, agentId);
+      const journal = AgentJournal.forAgent(streamDir, agentId, this.journalRetention);
       jobs.push(
         journal
           .migrateLegacy({ stream: files.stream, messages: files.messages, events: files.events })

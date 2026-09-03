@@ -1,4 +1,3 @@
-import { ForgeConfig } from "../../config";
 import { AgentSpecification, SkillResolver } from "../specifications";
 
 /**
@@ -8,8 +7,15 @@ import { AgentSpecification, SkillResolver } from "../specifications";
  * via CLI flags. Fields handled through FORGE_SPEC child-side resolution
  * (tools, excludedTools, toolRestrictions, thinkingLevel, systemPrompt)
  * are intentionally excluded — they are applied in activateSpecResolution().
+ *
+ * @param forgeDir — Optional forge directory scanned for skill paths when the
+ *   spec enables selective skill loading. When omitted, the SkillResolver
+ *   falls back to its own `.forge` default.
  */
-export function buildPiCliArguments(specification: AgentSpecification): string[] {
+export function buildPiCliArguments(
+  specification: AgentSpecification,
+  forgeDir?: string,
+): string[] {
   const args: string[] = [];
 
   if (specification.disableBuiltinTools) {
@@ -38,13 +44,6 @@ export function buildPiCliArguments(specification: AgentSpecification): string[]
     !specification.disableSkills &&
     (specification.skills.length > 0 || specification.excludedSkills.length > 0)
   ) {
-    let forgeDir: string | undefined;
-    try {
-      forgeDir = ForgeConfig.getInstance().getForgeDir();
-    } catch {
-      // ForgeConfig not initialized — use default .forge
-    }
-
     const skillPaths = SkillResolver.resolveSkillPaths(
       specification.skills,
       specification.excludedSkills,

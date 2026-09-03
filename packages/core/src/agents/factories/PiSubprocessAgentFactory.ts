@@ -13,6 +13,28 @@ import { AgentCreationError, AgentFactory } from "./AgentFactory";
 import { buildPiCliArguments } from "./helpers";
 
 /**
+ * Defaults applied to agents created by {@link PiSubprocessAgentFactory}.
+ */
+export interface PiSubprocessAgentFactoryOptions {
+  /**
+   * Default task timeout in milliseconds applied to created agents when a
+   * task carries no explicit `timeout`.
+   *
+   * Captured once at factory construction from the resolved config
+   * snapshot; the effective default is fixed for agents spawned
+   * afterwards. Omitted here, each agent falls back to the canonical
+   * `DEFAULT_FORGE_CONFIG.taskTimeoutMs`.
+   */
+  defaultTimeoutMs?: number;
+  /**
+   * Forge directory scanned for skill paths when a spec enables selective
+   * skill loading. When omitted, the SkillResolver falls back to its own
+   * `.forge` default.
+   */
+  forgeDir?: string;
+}
+
+/**
  * Concrete AgentFactory that spawns agents as pi subprocesses in RPC mode.
  *
  * Child extension loading is deferred — use --extension flag or install
@@ -22,6 +44,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
   constructor(
     private readonly options: RpcClientOptions = {},
     private readonly models: Readonly<Record<string, AgentModelConfig>> = {},
+    private readonly agentDefaults: PiSubprocessAgentFactoryOptions = {},
   ) {
     super();
   }
@@ -30,7 +53,9 @@ export class PiSubprocessAgentFactory extends AgentFactory {
     const id = specification.id;
     const rpcClient = this.buildRpcClient(specification);
 
-    const agent = new PiSubprocessAgent(id, specification, rpcClient);
+    const agent = new PiSubprocessAgent(id, specification, rpcClient, {
+      defaultTimeoutMs: this.agentDefaults.defaultTimeoutMs,
+    });
 
     try {
       await agent.start();
@@ -70,7 +95,10 @@ export class PiSubprocessAgentFactory extends AgentFactory {
           })
         : specification;
 
-    const args = [...(this.options.args ?? []), ...buildPiCliArguments(effectiveSpec)];
+    const args = [
+      ...(this.options.args ?? []),
+      ...buildPiCliArguments(effectiveSpec, this.agentDefaults.forgeDir),
+    ];
 
     return new RpcClient({
       cliPath: this.options.cliPath ?? join(getPackageDir(), "dist/cli.js"),

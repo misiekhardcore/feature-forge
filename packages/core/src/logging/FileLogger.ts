@@ -1,7 +1,8 @@
 import { type Dirent, existsSync, readdirSync, rmSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
-import { ForgeConfig } from "../config/ForgeConfig";
+import { DEFAULT_FORGE_CONFIG } from "../config/ForgeConfigDefaults";
+import type { ForgeConfig } from "../config/ForgeConfigSchema";
 import { LogLevel } from "../config/ForgeConfigSchema";
 import { Logger, logger } from "./Logger";
 import { RotatingFileSink } from "./RotatingFileSink";
@@ -19,7 +20,7 @@ interface LogEntry {
  *
  * Tests pass small `maxBytes`/`maxFiles` values to exercise rotation and
  * count retention without writing megabytes. When omitted, the values come
- * from ForgeConfig (`logMaxBytes`/`logMaxFiles`).
+ * from the injected config (`logMaxBytes`/`logMaxFiles`).
  */
 export interface FileLoggerSinkOverrides {
   /** Rotate to a new segment once the active file exceeds this many bytes. */
@@ -50,18 +51,25 @@ export class FileLogger extends Logger {
   private readonly sink: RotatingFileSink;
 
   /**
+   * @param config — Fully resolved configuration providing the log dir,
+   *   prefix, retention, rotation and level settings.
    * @param filePath — Absolute path to the log file (created on first write).
    *   When omitted, the OMP-style production sink is used.
    * @param sinkOverrides — Rotation/retention overrides for the sink.
    */
-  private constructor(filePath?: string, sinkOverrides?: FileLoggerSinkOverrides) {
+  private constructor(
+    config: Readonly<ForgeConfig>,
+    filePath?: string,
+    sinkOverrides?: FileLoggerSinkOverrides,
+  ) {
     super();
 
-    const config = ForgeConfig.getInstance();
-    this.filePath = filePath ?? FileLogger.getDefaultLogFilePath();
+    this.filePath = filePath ?? FileLogger.getDefaultLogFilePath(config);
 
-    const maxBytes = sinkOverrides?.maxBytes ?? config.getLogMaxBytes();
-    const maxFiles = sinkOverrides?.maxFiles ?? config.getLogMaxFiles();
+    const maxBytes =
+      sinkOverrides?.maxBytes ?? config.logMaxBytes ?? DEFAULT_FORGE_CONFIG.logMaxBytes;
+    const maxFiles =
+      sinkOverrides?.maxFiles ?? config.logMaxFiles ?? DEFAULT_FORGE_CONFIG.logMaxFiles;
 
     this.sink =
       filePath === undefined
@@ -69,19 +77,51 @@ export class FileLogger extends Logger {
         : FileLogger.createExplicitSink(filePath, maxBytes, maxFiles);
   }
 
-  static initialize(filePath?: string, sinkOverrides?: FileLoggerSinkOverrides): FileLogger {
-    const config = ForgeConfig.getInstance();
+  /**
+   * Initialize the logger singleton with a new FileLogger instance.
+   *
+   * @param config — Fully resolved configuration (log dir, prefix, level,
+   *   retention and rotation settings). Required: FileLogger receives its
+   *   config explicitly and holds no global config access.
+   * @param filePath — Absolute path to the log file (created on first
+   *   write). When omitted, the OMP-style production sink is used.
+   * @param sinkOverrides — Rotation/retention overrides for the sink.
+   */
+  static initialize(
+    config: Readonly<ForgeConfig>,
+    filePath?: string,
+    sinkOverrides?: FileLoggerSinkOverrides,
+  ): FileLogger;
+  /**
+   * Config-less initialization is no longer supported (the logger never
+   * consults a global config - it only reads what is passed explicitly).
+   * Declared so the static contract of the base {@link Logger.initialize}
+   * stays satisfiable; calling it fails fast below.
+   */
+  static initialize(): never;
+  static initialize(
+    config?: Readonly<ForgeConfig>,
+    filePath?: string,
+    sinkOverrides?: FileLoggerSinkOverrides,
+  ): FileLogger {
+    if (config === undefined) {
+      throw new Error("FileLogger.initialize requires an explicit config argument");
+    }
     // Remove completed-process namespaces before opening a new sink (OMP
     // parity): dead-pid segments and audits would otherwise accumulate
     // forever, bounded only by the age-based prune below.
-    FileLogger.pruneStaleProcessLogs(config.getLogDir());
-    const logger = new FileLogger(filePath, sinkOverrides);
+    FileLogger.pruneStaleProcessLogs(config, config.logDir ?? DEFAULT_FORGE_CONFIG.logDir);
+    const logger = new FileLogger(config, filePath, sinkOverrides);
     Logger.instance = logger;
     // Apply the configured level once at initialization - subsequent
     // filtering reads the instance level (see Logger.getLogLevel), so
-    // the logger never consults ForgeConfig on a per-call basis.
-    Logger.setLogLevel(config.getLogLevel());
-    FileLogger.pruneOldLogs(config.getLogRetentionDays(), logger.filePath);
+    // the logger never consults the config on a per-call basis.
+    Logger.setLogLevel(config.logLevel ?? DEFAULT_FORGE_CONFIG.logLevel);
+    FileLogger.pruneOldLogs(
+      config,
+      config.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
+      logger.filePath,
+    );
     return logger;
   }
 
@@ -95,17 +135,23 @@ export class FileLogger extends Logger {
    * (`.log.1`, `.log.2`, ...) are matched. A `retentionDays` of 0 or less
    * disables pruning entirely.
    *
+   * @param config — Fully resolved configuration providing the log dir to
+   *   scan and the prefix of this process's own segments.
    * @param retentionDays — Retention window in days (0 = never prune).
    * @param currentFilePath — Path of the active session's log file, which
    *   is never pruned. The whole segment set of the current process is
    *   protected too (the active segment is dynamic under rotation).
    */
-  static pruneOldLogs(retentionDays: number, currentFilePath?: string): void {
+  static pruneOldLogs(
+    config: Readonly<ForgeConfig>,
+    retentionDays: number,
+    currentFilePath?: string,
+  ): void {
     if (retentionDays <= 0) {
       return;
     }
 
-    const logDir = ForgeConfig.getInstance().getLogDir();
+    const logDir = config.logDir ?? DEFAULT_FORGE_CONFIG.logDir;
     if (!existsSync(logDir)) {
       return;
     }
@@ -128,7 +174,7 @@ export class FileLogger extends Logger {
         }
         // With the rotating sink the "active" file is a dynamic segment set
         // of the current process; age-pruning must not delete any of them.
-        if (FileLogger.isCurrentProcessSegment(entry.name)) {
+        if (FileLogger.isCurrentProcessSegment(config, entry.name)) {
           continue;
         }
 
@@ -165,10 +211,12 @@ export class FileLogger extends Logger {
    * {@link RETAINED_STALE_LOGS_PER_PROCESS_DAY} newest segments per
    * process/day.
    *
+   * @param config — Fully resolved configuration providing the log prefix
+   *   whose namespaces are matched.
    * @param logDir — Directory to scan (must exist; a missing or unreadable
    *   directory is a no-op).
    */
-  static pruneStaleProcessLogs(logDir: string): void {
+  static pruneStaleProcessLogs(config: Readonly<ForgeConfig>, logDir: string): void {
     let entries: Dirent[];
     try {
       entries = readdirSync(logDir, { withFileTypes: true });
@@ -182,7 +230,7 @@ export class FileLogger extends Logger {
     cutoff.setDate(cutoff.getDate() - (RETAINED_STALE_LOG_DAYS - 1));
     const cutoffDate = RotatingFileSink.dayKey(cutoff);
 
-    const escapedPrefix = FileLogger.escapeRegex(FileLogger.resolveLogPrefix());
+    const escapedPrefix = FileLogger.escapeRegex(FileLogger.resolveLogPrefix(config));
     const processLogPattern = new RegExp(
       `^${escapedPrefix}\\.(\\d{4}-\\d{2}-\\d{2})\\.(\\d+)\\.log(?:\\.(\\d+))?$`,
     );
@@ -256,32 +304,31 @@ export class FileLogger extends Logger {
    * Resolve the base (index-0) path of the production log file for the
    * current day: `join(logDir, "forge.<day>.<pid>.log")`.
    */
-  static getDefaultLogFilePath(): string {
+  static getDefaultLogFilePath(config: Readonly<ForgeConfig>): string {
     return path.join(
-      ForgeConfig.getInstance().getLogDir(),
-      `${FileLogger.resolveLogPrefix()}.${RotatingFileSink.dayKey(new Date())}.${process.pid}.log`,
+      config.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
+      `${FileLogger.resolveLogPrefix(config)}.${RotatingFileSink.dayKey(new Date())}.${process.pid}.log`,
     );
   }
 
   /**
    * Resolve a human-readable prefix for log filenames from configuration.
    *
-   * Delegates to {@link ForgeConfig.getLogPrefix}, which defaults to
-   * `"forge"` for the orchestrator. Child agents receive their agent id
-   * via the config initialisation path.
+   * Defaults to `"forge"` for the orchestrator. Child agents receive
+   * their agent id via the config initialisation path.
    */
-  private static resolveLogPrefix(): string {
-    return ForgeConfig.getInstance().getLogPrefix();
+  private static resolveLogPrefix(config: Readonly<ForgeConfig>): string {
+    return config.logPrefix ?? DEFAULT_FORGE_CONFIG.logPrefix;
   }
 
   /** Production sink: full OMP naming + day rotation + audit ledger. */
   private static createProductionSink(
-    config: ForgeConfig,
+    config: Readonly<ForgeConfig>,
     maxBytes: number,
     maxFiles: number,
   ): RotatingFileSink {
-    const logDir = config.getLogDir();
-    const prefix = config.getLogPrefix();
+    const logDir = config.logDir ?? DEFAULT_FORGE_CONFIG.logDir;
+    const prefix = FileLogger.resolveLogPrefix(config);
     return new RotatingFileSink({
       directory: logDir,
       filenamePrefix: prefix,
@@ -327,8 +374,8 @@ export class FileLogger extends Logger {
   }
 
   /** True for any rotated segment of THIS process under the current prefix. */
-  private static isCurrentProcessSegment(name: string): boolean {
-    const escapedPrefix = FileLogger.escapeRegex(FileLogger.resolveLogPrefix());
+  private static isCurrentProcessSegment(config: Readonly<ForgeConfig>, name: string): boolean {
+    const escapedPrefix = FileLogger.escapeRegex(FileLogger.resolveLogPrefix(config));
     return new RegExp(
       `^${escapedPrefix}\\.\\d{4}-\\d{2}-\\d{2}\\.${process.pid}\\.log(?:\\.\\d+)?$`,
     ).test(name);

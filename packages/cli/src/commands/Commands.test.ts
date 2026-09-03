@@ -1,4 +1,4 @@
-import { logger } from "@feature-forge/core";
+import { logger, resolveConfig } from "@feature-forge/core";
 import { InMemoryAgentSupervisor } from "@feature-forge/core/agents";
 import { ActiveFlowRegistry } from "@feature-forge/core/flows";
 import { FlowStateStore } from "@feature-forge/core/flows";
@@ -36,6 +36,7 @@ describe("AgentListCommand", () => {
       pi,
       specManager: makeMockSpecManager(),
       toolRegistry: makeMockToolRegistry(),
+      config: resolveConfig({}),
     });
     ctx = makeMockCtx();
   });
@@ -79,6 +80,7 @@ describe("AgentListCommand", () => {
       pi,
       specManager: makeMockSpecManager(),
       toolRegistry: undefined,
+      config: resolveConfig({}),
     });
     await noRegistryCmd.handler("", ctx);
     expect(ctx.ui.notify).toHaveBeenCalledWith(

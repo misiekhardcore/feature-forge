@@ -2,7 +2,7 @@ import * as path from "node:path";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig } from "@feature-forge/core";
+import type { ForgeConfigData } from "@feature-forge/core";
 import { withForgePrefix } from "@feature-forge/core/registry";
 import { ToolRegistry } from "@feature-forge/core/registry";
 import type { ScenarioData } from "@feature-forge/debug";
@@ -17,6 +17,7 @@ import {
   toolArgsScenario,
 } from "@feature-forge/debug";
 
+import { AgentViewerConfig } from "../tui/AgentViewerConfig";
 import { ProgressRenderer } from "../tui/progress/ProgressRenderer";
 import { TuiRoutineWidget } from "../tui/progress/TuiRoutineWidget";
 import { showAgentViewer } from "../tui/showAgentViewer";
@@ -25,8 +26,12 @@ import { AgentViewerOverlay } from "../tui/views/AgentViewerOverlay";
 
 // ── Guard ───────────────────────────────────────────────────
 
-export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegistry): void {
-  if (!ForgeConfig.getInstance().getDevEnabled()) return;
+export function registerDevTestCommands(
+  pi: ExtensionAPI,
+  toolRegistry: ToolRegistry,
+  config: Readonly<ForgeConfigData>,
+): void {
+  if (!(config.dev?.enabled ?? false)) return;
 
   const DEFAULT_EVENT_DELAY = 200;
 
@@ -90,7 +95,7 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     const timers: ReturnType<typeof setTimeout>[] = [];
     await showAgentViewer({
       ctx,
-      config: ForgeConfig.getInstance(),
+      config: new AgentViewerConfig(config, ctx.cwd),
       toolRegistry,
       setup: (viewer) => {
         if (options?.streamDir) viewer.setStreamDir(options.streamDir);
@@ -152,15 +157,15 @@ export function registerDevTestCommands(pi: ExtensionAPI, toolRegistry: ToolRegi
     pi,
     {
       createWidget: (ctx) => new TuiRoutineWidget({ ctx }),
-      createOverlay: ({ tui, theme, onDone }) =>
+      createOverlay: ({ tui, theme, onDone, ctx }) =>
         new AgentViewerOverlay({
           tui,
           theme,
           onDone,
           markdownTheme: getMarkdownTheme(),
-          cwd: process.cwd(),
+          cwd: ctx.cwd,
           toolRegistry,
-          config: ForgeConfig.getInstance(),
+          config: new AgentViewerConfig(config, ctx.cwd),
         }),
       overlayOptions: AgentViewerOverlay.getOverlayOptions(),
       renderHelpers: {

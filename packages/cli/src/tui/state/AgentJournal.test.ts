@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { logger } from "@feature-forge/core";
+import { DEFAULT_FORGE_CONFIG, logger } from "@feature-forge/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { assistantMessage, text, userMessage } from "../test-utils";
@@ -726,5 +726,16 @@ describe("AgentJournal", () => {
     expect(AgentJournal.forAgent("/tmp/streams", "builder").filePath).toBe(
       join("/tmp/streams", "builder.journal.jsonl"),
     );
+  });
+
+  it("falls back to the canonical retention defaults when no options are given", () => {
+    // The no-options default is DEFAULT_FORGE_CONFIG's log retention (the
+    // same canonical knobs the file logger uses) - AgentJournal never reads
+    // a config singleton, so the sink values must match the canonical
+    // defaults exactly.
+    const journal = new AgentJournal(join(newTempDir(), "agent.journal.jsonl"));
+    const sink = (journal as unknown as { sink: { maxBytes: number; maxFiles: number } }).sink;
+    expect(sink.maxBytes).toBe(DEFAULT_FORGE_CONFIG.logMaxBytes);
+    expect(sink.maxFiles).toBe(DEFAULT_FORGE_CONFIG.logMaxFiles);
   });
 });

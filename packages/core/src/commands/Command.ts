@@ -6,6 +6,7 @@ import type {
 
 import type { AgentSupervisor } from "../agents";
 import type { SpecManager } from "../agents/SpecManager";
+import type { ForgeConfigData } from "../config";
 import type { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { CommandRegistry } from "../registry/CommandRegistry";
 import type { ToolRegistry } from "../registry/ToolRegistry";
@@ -25,6 +26,8 @@ export interface CommandDeps {
   commandRegistry?: CommandRegistry;
   worktreeRegistry?: WorktreeRegistry;
   activeFlow?: ActiveFlowRegistry;
+  /** Resolved forge config, threaded by the composition root. */
+  config?: Readonly<ForgeConfigData>;
 }
 
 /**
@@ -46,6 +49,7 @@ export abstract class Command implements FlowCommand {
   protected readonly commandRegistry: CommandRegistry | undefined;
   protected readonly worktreeRegistry: WorktreeRegistry | undefined;
   protected readonly activeFlow: ActiveFlowRegistry | undefined;
+  protected readonly config: Readonly<ForgeConfigData> | undefined;
 
   constructor(deps: CommandDeps) {
     this.pi = deps.pi;
@@ -56,6 +60,7 @@ export abstract class Command implements FlowCommand {
     this.commandRegistry = deps.commandRegistry;
     this.worktreeRegistry = deps.worktreeRegistry;
     this.activeFlow = deps.activeFlow;
+    this.config = deps.config;
   }
   abstract readonly name: string;
   abstract readonly description?: string;

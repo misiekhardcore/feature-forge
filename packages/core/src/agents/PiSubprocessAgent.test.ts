@@ -53,7 +53,6 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   ExtensionContext: class {},
 }));
 
-import { ForgeConfig } from "../config";
 import { makeMessageEvent, makeSpec } from "../test-utils";
 import { AgentStatus } from "./";
 import { PiSubprocessAgent } from "./PiSubprocessAgent";
@@ -380,18 +379,24 @@ describe("PiSubprocessAgent", () => {
       expect(onEventCallbacks.length).toBe(0);
     });
 
-    it("bounds a hanging retry with the configured task timeout", async () => {
+    it("bounds a hanging retry with the injected default timeout", async () => {
       vi.useFakeTimers();
       try {
-        await agent.start();
-        const taskPromise = agent.executeTask("initial task");
+        // Construct with an explicit default so the timeout seam is pinned.
+        const spec = makeSpec("test-agent", { role: "tester", systemPrompt: "You are a test." });
+        const rpcClient = new (MockRpcClient as unknown as new () => never)();
+        const timedAgent = new PiSubprocessAgent("test-agent", spec, rpcClient, {
+          defaultTimeoutMs: 1000,
+        });
+        await timedAgent.start();
+        const taskPromise = timedAgent.executeTask("initial task");
         fireEvent(makeMessageEvent("Original result."));
         fireEvent({ type: "agent_end" });
         await taskPromise;
 
-        const retryPromise = agent.retry("fix it");
+        const retryPromise = timedAgent.retry("fix it");
         // No agent_end fires - the retry must time out instead of hanging.
-        const timeoutMs = ForgeConfig.getInstance().getTaskTimeoutMs();
+        const timeoutMs = 1000;
         // Attach the rejection handler before the timer fires so the
         // rejection is never observed as unhandled.
         const settled = retryPromise.catch((error: unknown) => error);
@@ -400,8 +405,8 @@ describe("PiSubprocessAgent", () => {
         expect((rejection as Error).message).toBe(`Task timed out after ${timeoutMs}ms`);
 
         // Retry failure leaves the agent Completed with the prior result.
-        expect(agent.status).toBe(AgentStatus.Completed);
-        expect(agent.getResult()).toBe("Original result.");
+        expect(timedAgent.status).toBe(AgentStatus.Completed);
+        expect(timedAgent.getResult()).toBe("Original result.");
         expect(onEventCallbacks.length).toBe(0);
       } finally {
         vi.useRealTimers();
