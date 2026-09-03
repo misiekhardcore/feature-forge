@@ -44,8 +44,10 @@ import {
 import { registerSignalHandlers } from "@feature-forge/core/workspace";
 
 import { AgentListCommand, FlowExitCommand, ForgeInitCommand } from "./commands";
+import { activateForgeInitContext } from "./extensions/forge-init-context";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
+import { activateSkillNudge } from "./extensions/skill-nudge";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import {
   DestroyAgentTool,
@@ -54,6 +56,8 @@ import {
   SendTaskTool,
   SetFlowParamTool,
   SetSessionNameTool,
+  SkillPersistTool,
+  SkillValidateTool,
   SpawnAgentTool,
 } from "./tools";
 import { RoutineTool } from "./tools/RoutineTool";
@@ -254,6 +258,25 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
   toolRegistry.registerInstance(new SetSessionNameTool(pi));
   toolRegistry.registerInstance(new SetFlowParamTool(activeFlowRegistry, eventBus));
+
+  // Skill self-improvement toolset: deterministic structure gate
+  // (skill_validate) and scope-resolved persistence (skill_persist). Both
+  // are local tools - no IPC. skill_validate is dependency-free;
+  // skill_persist receives the forge home resolved above (its `global`
+  // scope destination is <forgeDir>/skills).
+  toolRegistry.registerInstance(new SkillValidateTool());
+  toolRegistry.registerInstance(new SkillPersistTool(forgeDir));
+
+  // ── Root-only session extensions ─────────────────────────────────
+  // Child sessions (FORGE_PARENT_SOCKET set) receive the parent's context
+  // via their spec and must not inject the init block or run the wrap-up
+  // nudge. Registered after ActiveFlowRegistry exists so the nudge shares
+  // the instance used by OrchestratorCommand/FlowExitCommand for its
+  // mid-flow guard.
+  if (!process.env.FORGE_PARENT_SOCKET) {
+    activateForgeInitContext(pi);
+    activateSkillNudge(pi, activeFlowRegistry);
+  }
 
   const cmdRegistry = new CommandRegistry(
     supervisor,

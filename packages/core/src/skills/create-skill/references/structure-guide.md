@@ -22,11 +22,11 @@ The authoritative format for every skill created or extended. Follow it exactly;
 
 Per the Agent Skills spec as implemented by pi:
 
-| Field | Required | Notes |
-| ----- | -------- | ----- |
-| `name` | Yes | Lowercase a-z, 0-9, hyphens; 1-64 chars; no leading/trailing/consecutive hyphens. Use the dir name. |
-| `description` | Yes | Under 1024 chars. The model's only trigger - make it specific. |
-| `license` / `compatibility` / `metadata` / `allowed-tools` / `disable-model-invocation` | No | Optional per spec. `disable-model-invocation: true` hides the skill from the system prompt (user invokes via `/skill:name`). |
+| Field                                                                                   | Required | Notes                                                                                                                        |
+| --------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                                                  | Yes      | Lowercase a-z, 0-9, hyphens; 1-64 chars; no leading/trailing/consecutive hyphens. Use the dir name.                          |
+| `description`                                                                           | Yes      | Under 1024 chars. The model's only trigger - make it specific.                                                               |
+| `license` / `compatibility` / `metadata` / `allowed-tools` / `disable-model-invocation` | No       | Optional per spec. `disable-model-invocation: true` hides the skill from the system prompt (user invokes via `/skill:name`). |
 
 - Unknown frontmatter fields are ignored by pi - do not rely on them.
 - Name and description are validated at load: a skill without a non-empty

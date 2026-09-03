@@ -73,12 +73,12 @@ same 10 minutes every future occurrence.
 Read `references/scoping.md` for the full rubric. The decision is three
 questions: does it recur, who consumes it, which machines need it?
 
-| Scope | Location | Default? |
-| ----- | -------- | -------- |
-| Project | `<repo>/.pi/skills/<name>/` | Default for repo-specific procedures. Commit with the current work - no confirmation needed. |
-| Global | `~/.forge/skills/<name>/` (forge family, machine-local) | Default for cross-repo/personal-infra capabilities. Always confirm with the user before writing. |
-| Global (synced) | `~/.pi/agent/skills/<name>/` (pi-config git repo) | Alternative when the skill must sync across machines via pi-config. Always confirm with the user. |
-| Package | bundled with a pi package (e.g. `<pkg>/core/src/skills/`) | For package audiences (agents-memo, feature-forge shape). Package owner drives this - not ad-hoc creation. |
+| Scope           | Location                                                  | Default?                                                                                                   |
+| --------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Project         | `<repo>/.pi/skills/<name>/`                               | Default for repo-specific procedures. Commit with the current work - no confirmation needed.               |
+| Global          | `~/.forge/skills/<name>/` (forge family, machine-local)   | Default for cross-repo/personal-infra capabilities. Always confirm with the user before writing.           |
+| Global (synced) | `~/.pi/agent/skills/<name>/` (pi-config git repo)         | Alternative when the skill must sync across machines via pi-config. Always confirm with the user.          |
+| Package         | bundled with a pi package (e.g. `<pkg>/core/src/skills/`) | For package audiences (agents-memo, feature-forge shape). Package owner drives this - not ad-hoc creation. |
 
 Default to project. Promote to global only on demonstrated cross-repo need;
 demote global skills that stay project-specific. Rules: **global writes always
@@ -126,12 +126,12 @@ Skills teach (progressive disclosure, model-executed). Tools do (typed schemas,
 deterministic, harness-executed). One home per capability: **never duplicate
 logic as both an extension tool and skill scripts.**
 
-| Prefer a custom tool when | Prefer a skill when |
-| ------------------------- | ------------------- |
-| Typed inputs/outputs matter (TypeBox schema) | The value is instruction: steps, order, criteria |
-| Must run identically every time | The model must adapt the steps to context |
-| Needs harness guarantees: events, hooks, MCP, /reload | Reuses existing shell tools via `read`/`bash` |
-| Several flows share the operation | One workflow owns the procedure |
+| Prefer a custom tool when                             | Prefer a skill when                              |
+| ----------------------------------------------------- | ------------------------------------------------ |
+| Typed inputs/outputs matter (TypeBox schema)          | The value is instruction: steps, order, criteria |
+| Must run identically every time                       | The model must adapt the steps to context        |
+| Needs harness guarantees: events, hooks, MCP, /reload | Reuses existing shell tools via `read`/`bash`    |
+| Several flows share the operation                     | One workflow owns the procedure                  |
 
 If an extension tool already exists for the capability, the skill becomes a thin
 orchestrator over it - never a second implementation.
