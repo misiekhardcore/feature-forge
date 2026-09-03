@@ -10,7 +10,8 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import type { EventBus } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, jsonParse, logger } from "@feature-forge/core";
+import type { ForgeConfigData } from "@feature-forge/core";
+import { jsonParse, logger, resolveConfig } from "@feature-forge/core";
 import { SharedStreamDir } from "@feature-forge/core/progress";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,6 +53,7 @@ import {
   MockWorkspaceProvider,
   MockWorktreeRegistry,
 } from "../test-utils";
+import { AgentViewerConfig } from "../tui/AgentViewerConfig";
 import { RoutineTool } from "./RoutineTool";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -179,16 +181,17 @@ function makeMockSupervisor(): AgentSupervisor {
 describe("RoutineTool", () => {
   const mockSupervisor = makeMockSupervisor();
 
-  // Journal I/O hygiene: RoutineTool.execute now wires an
+  // Journal I/O hygiene: RoutineTool.execute wires an
   // AgentJournalRecorder that writes into the process-shared stream dir
-  // under ForgeConfig's logDir. Redirect that logDir to a per-suite temp
-  // dir so unit tests never journal into the repo config log dir, and
-  // remove the temp dir when the suite is done.
+  // under the configured logDir. Point the suite's runtime config at a
+  // per-suite temp dir so unit tests never journal into the repo config
+  // log dir, and remove the temp dir when the suite is done.
   let suiteLogDir: string;
+  let suiteConfig: Readonly<ForgeConfigData>;
 
   beforeAll(() => {
     suiteLogDir = mkdtempSync(join(tmpdir(), "routine-tool-journal-"));
-    vi.spyOn(ForgeConfig.getInstance(), "getLogDir").mockReturnValue(suiteLogDir);
+    suiteConfig = resolveConfig({ logDir: suiteLogDir, logRetentionDays: 7 });
   });
 
   afterAll(() => {
@@ -216,7 +219,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       expect(tool.name).toBe("build");
     });
@@ -230,7 +235,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       expect(tool.label).toContain("myflow/build");
     });
@@ -244,7 +251,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       expect(tool.description).toContain("task, plan");
       expect(tool.parameters.properties.task).toBeDefined();
@@ -269,7 +278,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const result = await tool.execute(
         "call-1",
@@ -332,7 +343,9 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const result = await tool.execute(
         "call-1",
@@ -363,7 +376,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const result = await tool.execute(
         "call-1",
@@ -394,7 +409,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const result = await tool.execute(
         "call-1",
@@ -432,7 +449,9 @@ describe("RoutineTool", () => {
         makeMockToolRegistry(),
       );
       const runSpy = vi.spyOn(executor, "run");
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       await tool.execute(
         "call-1",
@@ -474,7 +493,9 @@ describe("RoutineTool", () => {
         makeMockToolRegistry(),
       );
       const runSpy = vi.spyOn(executor, "run");
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       await tool.execute(
         "call-1",
@@ -536,7 +557,9 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const onUpdateCalls: AgentToolResult<RoutineResult>[] = [];
       const onUpdate: AgentToolUpdateCallback<RoutineResult> = (result) => {
@@ -568,7 +591,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       // Should not throw even though no _onUpdate is provided.
       const result = await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
@@ -594,7 +619,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
       const controller = new AbortController();
 
       const result = await tool.execute(
@@ -661,7 +688,9 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockSetStatus = vi.fn();
@@ -722,7 +751,9 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const mockUi = {
         setWidget: vi.fn(),
@@ -804,7 +835,9 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       await tool.execute("call-1", {}, undefined, undefined, ctx);
 
@@ -863,7 +896,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const result = await tool.execute(
         "call-1",
@@ -887,7 +922,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       // Execute with no UI to isolate listener registration testing.
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
@@ -955,7 +992,9 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
@@ -970,7 +1009,9 @@ describe("RoutineTool", () => {
       const { registry, flow } = makeAgentStartedEmittingSetup();
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockUi = {
@@ -1035,7 +1076,9 @@ describe("RoutineTool", () => {
       const { registry, flow } = makeAgentStartedEmittingSetup();
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       try {
@@ -1069,7 +1112,9 @@ describe("RoutineTool", () => {
       const eventBus = makeMockTypedEventBus();
       const toolRegistry = makeMockToolRegistry();
       const executor = new RoutineExecutor(flow, registry, eventBus, toolRegistry);
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const ctx = {
         hasUI: true,
@@ -1083,7 +1128,7 @@ describe("RoutineTool", () => {
       expect(showAgentViewerMock).toHaveBeenCalledWith(
         expect.objectContaining({
           ctx,
-          config: ForgeConfig.getInstance(),
+          config: expect.any(AgentViewerConfig),
           eventBus,
           agentQuery: mockSupervisor,
           toolRegistry,
@@ -1102,7 +1147,9 @@ describe("RoutineTool", () => {
         eventBus,
         makeMockToolRegistry(),
       );
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const mockCustom = vi.fn().mockResolvedValue(undefined);
       const mockUi = { custom: mockCustom, setWidget: vi.fn(), setStatus: vi.fn() };
@@ -1125,7 +1172,9 @@ describe("RoutineTool", () => {
       const { registry, flow } = makeAgentStartedEmittingSetup(["started", "stream", "done"]);
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       const ctx = {
         hasUI: true,
@@ -1209,15 +1258,17 @@ describe("RoutineTool", () => {
 
       const eventBus = makeMockTypedEventBus();
       const executor = new RoutineExecutor(flow, registry, eventBus, makeMockToolRegistry());
-      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor);
+      const tool = new RoutineTool("myflow", flow.routines[0], executor, mockSupervisor, {
+        config: suiteConfig,
+      });
 
       // Headless context: no overlay ever opens, yet the routine-layer
       // recorder must capture the full run.
       await tool.execute("call-1", {}, undefined, undefined, {} as ExtensionContext);
 
       // The recorder writes into the same shared stream directory the
-      // viewer uses for replay reads.
-      const streamDir = SharedStreamDir.get(ForgeConfig.getInstance().getLogDir());
+      // viewer uses for replay reads (the suite runtime config's logDir).
+      const streamDir = SharedStreamDir.get(suiteLogDir, 7);
       const journalPath = join(streamDir, `${agentId}.journal.jsonl`);
       try {
         expect(existsSync(journalPath)).toBe(true);

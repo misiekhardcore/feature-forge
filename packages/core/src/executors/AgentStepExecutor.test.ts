@@ -537,6 +537,36 @@ describe("AgentStepExecutor", () => {
       );
     });
 
+    it("honors the injected jsonRetryMaxAttempts option when JSON still missing", async () => {
+      const agent = makeMockAgent("no json here");
+      (agent.retry as ReturnType<typeof vi.fn>).mockResolvedValue("still no json");
+      (agent.getResult as ReturnType<typeof vi.fn>).mockReturnValue("still no json");
+
+      const supervisor = makeMockSupervisor(agent);
+      const specManager = makeMockSpecManager();
+      const executor = new AgentStepExecutor(supervisor, specManager, {
+        jsonRetryMaxAttempts: 3,
+      });
+
+      const instruction: AgentInstruction = {
+        type: "agent",
+        id: "builder",
+        systemPrompt: "build",
+        prompt: "build",
+        parseJson: true,
+      };
+      const context = new FlowContext({ results: new Map(), prompt: "task" });
+
+      const result = await executor.execute(instruction, context, vi.fn(), makeMockTypedEventBus());
+
+      // 3 retry attempts (injected option overrides the default of 2), all failed
+      expect(agent.retry).toHaveBeenCalledTimes(3);
+      expect(result.results.get("builder")!.parsed!.passed).toBe(false);
+      expect(result.results.get("builder")!.parsed!.summary).toBe(
+        "Agent did not produce valid JSON output",
+      );
+    });
+
     it("stops retrying on transport errors and falls back to the original output", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
       try {

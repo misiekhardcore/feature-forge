@@ -2,7 +2,6 @@ import { execFile } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
-import { ForgeConfig } from "../config";
 import { logger } from "../logging";
 import {
   WorkspaceError,
@@ -27,6 +26,19 @@ const PLATFORM_SYMLINKS = [
 ];
 
 /**
+ * Optional configuration for {@link GitWorktreeProvider}.
+ */
+export interface GitWorktreeProviderOptions {
+  /**
+   * Repo-root-relative entries to symlink into every worktree (the
+   * config-level symlinks). Merged with platform symlinks and any
+   * per-step symlinks from {@link CreateWorkspaceOptions.symlinks},
+   * then deduplicated.
+   */
+  worktreeSymlinks?: readonly string[];
+}
+
+/**
  * Concrete {@link WorkspaceProvider} that uses `git worktree` for isolation.
  *
  * Worktree path: `<repoRoot>/.forge/worktrees/<workspaceId>`
@@ -37,9 +49,14 @@ export class GitWorktreeProvider extends WorkspaceProvider {
   public readonly repoRoot: string;
   /** Base ref to create the worktree from. Immutable after construction. */
   public readonly baseRef: string;
+  /**
+   * Config-level symlinks (repo-root-relative) created in every worktree.
+   * Immutable after construction.
+   */
+  private readonly configSymlinks: readonly string[];
 
   /**
-   * @param repoRoot — Absolute path to the repository root. Defaults to `process.cwd()`.
+   * @param repoRoot - Absolute path to the repository root. Defaults to `process.cwd()`.
    * @param baseRef - Git ref to create the worktree from. Defaults to `"origin/HEAD"`
    * so new worktrees branch from the remote's tip rather than a possibly
    * stale local `HEAD`. When this instance uses the default `origin/HEAD`
@@ -47,11 +64,20 @@ export class GitWorktreeProvider extends WorkspaceProvider {
    * and the base falls back to the local `HEAD` if `origin/HEAD` cannot be
    * resolved (e.g. the repo has no `origin` remote) - creation never
    * blocks offline.
+   * @param options - Optional provider configuration (see
+   * {@link GitWorktreeProviderOptions}). `worktreeSymlinks` entries are
+   * merged with PLATFORM_SYMLINKS and any per-step symlinks in
+   * {@link CreateWorkspaceOptions.symlinks}.
    */
-  constructor(repoRoot?: string, baseRef = DEFAULT_BASE_REF) {
+  constructor(
+    repoRoot?: string,
+    baseRef = DEFAULT_BASE_REF,
+    options: GitWorktreeProviderOptions = {},
+  ) {
     super();
     this.repoRoot = repoRoot ?? process.cwd();
     this.baseRef = baseRef;
+    this.configSymlinks = options.worktreeSymlinks ?? [];
   }
 
   /**
@@ -185,9 +211,9 @@ export class GitWorktreeProvider extends WorkspaceProvider {
     worktreePath: string,
     stepSymlinks?: readonly string[],
   ): Promise<void> {
-    // Read configured worktree symlinks from ForgeConfig if available,
-    const config = ForgeConfig.getInstance();
-    const configSymlinks = config ? config.getWorktreeSymlinks() : [];
+    // Config-level worktree symlinks are injected at construction time
+    // (see GitWorktreeProviderOptions), so no config lookup happens here.
+    const configSymlinks = this.configSymlinks;
 
     const allSymlinks = [...PLATFORM_SYMLINKS, ...configSymlinks, ...(stepSymlinks ?? [])];
 

@@ -4,6 +4,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import type { InMemoryAgentSupervisor, SpecManager } from "../agents";
 import { OrchestratorCommand } from "../commands/OrchestratorCommand";
+import type { AgentModelConfig } from "../config";
 import type { TypedEventBus } from "../event-bus";
 import type { StepExecutorRegistry } from "../executors/StepExecutorRegistry";
 import { logger } from "../logging";
@@ -43,6 +44,8 @@ export interface FlowRegistrarContext {
   stepExecutorRegistry: StepExecutorRegistry;
   eventBus: TypedEventBus;
   activeFlowRegistry: ActiveFlowRegistry;
+  /** Named model presets ("smart", "medium", ...) from forge config. */
+  models?: Readonly<Record<string, AgentModelConfig>>;
   /** Constructs a cli `RoutineTool` for one routine of a registered flow. */
   createRoutineTool: CreateRoutineTool;
 }
@@ -156,6 +159,7 @@ export class FlowRegistrar {
       flow,
       store,
       activeFlow: ctx.activeFlowRegistry,
+      models: ctx.models,
     });
     try {
       ctx.cmdRegistry.registerInstance(orchestratorCommand);

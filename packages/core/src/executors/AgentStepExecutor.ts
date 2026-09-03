@@ -5,7 +5,7 @@ import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { SpecManager } from "../agents/SpecManager";
 import type { SubprocessAgent } from "../agents/SubprocessAgent";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
-import { ForgeConfig } from "../config";
+import { DEFAULT_FORGE_CONFIG } from "../config/ForgeConfigDefaults";
 import type { TypedEventBus } from "../event-bus";
 import { emitAgentDone, emitAgentStarted, emitAgentStream } from "../event-bus/agentChannels";
 import type { FlowContext, InstructionResult } from "../flows/FlowContext";
@@ -27,14 +27,30 @@ import { StepExecutor } from "./StepExecutor";
  * Uses {@link SpecManager.resolve} to look up named specs from the registry
  * by their system prompt name (e.g. "build", "review").
  */
+/**
+ * Optional per-instance configuration for {@link AgentStepExecutor}.
+ */
+export interface AgentStepExecutorOptions {
+  /**
+   * Maximum retry attempts when an agent's `parseJson` output is missing a
+   * valid JSON block. Falls back to the canonical default (2) when omitted.
+   */
+  jsonRetryMaxAttempts?: number;
+}
+
 export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
   readonly type = "agent";
+
+  private readonly jsonRetryMaxAttempts: number;
 
   constructor(
     private readonly supervisor: AgentSupervisor,
     private readonly specManager: SpecManager,
+    options: AgentStepExecutorOptions = {},
   ) {
     super();
+    this.jsonRetryMaxAttempts =
+      options.jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts;
   }
 
   async execute(
@@ -129,8 +145,7 @@ export class AgentStepExecutor extends StepExecutor<AgentInstruction> {
           "Review the output format instructions in your system prompt and " +
           "append the JSON block as specified there.";
 
-        const maxRetries =
-          instruction.maxJsonRetries ?? ForgeConfig.getInstance().getJsonRetryMaxAttempts();
+        const maxRetries = instruction.maxJsonRetries ?? this.jsonRetryMaxAttempts;
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           logger.info("Agent JSON retry attempt", {
             instructionId,

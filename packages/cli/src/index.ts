@@ -3,7 +3,14 @@ import * as path from "node:path";
 
 import type { ExtensionCommandContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 // Re-export public config API
-import { FileLogger, ForgeConfig, logger } from "@feature-forge/core";
+import {
+  DEFAULT_FORGE_CONFIG,
+  FileLogger,
+  type ForgeConfigData,
+  ForgeConfigLoader,
+  ForgeConfigPaths,
+  logger,
+} from "@feature-forge/core";
 import {
   InMemoryAgentSupervisor,
   PiSubprocessAgentFactory,
@@ -91,8 +98,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   };
 
   // ── Configuration ─────────────────────────────────────────────────
+  const cwd = process.cwd();
+  let config: Readonly<ForgeConfigData> | undefined;
   try {
-    await ForgeConfig.create({ cwd: process.cwd() });
+    config = await ForgeConfigLoader.load({ cwd });
   } catch (error) {
     logger.warn("[feature-forge] Failed to load configuration", { error });
     registerDegradedMode(
@@ -102,21 +111,22 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     );
     return;
   }
+  const forgeDir = ForgeConfigPaths.resolveForgeDir(config, cwd);
 
   // ── Logging ────────────────────────────────────────────────────────
-  FileLogger.initialize();
+  FileLogger.initialize(config);
 
   // Prune stale agent-streams dirs from previous sessions now that the
   // logger is live, so post-mortem history stays within the retention window.
-  SharedStreamDir.cleanup();
+  SharedStreamDir.cleanup(
+    config.logDir ?? DEFAULT_FORGE_CONFIG.logDir,
+    config.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
+  );
 
   // Shared mutable env that PiSubprocessAgentFactory reads lazily.
   // Start the server first, then write the socket path here so spawned
   // children receive FORGE_PARENT_SOCKET in their process environment.
   const childEnv: Record<string, string> = {};
-
-  const forgeConfig = ForgeConfig.getInstance();
-  const forgeDir = forgeConfig.getForgeDir();
 
   const forgeAgentsDir = path.join(forgeDir, "agents");
   if (!fs.existsSync(forgeAgentsDir)) {
@@ -141,7 +151,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   await specManager.loadFromDirectory(forgeAgentsDir);
 
   // Load additional agent specs from directories configured in forge.config
-  for (const agentSpecDir of forgeConfig.getAgentSpecDirectories()) {
+  for (const agentSpecDir of ForgeConfigPaths.resolveAgentSpecDirectories(config, cwd)) {
     try {
       await specManager.loadFromDirectory(agentSpecDir);
     } catch (error) {
@@ -156,9 +166,13 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     {
       env: childEnv,
       cwd: process.cwd(),
-      cliPath: forgeConfig.getPiCli(),
+      cliPath: config.piCli,
     },
-    forgeConfig.getConfig().models,
+    config.models,
+    {
+      defaultTimeoutMs: config.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
+      forgeDir,
+    },
   );
   const supervisor = new InMemoryAgentSupervisor(factory);
   const ipcServer = new ParentSocketServer(supervisor, pi, specManager);
@@ -176,17 +190,21 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Contribute bundled CLI skills and .forge/skills/ to the main session's
   // skill discovery so default and project-local skills are available to
   // the in-session orchestrator.
-  activateForgeSkills(pi);
+  activateForgeSkills(pi, forgeDir);
 
   // Every session runs as a client.
   // Child sessions: FORGE_PARENT_SOCKET points to the parent's server.
   // Root parent: no env var, so connect to our own server (loopback).
   // connectChildClient also forwards agent_update push events to the user.
-  const client = await connectChildClient(targetSocketPath, pi);
+  const client = await connectChildClient(targetSocketPath, pi, {
+    defaultTimeoutMs: config.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
+  });
 
   // Set up worktree infrastructure
   const repoRoot = process.cwd();
-  const worktreeProvider = new GitWorktreeProvider(repoRoot);
+  const worktreeProvider = new GitWorktreeProvider(repoRoot, undefined, {
+    worktreeSymlinks: config.worktreeSymlinks ?? DEFAULT_FORGE_CONFIG.worktreeSymlinks,
+  });
   const worktreeRegistry = new WorktreeRegistry();
   try {
     await worktreeRegistry.load();
@@ -245,6 +263,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     workspaceManager,
     worktreeRegistry,
     activeFlowRegistry,
+    config,
   );
   cmdRegistry.registerAll(
     AgentListCommand,
@@ -270,10 +289,17 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     specManager,
     worktreeRegistry,
     workspaceManager,
+    {
+      jsonRetryMaxAttempts:
+        config.jsonRetryMaxAttempts ?? DEFAULT_FORGE_CONFIG.jsonRetryMaxAttempts,
+    },
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
-  const flowDirs = [path.join(forgeDir, "flows"), ...forgeConfig.getFlowDirectories()];
+  const flowDirs = [
+    path.join(forgeDir, "flows"),
+    ...ForgeConfigPaths.resolveFlowDirectories(config, cwd),
+  ];
   const flowRegistrar = new FlowRegistrar({
     pi,
     cmdRegistry,
@@ -286,15 +312,18 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     stepExecutorRegistry,
     eventBus,
     activeFlowRegistry,
+    models: config.models,
     // The remaining seam factory (issue section 6 D3): FlowRegistrar (core)
     // must not import cli — the concrete RoutineTool is wired here at the
     // composition root.
     createRoutineTool: (flowName, routineDef, routineExecutor, supervisor) =>
-      new RoutineTool(flowName, routineDef, routineExecutor, supervisor),
+      new RoutineTool(flowName, routineDef, routineExecutor, supervisor, {
+        config,
+      }),
   });
   await flowRegistrar.registerAll();
 
-  registerDevTestCommands(pi, toolRegistry);
+  registerDevTestCommands(pi, toolRegistry, config);
 };
 
 export default featureForgeExtension;

@@ -178,7 +178,7 @@ describe("ConversationRenderer", () => {
       expect(result.length).not.toBe(0);
       const joined = result.join(" ");
       // The required getter is consulted on every render; its default value
-      // (false, matching ForgeConfig) keeps the reasoning text visible.
+      // (false, matching the viewer-config default) keeps the reasoning text visible.
       expect(getHideThinkingBlock).toHaveBeenCalled();
       expect(joined).toContain("internal reasoning trace");
     });

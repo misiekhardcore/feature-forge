@@ -64,7 +64,13 @@ export interface EventSubscriber {
   on(channel: string, handler: (payload: unknown) => void): () => void;
 }
 
-/** Display configuration — satisfied by ForgeConfig. */
+/**
+ * Display configuration for the agent viewer overlay: memory-bounded event
+ * caps and overlay sizing consumed by the list/detail views and overlay.
+ *
+ * Implemented by the cli-side {@link AgentViewerConfig} adapter over the
+ * plain forge config object, and by plain method objects in tests.
+ */
 export interface DisplayConfig {
   getDisplayMaxAgentEvents(): number;
   getDisplayMaxPreconnectBuffer(): number;
@@ -73,10 +79,22 @@ export interface DisplayConfig {
    * Whether pi's thinking blocks should be collapsed to the "Thinking..."
    * label instead of rendering the full reasoning text.
    *
-   * Re-read on every render — pi exposes no settings-change event, so the
+   * Re-read on every render - pi exposes no settings-change event, so the
    * Ctrl+T toggle takes effect on the next re-render.
    */
   getHideThinkingBlock(): boolean;
+}
+
+/**
+ * Full viewer config surface consumed by {@link showAgentViewer}: the
+ * display tuning contract plus the log/stream-directory settings the
+ * shared stream dir is derived from.
+ */
+export interface AgentViewerConfigSource extends DisplayConfig {
+  /** Directory for log files. */
+  getLogDir(): string;
+  /** Number of days to retain log files before pruning. */
+  getLogRetentionDays(): number;
 }
 
 /** Tool lookup — satisfied by ToolRegistry (extends Registry<Tool>). */

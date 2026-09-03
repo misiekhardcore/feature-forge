@@ -1,8 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 import type { TypedEventBus } from "@feature-forge/core/event-bus";
 
-import type { AgentQuery, ToolFormatter } from "./api";
+import type { AgentQuery, AgentViewerConfigSource, ToolFormatter } from "./api";
 import type { AgentViewerHandle } from "./showAgentViewer";
 import { showAgentViewer } from "./showAgentViewer";
 
@@ -10,6 +10,8 @@ import { showAgentViewer } from "./showAgentViewer";
 export interface AgentViewerLifecycleParams {
   /** Command context — the overlay opens via `ctx.ui.custom`. */
   ctx: ExtensionContext;
+  /** Viewer configuration: display tuning plus log/stream-directory settings. */
+  viewerConfig: AgentViewerConfigSource;
   /** Tool registry used by the detail view to restore tool argument formatting. */
   toolRegistry: ToolFormatter;
   /** Typed event bus feeding the overlay with live agent events. */
@@ -50,11 +52,11 @@ export class AgentViewerLifecycle {
 
   /** Create the overlay and capture its handle; failures are logged and swallowed. */
   private async openViewer(): Promise<void> {
-    const { ctx, toolRegistry, eventBus, agentQuery } = this.params;
+    const { ctx, viewerConfig, toolRegistry, eventBus, agentQuery } = this.params;
     try {
       this.handle = await showAgentViewer({
         ctx,
-        config: ForgeConfig.getInstance(),
+        config: viewerConfig,
         toolRegistry,
         eventBus,
         agentQuery,

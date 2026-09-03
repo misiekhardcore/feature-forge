@@ -1,5 +1,5 @@
 import type { AgentToolUpdateCallback } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 import type { ForgeChannels, TypedEventBus } from "@feature-forge/core/event-bus";
 import type { FlowParams } from "@feature-forge/core/flows";
 import type { RoutineProgressEvent, RoutineResult } from "@feature-forge/core/routines";
@@ -66,6 +66,11 @@ export interface RoutineProgressFeedOptions {
   onAgentEvent?: () => void;
   /** Invoked after each event is folded into the accumulated state. */
   onProgress?: () => void;
+  /**
+   * Whether debug log lines include the full event payload. Defaults to
+   * `false` (only phase + message are logged).
+   */
+  logPayloads?: boolean;
 }
 
 /**
@@ -109,7 +114,8 @@ export class RoutineProgressFeed implements RoutineProgressState {
     this.reset();
 
     // Read lazily on the first progress event — the flag is only needed when
-    // a debug entry is actually written, so avoid config access otherwise.
+    // a debug entry is actually written. Absent option means payload logging
+    // is off.
     let logPayloads: boolean | undefined;
     const handler = (data: unknown): void => {
       const event = data as RoutineProgressEvent;
@@ -120,7 +126,7 @@ export class RoutineProgressFeed implements RoutineProgressState {
       const agentId = (event.details as { agentId?: string }).agentId;
       if (agentId) this.options.onAgentEvent?.();
 
-      logPayloads ??= ForgeConfig.getInstance().getLogPayloads();
+      logPayloads ??= this.options.logPayloads ?? false;
       logger.debug(
         "RoutineTool progress",
         logPayloads ? { ...event } : { phase: event.phase, message: event.message },

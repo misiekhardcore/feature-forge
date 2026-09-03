@@ -6,10 +6,12 @@ import type { AgentSpecification } from "../agents/specifications";
 import type { SpecManager } from "../agents/SpecManager";
 import type { AgentSupervisor } from "../agents/supervisors/AgentSupervisor";
 import { InMemoryAgentSupervisor } from "../agents/supervisors/InMemoryAgentSupervisor";
+import type { AgentModelConfig } from "../config";
 import { ActiveFlowRegistry } from "../flows/ActiveFlowRegistry";
 import type { FlowDefinition } from "../flows/FlowInstruction";
 import { FLOW_SCHEMA_URL } from "../flows/FlowInstruction";
 import { FlowStateStore } from "../flows/FlowStateStore";
+import { logger } from "../logging";
 import { makeMockCtx, makeMockFactory, makeMockPi, makeMockToolRegistry } from "../test-utils";
 import { Command } from "./Command";
 import { OrchestratorCommand } from "./OrchestratorCommand";
@@ -70,26 +72,11 @@ const hoisted = vi.hoisted(() => {
     // recreate it on every handler call (see the mount→exit→re-mount test).
     isMounted: true,
   };
-  const forgeConfigMock = {
-    getConfig: vi.fn(),
-  };
   return {
     spec,
     agentMock,
-    forgeConfigMock,
     reset() {
       agentMock.mount = vi.fn();
-      forgeConfigMock.getConfig = vi.fn();
-    },
-  };
-});
-
-vi.mock("../config", async () => {
-  const actual = await vi.importActual<typeof import("../config")>("../config");
-  return {
-    ...actual,
-    ForgeConfig: {
-      getInstance: vi.fn(() => hoisted.forgeConfigMock),
     },
   };
 });
@@ -111,7 +98,11 @@ beforeEach(() => {
 function makeCmd(
   supervisor: AgentSupervisor,
   flow: FlowDefinition,
-  deps: { store?: FlowStateStore; activeFlow?: ActiveFlowRegistry } = {},
+  deps: {
+    store?: FlowStateStore;
+    activeFlow?: ActiveFlowRegistry;
+    models?: Readonly<Record<string, AgentModelConfig>>;
+  } = {},
 ): OrchestratorCommand {
   return new OrchestratorCommand({
     supervisor,
@@ -121,6 +112,7 @@ function makeCmd(
     flow,
     store: deps.store ?? new FlowStateStore(),
     activeFlow: deps.activeFlow ?? new ActiveFlowRegistry(),
+    models: deps.models,
   });
 }
 
@@ -382,19 +374,17 @@ describe("OrchestratorCommand", () => {
     } as AgentSpecification;
     specManager.resolve = vi.fn().mockReturnValue(specWithModel);
 
-    hoisted.forgeConfigMock.getConfig.mockReturnValue({
-      models: {
-        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
-      },
-    });
-
     const ctx = makeMockCtx();
     (ctx as unknown as Record<string, unknown>).modelRegistry = {
       getAvailable: vi.fn().mockReturnValue([mockModel]),
     };
 
     const supervisor = makeSupervisor();
-    const cmd = makeCmd(supervisor, baseFlow);
+    const cmd = makeCmd(supervisor, baseFlow, {
+      models: {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
+      },
+    });
     await cmd.handler("task", ctx);
 
     // spec thinkingLevel wins over preset
@@ -409,19 +399,17 @@ describe("OrchestratorCommand", () => {
     } as AgentSpecification;
     specManager.resolve = vi.fn().mockReturnValue(specWithModel);
 
-    hoisted.forgeConfigMock.getConfig.mockReturnValue({
-      models: {
-        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
-      },
-    });
-
     const ctx = makeMockCtx();
     (ctx as unknown as Record<string, unknown>).modelRegistry = {
       getAvailable: vi.fn().mockReturnValue([mockModel]),
     };
 
     const supervisor = makeSupervisor();
-    const cmd = makeCmd(supervisor, baseFlow);
+    const cmd = makeCmd(supervisor, baseFlow, {
+      models: {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
+      },
+    });
     await cmd.handler("task", ctx);
 
     // thinkingLevel comes from preset since spec has none
@@ -447,22 +435,74 @@ describe("OrchestratorCommand", () => {
     } as AgentSpecification;
     specManager.resolve = vi.fn().mockReturnValue(specWithModel);
 
-    // resolveModel returns passthrough { model: "unknown-model" } — no thinkingLevel
-    hoisted.forgeConfigMock.getConfig.mockReturnValue({
-      models: {},
-    });
-
+    // resolveModel with an empty preset map returns passthrough
+    // { model: "unknown-model" } — no thinkingLevel
     const ctx = makeMockCtx();
     (ctx as unknown as Record<string, unknown>).modelRegistry = {
       getAvailable: vi.fn().mockReturnValue([]),
     };
 
     const supervisor = makeSupervisor();
-    const cmd = makeCmd(supervisor, baseFlow);
+    const cmd = makeCmd(supervisor, baseFlow, { models: {} });
     await cmd.handler("task", ctx);
 
     expect(pi.setModel).not.toHaveBeenCalled();
     expect(pi.setThinkingLevel).not.toHaveBeenCalled();
+  });
+
+  it("continues when applying the resolved model fails (no auth)", async () => {
+    const specWithModel: AgentSpecification = {
+      ...hoisted.spec,
+      model: "smart",
+      thinkingLevel: "high",
+    } as AgentSpecification;
+    specManager.resolve = vi.fn().mockReturnValue(specWithModel);
+
+    const ctx = makeMockCtx();
+    (ctx as unknown as Record<string, unknown>).modelRegistry = {
+      getAvailable: vi.fn().mockReturnValue([mockModel]),
+    };
+
+    const supervisor = makeSupervisor();
+    const store = new FlowStateStore();
+    const activeFlow = new ActiveFlowRegistry();
+    const flow: FlowDefinition = {
+      ...baseFlow,
+      orchestrator: { systemPrompt: "implement", prompt: "{{prompt}}" },
+    };
+    const cmd = makeCmd(supervisor, flow, {
+      store,
+      activeFlow,
+      models: {
+        smart: { model: "claude-sonnet-4-5", provider: "anthropic", thinkingLevel: "xhigh" },
+      },
+    });
+
+    // pi.setModel is documented to throw when no auth is configured for the
+    // model; a rejection must not abort the orchestrator start.
+    (pi.setModel as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("no auth configured for model"),
+    );
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    try {
+      await expect(cmd.handler("task", ctx)).resolves.toBeUndefined();
+
+      // The apply failure is logged as a warning, not silently swallowed.
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[feature-forge] Failed to apply orchestrator model/thinking level",
+        expect.objectContaining({ error: expect.any(Error) }),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    // Model application was best-effort: the handler still mounts the agent
+    // and registers the flow as active on the session's current model.
+    expect(supervisor.mountInSession).toHaveBeenCalledWith(specWithModel);
+    expect(hoisted.agentMock.mount).toHaveBeenCalledWith(pi, "task");
+    expect(activeFlow.getStore()).toBe(store);
+    expect(activeFlow.currentFlowName).toBe("test-flow");
+    expect(ctx.ui.notify).toHaveBeenCalledWith("test-flow orchestrator loaded.", "info");
   });
 
   // ── Mount → flow:exit → re-mount → flow:exit regression (3.18) ───────────

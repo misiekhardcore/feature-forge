@@ -14,10 +14,15 @@ const hoisted = vi.hoisted(() => {
 });
 
 vi.mock("./ChildSocketClient", () => ({
-  ChildSocketClient: vi.fn(function (this: unknown, socketPath: string) {
+  ChildSocketClient: vi.fn(function (
+    this: unknown,
+    socketPath: string,
+    options: Record<string, unknown> = {},
+  ) {
     // Regular function so `new` still works (vi.fn + arrow implementation
     // would hand the arrow itself to `new`, which is not a constructor).
     (hoisted.instance as { socketPath?: string }).socketPath = socketPath;
+    (hoisted.instance as { options?: Record<string, unknown> }).options = options;
     return hoisted.instance;
   }),
 }));
@@ -35,6 +40,16 @@ describe("connectChildClient", () => {
 
     expect(hoisted.instance.connect).toHaveBeenCalledTimes(1);
     expect(client).toBe(hoisted.instance);
+  });
+
+  it("forwards the options bag to the ChildSocketClient constructor", async () => {
+    const pi = makeMockPi();
+    await connectChildClient("/tmp/forge-parent.sock", pi, { defaultTimeoutMs: 1234 });
+
+    expect((hoisted.instance as { socketPath?: string }).socketPath).toBe("/tmp/forge-parent.sock");
+    expect((hoisted.instance as { options?: Record<string, unknown> }).options).toEqual({
+      defaultTimeoutMs: 1234,
+    });
   });
 
   it("forwards agent_update pushes as display messages with the payload", async () => {

@@ -1,3 +1,4 @@
+export type { GitWorktreeProviderOptions } from "./GitWorktreeProvider";
 export { GitWorktreeProvider } from "./GitWorktreeProvider";
 export { cleanupWorkspaces, registerSignalHandlers } from "./registerSignalHandlers";
 export {

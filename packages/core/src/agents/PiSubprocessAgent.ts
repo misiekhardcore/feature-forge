@@ -1,11 +1,25 @@
 import type { ExtensionAPI, JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { RpcClient } from "@earendil-works/pi-coding-agent";
 
-import { ForgeConfig } from "../config";
+import { DEFAULT_FORGE_CONFIG } from "../config/ForgeConfigDefaults";
 import { logger } from "../logging";
 import { AgentStatus } from "./AgentStatus";
 import { AgentSpecification } from "./specifications";
 import { type ExecuteTaskOptions, SubprocessAgent } from "./SubprocessAgent";
+
+/**
+ * Construction options for {@link PiSubprocessAgent}.
+ */
+export interface PiSubprocessAgentOptions {
+  /**
+   * Default task timeout in milliseconds applied to {@link executeTask} and
+   * {@link retry} when the caller passes no explicit `timeout`.
+   *
+   * Captured once at construction from the resolved config snapshot; the
+   * effective default never changes for an existing agent instance.
+   */
+  defaultTimeoutMs?: number;
+}
 
 /**
  * Concrete {@link SubprocessAgent} that wraps a pi subprocess spawned in RPC mode.
@@ -19,14 +33,21 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
   private _status: AgentStatus = AgentStatus.Spawned;
   private readonly rpcClient: RpcClient;
+  private readonly defaultTimeoutMs: number;
   private result: string = "";
   private error: Error | undefined = undefined;
 
-  constructor(id: string, specification: AgentSpecification, rpcClient: RpcClient) {
+  constructor(
+    id: string,
+    specification: AgentSpecification,
+    rpcClient: RpcClient,
+    options: PiSubprocessAgentOptions = {},
+  ) {
     super();
     this.id = id;
     this.specification = specification;
     this.rpcClient = rpcClient;
+    this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs;
   }
 
   public get status(): AgentStatus {
@@ -78,7 +99,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
     };
     options?.signal?.addEventListener("abort", onAbort, { once: true });
 
-    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+    const timeout = options?.timeout ?? this.defaultTimeoutMs;
 
     try {
       this.result = await this._collectResponse(prompt, options, timeout);
@@ -131,7 +152,7 @@ export class PiSubprocessAgent extends SubprocessAgent {
 
     // Bound the retry with the same task timeout used by executeTask so a
     // hung retry cannot block the routine indefinitely.
-    const timeout = options?.timeout ?? ForgeConfig.getInstance().getTaskTimeoutMs();
+    const timeout = options?.timeout ?? this.defaultTimeoutMs;
 
     try {
       const result = await this._collectResponse(prompt, options, timeout);

@@ -10,7 +10,6 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { ForgeConfig } from "../config";
 import { logger } from "../logging";
 
 /**
@@ -23,16 +22,18 @@ import { logger } from "../logging";
  *
  * The directory is created under `baseDir` (typically `.forge/logs`) so
  * agent stream files persist alongside structured JSON Lines logs for
- * post-mortem debugging. Old directories are pruned against the configured
- * `logRetentionDays` window — never on overlay teardown.
+ * post-mortem debugging. Old directories are pruned against the `retentionDays`
+ * window — never on overlay teardown. Both `baseDir` and `retentionDays` are
+ * explicit parameters now: the log dir and retention come from the resolved
+ * config at the call site, not from a singleton read inside this module.
  */
 export class SharedStreamDir {
   private static instance: string | undefined;
   /** Whether the once-per-process sweep has already run. */
   private static _swept = false;
 
-  static get(baseDir: string): string {
-    this.sweepAndPrune(baseDir);
+  static get(baseDir: string, retentionDays: number): string {
+    this.sweepAndPrune(baseDir, retentionDays);
     if (!SharedStreamDir.instance) {
       mkdirSync(baseDir, { recursive: true });
       SharedStreamDir.instance = mkdtempSync(join(baseDir, "agent-streams-"));
@@ -41,25 +42,23 @@ export class SharedStreamDir {
   }
 
   /**
-   * Prune `agent-streams-*` directories older than the configured retention
-   * window. Retention-aware: directories within the window and the current
+   * Prune `agent-streams-*` directories older than the retention window.
+   * Retention-aware: directories within the window and the current
    * singleton are kept so stream history survives overlay close/reopen
-   * cycles. No-op when `logRetentionDays` is `0` (retention disabled).
+   * cycles. No-op when `retentionDays` is `0` (retention disabled).
    */
-  static cleanup(): void {
-    const baseDir = ForgeConfig.getInstance().getLogDir();
+  static cleanup(baseDir: string, retentionDays: number): void {
     if (!existsSync(baseDir)) return;
-    this.pruneByRetention(baseDir);
+    this.pruneByRetention(baseDir, retentionDays);
   }
 
   /**
    * Prune `agent-streams-*` directories under `baseDir` older than the
-   * configured retention window. The current singleton and directories within
+   * retention window. The current singleton and directories within
    * the window are kept so stream history survives overlay close/reopen
-   * cycles. No-op when `logRetentionDays` is `0` (retention disabled).
+   * cycles. No-op when `retentionDays` is `0` (retention disabled).
    */
-  private static pruneByRetention(baseDir: string): void {
-    const retentionDays = ForgeConfig.getInstance().getLogRetentionDays();
+  private static pruneByRetention(baseDir: string, retentionDays: number): void {
     if (retentionDays <= 0) return;
     const cutoff = Date.now() - retentionDays * 86_400_000;
     let pruned = 0;
@@ -105,11 +104,11 @@ export class SharedStreamDir {
 
   /**
    * Sweep stale `agent-streams-*` directories left by previous sessions:
-   * remove empty ones and prune ones older than the configured retention
+   * remove empty ones and prune ones older than the retention
    * window. Runs at most once per process — get() calls the sweep only on
    * first use, so overlay open/reopen cycles do not rescan the log dir.
    */
-  private static sweepAndPrune(baseDir: string): void {
+  private static sweepAndPrune(baseDir: string, retentionDays: number): void {
     if (SharedStreamDir._swept) return;
     SharedStreamDir._swept = true;
     if (!existsSync(baseDir)) return;
@@ -148,6 +147,6 @@ export class SharedStreamDir {
         }
       }
     }
-    this.pruneByRetention(baseDir);
+    this.pruneByRetention(baseDir, retentionDays);
   }
 }

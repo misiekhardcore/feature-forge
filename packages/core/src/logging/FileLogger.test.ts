@@ -16,7 +16,10 @@ import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForgeConfig, LogLevel } from "../config";
+import { resolveConfig } from "../config/ForgeConfigDefaults";
+import { ForgeConfigLoader } from "../config/ForgeConfigLoader";
+import type { ForgeConfig } from "../config/ForgeConfigSchema";
+import { LogLevel } from "../config/ForgeConfigSchema";
 import { jsonParse } from "../helpers";
 import { FileLogger } from "./FileLogger";
 import { Logger, logger as moduleLogger } from "./Logger";
@@ -26,7 +29,7 @@ describe("FileLogger", () => {
   let filePath: string;
   let logger: FileLogger;
   let logDir: string;
-  let configSpy: ReturnType<typeof vi.spyOn>;
+  let config: ForgeConfig;
 
   beforeEach(() => {
     filePath = join(
@@ -37,26 +40,26 @@ describe("FileLogger", () => {
     // path (no filePath) and both prune routines must never touch the
     // real .forge/logs during tests.
     logDir = mkdtempSync(join(tmpdir(), "forge-logdir-"));
-    // Force retention to 0 so initialize()'s pruneOldLogs call returns before
-    // touching any log dir, while keeping the initialize -> pruneOldLogs
-    // wiring (with the configured retention and current file path) covered.
-    // The pruneOldLogs and pruneStaleProcessLogs describes replace this spy.
-    const realConfig = ForgeConfig.getInstance();
-    configSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-      getLogRetentionDays: () => 0,
-      getLogLevel: () => realConfig.getLogLevel(),
-      getLogDir: () => logDir,
-      getLogPrefix: () => realConfig.getLogPrefix(),
-      getLogMaxBytes: () => 10 * 1024 * 1024,
-      getLogMaxFiles: () => 5,
-    } as unknown as ForgeConfig);
-    logger = FileLogger.initialize(filePath);
+    // Fully-resolved config pointing at the temp dir. Retention is forced
+    // to 0 so initialize()'s pruneOldLogs call returns before touching any
+    // log dir, while keeping the initialize -> pruneOldLogs wiring (with
+    // the configured retention and current file path) covered. The
+    // pruneOldLogs and pruneStaleProcessLogs describes replace this config
+    // with their own.
+    config = resolveConfig({
+      logDir,
+      logPrefix: "forge",
+      logLevel: LogLevel.INFO,
+      logRetentionDays: 0,
+      logMaxBytes: 10 * 1024 * 1024,
+      logMaxFiles: 5,
+    });
+    logger = FileLogger.initialize(config, filePath);
     Logger.setLogLevel(LogLevel.DEBUG);
   });
 
   afterEach(async () => {
     // Level filtering is set via Logger.setLogLevel() in individual tests
-    configSpy.mockRestore();
     await logger.close();
     if (existsSync(filePath)) {
       unlinkSync(filePath);
@@ -132,7 +135,7 @@ describe("FileLogger", () => {
       logger.info("first");
       await logger.close();
 
-      const logger2 = FileLogger.initialize(filePath);
+      const logger2 = FileLogger.initialize(config, filePath);
       logger2.info("second");
       await logger2.close();
 
@@ -171,7 +174,7 @@ describe("FileLogger", () => {
 
   describe("level filtering", () => {
     it("writes all levels when threshold is debug", async () => {
-      const l = FileLogger.initialize(filePath);
+      const l = FileLogger.initialize(config, filePath);
       Logger.setLogLevel(LogLevel.DEBUG);
       l.error("e");
       l.warn("w");
@@ -185,7 +188,7 @@ describe("FileLogger", () => {
     });
 
     it("filters debug entries when threshold is info", async () => {
-      const l = FileLogger.initialize(filePath);
+      const l = FileLogger.initialize(config, filePath);
       Logger.setLogLevel(LogLevel.INFO);
       l.error("e");
       l.warn("w");
@@ -199,7 +202,7 @@ describe("FileLogger", () => {
     });
 
     it("filters info and debug when threshold is warn", async () => {
-      const l = FileLogger.initialize(filePath);
+      const l = FileLogger.initialize(config, filePath);
       Logger.setLogLevel(LogLevel.WARN);
       l.error("e");
       l.warn("w");
@@ -213,7 +216,7 @@ describe("FileLogger", () => {
     });
 
     it("filters everything except error when threshold is error", async () => {
-      const l = FileLogger.initialize(filePath);
+      const l = FileLogger.initialize(config, filePath);
       Logger.setLogLevel(LogLevel.ERROR);
       l.error("e");
       l.warn("w");
@@ -227,7 +230,7 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file when no entry meets the threshold", async () => {
-      const l = FileLogger.initialize(filePath);
+      const l = FileLogger.initialize(config, filePath);
       Logger.setLogLevel(LogLevel.ERROR);
       l.warn("w");
       l.info("i");
@@ -238,7 +241,7 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file on construction regardless of level", () => {
-      FileLogger.initialize(filePath);
+      FileLogger.initialize(config, filePath);
       Logger.setLogLevel(LogLevel.ERROR);
       expect(existsSync(filePath)).toBe(false);
     });
@@ -246,7 +249,7 @@ describe("FileLogger", () => {
 
   describe("default log file path", () => {
     it("resolves forge.<day>.<pid>.log under the configured log dir", () => {
-      const defaultPath = FileLogger.getDefaultLogFilePath();
+      const defaultPath = FileLogger.getDefaultLogFilePath(config);
       expect(dirname(defaultPath)).toBe(logDir);
       expect(basename(defaultPath)).toMatch(/^forge\.\d{4}-\d{2}-\d{2}\.\d+\.log$/);
     });
@@ -289,7 +292,7 @@ describe("FileLogger", () => {
         tmpdir(),
         `forge-noext-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       );
-      const noExtLogger = FileLogger.initialize(noExtPath);
+      const noExtLogger = FileLogger.initialize(config, noExtPath);
       noExtLogger.info("no extension");
       await noExtLogger.close();
 
@@ -339,25 +342,17 @@ describe("FileLogger", () => {
 
   describe("pruneOldLogs", () => {
     let logDir: string;
-    let getInstanceSpy: ReturnType<typeof vi.spyOn>;
+    let config: ForgeConfig;
 
     beforeEach(() => {
       logDir = mkdtempSync(join(tmpdir(), "forge-prune-test-"));
-      // Replace the top-level config spy with one pointing at the temp dir so
-      // pruning never touches the real log directory (the worktree's
-      // .forge/logs symlinks to shared logs). The afterEach restore order
-      // unwinds this back to the top-level spy, then to the real instance.
-      getInstanceSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-        getLogDir: () => logDir,
-        getLogPrefix: () => "forge",
-        getLogMaxBytes: () => 10 * 1024 * 1024,
-        getLogMaxFiles: () => 5,
-      } as unknown as ForgeConfig);
+      // Config pointing at the temp dir so pruning never touches the real
+      // log directory (the worktree's .forge/logs symlinks to shared logs).
+      config = resolveConfig({ logDir });
     });
 
     afterEach(() => {
       vi.restoreAllMocks();
-      getInstanceSpy.mockRestore();
       rmSync(logDir, { recursive: true, force: true });
     });
 
@@ -373,7 +368,7 @@ describe("FileLogger", () => {
     it("skips pruning entirely when retentionDays <= 0", () => {
       writeLogFile("forge-stale.log", 10);
 
-      FileLogger.pruneOldLogs(0);
+      FileLogger.pruneOldLogs(config, 0);
 
       expect(existsSync(join(logDir, "forge-stale.log"))).toBe(true);
     });
@@ -381,7 +376,7 @@ describe("FileLogger", () => {
     it("deletes files older than the retention window", () => {
       writeLogFile("forge-stale.log", 10);
 
-      FileLogger.pruneOldLogs(7);
+      FileLogger.pruneOldLogs(config, 7);
 
       expect(existsSync(join(logDir, "forge-stale.log"))).toBe(false);
     });
@@ -391,7 +386,7 @@ describe("FileLogger", () => {
       writeLogFile("forge-stale.log.2", 10);
       writeLogFile("forge-recent.log.1", 3);
 
-      FileLogger.pruneOldLogs(7);
+      FileLogger.pruneOldLogs(config, 7);
 
       expect(existsSync(join(logDir, "forge-stale.log.1"))).toBe(false);
       expect(existsSync(join(logDir, "forge-stale.log.2"))).toBe(false);
@@ -401,7 +396,7 @@ describe("FileLogger", () => {
     it("keeps files within the retention window", () => {
       writeLogFile("forge-recent.log", 3);
 
-      FileLogger.pruneOldLogs(7);
+      FileLogger.pruneOldLogs(config, 7);
 
       expect(existsSync(join(logDir, "forge-recent.log"))).toBe(true);
     });
@@ -412,7 +407,7 @@ describe("FileLogger", () => {
       const old = new Date(Date.now() - 10 * 86_400_000);
       utimesSync(subDir, old, old);
 
-      FileLogger.pruneOldLogs(1);
+      FileLogger.pruneOldLogs(config, 1);
 
       expect(existsSync(subDir)).toBe(true);
     });
@@ -423,7 +418,7 @@ describe("FileLogger", () => {
       const old = new Date(Date.now() - 10 * 86_400_000);
       utimesSync(jsonPath, old, old);
 
-      FileLogger.pruneOldLogs(1);
+      FileLogger.pruneOldLogs(config, 1);
 
       expect(existsSync(jsonPath)).toBe(true);
     });
@@ -432,7 +427,7 @@ describe("FileLogger", () => {
       writeLogFile("forge-other.log", 10);
       const currentPath = writeLogFile("forge-current.log", 10);
 
-      FileLogger.pruneOldLogs(1, currentPath);
+      FileLogger.pruneOldLogs(config, 1, currentPath);
 
       expect(existsSync(join(logDir, "forge-other.log"))).toBe(false);
       expect(existsSync(currentPath)).toBe(true);
@@ -449,7 +444,7 @@ describe("FileLogger", () => {
       chmodSync(logDir, 0o555);
 
       try {
-        expect(() => FileLogger.pruneOldLogs(1)).not.toThrow();
+        expect(() => FileLogger.pruneOldLogs(config, 1)).not.toThrow();
       } finally {
         chmodSync(logDir, 0o755);
       }
@@ -460,21 +455,21 @@ describe("FileLogger", () => {
         tmpdir(),
         `forge-missing-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       );
-      getInstanceSpy.mockReturnValue({ getLogDir: () => missingDir });
+      const missingConfig = resolveConfig({ logDir: missingDir });
 
-      expect(() => FileLogger.pruneOldLogs(1)).not.toThrow();
+      expect(() => FileLogger.pruneOldLogs(missingConfig, 1)).not.toThrow();
     });
 
     it("swallows ENOTDIR from a log dir path that is a regular file", () => {
-      // getLogDir pointing at a regular file: the top-level readdirSync
+      // Config logDir pointing at a regular file: the top-level readdirSync
       // throws ENOTDIR and must be caught (warn + return) instead of
       // escaping pruneOldLogs out of FileLogger.initialize().
       const filePath = join(logDir, "not-a-dir.log");
       writeFileSync(filePath, "x\n", "utf-8");
-      getInstanceSpy.mockReturnValue({ getLogDir: () => filePath });
+      const notADirConfig = resolveConfig({ logDir: filePath });
       const warnSpy = vi.spyOn(moduleLogger, "warn");
 
-      expect(() => FileLogger.pruneOldLogs(7)).not.toThrow();
+      expect(() => FileLogger.pruneOldLogs(notADirConfig, 7)).not.toThrow();
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining(`Log retention: cannot read log directory ${filePath}`),
       );
@@ -484,7 +479,7 @@ describe("FileLogger", () => {
       writeLogFile("forge-recent.log", 3);
       const infoSpy = vi.spyOn(moduleLogger, "info");
 
-      FileLogger.pruneOldLogs(7);
+      FileLogger.pruneOldLogs(config, 7);
 
       expect(infoSpy).toHaveBeenCalledWith("Log retention: pruned 0 of 1 files older than 7 days");
     });
@@ -493,7 +488,7 @@ describe("FileLogger", () => {
       writeLogFile("forge-stale.log", 10);
       const infoSpy = vi.spyOn(moduleLogger, "info");
 
-      FileLogger.pruneOldLogs(0);
+      FileLogger.pruneOldLogs(config, 0);
 
       expect(infoSpy).not.toHaveBeenCalled();
     });
@@ -505,7 +500,7 @@ describe("FileLogger", () => {
       // the test's expected day can never race across a midnight boundary.
       vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-03-02T10:00:00") });
       try {
-        const prod = FileLogger.initialize(undefined, { maxBytes: 100, maxFiles: 3 });
+        const prod = FileLogger.initialize(config, undefined, { maxBytes: 100, maxFiles: 3 });
         const message = "x".repeat(200);
         prod.info(message);
         prod.info(message);
@@ -546,35 +541,29 @@ describe("FileLogger", () => {
     });
 
     it("names the audit ledger after the configured log prefix", async () => {
-      const prefixedSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-        getLogRetentionDays: () => 0,
-        getLogLevel: () => LogLevel.DEBUG,
-        getLogDir: () => logDir,
-        getLogPrefix: () => "agent-42",
-        getLogMaxBytes: () => 10 * 1024 * 1024,
-        getLogMaxFiles: () => 5,
-      } as unknown as ForgeConfig);
+      const configAgent42 = resolveConfig({
+        logDir,
+        logPrefix: "agent-42",
+        logLevel: LogLevel.DEBUG,
+        logRetentionDays: 0,
+      });
 
-      try {
-        const prod = FileLogger.initialize(undefined);
-        prod.info("hello");
-        await prod.close();
+      const prod = FileLogger.initialize(configAgent42, undefined);
+      prod.info("hello");
+      await prod.close();
 
-        const auditName = `.agent-42-${process.pid}-audit.json`;
-        expect(existsSync(join(logDir, auditName))).toBe(true);
-        // The log file itself uses the configured prefix too.
-        expect(
-          readdirSync(logDir).some((name) => name.startsWith(`agent-42.`) && name.endsWith(".log")),
-        ).toBe(true);
-      } finally {
-        prefixedSpy.mockRestore();
-      }
+      const auditName = `.agent-42-${process.pid}-audit.json`;
+      expect(existsSync(join(logDir, auditName))).toBe(true);
+      // The log file itself uses the configured prefix too.
+      expect(
+        readdirSync(logDir).some((name) => name.startsWith(`agent-42.`) && name.endsWith(".log")),
+      ).toBe(true);
     });
   });
 
   describe("rotation and retention through FileLogger", () => {
     it("rotates an explicit-path logger into .N segments and caps them", async () => {
-      const rot = FileLogger.initialize(filePath, { maxBytes: 100, maxFiles: 2 });
+      const rot = FileLogger.initialize(config, filePath, { maxBytes: 100, maxFiles: 2 });
       const message = "x".repeat(200);
       for (let i = 0; i < 4; i++) {
         rot.info(message);
@@ -595,23 +584,20 @@ describe("FileLogger", () => {
 
   describe("pruneStaleProcessLogs", () => {
     let staleDir: string;
-    let staleSpy: ReturnType<typeof vi.spyOn>;
+    let config: ForgeConfig;
 
     beforeEach(() => {
       staleDir = mkdtempSync(join(tmpdir(), "forge-stale-test-"));
-      staleSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-        getLogDir: () => staleDir,
-        getLogPrefix: () => "forge",
-        getLogRetentionDays: () => 0,
-        getLogLevel: () => LogLevel.DEBUG,
-        getLogMaxBytes: () => 10 * 1024 * 1024,
-        getLogMaxFiles: () => 5,
-      } as unknown as ForgeConfig);
+      config = resolveConfig({
+        logDir: staleDir,
+        logPrefix: "forge",
+        logRetentionDays: 0,
+        logLevel: LogLevel.DEBUG,
+      });
     });
 
     afterEach(() => {
       vi.restoreAllMocks();
-      staleSpy.mockRestore();
       rmSync(staleDir, { recursive: true, force: true });
     });
 
@@ -630,7 +616,7 @@ describe("FileLogger", () => {
       writeFileSync(join(staleDir, `forge.${oldDay}.${pid}.log`), "x\n");
       writeFileSync(join(staleDir, `.forge-${pid}-audit.json`), "{}\n");
 
-      FileLogger.pruneStaleProcessLogs(staleDir);
+      FileLogger.pruneStaleProcessLogs(config, staleDir);
 
       expect(existsSync(join(staleDir, `.forge-${pid}-audit.json`))).toBe(false);
       expect(existsSync(join(staleDir, `forge.${oldDay}.${pid}.log`))).toBe(false);
@@ -655,7 +641,7 @@ describe("FileLogger", () => {
         utimesSync(fullPath, old, old);
       }
 
-      FileLogger.pruneStaleProcessLogs(staleDir);
+      FileLogger.pruneStaleProcessLogs(config, staleDir);
 
       // 4 segments for one pid:day - the oldest mtime (the base) is evicted.
       expect(existsSync(join(staleDir, `forge.${today}.${pid}.log`))).toBe(false);
@@ -669,7 +655,7 @@ describe("FileLogger", () => {
       writeFileSync(join(staleDir, `forge.${today}.${process.pid}.log`), "x\n");
       writeFileSync(join(staleDir, `.forge-${process.pid}-audit.json`), "{}\n");
 
-      FileLogger.pruneStaleProcessLogs(staleDir);
+      FileLogger.pruneStaleProcessLogs(config, staleDir);
 
       expect(existsSync(join(staleDir, `forge.${today}.${process.pid}.log`))).toBe(true);
       expect(existsSync(join(staleDir, `.forge-${process.pid}-audit.json`))).toBe(true);
@@ -681,7 +667,7 @@ describe("FileLogger", () => {
       writeFileSync(join(staleDir, `forge.${oldDay}.${pid}.log`), "x\n");
       writeFileSync(join(staleDir, `.forge-${pid}-audit.json`), "{}\n");
 
-      FileLogger.initialize();
+      FileLogger.initialize(config, undefined);
 
       expect(existsSync(join(staleDir, `.forge-${pid}-audit.json`))).toBe(false);
       expect(existsSync(join(staleDir, `forge.${oldDay}.${pid}.log`))).toBe(false);
@@ -690,6 +676,7 @@ describe("FileLogger", () => {
     it("tolerates a missing log dir", () => {
       expect(() =>
         FileLogger.pruneStaleProcessLogs(
+          config,
           join(tmpdir(), `forge-missing-${Date.now()}-${Math.random().toString(36).slice(2)}`),
         ),
       ).not.toThrow();
@@ -700,6 +687,7 @@ describe("FileLogger", () => {
 describe("FileLogger with a real config file", () => {
   let scratchDir: string;
   let logsDir: string;
+  let config: ForgeConfig;
   let prodLogger: FileLogger | undefined;
 
   beforeEach(async () => {
@@ -714,8 +702,7 @@ describe("FileLogger with a real config file", () => {
         logMaxFiles: 2,
       }),
     );
-    ForgeConfig.destroy();
-    await ForgeConfig.create({ cwd: scratchDir });
+    config = await ForgeConfigLoader.load({ cwd: scratchDir });
   });
 
   afterEach(async () => {
@@ -723,15 +710,11 @@ describe("FileLogger with a real config file", () => {
       await prodLogger.close();
       prodLogger = undefined;
     }
-    ForgeConfig.destroy();
-    // Restore the default singleton created by test-setup for the rest of
-    // the suite (the FileLogger describe mocks getInstance anyway).
-    await ForgeConfig.create();
     rmSync(scratchDir, { recursive: true, force: true });
   });
 
   it("initialize() honors logMaxBytes/logMaxFiles from a real config file", async () => {
-    prodLogger = FileLogger.initialize();
+    prodLogger = FileLogger.initialize(config);
     const message = "y".repeat(150);
     for (let i = 0; i < 3; i++) {
       prodLogger.info(message);

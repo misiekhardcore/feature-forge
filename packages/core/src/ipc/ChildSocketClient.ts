@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { connect, type Socket } from "node:net";
 
-import { ForgeConfig } from "../config";
+import { DEFAULT_FORGE_CONFIG } from "../config/ForgeConfigDefaults";
 import { jsonParse } from "../helpers";
 import { logger } from "../logging";
 import { IpcConnectionError, IpcRequestError, IpcTimeoutError } from "./errors";
@@ -26,6 +26,16 @@ import type { ParamsToResponseMap, SocketMessage, SocketPush, SocketResponse } f
  * });
  * ```
  */
+
+export interface ChildSocketClientOptions {
+  /**
+   * Default timeout in milliseconds applied to {@link ChildSocketClient.request}
+   * calls that do not pass an explicit timeout. Falls back to
+   * `DEFAULT_FORGE_CONFIG.taskTimeoutMs` when omitted.
+   */
+  defaultTimeoutMs?: number;
+}
+
 export class ChildSocketClient {
   private socket: Socket | null = null;
 
@@ -46,7 +56,15 @@ export class ChildSocketClient {
 
   private buffer = "";
 
-  constructor(private readonly socketPath: string) {}
+  /** Default request timeout; configurable via {@link ChildSocketClientOptions.defaultTimeoutMs}. */
+  private readonly defaultTimeoutMs: number;
+
+  constructor(
+    private readonly socketPath: string,
+    options: ChildSocketClientOptions = {},
+  ) {
+    this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs;
+  }
 
   /**
    * Connect to the parent socket.
@@ -109,15 +127,17 @@ export class ChildSocketClient {
    *
    * @param type — The message type.
    * @param params — The request parameters.
-   * @param timeout — Milliseconds to wait before throwing IpcTimeoutError (default 5 minutes).
+   * @param timeout — Milliseconds to wait before throwing IpcTimeoutError. Defaults to the
+   *   client's `defaultTimeoutMs` option (itself `DEFAULT_FORGE_CONFIG.taskTimeoutMs`).
    * @param signal — Optional AbortSignal to cancel the pending request.
    */
   async request<ST extends SocketMessage["type"]>(
     type: ST,
     params: Extract<SocketMessage, { type: ST }>["params"],
-    timeout = ForgeConfig.getInstance().getTaskTimeoutMs(),
+    timeout?: number,
     signal?: AbortSignal,
   ): Promise<ParamsToResponseMap[ST]> {
+    const resolvedTimeout = timeout ?? this.defaultTimeoutMs;
     const correlationId = randomUUID();
 
     signal?.throwIfAborted();
@@ -135,8 +155,8 @@ export class ChildSocketClient {
       // Timeout
       const timer = setTimeout(() => {
         this.pending.delete(correlationId);
-        reject(new IpcTimeoutError(correlationId, timeout));
-      }, timeout);
+        reject(new IpcTimeoutError(correlationId, resolvedTimeout));
+      }, resolvedTimeout);
 
       const onAbort = (): void => {
         clearTimeout(timer);

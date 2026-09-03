@@ -413,4 +413,48 @@ describe("AgentJournalRecorder", () => {
       });
     });
   });
+
+  // ── journalRetention threading ────────────────────────────
+
+  describe("journalRetention threading", () => {
+    it("applies recorder journalRetention to the journals it writes", () => {
+      // The recorder forwards its journalRetention to the internal state, so
+      // journals honor the threaded sink options instead of a config read.
+      const retainedDir = makeTempDir();
+      const defaultDir = makeTempDir();
+      const withRetention = new AgentJournalRecorder({
+        eventBus: bus,
+        streamDir: retainedDir,
+        journalRetention: { maxBytes: 50, maxFiles: 5 },
+      });
+      const withoutRetention = new AgentJournalRecorder({ eventBus: bus, streamDir: defaultDir });
+      try {
+        withRetention.subscribe();
+        withoutRetention.subscribe();
+
+        bus.emit("feature-forge:agent-started", startedPayload("builder"));
+        for (let i = 0; i < 10; i++) {
+          bus.emit("feature-forge:agent-stream", streamPayload("builder", agentStartEvent()));
+        }
+
+        const segments = (dir: string): string[] =>
+          readdirSync(dir).filter((name) => /^builder\.journal\.jsonl\.\d+$/.test(name));
+
+        // The threaded 50-byte maxBytes is exceeded by every appended entry,
+        // so rotation produced numeric segments in the retained directory...
+        expect(existsSync(join(retainedDir, "builder.journal.jsonl"))).toBe(true);
+        expect(segments(retainedDir).length).toBeGreaterThan(0);
+
+        // ...while a recorder without retention keeps the canonical defaults
+        // (10MB/5): the same ~1.5KB of entries never rotate.
+        expect(existsSync(join(defaultDir, "builder.journal.jsonl"))).toBe(true);
+        expect(segments(defaultDir)).toEqual([]);
+      } finally {
+        withRetention.dispose();
+        withoutRetention.dispose();
+        rmSync(retainedDir, { recursive: true, force: true });
+        rmSync(defaultDir, { recursive: true, force: true });
+      }
+    });
+  });
 });

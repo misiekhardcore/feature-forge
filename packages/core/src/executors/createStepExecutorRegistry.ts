@@ -30,6 +30,7 @@ export function createStepExecutorRegistry(
   specManager: SpecManager,
   worktreeRegistry: WorktreeRegistry,
   workspaceManager: WorkspaceManager,
+  options: { jsonRetryMaxAttempts?: number } = {},
 ): StepExecutorRegistry {
   const registry = new StepExecutorRegistry();
 
@@ -37,7 +38,7 @@ export function createStepExecutorRegistry(
   registry.register(
     () => new WorkspaceStepExecutor(workspaceProviderRegistry, worktreeRegistry, workspaceManager),
   );
-  registry.register(() => new AgentStepExecutor(supervisor, specManager));
+  registry.register(() => new AgentStepExecutor(supervisor, specManager, options));
   registry.register(
     () => new CleanupStepExecutor(workspaceProviderRegistry, worktreeRegistry, workspaceManager),
   );

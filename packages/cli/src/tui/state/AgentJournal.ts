@@ -4,7 +4,7 @@ import { createInterface } from "node:readline";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { JsonAgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, jsonParse, logger, RotatingFileSink } from "@feature-forge/core";
+import { DEFAULT_FORGE_CONFIG, jsonParse, logger, RotatingFileSink } from "@feature-forge/core";
 
 /**
  * One persisted tool-log record (the journal's `tool` entry shape).
@@ -58,9 +58,12 @@ export type AgentJournalEntry =
  *
  * Tests pass small `maxBytes`/`maxFiles` values to exercise rotation and
  * segment-count retention without writing megabytes. When omitted, the
- * values come from ForgeConfig (`logMaxBytes`/`logMaxFiles`) - the same
+ * values fall back to the canonical retention defaults
+ * (`DEFAULT_FORGE_CONFIG.logMaxBytes`/`logMaxFiles`) - the same
  * bounded-retention knobs as the file logger, so both persistence
- * surfaces share one retention policy.
+ * surfaces share one retention policy. Configured values are threaded
+ * explicitly by the composition side (AgentViewerState's
+ * `journalRetention` option); this class never reads a config singleton.
  */
 export interface AgentJournalOptions {
   /** Rotate to a new segment once the active file exceeds this many bytes. */
@@ -96,17 +99,24 @@ export class AgentJournal {
 
   constructor(filePath: string, options: AgentJournalOptions = {}) {
     this.filePath = filePath;
-    const config = ForgeConfig.getInstance();
-    const maxBytes = options.maxBytes ?? config.getLogMaxBytes();
-    const maxFiles = options.maxFiles ?? config.getLogMaxFiles();
+    const maxBytes = options.maxBytes ?? DEFAULT_FORGE_CONFIG.logMaxBytes;
+    const maxFiles = options.maxFiles ?? DEFAULT_FORGE_CONFIG.logMaxFiles;
     this.sink = AgentJournal.createSink(filePath, maxBytes, maxFiles);
   }
 
   /**
    * Create a journal for an agent under the shared stream directory.
+   *
+   * `options` carries the same sink overrides as the constructor; retention
+   * is explicit here so callers never fall back to reading a config
+   * singleton (the composition side threads configured values).
    */
-  static forAgent(streamDir: string, agentId: string): AgentJournal {
-    return new AgentJournal(join(streamDir, `${agentId}.journal.jsonl`));
+  static forAgent(
+    streamDir: string,
+    agentId: string,
+    options: AgentJournalOptions = {},
+  ): AgentJournal {
+    return new AgentJournal(join(streamDir, `${agentId}.journal.jsonl`), options);
   }
 
   /**

@@ -52,6 +52,8 @@ export interface TestLoopDeps {
     tui: TUI;
     theme: Theme;
     onDone: () => void;
+    /** Command context - supplies the cwd for project-scoped viewer config. */
+    ctx: ExtensionCommandContext;
   }) => ViewerHandle & Component;
   overlayOptions: OverlayOptions;
   renderHelpers: RenderHelpers;
@@ -103,6 +105,7 @@ export function registerTestLoopRoutine(
               widget.clear();
               done(undefined);
             },
+            ctx,
           });
 
           const agentDefs = [

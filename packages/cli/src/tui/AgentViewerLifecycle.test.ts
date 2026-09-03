@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, logger } from "@feature-forge/core";
+import { logger } from "@feature-forge/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { showAgentViewerMock } = vi.hoisted(() => {
@@ -13,10 +13,19 @@ vi.mock("./showAgentViewer", () => ({ showAgentViewer: showAgentViewerMock }));
 
 import { makeMockToolRegistry, makeMockTypedEventBus } from "../test-utils";
 import { AgentViewerLifecycle } from "./AgentViewerLifecycle";
-import type { AgentQuery } from "./api";
+import type { AgentQuery, AgentViewerConfigSource } from "./api";
 import type { AgentViewerHandle } from "./showAgentViewer";
 
 // ── Helpers ──────────────────────────────────────────────────
+
+const viewerConfig = {
+  getLogDir: () => "/tmp/forge-test-streams",
+  getLogRetentionDays: () => 7,
+  getDisplayMaxAgentEvents: () => 200,
+  getDisplayMaxPreconnectBuffer: () => 100,
+  getDisplayMaxOverlayHeight: () => "85%",
+  getHideThinkingBlock: () => false,
+} satisfies AgentViewerConfigSource;
 
 function makeHarness(overrides: { hasUI?: boolean } = {}): {
   ctx: ExtensionContext;
@@ -29,7 +38,13 @@ function makeHarness(overrides: { hasUI?: boolean } = {}): {
   const toolRegistry = makeMockToolRegistry();
   const eventBus = makeMockTypedEventBus();
   const agentQuery = { getAgent: vi.fn(), getAllAgents: vi.fn() } as unknown as AgentQuery;
-  const viewer = new AgentViewerLifecycle({ ctx, toolRegistry, eventBus, agentQuery });
+  const viewer = new AgentViewerLifecycle({
+    ctx,
+    viewerConfig,
+    toolRegistry,
+    eventBus,
+    agentQuery,
+  });
   return { ctx, toolRegistry, eventBus, agentQuery, viewer };
 }
 
@@ -42,14 +57,14 @@ describe("AgentViewerLifecycle", () => {
   });
 
   describe("open", () => {
-    it("opens the viewer with ctx, config, toolRegistry, eventBus and agentQuery", () => {
+    it("opens the viewer with ctx, viewerConfig, toolRegistry, eventBus and agentQuery", () => {
       const { ctx, toolRegistry, eventBus, agentQuery, viewer } = makeHarness();
 
       viewer.open();
 
       expect(showAgentViewerMock).toHaveBeenCalledWith({
         ctx,
-        config: ForgeConfig.getInstance(),
+        config: viewerConfig,
         toolRegistry,
         eventBus,
         agentQuery,

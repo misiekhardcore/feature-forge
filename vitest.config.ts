@@ -28,7 +28,6 @@ export default defineConfig({
         "**/node_modules/**",
         "**/dist/**",
         "**/coverage/**",
-        "**/test-setup.ts",
         "**/test-utils.ts",
         "**/e2e/**",
 
@@ -42,7 +41,6 @@ export default defineConfig({
         test: {
           name: "core",
           root: packageRoot("core"),
-          setupFiles: ["src/test-setup.ts"],
           globals: true,
           include: ["src/**/*.test.ts"],
         },
@@ -53,7 +51,6 @@ export default defineConfig({
           root: packageRoot("cli"),
           globals: true,
           include: ["src/**/*.test.ts"],
-          setupFiles: ["src/test-setup.ts"],
           exclude: ["node_modules", "**/e2e/**", "**/dist/**"],
         },
       },
@@ -63,7 +60,6 @@ export default defineConfig({
           root: packageRoot("cli"),
           globals: true,
           include: ["e2e/**/*.test.ts"],
-          setupFiles: ["src/test-setup.ts"],
           testTimeout: 30_000,
           hookTimeout: 15_000,
         },

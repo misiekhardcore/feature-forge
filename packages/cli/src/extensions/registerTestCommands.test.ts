@@ -1,9 +1,10 @@
 import * as path from "node:path";
 
-import { ForgeConfig } from "@feature-forge/core";
+import type { ForgeConfigData } from "@feature-forge/core";
+import { resolveConfig } from "@feature-forge/core";
 import { withForgePrefix } from "@feature-forge/core/registry";
 import { ToolRegistry } from "@feature-forge/core/registry";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeMockCtx, makeMockPi } from "../test-utils";
 import { showAgentViewer } from "../tui/showAgentViewer";
@@ -17,9 +18,11 @@ vi.mock("../tui/showAgentViewer", async (importOriginal) => {
 
 const showAgentViewerMock = vi.mocked(showAgentViewer);
 
-function registerCommands() {
+function registerCommands(
+  config: Readonly<ForgeConfigData> = resolveConfig({ dev: { enabled: true } }),
+) {
   const pi = makeMockPi();
-  registerDevTestCommands(pi, new ToolRegistry(null, pi));
+  registerDevTestCommands(pi, new ToolRegistry(null, pi), config);
   return pi;
 }
 
@@ -42,18 +45,9 @@ function makeViewer(): {
 }
 
 describe("registerDevTestCommands", () => {
-  let devEnabledSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
-    devEnabledSpy = vi.spyOn(ForgeConfig, "getInstance").mockReturnValue({
-      getDevEnabled: () => true,
-    } as unknown as ForgeConfig);
     showAgentViewerMock.mockReset();
     showAgentViewerMock.mockResolvedValue({ viewer: undefined, dispose: vi.fn() });
-  });
-
-  afterEach(() => {
-    devEnabledSpy.mockRestore();
   });
 
   it("registers the four viewer test commands plus the debug loop routine", () => {
@@ -72,8 +66,7 @@ describe("registerDevTestCommands", () => {
   });
 
   it("registers nothing when dev mode is disabled", () => {
-    devEnabledSpy.mockReturnValue({ getDevEnabled: () => false });
-    const pi = registerCommands();
+    const pi = registerCommands(resolveConfig({ dev: { enabled: false } }));
 
     expect(pi.registerCommand).not.toHaveBeenCalled();
   });

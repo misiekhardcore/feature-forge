@@ -1,11 +1,10 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import type { OverlayHandle } from "@earendil-works/pi-tui";
-import { ForgeConfig } from "@feature-forge/core";
 import { TypedEventBus } from "@feature-forge/core/event-bus";
 import { SharedStreamDir } from "@feature-forge/core/progress";
 
-import type { AgentQuery, ToolFormatter } from "./api";
+import type { AgentQuery, AgentViewerConfigSource, ToolFormatter } from "./api";
 import { AgentViewerOverlay } from "./views/AgentViewerOverlay";
 
 /**
@@ -14,8 +13,8 @@ import { AgentViewerOverlay } from "./views/AgentViewerOverlay";
 export interface ShowAgentViewerParams {
   /** Command context — the overlay opens via `ctx.ui.custom`. */
   ctx: ExtensionContext;
-  /** Display configuration (ForgeConfig satisfies the tui DisplayConfig contract). */
-  config: ForgeConfig;
+  /** Viewer configuration: display tuning plus log/stream-directory settings. */
+  config: AgentViewerConfigSource;
   /** Tool registry used by the detail view to restore tool argument formatting. */
   toolRegistry: ToolFormatter;
   /**
@@ -124,7 +123,8 @@ export async function showAgentViewer(params: ShowAgentViewerParams): Promise<Ag
   const entry: ActiveViewer = { disposed: false };
   activeViewer = entry;
 
-  const resolvedStreamDir = streamDir ?? SharedStreamDir.get(config.getLogDir());
+  const resolvedStreamDir =
+    streamDir ?? SharedStreamDir.get(config.getLogDir(), config.getLogRetentionDays());
   const unsubs: Array<() => void> = [];
   let viewerRef: AgentViewerOverlay | undefined;
   let dismiss: (() => void) | undefined;

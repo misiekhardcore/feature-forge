@@ -864,6 +864,32 @@ describe("GitWorktreeProvider", () => {
       expect(symlinkTargets).toContain(`${worktreePath}/custom-config`);
     });
 
+    it("creates config symlinks passed via constructor options", async () => {
+      // worktreeSymlinks replaces the old ForgeConfig singleton read; the
+      // second arg stays undefined so the default baseRef still applies.
+      const p = new GitWorktreeProvider(repoRoot, undefined, {
+        worktreeSymlinks: ["node_modules"],
+      });
+      expect(p.baseRef).toBe("origin/HEAD");
+
+      mocks.addExistingPath(`${repoRoot}/node_modules`);
+
+      branchCheckPasses();
+      mocks.willSucceed(
+        "git",
+        ["worktree", "add", worktreePath, "origin/HEAD", "-b", branchName],
+        "worktree created",
+      );
+
+      await p.createWorkspace("task-1");
+
+      // 4 platform + 1 config-level
+      expect(mocks.symlinkSync).toHaveBeenCalledTimes(5);
+
+      const symlinkTargets = mocks.symlinkSync.mock.calls.map((call: unknown[]) => call[1]);
+      expect(symlinkTargets).toContain(`${worktreePath}/node_modules`);
+    });
+
     it("skips symlink when target directory already exists (tracked in git)", async () => {
       // .pi is tracked in git, so the worktree already contains it
       mocks.addExistingPath(`${worktreePath}/.pi`);

@@ -1,6 +1,7 @@
 export type { AgentKind } from "./Agent";
 export { Agent } from "./Agent";
 export { AgentStatus } from "./AgentStatus";
+export type { PiSubprocessAgentFactoryOptions } from "./factories";
 export {
   AgentCreationError,
   AgentFactory,
@@ -8,6 +9,7 @@ export {
   PiSubprocessAgentFactory,
 } from "./factories";
 export { isSubprocessAgent } from "./guards";
+export type { PiSubprocessAgentOptions } from "./PiSubprocessAgent";
 export { PiSubprocessAgent } from "./PiSubprocessAgent";
 export {
   activateToolRestrictions,
