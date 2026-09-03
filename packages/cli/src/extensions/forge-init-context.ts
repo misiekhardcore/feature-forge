@@ -34,8 +34,7 @@ extend a skill instead of repeating ad-hoc work.
 - Validate before declaring done: follow the structure mandate and run skill_validate.
 
 ## When NOT to engage forge
-One-off work with no repetition, or no flow requested - do not invent forge ceremony,
-spawn sub-agents, or create worktrees unasked. Skills encode the HOW of recurring
+One-off work with no repetition, or no flow requested. Skills encode the HOW of recurring
 work; they do not replace answering the question.
 `;
 
