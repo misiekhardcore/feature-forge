@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
-import { ForgeConfig, Tool } from "@feature-forge/core";
+import { Tool } from "@feature-forge/core";
 import type { Static } from "typebox";
 import { Type } from "typebox";
 import { parse as parseYaml } from "yaml";
@@ -51,6 +51,16 @@ interface GitReport {
  * project files at PR time.
  */
 export class SkillPersistTool extends Tool {
+  /**
+   * @param forgeDir - Absolute forge home, resolved once by the composition
+   *   root (`ForgeConfigPaths.resolveForgeDir`) and injected here - the
+   *   destination for the `global` scope is `<forgeDir>/skills/<name>`. The
+   *   tool never reads a config holder itself.
+   */
+  constructor(private readonly forgeDir: string) {
+    super();
+  }
+
   readonly name = "skill_persist";
   readonly label = "Persist Skill";
   readonly description =
@@ -139,8 +149,8 @@ export class SkillPersistTool extends Tool {
    * (`<git root>/.pi/skills/<name>`); without a git root, fall back to
    * `<cwd>/.pi/skills/<name>`.
    *
-   * Global: `<forgeDir>/skills/<name>` with the same try/fallback pattern
-   * as forge-skills.ts (ForgeConfig, else `path.resolve(".forge")`).
+   * Global: `<forgeDir>/skills/<name>` - the forge home arrived via the
+   * constructor from the composition root (see {@link SkillPersistTool} ctor).
    */
   private resolveDestDir(skillName: string, scope: "project" | "global"): string {
     if (scope === "project") {
@@ -148,13 +158,7 @@ export class SkillPersistTool extends Tool {
       const home = gitRoot ?? process.cwd();
       return path.join(home, ".pi", "skills", skillName);
     }
-    let forgeDir: string;
-    try {
-      forgeDir = ForgeConfig.getInstance().getForgeDir();
-    } catch {
-      forgeDir = path.resolve(".forge");
-    }
-    return path.join(forgeDir, "skills", skillName);
+    return path.join(this.forgeDir, "skills", skillName);
   }
 
   /**

@@ -3,13 +3,16 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { ForgeConfig } from "@feature-forge/core";
 import { Value } from "typebox/value";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SkillPersistTool } from "./SkillPersistTool";
 
-const tool = new SkillPersistTool();
+// Project-scope persistence and the metadata assertions never read forgeDir
+// (only the `global` scope consults it, and those tests construct their own
+// tool bound to a per-test forge home, mirroring the composition root wiring
+// `new SkillPersistTool(ForgeConfigPaths.resolveForgeDir(...))`).
+const tool = new SkillPersistTool("/forge-home-not-consulted");
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "skill-persist-"));
@@ -56,13 +59,16 @@ function makeSourceSkill(root: string, name: string, frontmatterName = name): st
   return skillDir;
 }
 
-/** Execute against a path and return the result text. */
-async function run(params: {
-  path: string;
-  scope: "project" | "global";
-  confirmed?: boolean;
-}): Promise<string> {
-  const result = await tool.execute("call-1", params, undefined);
+/** Execute against a tool and return the result text. */
+async function run(
+  params: {
+    path: string;
+    scope: "project" | "global";
+    confirmed?: boolean;
+  },
+  persistTool: SkillPersistTool = tool,
+): Promise<string> {
+  const result = await persistTool.execute("call-1", params, undefined);
   return result.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
@@ -70,10 +76,6 @@ const tempDirs: string[] = [];
 
 function mockCwd(dir: string): void {
   vi.spyOn(process, "cwd").mockReturnValue(dir);
-}
-
-function mockForgeDir(dir: string): void {
-  vi.spyOn(ForgeConfig.getInstance(), "getForgeDir").mockReturnValue(dir);
 }
 
 afterEach(() => {
@@ -158,11 +160,10 @@ describe("SkillPersistTool", () => {
     it("writes nothing and asks for confirmation on global scope without confirmed", async () => {
       const forgeHome = makeTempDir();
       tempDirs.push(forgeHome);
-      mockForgeDir(forgeHome);
       const source = makeSourceSkill(makeTempDir(), "my-skill");
       tempDirs.push(path.dirname(source));
 
-      const text = await run({ path: source, scope: "global" });
+      const text = await run({ path: source, scope: "global" }, new SkillPersistTool(forgeHome));
 
       expect(text).toContain("global scope requires explicit user confirmation");
       expect(text).toContain(
@@ -176,11 +177,13 @@ describe("SkillPersistTool", () => {
     it("writes to <forgeDir>/skills/<name> on global scope with confirmed: true", async () => {
       const forgeHome = makeTempDir();
       tempDirs.push(forgeHome);
-      mockForgeDir(forgeHome);
       const source = makeSourceSkill(makeTempDir(), "my-skill");
       tempDirs.push(path.dirname(source));
 
-      const text = await run({ path: source, scope: "global", confirmed: true });
+      const text = await run(
+        { path: source, scope: "global", confirmed: true },
+        new SkillPersistTool(forgeHome),
+      );
 
       const destDir = path.join(forgeHome, "skills", "my-skill");
       expect(fs.existsSync(path.join(destDir, "SKILL.md"))).toBe(true);
@@ -208,11 +211,13 @@ describe("SkillPersistTool", () => {
     it("warns when the frontmatter name differs from the directory name", async () => {
       const forgeHome = makeTempDir();
       tempDirs.push(forgeHome);
-      mockForgeDir(forgeHome);
       const source = makeSourceSkill(makeTempDir(), "my-skill", "other-name");
       tempDirs.push(path.dirname(source));
 
-      const text = await run({ path: source, scope: "global", confirmed: true });
+      const text = await run(
+        { path: source, scope: "global", confirmed: true },
+        new SkillPersistTool(forgeHome),
+      );
 
       expect(text).toContain(
         '[warn] SKILL.md frontmatter name "other-name" differs from the directory name - persisted as "my-skill"',

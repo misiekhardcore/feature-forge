@@ -261,9 +261,11 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
 
   // Skill self-improvement toolset: deterministic structure gate
   // (skill_validate) and scope-resolved persistence (skill_persist). Both
-  // are dependency-free local tools - no IPC, no constructor deps.
+  // are local tools - no IPC. skill_validate is dependency-free;
+  // skill_persist receives the forge home resolved above (its `global`
+  // scope destination is <forgeDir>/skills).
   toolRegistry.registerInstance(new SkillValidateTool());
-  toolRegistry.registerInstance(new SkillPersistTool());
+  toolRegistry.registerInstance(new SkillPersistTool(forgeDir));
 
   // ── Root-only session extensions ─────────────────────────────────
   // Child sessions (FORGE_PARENT_SOCKET set) receive the parent's context
