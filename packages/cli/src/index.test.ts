@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { ForgeConfigLoader, Logger } from "@feature-forge/core";
+import { ForgeConfigLoader, logger, LogLevel } from "@feature-forge/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import featureForgeExtension from "./index";
@@ -37,7 +37,13 @@ describe("featureForgeExtension degraded mode", () => {
       delete process.env.FORGE_PARENT_SOCKET;
     }
     process.env.HOME = originalHome;
-    Logger.resetForTest();
+    // Restore the module logger to console defaults (old Logger.resetForTest
+    // parity). Logging init (FileLogger.install) runs before the degraded
+    // return for the unscaffolded-forge path, so the tests above can leave a
+    // file destination attached to the module logger; detach it and pin the
+    // INFO level so a level/destination configured in this file cannot leak
+    // into later tests.
+    logger.configure({ level: LogLevel.INFO, destination: null });
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 

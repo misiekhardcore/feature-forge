@@ -4,7 +4,8 @@ import path from "node:path";
 import { DEFAULT_FORGE_CONFIG } from "../config/ForgeConfigDefaults";
 import type { ForgeConfig } from "../config/ForgeConfigSchema";
 import { LogLevel } from "../config/ForgeConfigSchema";
-import { Logger, logger } from "./Logger";
+import type { LoggerDestination } from "./Logger";
+import { logger as moduleLogger } from "./Logger";
 import { RotatingFileSink } from "./RotatingFileSink";
 
 /** Shape of a single log entry written to the JSON Lines file. */
@@ -35,18 +36,23 @@ const RETAINED_STALE_LOGS_PER_PROCESS_DAY = 3;
 const RETAINED_STALE_LOG_DAYS = 5;
 
 /**
- * Logger that appends JSON Lines entries to a rotating file sink.
+ * File destination that appends JSON Lines entries to a rotating file sink.
  *
- * Only entries at or above the configured {@link level} are written.
  * Each entry is a single JSON object on its own line:
  * `{"timestamp":"...","level":"error","message":"...","data":{...}}`
+ *
+ * {@link FileLogger} does not apply level filtering - the {@link Logger}
+ * that owns this destination filters before delegating, so a standalone
+ * FileLogger writes whatever it is handed. {@link install} wires the
+ * configured level onto the module logger once; the config is never
+ * re-read on a per-call basis.
  *
  * Production logs use OMP-compatible naming `forge.<day>.<pid>.log[.N]`
  * with a persistent audit ledger for cross-restart count retention. When an
  * explicit `filePath` is passed (tests, custom paths) the sink writes to
  * that exact base filename without day rotation or audit ledger.
  */
-export class FileLogger extends Logger {
+export class FileLogger implements LoggerDestination {
   private readonly filePath: string;
   private readonly sink: RotatingFileSink;
 
@@ -62,8 +68,6 @@ export class FileLogger extends Logger {
     filePath?: string,
     sinkOverrides?: FileLoggerSinkOverrides,
   ) {
-    super();
-
     this.filePath = filePath ?? FileLogger.getDefaultLogFilePath(config);
 
     const maxBytes =
@@ -78,7 +82,31 @@ export class FileLogger extends Logger {
   }
 
   /**
-   * Initialize the logger singleton with a new FileLogger instance.
+   * Construct a FileLogger for the given config without side effects:
+   * stale-process pruning is not run and no logger is touched. The file is
+   * only created on the first write.
+   *
+   * @param config — Fully resolved configuration providing the log dir,
+   *   prefix, retention, rotation and level settings.
+   * @param filePath — Absolute path to the log file (created on first
+   *   write). When omitted, the OMP-style production sink is used.
+   * @param sinkOverrides — Rotation/retention overrides for the sink.
+   */
+  static create(
+    config: Readonly<ForgeConfig>,
+    filePath?: string,
+    sinkOverrides?: FileLoggerSinkOverrides,
+  ): FileLogger {
+    return new FileLogger(config, filePath, sinkOverrides);
+  }
+
+  /**
+   * Composition-root entry point: prune stale-process namespaces, create a
+   * FileLogger for `config` and wire it (with the configured log level) as
+   * the destination of the module logger, then prune old logs.
+   *
+   * The module logger level is applied once at install time; the config is
+   * not consulted on a per-call basis afterwards.
    *
    * @param config — Fully resolved configuration (log dir, prefix, level,
    *   retention and rotation settings). Required: FileLogger receives its
@@ -87,42 +115,65 @@ export class FileLogger extends Logger {
    *   write). When omitted, the OMP-style production sink is used.
    * @param sinkOverrides — Rotation/retention overrides for the sink.
    */
-  static initialize(
+  static install(
     config: Readonly<ForgeConfig>,
     filePath?: string,
     sinkOverrides?: FileLoggerSinkOverrides,
-  ): FileLogger;
-  /**
-   * Config-less initialization is no longer supported (the logger never
-   * consults a global config - it only reads what is passed explicitly).
-   * Declared so the static contract of the base {@link Logger.initialize}
-   * stays satisfiable; calling it fails fast below.
-   */
-  static initialize(): never;
-  static initialize(
-    config?: Readonly<ForgeConfig>,
-    filePath?: string,
-    sinkOverrides?: FileLoggerSinkOverrides,
   ): FileLogger {
-    if (config === undefined) {
-      throw new Error("FileLogger.initialize requires an explicit config argument");
-    }
     // Remove completed-process namespaces before opening a new sink (OMP
     // parity): dead-pid segments and audits would otherwise accumulate
     // forever, bounded only by the age-based prune below.
     FileLogger.pruneStaleProcessLogs(config, config.logDir ?? DEFAULT_FORGE_CONFIG.logDir);
-    const logger = new FileLogger(config, filePath, sinkOverrides);
-    Logger.instance = logger;
-    // Apply the configured level once at initialization - subsequent
-    // filtering reads the instance level (see Logger.getLogLevel), so
-    // the logger never consults the config on a per-call basis.
-    Logger.setLogLevel(config.logLevel ?? DEFAULT_FORGE_CONFIG.logLevel);
+    const fileLogger = new FileLogger(config, filePath, sinkOverrides);
+    // Apply the configured level once at install time - subsequent
+    // filtering reads the module logger level (see Logger.getLevel), so
+    // the config is never consulted on a per-call basis.
+    moduleLogger.configure({
+      level: config.logLevel ?? DEFAULT_FORGE_CONFIG.logLevel,
+      destination: fileLogger,
+    });
     FileLogger.pruneOldLogs(
       config,
       config.logRetentionDays ?? DEFAULT_FORGE_CONFIG.logRetentionDays,
-      logger.filePath,
+      fileLogger.filePath,
     );
-    return logger;
+    return fileLogger;
+  }
+
+  /**
+   * Write one JSON Lines entry to the sink. No level filtering happens
+   * here - the owning {@link Logger} filters before delegating, so a
+   * standalone FileLogger writes whatever it is handed.
+   *
+   * @param level — Severity of the entry, serialized lowercased.
+   * @param message — Human-readable log message.
+   * @param data — Optional structured context serialized alongside.
+   */
+  write(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level: level.toLowerCase(),
+      message,
+    };
+    if (data !== undefined) {
+      entry.data = data;
+    }
+
+    try {
+      // The sink appends the platform line ending itself.
+      this.sink.write(JSON.stringify(entry));
+    } catch {
+      // Best-effort: if entry can't be serialized (e.g., circular references),
+      // silently drop it rather than crashing the process.
+    }
+  }
+
+  /**
+   * Stop accepting entries. Writes after close are best-effort no-ops
+   * (the sink reports `false` and the entry is dropped silently).
+   */
+  async close(): Promise<void> {
+    this.sink.close();
   }
 
   /**
@@ -185,17 +236,19 @@ export class FileLogger extends Logger {
           }
           considered += 1;
         } catch (error) {
-          logger.warn(`Log retention: failed to inspect or delete ${fullPath}: ${String(error)}`);
+          moduleLogger.warn(
+            `Log retention: failed to inspect or delete ${fullPath}: ${String(error)}`,
+          );
         }
       }
     } catch (error) {
-      logger.warn(`Log retention: cannot read log directory ${logDir}: ${String(error)}`);
+      moduleLogger.warn(`Log retention: cannot read log directory ${logDir}: ${String(error)}`);
       return;
     }
 
     // Report the retention outcome on every run (even when nothing was
     // pruned); like any other entry it is filtered by the session log level.
-    logger.info(
+    moduleLogger.info(
       `Log retention: pruned ${deleted} of ${considered} files older than ${retentionDays} days`,
     );
   }
@@ -401,52 +454,5 @@ export class FileLogger extends Logger {
 
   private static escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
-  override error(message: string, data?: Record<string, unknown>): void {
-    this.writeEntry(LogLevel.ERROR, message, data);
-  }
-
-  override warn(message: string, data?: Record<string, unknown>): void {
-    this.writeEntry(LogLevel.WARN, message, data);
-  }
-
-  override info(message: string, data?: Record<string, unknown>): void {
-    this.writeEntry(LogLevel.INFO, message, data);
-  }
-
-  override debug(message: string, data?: Record<string, unknown>): void {
-    this.writeEntry(LogLevel.DEBUG, message, data);
-  }
-
-  /**
-   * Stop accepting entries. Writes after close are best-effort no-ops
-   * (the sink reports `false` and the entry is dropped silently).
-   */
-  async close(): Promise<void> {
-    this.sink.close();
-  }
-
-  private writeEntry(level: LogLevel, message: string, data?: Record<string, unknown>): void {
-    if (!this.shouldLog(level, Logger.getLogLevel())) {
-      return;
-    }
-
-    const entry: LogEntry = {
-      timestamp: new Date().toISOString(),
-      level: level.toLowerCase(),
-      message,
-    };
-    if (data !== undefined) {
-      entry.data = data;
-    }
-
-    try {
-      // The sink appends the platform line ending itself.
-      this.sink.write(JSON.stringify(entry));
-    } catch {
-      // Best-effort: if entry can't be serialized (e.g., circular references),
-      // silently drop it rather than crashing the process.
-    }
   }
 }

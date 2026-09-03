@@ -1,53 +1,52 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LogLevel } from "../config/ForgeConfigSchema";
-import { Logger } from "./Logger";
+import { Logger, logger, type LoggerDestination } from "./Logger";
 
-describe("Logger", () => {
-  /**
-   * Minimal concrete Logger that captures every call for contract verification.
-   */
-  class TestLogger extends Logger {
-    public calls: Array<{ method: string; message: string; data?: Record<string, unknown> }> = [];
+/** Destination that records every write call for contract verification. */
+class FakeDestination implements LoggerDestination {
+  public calls: Array<{
+    level: LogLevel;
+    message: string;
+    data?: Record<string, unknown>;
+  }> = [];
+  public closed = false;
 
-    static initialize(): TestLogger {
-      return new TestLogger();
-    }
-
-    override error(message: string, data?: Record<string, unknown>): void {
-      this.calls.push({ method: "error", message, data });
-    }
-
-    override warn(message: string, data?: Record<string, unknown>): void {
-      this.calls.push({ method: "warn", message, data });
-    }
-
-    override info(message: string, data?: Record<string, unknown>): void {
-      this.calls.push({ method: "info", message, data });
-    }
-
-    override debug(message: string, data?: Record<string, unknown>): void {
-      this.calls.push({ method: "debug", message, data });
-    }
+  write(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+    this.calls.push({ level, message, data });
   }
 
-  describe("console fallback", () => {
-    it("prints to the console while the base logger is the active instance", () => {
-      Logger.resetForTest();
-      const logger = Logger.initialize();
-      Logger.setLogLevel(LogLevel.DEBUG);
+  close(): void {
+    this.closed = true;
+  }
+}
 
-      const spies = {
-        error: vi.spyOn(console, "error").mockImplementation(() => {}),
-        warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
-        info: vi.spyOn(console, "info").mockImplementation(() => {}),
-        debug: vi.spyOn(console, "debug").mockImplementation(() => {}),
-      };
+function spyConsole(): {
+  error: ReturnType<typeof vi.spyOn>;
+  warn: ReturnType<typeof vi.spyOn>;
+  info: ReturnType<typeof vi.spyOn>;
+  debug: ReturnType<typeof vi.spyOn>;
+} {
+  const spies = {
+    error: vi.spyOn(console, "error").mockImplementation(() => {}),
+    warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
+    info: vi.spyOn(console, "info").mockImplementation(() => {}),
+    debug: vi.spyOn(console, "debug").mockImplementation(() => {}),
+  };
+  return spies;
+}
+
+describe("Logger", () => {
+  describe("console fallback", () => {
+    it("prints every severity to the console when no destination is attached", () => {
+      const l = new Logger();
+      l.setLevel(LogLevel.DEBUG);
+      const spies = spyConsole();
       try {
-        logger.error("err msg", { key: "e" });
-        logger.warn("warn msg");
-        logger.info("info msg", { key: "i" });
-        logger.debug("debug msg");
+        l.error("err msg", { key: "e" });
+        l.warn("warn msg");
+        l.info("info msg", { key: "i" });
+        l.debug("debug msg");
 
         expect(spies.error).toHaveBeenCalledWith("err msg", { key: "e" });
         expect(spies.warn).toHaveBeenCalledWith("warn msg");
@@ -59,12 +58,10 @@ describe("Logger", () => {
     });
 
     it("omits undefined data from console calls", () => {
-      Logger.resetForTest();
-      const logger = Logger.initialize();
-
+      const l = new Logger();
       const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
       try {
-        logger.info("no data");
+        l.info("no data");
         expect(infoSpy).toHaveBeenCalledWith("no data");
         expect(infoSpy).not.toHaveBeenCalledWith("no data", undefined);
       } finally {
@@ -73,21 +70,14 @@ describe("Logger", () => {
     });
 
     it("suppresses entries below the configured threshold", () => {
-      Logger.resetForTest();
-      const logger = Logger.initialize();
-      Logger.setLogLevel(LogLevel.ERROR);
-
-      const spies = {
-        warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
-        info: vi.spyOn(console, "info").mockImplementation(() => {}),
-        debug: vi.spyOn(console, "debug").mockImplementation(() => {}),
-        error: vi.spyOn(console, "error").mockImplementation(() => {}),
-      };
+      const l = new Logger();
+      l.setLevel(LogLevel.ERROR);
+      const spies = spyConsole();
       try {
-        logger.warn("warn msg");
-        logger.info("info msg");
-        logger.debug("debug msg");
-        logger.error("err msg");
+        l.warn("warn msg");
+        l.info("info msg");
+        l.debug("debug msg");
+        l.error("err msg");
 
         expect(spies.warn).not.toHaveBeenCalled();
         expect(spies.info).not.toHaveBeenCalled();
@@ -97,58 +87,270 @@ describe("Logger", () => {
         for (const spy of Object.values(spies)) spy.mockRestore();
       }
     });
-  });
 
-  describe("getLogLevel", () => {
-    it("defaults to INFO when no logger instance or level exists (total)", () => {
-      Logger.resetForTest();
-      expect(Logger.getLogLevel()).toBe(LogLevel.INFO);
+    it("suppresses everything at SILENT level", () => {
+      const l = new Logger();
+      l.setLevel(LogLevel.SILENT);
+      const spies = spyConsole();
+      try {
+        l.error("e");
+        l.warn("w");
+        l.info("i");
+        l.debug("d");
+
+        expect(spies.error).not.toHaveBeenCalled();
+        expect(spies.warn).not.toHaveBeenCalled();
+        expect(spies.info).not.toHaveBeenCalled();
+        expect(spies.debug).not.toHaveBeenCalled();
+      } finally {
+        for (const spy of Object.values(spies)) spy.mockRestore();
+      }
     });
 
-    it("returns the level set on the active instance", () => {
-      Logger.resetForTest();
-      Logger.initialize();
-      Logger.setLogLevel(LogLevel.DEBUG);
-      expect(Logger.getLogLevel()).toBe(LogLevel.DEBUG);
+    it("defaults to INFO: suppresses debug but prints warn", () => {
+      const l = new Logger();
+      expect(l.getLevel()).toBe(LogLevel.INFO);
+      const spies = spyConsole();
+      try {
+        l.debug("d");
+        l.warn("w");
+
+        expect(spies.debug).not.toHaveBeenCalled();
+        expect(spies.warn).toHaveBeenCalledWith("w");
+      } finally {
+        for (const spy of Object.values(spies)) spy.mockRestore();
+      }
     });
   });
 
-  describe("contract", () => {
+  describe("level API", () => {
+    it("defaults to INFO (config schema default)", () => {
+      const l = new Logger();
+      expect(l.getLevel()).toBe(LogLevel.INFO);
+    });
+
+    it("setLevel/getLevel round-trips the instance level", () => {
+      const l = new Logger();
+      expect(l.getLevel()).toBe(LogLevel.INFO);
+      l.setLevel(LogLevel.DEBUG);
+      expect(l.getLevel()).toBe(LogLevel.DEBUG);
+      l.setLevel(LogLevel.SILENT);
+      expect(l.getLevel()).toBe(LogLevel.SILENT);
+    });
+
+    it("configure updates the level and keeps it when omitted", () => {
+      const l = new Logger();
+      l.configure({ level: LogLevel.WARN });
+      expect(l.getLevel()).toBe(LogLevel.WARN);
+      l.configure({ destination: null });
+      expect(l.getLevel()).toBe(LogLevel.WARN);
+    });
+
     it("provides four severity methods", () => {
-      const logger = TestLogger.initialize();
-      expect(typeof logger.error).toBe("function");
-      expect(typeof logger.warn).toBe("function");
-      expect(typeof logger.info).toBe("function");
-      expect(typeof logger.debug).toBe("function");
+      const l = new Logger();
+      expect(typeof l.error).toBe("function");
+      expect(typeof l.warn).toBe("function");
+      expect(typeof l.info).toBe("function");
+      expect(typeof l.debug).toBe("function");
     });
 
-    it("calls the correct method for each severity", () => {
-      const logger = TestLogger.initialize();
+    it("severity methods return void without throwing", () => {
+      const l = new Logger();
+      expect(() => l.error("test")).not.toThrow();
+      expect(l.error("test")).toBeUndefined();
+      expect(l.warn("test")).toBeUndefined();
+      expect(l.info("test")).toBeUndefined();
+      expect(l.debug("test")).toBeUndefined();
+    });
+  });
 
-      logger.error("error msg", { key: "e" });
-      logger.warn("warn msg", { key: "w" });
-      logger.info("info msg", { key: "i" });
-      logger.debug("debug msg", { key: "d" });
+  describe("destination routing", () => {
+    it("routes severity calls to the destination with the entry level", () => {
+      const l = new Logger();
+      l.setLevel(LogLevel.DEBUG);
+      const destination = new FakeDestination();
+      l.configure({ destination });
+      const spies = spyConsole();
+      try {
+        l.error("error msg", { key: "e" });
+        l.warn("warn msg", { key: "w" });
+        l.info("info msg", { key: "i" });
+        l.debug("debug msg", { key: "d" });
 
-      expect(logger.calls).toHaveLength(4);
-      expect(logger.calls[0]).toEqual({
-        method: "error",
-        message: "error msg",
-        data: { key: "e" },
-      });
-      expect(logger.calls[1]).toEqual({ method: "warn", message: "warn msg", data: { key: "w" } });
-      expect(logger.calls[2]).toEqual({ method: "info", message: "info msg", data: { key: "i" } });
-      expect(logger.calls[3]).toEqual({
-        method: "debug",
-        message: "debug msg",
-        data: { key: "d" },
-      });
+        expect(destination.calls).toEqual([
+          { level: LogLevel.ERROR, message: "error msg", data: { key: "e" } },
+          { level: LogLevel.WARN, message: "warn msg", data: { key: "w" } },
+          { level: LogLevel.INFO, message: "info msg", data: { key: "i" } },
+          { level: LogLevel.DEBUG, message: "debug msg", data: { key: "d" } },
+        ]);
+        // Nothing reaches the console while a destination is attached.
+        expect(spies.error).not.toHaveBeenCalled();
+        expect(spies.warn).not.toHaveBeenCalled();
+        expect(spies.info).not.toHaveBeenCalled();
+        expect(spies.debug).not.toHaveBeenCalled();
+      } finally {
+        for (const spy of Object.values(spies)) spy.mockRestore();
+      }
     });
 
-    it("accepts calls without optional data parameter", () => {
-      const logger = TestLogger.initialize();
-      logger.info("no data");
-      expect(logger.calls[0]).toEqual({ method: "info", message: "no data", data: undefined });
+    it("passes calls without optional data through to the destination", () => {
+      const l = new Logger();
+      const destination = new FakeDestination();
+      l.configure({ destination });
+      l.info("no data");
+      expect(destination.calls).toEqual([{ level: LogLevel.INFO, message: "no data" }]);
+    });
+
+    it("filters before delegating to the destination", () => {
+      const l = new Logger();
+      const destination = new FakeDestination();
+      l.configure({ level: LogLevel.WARN, destination });
+      l.debug("d");
+      l.info("i");
+      l.warn("w");
+      l.error("e");
+      expect(destination.calls.map((call) => call.level)).toEqual([LogLevel.WARN, LogLevel.ERROR]);
+    });
+
+    it.each([null, undefined] as const)(
+      "detaches the destination when configured with %s and returns to console",
+      (detachValue) => {
+        const l = new Logger();
+        const destination = new FakeDestination();
+        l.configure({ destination });
+
+        // While attached, severity calls route to the destination only.
+        const attachSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+        try {
+          l.info("routed to destination");
+          expect(attachSpy).not.toHaveBeenCalled();
+        } finally {
+          attachSpy.mockRestore();
+        }
+        expect(destination.calls).toEqual([
+          { level: LogLevel.INFO, message: "routed to destination" },
+        ]);
+
+        l.configure({ destination: detachValue });
+
+        const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+        try {
+          l.info("back on console");
+          expect(infoSpy).toHaveBeenCalledWith("back on console");
+        } finally {
+          infoSpy.mockRestore();
+        }
+        // The detached destination receives nothing further.
+        expect(destination.calls).toEqual([
+          { level: LogLevel.INFO, message: "routed to destination" },
+        ]);
+      },
+    );
+
+    it("level-only configure keeps the attached destination", () => {
+      const l = new Logger();
+      const destination = new FakeDestination();
+      l.configure({ destination });
+
+      l.configure({ level: LogLevel.ERROR });
+      expect(l.getLevel()).toBe(LogLevel.ERROR);
+
+      const spies = spyConsole();
+      try {
+        l.error("still routed");
+        // The entry reached the destination, not the console.
+        expect(destination.calls).toEqual([{ level: LogLevel.ERROR, message: "still routed" }]);
+        expect(spies.error).not.toHaveBeenCalled();
+      } finally {
+        for (const spy of Object.values(spies)) spy.mockRestore();
+      }
+    });
+
+    it("configure({}) leaves both the level and the destination unchanged", () => {
+      const l = new Logger();
+      const destination = new FakeDestination();
+      l.configure({ level: LogLevel.WARN, destination });
+
+      l.configure({});
+
+      expect(l.getLevel()).toBe(LogLevel.WARN);
+      const spies = spyConsole();
+      try {
+        l.warn("still on destination");
+        expect(destination.calls).toEqual([
+          { level: LogLevel.WARN, message: "still on destination" },
+        ]);
+        expect(spies.warn).not.toHaveBeenCalled();
+      } finally {
+        for (const spy of Object.values(spies)) spy.mockRestore();
+      }
+    });
+
+    it("close() closes the attached destination", async () => {
+      const l = new Logger();
+      const destination = new FakeDestination();
+      l.configure({ destination });
+      await l.close();
+      expect(destination.closed).toBe(true);
+    });
+
+    it("close() awaits a destination close that resolves asynchronously", async () => {
+      const l = new Logger();
+      let closeFinished = false;
+      const destination: LoggerDestination = {
+        write: () => {},
+        close: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          closeFinished = true;
+        },
+      };
+      l.configure({ destination });
+
+      await l.close();
+      // The flag is set only after the destination's own await completed;
+      // close() must have awaited the destination close for it to be visible.
+      expect(closeFinished).toBe(true);
+    });
+
+    it("close() propagates a rejecting destination close", async () => {
+      const l = new Logger();
+      const destination: LoggerDestination = {
+        write: () => {},
+        close: async () => {
+          throw new Error("destination close failed");
+        },
+      };
+      l.configure({ destination });
+
+      await expect(l.close()).rejects.toThrow("destination close failed");
+    });
+
+    it("close() is a no-op when no destination is attached", async () => {
+      const l = new Logger();
+      await expect(l.close()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("module logger instance", () => {
+    // Pin the shared module logger state so this describe stays robust to
+    // future tests that configure the module instance.
+    beforeEach(() => {
+      logger.configure({ level: LogLevel.INFO, destination: null });
+    });
+
+    it("is a Logger with the default INFO level", () => {
+      expect(logger).toBeInstanceOf(Logger);
+      expect(logger.getLevel()).toBe(LogLevel.INFO);
+    });
+
+    it("prints warnings to the console by default", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        logger.warn("module warn");
+        expect(warnSpy).toHaveBeenCalledWith("module warn");
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 });

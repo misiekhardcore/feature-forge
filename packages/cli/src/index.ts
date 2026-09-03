@@ -118,7 +118,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const forgeDir = ForgeConfigPaths.resolveForgeDir(config, cwd);
 
   // ── Logging ────────────────────────────────────────────────────────
-  FileLogger.initialize(config);
+  FileLogger.install(config);
 
   // Prune stale agent-streams dirs from previous sessions now that the
   // logger is live, so post-mortem history stays within the retention window.
