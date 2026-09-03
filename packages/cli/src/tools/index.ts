@@ -5,4 +5,6 @@ export { RoutineTool } from "./RoutineTool";
 export { SendTaskTool } from "./SendTaskTool";
 export { SetFlowParamTool } from "./SetFlowParamTool";
 export { SetSessionNameTool } from "./SetSessionNameTool";
+export { SkillPersistTool } from "./SkillPersistTool";
+export { SkillValidateTool } from "./SkillValidateTool";
 export { SpawnAgentTool } from "./SpawnAgentTool";
