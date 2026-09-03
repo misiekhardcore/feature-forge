@@ -27,9 +27,17 @@ import { RotatingFileSink } from "./RotatingFileSink";
 
 describe("FileLogger", () => {
   let filePath: string;
-  let logger: FileLogger;
+  let logger: Logger;
   let logDir: string;
   let config: ForgeConfig;
+
+  /** Wrapper Logger whose destination is a FileLogger on {@link filePath}. */
+  function makeLogger(level = LogLevel.DEBUG): Logger {
+    const destination = FileLogger.create(config, filePath);
+    const l = new Logger();
+    l.configure({ level, destination });
+    return l;
+  }
 
   beforeEach(() => {
     filePath = join(
@@ -41,8 +49,8 @@ describe("FileLogger", () => {
     // real .forge/logs during tests.
     logDir = mkdtempSync(join(tmpdir(), "forge-logdir-"));
     // Fully-resolved config pointing at the temp dir. Retention is forced
-    // to 0 so initialize()'s pruneOldLogs call returns before touching any
-    // log dir, while keeping the initialize -> pruneOldLogs wiring (with
+    // to 0 so install()'s pruneOldLogs call returns before touching any
+    // log dir, while keeping the install -> pruneOldLogs wiring (with
     // the configured retention and current file path) covered. The
     // pruneOldLogs and pruneStaleProcessLogs describes replace this config
     // with their own.
@@ -54,21 +62,21 @@ describe("FileLogger", () => {
       logMaxBytes: 10 * 1024 * 1024,
       logMaxFiles: 5,
     });
-    logger = FileLogger.initialize(config, filePath);
-    Logger.setLogLevel(LogLevel.DEBUG);
+    logger = makeLogger(LogLevel.DEBUG);
   });
 
   afterEach(async () => {
-    // Level filtering is set via Logger.setLogLevel() in individual tests
     await logger.close();
+    // Never leak an install()ed file destination or level across tests.
+    moduleLogger.configure({ level: LogLevel.INFO, destination: null });
     if (existsSync(filePath)) {
       unlinkSync(filePath);
     }
     rmSync(logDir, { recursive: true, force: true });
   });
 
-  function readLines(): Record<string, unknown>[] {
-    const content = readFileSync(filePath, "utf-8").trim();
+  function readLines(target: string = filePath): Record<string, unknown>[] {
+    const content = readFileSync(target, "utf-8").trim();
     if (!content) return [];
     return content.split("\n").map((line) => jsonParse(line));
   }
@@ -79,6 +87,11 @@ describe("FileLogger", () => {
       logger.info("hello");
       await logger.close();
       expect(existsSync(filePath)).toBe(true);
+    });
+
+    it("does not create a file on construction regardless of level", () => {
+      FileLogger.create(config, filePath);
+      expect(existsSync(filePath)).toBe(false);
     });
   });
 
@@ -135,7 +148,7 @@ describe("FileLogger", () => {
       logger.info("first");
       await logger.close();
 
-      const logger2 = FileLogger.initialize(config, filePath);
+      const logger2 = makeLogger();
       logger2.info("second");
       await logger2.close();
 
@@ -172,10 +185,9 @@ describe("FileLogger", () => {
     });
   });
 
-  describe("level filtering", () => {
-    it("writes all levels when threshold is debug", async () => {
-      const l = FileLogger.initialize(config, filePath);
-      Logger.setLogLevel(LogLevel.DEBUG);
+  describe("level filtering through the owning Logger", () => {
+    it("writes all levels when the wrapper threshold is debug", async () => {
+      const l = makeLogger(LogLevel.DEBUG);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -187,9 +199,8 @@ describe("FileLogger", () => {
       expect(lines.map((entry) => entry.level)).toEqual(["error", "warn", "info", "debug"]);
     });
 
-    it("filters debug entries when threshold is info", async () => {
-      const l = FileLogger.initialize(config, filePath);
-      Logger.setLogLevel(LogLevel.INFO);
+    it("filters debug entries when the wrapper threshold is info", async () => {
+      const l = makeLogger(LogLevel.INFO);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -201,9 +212,8 @@ describe("FileLogger", () => {
       expect(lines.map((entry) => entry.level)).toEqual(["error", "warn", "info"]);
     });
 
-    it("filters info and debug when threshold is warn", async () => {
-      const l = FileLogger.initialize(config, filePath);
-      Logger.setLogLevel(LogLevel.WARN);
+    it("filters info and debug when the wrapper threshold is warn", async () => {
+      const l = makeLogger(LogLevel.WARN);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -215,9 +225,8 @@ describe("FileLogger", () => {
       expect(lines.map((entry) => entry.level)).toEqual(["error", "warn"]);
     });
 
-    it("filters everything except error when threshold is error", async () => {
-      const l = FileLogger.initialize(config, filePath);
-      Logger.setLogLevel(LogLevel.ERROR);
+    it("filters everything except error when the wrapper threshold is error", async () => {
+      const l = makeLogger(LogLevel.ERROR);
       l.error("e");
       l.warn("w");
       l.info("i");
@@ -230,8 +239,7 @@ describe("FileLogger", () => {
     });
 
     it("does not create a file when no entry meets the threshold", async () => {
-      const l = FileLogger.initialize(config, filePath);
-      Logger.setLogLevel(LogLevel.ERROR);
+      const l = makeLogger(LogLevel.ERROR);
       l.warn("w");
       l.info("i");
       l.debug("d");
@@ -240,10 +248,69 @@ describe("FileLogger", () => {
       expect(existsSync(filePath)).toBe(false);
     });
 
-    it("does not create a file on construction regardless of level", () => {
-      FileLogger.initialize(config, filePath);
-      Logger.setLogLevel(LogLevel.ERROR);
-      expect(existsSync(filePath)).toBe(false);
+    it("a standalone FileLogger writes whatever it is handed without filtering", async () => {
+      const raw = FileLogger.create(config, filePath);
+      raw.write(LogLevel.DEBUG, "d");
+      raw.write(LogLevel.WARN, "w");
+      await raw.close();
+
+      const lines = readLines();
+      expect(lines.map((entry) => entry.level)).toEqual(["debug", "warn"]);
+    });
+  });
+
+  describe("Logger + FileLogger destination integration", () => {
+    it("routes severity calls to JSON Lines and drops writes after close", async () => {
+      const fileLogger = FileLogger.create(config, filePath);
+      const wrapper = new Logger();
+      wrapper.configure({ level: LogLevel.DEBUG, destination: fileLogger });
+
+      wrapper.warn("wrn", { n: 1 });
+      wrapper.info("inf");
+      await wrapper.close();
+      // After close the sink is closed; writes are best-effort no-ops.
+      expect(() => wrapper.error("after close")).not.toThrow();
+
+      const lines = readLines();
+      expect(lines).toEqual([
+        expect.objectContaining({ level: "warn", message: "wrn", data: { n: 1 } }),
+        expect.objectContaining({ level: "info", message: "inf" }),
+      ]);
+    });
+  });
+
+  describe("install() wires the module logger", () => {
+    it("applies the configured level to module-logger severity calls", async () => {
+      const installPath = join(
+        tmpdir(),
+        `forge-install-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
+      );
+      const installConfig = resolveConfig({
+        logDir,
+        logPrefix: "forge",
+        logLevel: LogLevel.WARN,
+        logRetentionDays: 0,
+      });
+      try {
+        const fileLogger = FileLogger.install(installConfig, installPath);
+        // install() attached the module logger to the file at WARN level.
+        expect(moduleLogger.getLevel()).toBe(LogLevel.WARN);
+        moduleLogger.debug("d");
+        moduleLogger.info("i");
+        moduleLogger.warn("w");
+        moduleLogger.error("e");
+        await moduleLogger.close();
+
+        const lines = readLines(installPath);
+        // debug/info were filtered by the module logger level; warn/error reached the file.
+        expect(lines.map((entry) => entry.level)).toEqual(["warn", "error"]);
+        await fileLogger.close();
+      } finally {
+        moduleLogger.configure({ level: LogLevel.INFO, destination: null });
+        if (existsSync(installPath)) {
+          unlinkSync(installPath);
+        }
+      }
     });
   });
 
@@ -292,7 +359,9 @@ describe("FileLogger", () => {
         tmpdir(),
         `forge-noext-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       );
-      const noExtLogger = FileLogger.initialize(config, noExtPath);
+      const noExtDestination = FileLogger.create(config, noExtPath);
+      const noExtLogger = new Logger();
+      noExtLogger.configure({ level: LogLevel.DEBUG, destination: noExtDestination });
       noExtLogger.info("no extension");
       await noExtLogger.close();
 
@@ -463,7 +532,7 @@ describe("FileLogger", () => {
     it("swallows ENOTDIR from a log dir path that is a regular file", () => {
       // Config logDir pointing at a regular file: the top-level readdirSync
       // throws ENOTDIR and must be caught (warn + return) instead of
-      // escaping pruneOldLogs out of FileLogger.initialize().
+      // escaping pruneOldLogs out of FileLogger.install().
       const filePath = join(logDir, "not-a-dir.log");
       writeFileSync(filePath, "x\n", "utf-8");
       const notADirConfig = resolveConfig({ logDir: filePath });
@@ -494,18 +563,20 @@ describe("FileLogger", () => {
     });
   });
 
-  describe("production sink (initialize without filePath)", () => {
+  describe("production sink (create without filePath)", () => {
     it("writes to forge.<day>.<pid>.log with rotation and an audit ledger", async () => {
       // Freeze the clock so the sink's internally computed day (naming) and
       // the test's expected day can never race across a midnight boundary.
       vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-03-02T10:00:00") });
       try {
-        const prod = FileLogger.initialize(config, undefined, { maxBytes: 100, maxFiles: 3 });
+        const destination = FileLogger.create(config, undefined, { maxBytes: 100, maxFiles: 3 });
+        const wrapper = new Logger();
+        wrapper.configure({ level: LogLevel.DEBUG, destination });
         const message = "x".repeat(200);
-        prod.info(message);
-        prod.info(message);
-        prod.info(message);
-        await prod.close();
+        wrapper.info(message);
+        wrapper.info(message);
+        wrapper.info(message);
+        await wrapper.close();
 
         const day = RotatingFileSink.dayKey(new Date());
         const base = `forge.${day}.${process.pid}.log`;
@@ -548,9 +619,11 @@ describe("FileLogger", () => {
         logRetentionDays: 0,
       });
 
-      const prod = FileLogger.initialize(configAgent42, undefined);
-      prod.info("hello");
-      await prod.close();
+      const destination = FileLogger.create(configAgent42, undefined);
+      const wrapper = new Logger();
+      wrapper.configure({ level: LogLevel.DEBUG, destination });
+      wrapper.info("hello");
+      await wrapper.close();
 
       const auditName = `.agent-42-${process.pid}-audit.json`;
       expect(existsSync(join(logDir, auditName))).toBe(true);
@@ -563,7 +636,9 @@ describe("FileLogger", () => {
 
   describe("rotation and retention through FileLogger", () => {
     it("rotates an explicit-path logger into .N segments and caps them", async () => {
-      const rot = FileLogger.initialize(config, filePath, { maxBytes: 100, maxFiles: 2 });
+      const destination = FileLogger.create(config, filePath, { maxBytes: 100, maxFiles: 2 });
+      const rot = new Logger();
+      rot.configure({ level: LogLevel.DEBUG, destination });
       const message = "x".repeat(200);
       for (let i = 0; i < 4; i++) {
         rot.info(message);
@@ -598,6 +673,7 @@ describe("FileLogger", () => {
 
     afterEach(() => {
       vi.restoreAllMocks();
+      moduleLogger.configure({ level: LogLevel.INFO, destination: null });
       rmSync(staleDir, { recursive: true, force: true });
     });
 
@@ -661,13 +737,13 @@ describe("FileLogger", () => {
       expect(existsSync(join(staleDir, `.forge-${process.pid}-audit.json`))).toBe(true);
     });
 
-    it("initialize() prunes dead-pid namespaces from the configured log dir", () => {
+    it("install() prunes dead-pid namespaces from the configured log dir", () => {
       const pid = spawnDeadPid();
       const oldDay = RotatingFileSink.dayKey(new Date(Date.now() - 10 * 86_400_000));
       writeFileSync(join(staleDir, `forge.${oldDay}.${pid}.log`), "x\n");
       writeFileSync(join(staleDir, `.forge-${pid}-audit.json`), "{}\n");
 
-      FileLogger.initialize(config, undefined);
+      FileLogger.install(config, undefined);
 
       expect(existsSync(join(staleDir, `.forge-${pid}-audit.json`))).toBe(false);
       expect(existsSync(join(staleDir, `forge.${oldDay}.${pid}.log`))).toBe(false);
@@ -688,7 +764,6 @@ describe("FileLogger with a real config file", () => {
   let scratchDir: string;
   let logsDir: string;
   let config: ForgeConfig;
-  let prodLogger: FileLogger | undefined;
 
   beforeEach(async () => {
     scratchDir = mkdtempSync(join(tmpdir(), "forge-realconfig-"));
@@ -706,21 +781,19 @@ describe("FileLogger with a real config file", () => {
   });
 
   afterEach(async () => {
-    if (prodLogger) {
-      await prodLogger.close();
-      prodLogger = undefined;
-    }
+    // Drop the destination install() attached to the module logger.
+    moduleLogger.configure({ level: LogLevel.INFO, destination: null });
     rmSync(scratchDir, { recursive: true, force: true });
   });
 
-  it("initialize() honors logMaxBytes/logMaxFiles from a real config file", async () => {
-    prodLogger = FileLogger.initialize(config);
+  it("install() honors logMaxBytes/logMaxFiles from a real config file", async () => {
+    const prodLogger = FileLogger.install(config);
     const message = "y".repeat(150);
     for (let i = 0; i < 3; i++) {
-      prodLogger.info(message);
+      moduleLogger.info(message);
     }
+    await moduleLogger.close();
     await prodLogger.close();
-    prodLogger = undefined;
 
     const day = RotatingFileSink.dayKey(new Date());
     const base = `forge.${day}.${process.pid}.log`;

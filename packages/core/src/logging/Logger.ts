@@ -2,175 +2,128 @@ import { LogLevel } from "../config/ForgeConfigSchema";
 import { shouldLog } from "./LogLevel";
 
 /**
- * Abstract base class for loggers.
+ * Sink receiving formatted log entries from a {@link Logger}.
  *
- * Defines the contract for four severity methods. Implementations decide
- * how to format and persist log entries (e.g., JSON Lines to file,
- * no-op for tests).
+ * Implementations persist entries (e.g. JSON Lines to a file) without
+ * applying level filtering - the {@link Logger} filters before delegating,
+ * so a destination writes whatever it is handed.
+ */
+export interface LoggerDestination {
+  /** Write one entry at `level`. Must not throw. */
+  write(level: LogLevel, message: string, data?: Record<string, unknown>): void;
+  /** Stop accepting entries; writes after close are best-effort no-ops. */
+  close(): void | Promise<void>;
+}
+
+/**
+ * Level-filtering logger that routes entries to its own destination.
  *
- * Implementations may apply level filtering to suppress entries below
- * a configurable threshold.
+ * Owns both the severity threshold and the sink: severity methods filter
+ * against the instance's own {@link level} and write to the instance's own
+ * {@link destination}. When no destination is attached the entry is
+ * printed to the console instead, so entries emitted during startup
+ * (before {@link FileLogger.install} attaches a file destination) are
+ * never dropped.
  *
- * While no concrete logger is initialized, the base instance itself
- * prints to the console - entries emitted during startup (e.g. config
- * warnings before {@link FileLogger} initialization) must not be
- * dropped.
+ * The level defaults to {@link LogLevel.INFO} (the config schema default);
+ * {@link LogLevel.SILENT} suppresses every entry.
  *
- * @remarks Follows the same abstract base class convention as Agent,
- * WorkspaceProvider, and Tool.
+ * The module exports a single shared instance (`logger`) that production
+ * code logs through; tests construct their own instances to isolate
+ * level/destination state.
  */
 export class Logger {
-  protected static instance: Logger | null = null;
-  protected level?: LogLevel;
+  private level: LogLevel = LogLevel.INFO;
+  private destination: LoggerDestination | undefined;
 
-  protected constructor() {
-    if (!Logger.instance) {
-      Logger.instance = this;
-    }
-  }
-
-  /**
-   * Return the active logger instance, or `null` if not initialized.
-   */
-  static getInstance(): Logger {
-    if (!Logger.instance) {
-      throw new Error("Logger not initialized. Call Logger.initialize() or a subclass first.");
-    }
-    return Logger.instance;
-  }
-
-  /**
-   * Initialize the logger singleton with a new base Logger instance.
-   *
-   * Concrete subclasses (ConsoleLogger, FileLogger) override this to
-   * create their own type. Used by production startup (src/index.ts);
-   * tests should construct subclasses directly or call subclass
-   * initialize() and {@link resetForTest} in beforeEach.
-   */
-  static initialize(): Logger {
-    Logger.instance = new Logger();
-    return Logger.instance;
-  }
-
-  /**
-   * Clear the singleton so the next {@link initialize} call creates a
-   * fresh instance. Only intended for test teardown.
-   */
-  static resetForTest(): void {
-    Logger.instance = null;
-  }
-
-  static setLogLevel(level: LogLevel): void {
-    Logger.getInstance().level = level;
-  }
-
-  /**
-   * Return the effective log level threshold.
-   *
-   * Prefers an explicitly set level; defaults to {@link LogLevel.INFO}
-   * (the config schema default) when no level is set or no logger
-   * instance exists yet. Concrete loggers apply the configured level
-   * during initialization - the level is not re-read from config on a
-   * per-call basis.
-   */
-  static getLogLevel(): LogLevel {
-    return Logger.instance?.level ?? LogLevel.INFO;
-  }
-
-  /**
-   * Log a critical error that prevents normal operation.
-   *
-   * When the singleton has been replaced by a concrete subclass
-   * (e.g. FileLogger), forwards to the active instance so the
-   * module-level `logger` const stays functional throughout the
-   * extension lifecycle. While the base logger is still the active
-   * instance, prints to the console instead (see {@link logToConsole}).
-   */
+  /** Log a critical error that prevents normal operation. */
   error(message: string, data?: Record<string, unknown>): void {
-    if (Logger.instance && Logger.instance !== this) {
-      Logger.instance.error(message, data);
-      return;
-    }
-    this.logToConsole(LogLevel.ERROR, console.error, message, data);
+    this.emit(LogLevel.ERROR, message, data);
   }
 
-  /**
-   * Log a warning about a recoverable problem or unexpected state.
-   *
-   * Forwards to the active Logger.instance when it differs from
-   * this instance (see {@link error}).
-   */
+  /** Log a warning about a recoverable problem or unexpected state. */
   warn(message: string, data?: Record<string, unknown>): void {
-    if (Logger.instance && Logger.instance !== this) {
-      Logger.instance.warn(message, data);
-      return;
-    }
-    this.logToConsole(LogLevel.WARN, console.warn, message, data);
+    this.emit(LogLevel.WARN, message, data);
   }
 
-  /**
-   * Log informational messages about normal operation.
-   *
-   * Forwards to the active Logger.instance when it differs from
-   * this instance (see {@link error}).
-   */
+  /** Log informational messages about normal operation. */
   info(message: string, data?: Record<string, unknown>): void {
-    if (Logger.instance && Logger.instance !== this) {
-      Logger.instance.info(message, data);
-      return;
-    }
-    this.logToConsole(LogLevel.INFO, console.info, message, data);
+    this.emit(LogLevel.INFO, message, data);
   }
 
-  /**
-   * Log detailed diagnostic information useful for debugging.
-   *
-   * Forwards to the active Logger.instance when it differs from
-   * this instance (see {@link error}).
-   */
+  /** Log detailed diagnostic information useful for debugging. */
   debug(message: string, data?: Record<string, unknown>): void {
-    if (Logger.instance && Logger.instance !== this) {
-      Logger.instance.debug(message, data);
-      return;
-    }
-    this.logToConsole(LogLevel.DEBUG, console.debug, message, data);
+    this.emit(LogLevel.DEBUG, message, data);
   }
 
   /**
-   * Print an entry to the console when it meets the effective log
-   * level threshold.
-   *
-   * Shared by the base logger (console fallback while it is the active
-   * instance) and {@link ConsoleLogger}, so the filtering logic lives
-   * in exactly one place. `data` is omitted from the console call when
-   * undefined so plain messages print cleanly.
+   * Filter one entry against this instance's level and route it to this
+   * instance's destination - or to the console when no destination is
+   * attached. `data` is omitted from the console call when undefined so
+   * plain messages print cleanly.
    */
-  protected logToConsole(
-    level: LogLevel,
-    consoleMethod: (message?: unknown, ...optionalParams: unknown[]) => void,
-    message: string,
-    data?: Record<string, unknown>,
-  ): void {
-    if (!this.shouldLog(level, Logger.getLogLevel())) {
+  private emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+    if (!shouldLog(level, this.level)) {
       return;
     }
+    if (this.destination) {
+      this.destination.write(level, message, data);
+      return;
+    }
+    const method =
+      level === LogLevel.ERROR
+        ? console.error
+        : level === LogLevel.WARN
+          ? console.warn
+          : level === LogLevel.INFO
+            ? console.info
+            : console.debug;
     if (data === undefined) {
-      consoleMethod(message);
+      method(message);
     } else {
-      consoleMethod(message, data);
+      method(message, data);
     }
   }
 
+  /** Set the severity threshold for this instance. */
+  setLevel(level: LogLevel): void {
+    this.level = level;
+  }
+
+  /** Return the current severity threshold of this instance. */
+  getLevel(): LogLevel {
+    return this.level;
+  }
+
   /**
-   * Returns `true` when an entry at `candidate` severity meets or exceeds
-   * the configured `threshold` (lower numeric severity = more severe).
-   *
-   * Delegates to the standalone {@link shouldLog} helper so both
-   * {@link Logger} and {@link FileLogger} use the same comparison.
+   * Partial-update the level and/or destination: each key is applied only
+   * when present. An omitted `level` leaves the threshold unchanged; an
+   * omitted `destination` leaves the current destination attached, so
+   * level-only calls never silently detach a file destination. Pass an
+   * explicit `destination: null` (or `undefined`) to detach any
+   * destination and return to the console fallback. Detaching does not
+   * close the displaced sink; use {@link close} on shutdown, which closes
+   * the destination but leaves it attached.
    */
-  protected shouldLog(candidate: LogLevel, threshold: LogLevel): boolean {
-    return shouldLog(candidate, threshold);
+  configure(options: { level?: LogLevel; destination?: LoggerDestination | null }): void {
+    // Deliberate asymmetry: `level` guards with `!== undefined`, so omitting
+    // it (or passing `level: undefined`) is a no-op; `destination` checks key
+    // presence (`"destination" in options`), so an explicit
+    // `destination: null`/`undefined` detaches while an omitted key leaves
+    // the current destination attached.
+    if (options.level !== undefined) {
+      this.level = options.level;
+    }
+    if ("destination" in options) {
+      this.destination = options.destination ?? undefined; // null/undefined => console fallback
+    }
+  }
+
+  /** Stop the destination (when one is attached). Writes after close are best-effort no-ops. */
+  async close(): Promise<void> {
+    await this.destination?.close();
   }
 }
 
-export const logger = Logger.initialize();
+/** Single shared instance; console-only until a file destination is attached. */
+export const logger = new Logger();

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Logger } from "../logging/Logger";
+import { logger } from "../logging/Logger";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { ConfigLoader } from "./ConfigLoader";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_FORGE_CONFIG } from "./ForgeConfigDefaults";
@@ -725,11 +725,10 @@ describe("ConfigLoader", () => {
     it("returns defaults when config file has invalid JSON and logs a warning", async () => {
       await fs.writeFile(join(tempDir, "forge.config.json"), "not valid json at all");
 
-      // Pin the logger to the base console fallback so this test does not
-      // depend on whichever logger earlier tests initialized (or on the
-      // singleton being at warn-or-lower level).
-      Logger.resetForTest();
-      Logger.initialize();
+      // Pin the module logger to the base console fallback at INFO so this
+      // test does not depend on a destination or level left by earlier
+      // tests (the singleton no longer exists).
+      logger.configure({ level: LogLevel.INFO, destination: null });
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       try {
