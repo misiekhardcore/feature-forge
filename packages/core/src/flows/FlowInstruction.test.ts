@@ -659,7 +659,7 @@ describe("FlowDefinitionSchema", () => {
             type: "shell" as const,
             id: "pr",
             command:
-              'cat > /tmp/ff-pr-body-$$.md << \'FFEOF\'\n{{body}}\nFFEOF\ngh pr create --title "{{title}}" --body-file /tmp/ff-pr-body-$$.md --base "{{session.base}}"; rm -f /tmp/ff-pr-body-$$.md',
+              'cat > /var/tmp/ff-pr-body-$$.md << \'FFEOF\'\n{{body}}\nFFEOF\ngh pr create --title "{{title}}" --body-file /var/tmp/ff-pr-body-$$.md --base "{{session.base}}"; rm -f /var/tmp/ff-pr-body-$$.md',
             cwd: "{{workspace}}",
           },
         ],
