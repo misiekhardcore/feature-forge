@@ -52,6 +52,26 @@ Specs are resolved by frontmatter `id`, not filename:
 5. `npm run test` — Verify functional correctness.
 6. `npm test -- --coverage` — Check coverage impact.
 
+### Local development & extension activation
+
+The pi extension is loaded from a relative path (`packages/cli/package.json`
+`"pi": { "extensions": ["./dist/index.js"] }`), so this checkout runs the
+**built bundle**, not the source. Consequences that bite us repeatedly:
+
+- After `git pull` / rebasing onto main / editing extension source, REBUILD
+  before testing: `npm run build` (or `npx turbo run build`). The running
+  pi session only picks changes up after a rebuild + `/reload`.
+- Do NOT trust the turbo cache for the asset-copy step (tsup `onSuccess`
+  copies flows/skills/agents into `dist/`). A cached replay can report
+  success while `dist/` stays stale - when in doubt, force:
+  `npx turbo run build --force`, then verify the asset landed (e.g.
+  `ls packages/cli/dist/skills/`).
+- `dist/` is gitignored and regenerated; a stale `dist` is the first
+  suspect when live behavior lags the source. This staleness is LOCAL
+  ONLY - npm users install the published tarball whose `files` include the
+  built `dist/`, so they always run the latest published build; there is
+  no source-vs-dist drift for them, only publish cadence.
+
 ## Deterministic Gate
 
 Before reporting `passed: true` in your JSON output block, you MUST:
