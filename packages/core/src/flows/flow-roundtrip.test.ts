@@ -387,13 +387,13 @@ describe("flow round-trip", () => {
 
       // Must use --body-file with $$ process-unique temp file
       expect(cmd).toMatch(/--body-file/);
-      expect(cmd).toMatch(/\/tmp\/ff-pr-body-\$\$\.md/);
+      expect(cmd).toMatch(/\/var\/tmp\/ff-pr-body-\$\$\.md/);
 
       // Must use heredoc with quoted delimiter (no shell expansion inside)
       expect(cmd).toMatch(/<<\s*'FFEOF'/);
 
       // Must clean up temp file after PR creation
-      expect(cmd).toMatch(/rm\s+-f\s+\/tmp\/ff-pr-body-\$\$\.md/);
+      expect(cmd).toMatch(/rm\s+-f\s+\/var\/tmp\/ff-pr-body-\$\$\.md/);
     });
 
     // ── 6b. build_loop step positions ─────────────────────
@@ -529,7 +529,7 @@ describe("flow round-trip", () => {
       expect(postReply.command).toContain("addPullRequestReviewThreadReply");
       // Reply goes through a temp file + --field body=@file — never inline
       // (apostrophes in an LLM reply would break/escape an inline shell arg).
-      expect(postReply.command).toContain("body=@/tmp/ff-reply-$$.md");
+      expect(postReply.command).toContain("body=@/var/tmp/ff-reply-$$.md");
       expect(postReply.command).not.toContain("-f body='");
       // A failed post must fail the routine — the disposition must not be
       // silently swallowed.
