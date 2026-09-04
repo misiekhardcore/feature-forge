@@ -46,6 +46,28 @@ export class SpecRegistry extends Registry<SpecFactory> {
   }
 
   /**
+   * Register a named spec factory only when no spec with that name exists.
+   *
+   * Unlike {@link register}, a duplicate name is a silent no-op instead of
+   * an error - used when loading several spec directories in priority order
+   * so the first occurrence per spec id wins and a later directory never
+   * aborts mid-load on an overlap.
+   *
+   * @param name - identifier used by the LLM (e.g. "build", "review").
+   * @param factory - creates an AgentSpecification, typically by loading a
+   *   prompt template and filling its placeholders with the given params.
+   * @returns true when the factory was registered; false when a spec with
+   *   the same name was already present (no-op, existing factory kept).
+   */
+  registerIfAbsent(name: string, factory: SpecFactory): boolean {
+    if (this.has(name)) {
+      return false;
+    }
+    this.set(name, factory);
+    return true;
+  }
+
+  /**
    * Create an agent specification by name.
    *
    * @param name — a previously registered spec name.

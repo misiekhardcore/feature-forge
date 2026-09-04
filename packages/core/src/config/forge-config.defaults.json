@@ -27,6 +27,5 @@
   "models": {},
   "dev": {
     "enabled": false
-  },
-  "forgeDir": ".forge"
+  }
 }

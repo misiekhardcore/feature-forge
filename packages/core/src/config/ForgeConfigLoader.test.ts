@@ -56,7 +56,6 @@ describe("ForgeConfigLoader", () => {
       expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
       expect(config.workspaceProvider).toBe(DEFAULT_FORGE_CONFIG.workspaceProvider);
       expect(config.logDir).toBe(DEFAULT_FORGE_CONFIG.logDir);
-      expect(config.forgeDir).toBe(DEFAULT_FORGE_CONFIG.forgeDir);
       // Default-fallback regression (moved from the retired ForgeConfig
       // class spec): unconfigured scalars resolve to their canonical
       // defaults through the load path.
@@ -85,10 +84,9 @@ describe("ForgeConfigLoader", () => {
       expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
       // Omitted fields still come from defaults.
       expect(config.logDir).toBe(DEFAULT_FORGE_CONFIG.logDir);
-      expect(config.forgeDir).toBe(".forge");
     });
 
-    it("loads a legacy forge.config.json at the project root", async () => {
+    it("ignores a legacy forge.config.json at the project root", async () => {
       await fs.writeFile(
         join(tempDir, "forge.config.json"),
         JSON.stringify({
@@ -99,10 +97,12 @@ describe("ForgeConfigLoader", () => {
         }),
       );
 
+      // forRoot only consults <cwd>/.forge/config.json and
+      // ~/.forge/config.json - a root forge.config.json is dead config.
       const config = await ForgeConfigLoader.load({ cwd: tempDir });
 
-      expect(config.logLevel).toBe(LogLevel.DEBUG);
-      expect(config.logPrefix).toBe("legacy-root");
+      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
+      expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
     });
 
     it("falls back to the global ~/.forge/config.json when no project config exists", async () => {
@@ -124,7 +124,9 @@ describe("ForgeConfigLoader", () => {
       expect(config.logPrefix).toBe("global-forge");
     });
 
-    it("resolves a forgeDir pointer file: merges the pointed-to base with project overrides", async () => {
+    it("loads fine when the project file carries a leftover forgeDir pointer key (dropped from the result)", async () => {
+      // Fixed homes: global lives at ~/.forge/config.json (HOME is stubbed
+      // to tempDir/home), project lives at <cwd>/.forge/config.json.
       const globalForgeDir = join(tempDir, "home", ".forge");
       await fs.mkdir(globalForgeDir, { recursive: true });
       await fs.writeFile(
@@ -141,6 +143,8 @@ describe("ForgeConfigLoader", () => {
       await fs.writeFile(
         join(projectForgeDir, "config.json"),
         JSON.stringify({
+          // Old pointer shape - validates as an unknown key (open schema)
+          // and is dropped at resolution; never followed.
           forgeDir: "~/.forge",
           logLevel: "warn",
         }),
@@ -148,10 +152,12 @@ describe("ForgeConfigLoader", () => {
 
       const config = await ForgeConfigLoader.load({ cwd: tempDir });
 
-      // Override wins over the base; untouched base keys are preserved.
+      // Project wins per top-level key; keys the project omits (logPrefix)
+      // fall back to the global file. The leftover forgeDir key does not
+      // appear anywhere in the resolved config.
       expect(config.logLevel).toBe(LogLevel.WARN);
       expect(config.logPrefix).toBe("base-config");
-      expect(config.forgeDir).toBe("~/.forge");
+      expect(config).not.toHaveProperty("forgeDir");
     });
 
     it("propagates schema-validation errors from a project config file", async () => {
@@ -165,8 +171,10 @@ describe("ForgeConfigLoader", () => {
     });
 
     it("defaults the search directory to process.cwd() when no cwd is provided", async () => {
+      const projectForgeDir = join(tempDir, ".forge");
+      await fs.mkdir(projectForgeDir, { recursive: true });
       await fs.writeFile(
-        join(tempDir, "forge.config.json"),
+        join(projectForgeDir, "config.json"),
         JSON.stringify({
           logLevel: "debug",
           logPrefix: "cwd-default",
@@ -210,7 +218,9 @@ describe("ForgeConfigLoader", () => {
     });
 
     it("re-loads from disk on every call (no singleton caching)", async () => {
-      const configPath = join(tempDir, "forge.config.json");
+      const projectForgeDir = join(tempDir, ".forge");
+      await fs.mkdir(projectForgeDir, { recursive: true });
+      const configPath = join(projectForgeDir, "config.json");
 
       await fs.writeFile(
         configPath,
