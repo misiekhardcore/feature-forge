@@ -115,7 +115,17 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     );
     return;
   }
-  const forgeDir = ForgeConfigPaths.resolveForgeDir(config, cwd);
+  // ── Fixed homes + packaged default layers ─────────────────────────
+  // Project forge home (fixed: <cwd>/.forge): per-project assets + config.
+  // Global home (fixed: ~/.forge): cross-project assets + config. The
+  // packaged defaults ship inside the extension install (bundled
+  // dist/flows+skills+agents in production, core/src in the dev layout)
+  // and form the lowest-precedence asset layer in each cascade below.
+  const projectHome = ForgeConfigPaths.resolveProjectHome(cwd);
+  const globalHome = ForgeConfigPaths.resolveGlobalHome();
+  const packagedAgentsDir = ForgeConfigPaths.resolvePackagedAgentsDir();
+  const packagedFlowsDir = ForgeConfigPaths.resolvePackagedFlowsDir();
+  const packagedSkillsDir = ForgeConfigPaths.resolvePackagedSkillsDir();
 
   // ── Logging ────────────────────────────────────────────────────────
   FileLogger.install(config);
@@ -132,18 +142,44 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // children receive FORGE_PARENT_SOCKET in their process environment.
   const childEnv: Record<string, string> = {};
 
-  const forgeAgentsDir = path.join(forgeDir, "agents");
-  if (!fs.existsSync(forgeAgentsDir)) {
-    // Degraded mode: the forge directory has not been scaffolded yet.
-    // Register only /forge:init so the user can initialize, then skip
-    // the rest of the extension setup (agents, flows, tools, IPC).
+  // ── Agent spec loading: [config extras, project, global, packaged] ──
+  // Ordered first-wins cascade: the nearest directory that declares a spec
+  // id claims it (SpecManager registers in order; registerIfAbsent keeps
+  // the first occurrence). Config `specDirectories` extras are strongest,
+  // then the project home, then the global home, then the packaged
+  // defaults shipped with the extension.
+  // Config-declared spec directories are explicit user intent, so a missing
+  // one is worth a warning (the project/global/packaged layer dirs stay
+  // silently filtered - absence is the normal un-scaffolded state for them).
+  const configAgentSpecDirs = ForgeConfigPaths.resolveAgentSpecDirectories(config, cwd);
+  for (const dir of configAgentSpecDirs) {
+    if (!fs.existsSync(dir)) {
+      logger.warn(
+        `[feature-forge] Failed to load agent specs from config directory: ${dir} - does not exist`,
+      );
+    }
+  }
+  const agentLayerDirs = [
+    ...configAgentSpecDirs,
+    path.join(projectHome, "agents"),
+    path.join(globalHome, "agents"),
+    ...(packagedAgentsDir ? [packagedAgentsDir] : []),
+  ].filter((dir) => fs.existsSync(dir));
+  if (agentLayerDirs.length === 0) {
+    // Degraded mode: no agent specs exist in any layer (project, global,
+    // or packaged homes). Register only /forge:init so the user can
+    // initialize, then skip the rest of the extension setup (agents,
+    // flows, tools, IPC).
     registerDegradedMode(
-      `Feature Forge is not initialized — ${forgeAgentsDir} does not exist. ` +
-        "Run /forge:init to scaffold agents, flows, and skills, then restart pi.",
+      "Feature Forge could not find agent specs in the project, global, or " +
+        "packaged homes. Run /forge:init to scaffold agents, flows, and skills, " +
+        "then restart pi.",
     );
 
     logger.warn(
-      `[feature-forge] Forge not initialized — ${forgeAgentsDir} does not exist. ` +
+      "[feature-forge] Forge not initialized - no agent specs found in project " +
+        `(${path.join(projectHome, "agents")}), global ` +
+        `(${path.join(globalHome, "agents")}), or packaged homes. ` +
         "Run /forge:init to scaffold agents, flows, and skills.",
     );
     return;
@@ -152,15 +188,12 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   const specRegistry = new SpecRegistry();
   const specLoader = new SpecLoader();
   const specManager = new SpecManager(specRegistry, specLoader);
-  await specManager.loadFromDirectory(forgeAgentsDir);
-
-  // Load additional agent specs from directories configured in forge.config
-  for (const agentSpecDir of ForgeConfigPaths.resolveAgentSpecDirectories(config, cwd)) {
+  for (const agentLayerDir of agentLayerDirs) {
     try {
-      await specManager.loadFromDirectory(agentSpecDir);
+      await specManager.loadFromDirectory(agentLayerDir);
     } catch (error) {
-      logger.warn("[feature-forge] Failed to load agent specs from config directory", {
-        dir: agentSpecDir,
+      logger.warn("[feature-forge] Failed to load agent specs from directory", {
+        dir: agentLayerDir,
         error,
       });
     }
@@ -175,7 +208,12 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
     config.models,
     {
       defaultTimeoutMs: config.taskTimeoutMs ?? DEFAULT_FORGE_CONFIG.taskTimeoutMs,
-      forgeDir,
+      // Subagent skill resolution scans the project then global forge
+      // homes' skills dirs (nearest-first, mirroring the root session's
+      // cascade minus the packaged layer); the SkillResolver keeps the
+      // per-user pi-level dirs ahead of the homes and falls back to the
+      // bundled default skills when neither home declares a name.
+      forgeHomes: [projectHome, globalHome],
     },
   );
   const supervisor = new InMemoryAgentSupervisor(factory);
@@ -191,10 +229,15 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   activateSpecResolution(pi);
 
   // ── Forge skill discovery ────────────────────────────────────────
-  // Contribute bundled CLI skills and .forge/skills/ to the main session's
-  // skill discovery so default and project-local skills are available to
-  // the in-session orchestrator.
-  activateForgeSkills(pi, forgeDir);
+  // Contribute the fixed-homes skill cascade to the main session's skill
+  // discovery: project -> global -> packaged, same nearest-first order as
+  // the flows and agents above. Per skill name the nearest layer that
+  // declares it is contributed (see extensions/forge-skills.ts).
+  activateForgeSkills(pi, [
+    path.join(projectHome, "skills"),
+    path.join(globalHome, "skills"),
+    ...(packagedSkillsDir ? [packagedSkillsDir] : []),
+  ]);
 
   // Every session runs as a client.
   // Child sessions: FORGE_PARENT_SOCKET points to the parent's server.
@@ -262,10 +305,10 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // Skill self-improvement toolset: deterministic structure gate
   // (skill_validate) and scope-resolved persistence (skill_persist). Both
   // are local tools - no IPC. skill_validate is dependency-free;
-  // skill_persist receives the forge home resolved above (its `global`
-  // scope destination is <forgeDir>/skills).
+  // skill_persist receives the fixed global home (its `global` scope
+  // destination is ~/.forge/skills).
   toolRegistry.registerInstance(new SkillValidateTool());
-  toolRegistry.registerInstance(new SkillPersistTool(forgeDir));
+  toolRegistry.registerInstance(new SkillPersistTool(globalHome));
 
   // ── Root-only session extensions ─────────────────────────────────
   // Child sessions (FORGE_PARENT_SOCKET set) receive the parent's context
@@ -319,9 +362,28 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   );
 
   // ── Flow-based orchestration commands ────────────────────────────
+  // Unified [config extras, project, global, packaged] cascade - same
+  // nearest-first-wins order as the agent specs. FlowRegistrar dedupes by
+  // flow directory name across these roots, so the nearest layer claims
+  // each flow, later duplicates are skipped, and every root's unique flows
+  // still register (each root's packaged defaults fill any gap).
+  // Config-declared flow directories are explicit user intent, so a
+  // missing one is worth a warning (the project/global/packaged layer dirs
+  // stay silently included-or-not - absence is the normal un-scaffolded
+  // state for them, and FlowRegistrar skips missing roots quietly).
+  const configFlowDirs = ForgeConfigPaths.resolveFlowDirectories(config, cwd);
+  for (const dir of configFlowDirs) {
+    if (!fs.existsSync(dir)) {
+      logger.warn(
+        `[feature-forge] Failed to load flow directories from config directory: ${dir} - does not exist`,
+      );
+    }
+  }
   const flowDirs = [
-    path.join(forgeDir, "flows"),
-    ...ForgeConfigPaths.resolveFlowDirectories(config, cwd),
+    ...configFlowDirs,
+    path.join(projectHome, "flows"),
+    path.join(globalHome, "flows"),
+    ...(packagedFlowsDir ? [packagedFlowsDir] : []),
   ];
   const flowRegistrar = new FlowRegistrar({
     pi,

@@ -171,7 +171,7 @@ describe("buildPiCliArguments", () => {
       expect(noSkillsCount).toBe(1);
     });
 
-    it("resolves --skill paths under the provided forgeDir", () => {
+    it("resolves --skill paths under the provided forge homes (nearest-first)", () => {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-helpers-test-"));
       try {
         // Unique skill name derived from the temp dir so home-directory skill
@@ -192,7 +192,7 @@ describe("buildPiCliArguments", () => {
           }
         })();
 
-        const args = buildPiCliArguments(spec, tempDir);
+        const args = buildPiCliArguments(spec, [tempDir]);
         expect(args).toContain("--no-skills");
         const skillIndex = args.indexOf("--skill");
         expect(skillIndex).toBeGreaterThan(-1);

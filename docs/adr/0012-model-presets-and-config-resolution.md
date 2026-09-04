@@ -3,6 +3,17 @@
 **Date:** 2026-07-30
 **Status:** Accepted
 
+**Partially superseded:** [ADR 0028](0028-fixed-forge-homes-cascading-merge.md)
+replaces this ADR's config-discovery content. Section 7's config-location
+paragraph below - the `.forge/config.json` path with the repo-root
+`forge.config.json` fallback - describes the single-file pre-cascade
+lookup and is superseded by the fixed-homes model (project and global
+config files merged over the packaged defaults, no repo-root lookup, no
+`forgeDir` key). Section 7's remaining `.gitignore` runtime-artifact
+guidance (the `# Feature Forge runtime` entries for `.forge/worktrees`,
+`.forge/worktrees.json`, and `.forge/logs`) stays current, as do sections
+1-6 (model presets and their resolution).
+
 ## Context
 
 Before this change, model selection had no indirection layer. Every agent

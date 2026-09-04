@@ -20,7 +20,7 @@ here mirror its decision logic.
 | Scope           | Location                                           | Persistence                                            | Git                             | Confirmation  |
 | --------------- | -------------------------------------------------- | ------------------------------------------------------ | ------------------------------- | ------------- |
 | Project         | `<repo>/.pi/skills/<name>/`                        | With the repo                                          | Commit with the current work    | None needed   |
-| Global (forge)  | `~/.forge/skills/<name>/`                          | Machine-local; forge runtime reads this dir (ADR 0015) | Not a git repo                  | Required      |
+| Global (forge)  | `~/.forge/skills/<name>/`                          | Machine-local; forge runtime reads this dir (ADR 0028) | Not a git repo                  | Required      |
 | Global (synced) | `~/.pi/agent/skills/<name>/`                       | Machine-synced via the pi-config repo                  | `git add` + commit in pi-config | Required      |
 | Package         | `<pkg>/.pi/skills/` or bundled `<pkg>/src/skills/` | With the package                                       | Package PR / release            | Package owner |
 
