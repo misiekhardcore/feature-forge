@@ -9,9 +9,9 @@
  * - the registered `skill_validate` instance returns `passed: false` text
  *   for a malformed fixture skill (deterministic structure gate works on
  *   the instance pi actually holds)
- * - the root-only session extensions (forge-init-context, skill-nudge) are
- *   activated in a root session but not in a child session
- *   (FORGE_PARENT_SOCKET set) — the Loop 2 review M2 guard
+ * - the root-only session extension (forge-init-context) is activated in a
+ *   root session but not in a child session (FORGE_PARENT_SOCKET set) — the
+ *   Loop 2 review M2 guard
  *
  * The boot is in-process (like tool-restrictions-interceptor.e2e.test.ts)
  * rather than a real `pi` subprocess: tool registration is a pure
@@ -136,18 +136,17 @@ describe("skill toolset wiring (e2e)", () => {
     expect(text).toContain("passed: false");
   });
 
-  it("activates the init-context and nudge extensions in a root session only", async () => {
-    // Root boot (no FORGE_PARENT_SOCKET): both session extensions register.
+  it("activates the init-context extension in a root session only", async () => {
+    // Root boot (no FORGE_PARENT_SOCKET): session extensions register.
     const rootPi = makeMockPi();
     await bootExtension(rootPi);
     const rootEvents = (rootPi.on as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0],
     );
-    expect(rootEvents).toContain("agent_settled");
     expect(rootEvents).toContain("session_compact");
 
     // Child boot (FORGE_PARENT_SOCKET set): neither may register — children
-    // inherit the parent's context and must not inject or nudge.
+    // inherit the parent's context and must not inject.
     const supervisor = { spawnGuest: vi.fn(), mountInSession: vi.fn() };
     const server = new ParentSocketServer(supervisor as never, makeMockPi(), makeMockSpecManager());
     const socketPath = await server.start();
@@ -158,7 +157,6 @@ describe("skill toolset wiring (e2e)", () => {
       const childEvents = (childPi.on as ReturnType<typeof vi.fn>).mock.calls.map(
         (call: unknown[]) => call[0],
       );
-      expect(childEvents).not.toContain("agent_settled");
       expect(childEvents).not.toContain("session_compact");
 
       // Tools still register in child sessions — the guard only scopes the
