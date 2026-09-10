@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en" data-theme="luxury">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Journal &amp; Response Schemas — full solution plan</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, h1, h2, h3, h4, h5, h6, li, dd, blockquote, figcaption, td, th, .badge, .label, pre, code) { overflow-wrap: anywhere; }
+  :where(img, svg, video, canvas, iframe) { max-width: 100%; height: auto; }
+  svg text { font-family: ui-sans-serif, system-ui, sans-serif; }
+  .fig { width: 100%; }
+</style>
+</head>
+<body class="bg-base-100 text-base-content min-h-screen">
+<main class="mx-auto max-w-6xl p-6 lg:p-10 space-y-10">
+
+  <!-- Hero -->
+  <section class="hero bg-base-200 rounded-box">
+    <div class="hero-content text-center flex-col">
+      <div class="badge badge-accent">Discussion draft — not implemented</div>
+      <h1 class="text-4xl lg:text-5xl font-bold">Agent Journal &amp; Response Schemas</h1>
+      <p class="max-w-3xl text-lg">
+        The full solution to the <span class="badge badge-error badge-soft">stale-agent status bug</span> —
+        reworking how feature-forge <strong>persists subagent logs</strong> and <strong>parses agent responses</strong>,
+        modeled on <a class="link link-accent" href="https://github.com/can1357/oh-my-pi">oh-my-pi</a> (OMP).
+      </p>
+      <div class="stats stats-vertical sm:stats-horizontal">
+        <div class="stat"><div class="stat-title">Bug</div><div class="stat-value text-error">✗ "failed"</div><div class="stat-desc">completed agent reopens as failed</div></div>
+        <div class="stat"><div class="stat-title">Current files</div><div class="stat-value">3</div><div class="stat-desc">.stream / .events.jsonl / .messages.jsonl</div></div>
+        <div class="stat"><div class="stat-title">Proposed</div><div class="stat-value">1</div><div class="stat-desc">typed journal + schema-validated outputs</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 1: The bug -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">1 · Why the bug happens</h2>
+    <div role="alert" class="alert alert-warning">
+      <span><strong>Root cause:</strong> agents are destroyed after execution → absent from the supervisor on reopen; the persisted logs never record pass/fail; the reload fallback <code>ensureStaleEntry</code> guesses <code>passed: false</code>.</span>
+    </div>
+
+    <figure>
+      <svg class="fig" viewBox="0 0 960 330" role="img" aria-label="Current persistence flow and the reopen bug">
+        <title>Current flow: live path OK, reopen path broken</title>
+        <style>
+          .node { fill: var(--color-base-200); stroke: var(--color-base-content); stroke-opacity: .35; rx: 10; }
+          .node-live { fill: var(--color-success); fill-opacity: .12; stroke: var(--color-success); rx: 10; }
+          .node-dead { fill: var(--color-error); fill-opacity: .12; stroke: var(--color-error); rx: 10; }
+          .node-disk { fill: var(--color-info); fill-opacity: .08; stroke: var(--color-info); rx: 10; }
+          .edge { stroke: var(--color-base-content); stroke-opacity: .5; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+          .edge-ok { stroke: var(--color-success); stroke-opacity: .9; }
+          .edge-bad { stroke: var(--color-error); stroke-opacity: .9; }
+          .lbl { fill: var(--color-base-content); font-size: 13px; }
+          .lbl-sm { fill: var(--color-base-content); fill-opacity: .7; font-size: 11px; }
+        </style>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--color-base-content)"/></marker></defs>
+
+        <g><rect class="node" x="20" y="40" width="160" height="56"/><text class="lbl" x="100" y="62" text-anchor="middle">Routine</text><text class="lbl-sm" x="100" y="80" text-anchor="middle">AgentStepExecutor</text></g>
+        <g><rect class="node-live" x="230" y="40" width="170" height="56"/><text class="lbl" x="315" y="62" text-anchor="middle">Subprocess agent</text><text class="lbl-sm" x="315" y="80" text-anchor="middle">executes, then destroyed</text></g>
+        <g><rect class="node" x="450" y="40" width="200" height="56"/><text class="lbl" x="550" y="62" text-anchor="middle">feature-forge:agent-done</text><text class="lbl-sm" x="550" y="80" text-anchor="middle">carries passed ✓/✗ + summary</text></g>
+        <g><rect class="node-disk" x="720" y="40" width="220" height="56"/><text class="lbl" x="830" y="62" text-anchor="middle">3 disk files per agent</text><text class="lbl-sm" x="830" y="80" text-anchor="middle">.stream · .events.jsonl · .messages.jsonl</text></g>
+
+        <path class="edge" d="M180 68 H230"/><text class="lbl-sm" x="205" y="58" text-anchor="middle">spawn</text>
+        <path class="edge edge-bad" d="M400 68 H450" stroke-dasharray="4 3"/><text class="lbl-sm" x="425" y="58" text-anchor="middle" fill="var(--color-error)">✗ not persisted</text>
+        <path class="edge edge-ok" d="M550 96 V150"/><text class="lbl-sm" x="560" y="128">streams pi events only</text>
+        <path class="edge edge-bad" d="M830 96 V150" stroke-dasharray="4 3"/>
+
+        <g><rect class="node-disk" x="450" y="150" width="380" height="56"/><text class="lbl" x="640" y="172" text-anchor="middle">Reopen overlay → prepopulateStreamFiles</text><text class="lbl-sm" x="640" y="190" text-anchor="middle">supervisor has no entry (destroyed) → ensureStaleEntry</text></g>
+        <g><rect class="node-dead" x="720" y="250" width="220" height="50"/><text class="lbl" x="830" y="272" text-anchor="middle">passed: false (hardcoded)</text><text class="lbl-sm" x="830" y="290" text-anchor="middle">renders ✗ "failed"</text></g>
+        <path class="edge edge-bad" d="M640 206 V275 H720"/><text class="lbl-sm" x="650" y="250" fill="var(--color-error)">guesses</text>
+      </svg>
+      <figcaption class="text-sm opacity-70 mt-1">Live path (green) shows ✓ from the agent-done event. Reopen path (red) can't know pass/fail — disk never stored it, so the fallback lies.</figcaption>
+    </figure>
+
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra">
+        <thead><tr><th>File</th><th>Content</th><th>What it's for</th><th>Problems</th></tr></thead>
+        <tbody>
+          <tr><td><code>{id}.stream</code></td><td>formatted display lines (filtered)</td><td>"last line" in the list view</td><td>human-only, lossy, can't rebuild state</td></tr>
+          <tr><td><code>{id}.events.jsonl</code></td><td>raw pi <code>JsonAgentSessionEvent</code> (message_*, tool_execution_*, agent_start/end…)</td><td>detail-view history</td><td>pi-level only — <code>agent_end</code> has <strong>no pass/fail</strong>; <code>message_update</code> deltas; rotated at 50k lines</td></tr>
+          <tr><td><code>{id}.messages.jsonl</code></td><td>extracted finalized <code>AgentMessage</code></td><td>conversation cache</td><td>third ad-hoc schema, duplicates message data</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="alert alert-info">
+      <span>The authoritative signal — <code>feature-forge:agent-done</code> with <code>passed</code> + <code>summary</code> (emitAgentDone) — is <strong>never written to disk</strong>. That is the "doesn't store the status" half of the problem; <code>ensureStaleEntry</code> hardcoding <code>passed: false</code> is the "loading it incorrectly" half.</span>
+    </div>
+  </section>
+
+  <!-- Section 2: OMP reference -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">2 · How oh-my-pi does it</h2>
+    <p class="opacity-80">OMP (a pi fork) models both problems structurally instead of with ad-hoc files and regex:</p>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title">Persistence — one typed session stream</h3>
+          <ul class="list-disc list-inside text-sm space-y-1">
+            <li><strong>SessionEntry union</strong>: <code>message | custom_message | compaction | branch_summary | model_change | thinking_level_change</code>, each with <code>id / parentId / timestamp</code></li>
+            <li>Each <strong>subagent gets its own session file</strong> (<code>sessionFile</code> in lifecycle payloads) in the same format</li>
+            <li>Append-only, replayable — state is <em>derived</em> from the stream, never guessed</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title">Responses — schema-first</h3>
+          <ul class="list-disc list-inside text-sm space-y-1">
+            <li><strong>omptype</strong>: an ArkType-compatible schema library — <code>type({ "status?": "'pending' | 'running' | 'completed' | 'failed' | 'aborted'", … })</code></li>
+            <li>Tools declare schemas; results are <strong>asserted/validated</strong> against them</li>
+            <li><strong>SubagentLifecyclePayload</strong> <code>{ status: started|completed|failed|aborted, sessionFile }</code> — status is a first-class typed field</li>
+            <li><strong>AgentProgress</strong>: rich snapshot — status, currentTool, tokens, cost, duration</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-sm">
+        <thead><tr><th></th><th>feature-forge today</th><th>oh-my-pi</th></tr></thead>
+        <tbody>
+          <tr><th>Agent log</th><td>3 ad-hoc files, 3 formats, no status</td><td>one typed SessionEntry stream per agent</td></tr>
+          <tr><th>Terminal status</th><td>never persisted; fallback guesses <code>passed: false</code></td><td><code>SubagentLifecyclePayload.status</code> + <code>AgentProgress.status</code></td></tr>
+          <tr><th>Response parsing</th><td>prompt says "emit JSON" → regex-fished via <code>extractJson</code></td><td>schema <code>assert</code> — validation is the contract</td></tr>
+          <tr><th>Schema mechanism</th><td>TypeBox only for tool params</td><td>omptype (ArkType) for tool results + agent outputs</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Section 3: Proposed design -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">3 · Proposed design</h2>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title">A · One typed agent journal</h3>
+          <p class="text-sm">Replace the 3 files with <code>{streamDir}/{agentId}.journal.jsonl</code> — append-only, discriminated union, status first-class. Reopen = <strong>replay</strong>, not guess.</p>
+<pre class="mockup-code text-xs"><code>{"type":"lifecycle","phase":"started","ts":"…"}
+{"type":"stream","line":"⟳ builder (build) started","ts":"…"}
+{"type":"message","message":{…},"ts":"…"}
+{"type":"tool","toolName":"read","result":…,"isError":false,"ts":"…"}
+{"type":"lifecycle","phase":"done","passed":true,"summary":"ok","ts":"…"}  ← the fix</code></pre>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title">B · Schema-validated responses</h3>
+          <p class="text-sm">Per-instruction <strong>output schema</strong> (TypeBox — same machinery pi already uses for tool args). Parse → validate → retry with <em>specific</em> errors instead of "append the JSON block".</p>
+<pre class="mockup-code text-xs"><code>// flow.json — declared contract, typed details
+"agent": { "id": "builder", "outputSchema": {
+  "passed": "boolean", "summary": "string",
+  "details": { "files": ["string"], "rounds": "integer" } } }
+
+// executor — one validate call, no regex guessing
+const out = extractJsonBlock(raw);
+const errors = [...Value.Errors(schema, out)];
+if (errors.length) → retry(prompt + errors)</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <figure>
+      <svg class="fig" viewBox="0 0 960 250" role="img" aria-label="Proposed journal flow">
+        <title>Proposed: single journal per agent, replay on reopen</title>
+        <style>
+          .n2 { fill: var(--color-base-200); stroke: var(--color-base-content); stroke-opacity: .35; rx: 10; }
+          .n2-j { fill: var(--color-primary); fill-opacity: .12; stroke: var(--color-primary); rx: 10; }
+          .n2-ok { fill: var(--color-success); fill-opacity: .12; stroke: var(--color-success); rx: 10; }
+          .n2-l { fill: var(--color-base-content); font-size: 13px; }
+          .n2-s { fill: var(--color-base-content); fill-opacity: .7; font-size: 11px; }
+          .n2-e { stroke: var(--color-base-content); stroke-opacity: .5; stroke-width: 1.5; fill: none; marker-end: url(#a2); }
+        </style>
+        <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--color-base-content)"/></marker></defs>
+
+        <g><rect class="n2" x="20" y="40" width="150" height="56"/><text class="n2-l" x="95" y="62" text-anchor="middle">Agent lifecycle</text><text class="n2-s" x="95" y="80" text-anchor="middle">started · done(passed)</text></g>
+        <g><rect class="n2" x="20" y="160" width="150" height="56"/><text class="n2-l" x="95" y="182" text-anchor="middle">Agent stream</text><text class="n2-s" x="95" y="200" text-anchor="middle">messages · tools · lines</text></g>
+        <g><rect class="n2-j" x="320" y="100" width="240" height="60"/><text class="n2-l" x="440" y="126" text-anchor="middle">{id}.journal.jsonl</text><text class="n2-s" x="440" y="144" text-anchor="middle">lifecycle | message | tool | stream | forge</text></g>
+        <g><rect class="n2-ok" x="700" y="100" width="240" height="60"/><text class="n2-l" x="820" y="126" text-anchor="middle">Reopen → replay journal</text><text class="n2-s" x="820" y="144" text-anchor="middle">true status ✓ / ✗ + full conversation</text></g>
+
+        <path class="n2-e" d="M170 68 H320"/><text class="n2-s" x="245" y="58" text-anchor="middle">write lifecycle</text>
+        <path class="n2-e" d="M170 188 H320"/><text class="n2-s" x="245" y="178" text-anchor="middle">write stream</text>
+        <path class="n2-e" d="M560 130 H700"/><text class="n2-s" x="630" y="120" text-anchor="middle">replay</text>
+      </svg>
+      <figcaption class="text-sm opacity-70 mt-1">One writer (live events), one reader (replay). Terminal status comes from the lifecycle entry, not a hardcode.</figcaption>
+    </figure>
+
+    <div class="card card-border bg-base-100 mt-6">
+      <div class="card-body">
+        <h3 class="card-title">3B · TypeBox vs ArkType (omptype) — the D3 question</h3>
+        <p class="text-sm"><strong>They express the same things; the difference is authoring style, interop, and tooling.</strong> ArkType's string DSL is sugar over what TypeBox already does programmatically — everything ArkType can express, TypeBox can express:</p>
+        <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100 mt-2">
+          <table class="table table-sm">
+            <thead><tr><th>ArkType / omptype</th><th>TypeBox equivalent (JSON Schema)</th></tr></thead>
+            <tbody>
+              <tr><td><code>type("'feat' | 'fix' | 'refactor'")</code></td><td><code>Type.Union([Type.Literal("feat"), Type.Literal("fix"), Type.Literal("refactor")])</code> (a small <code>enumLiteral()</code> helper makes it one line)</td></tr>
+              <tr><td><code>type({ text: "string", "x?": "boolean" })</code></td><td><code>Type.Object({ text: Type.String(), x: Type.Optional(Type.Boolean()) })</code></td></tr>
+              <tr><td><code>type("string.integer >= 0")</code></td><td><code>Type.Integer({ minimum: 0 })</code></td></tr>
+              <tr><td><code>type("boolean = true")</code></td><td><code>Type.Boolean({ default: true })</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4 mt-2">
+          <div>
+            <h4 class="font-semibold text-sm">Why ArkType is nice</h4>
+            <ul class="list-disc list-inside text-xs space-y-1">
+              <li>Terser authoring — a compact string DSL reads well in a declarative <code>flow.json</code></li>
+              <li>Blazing validation speed (irrelevant at our low output frequency)</li>
+              <li>Excellent static inference ergonomics (schema <em>is</em> the type)</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold text-sm">Why TypeBox wins for us</h4>
+            <ul class="list-disc list-inside text-xs space-y-1">
+              <li><strong>Already in the stack</strong> — tool params (<code>buildParamsSchema</code>) and <code>FlowDefinitionSchema</code> are TypeBox; an <code>outputSchema</code> nests naturally</li>
+              <li><strong>JSON Schema interop</strong> — provider structured outputs (<code>response_format</code>/Anthropic tool-shaped JSON) take JSON Schema; ArkType/omptype is not JSON Schema</li>
+              <li><strong>Value.Errors / Compile / Convert</strong> — the exact validation + error-reporting machinery pi already uses for tool args</li>
+              <li>No new runtime dependency, no divergent schema dialect in the repo</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card card-border bg-base-100 mt-2">
+          <div class="card-body">
+            <h4 class="font-semibold text-sm">What "verbose" means concretely — the same schema two ways</h4>
+            <div class="grid md:grid-cols-2 gap-2 text-xs">
+              <div>
+                <p class="font-semibold mb-1">Raw JSON Schema in flow.json (TypeBox output)</p>
+<pre class="mockup-code"><code>"outputSchema": {
+  "type": "object",
+  "properties": {
+    "passed": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "details": {
+      "type": "object",
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "status": { "enum": ["pending","running",
+                            "completed","failed"] }
+      },
+      "required": ["status"]
+    }
+  },
+  "required": ["passed","summary","details"],
+  "additionalProperties": false
+}</code></pre>
+              </div>
+              <div>
+                <p class="font-semibold mb-1">ArkType-style DSL (as a flow.json string)</p>
+<pre class="mockup-code"><code>"outputSchema": "{
+  passed: 'boolean',
+  summary: 'string',
+  details: {
+    files: 'string[]',
+    status: 'pending | running | completed | failed'
+  }
+}"</code></pre>
+                <p class="opacity-70 mt-1">Same contract, ~4x fewer tokens. That is the entire ArkType pitch.</p>
+              </div>
+            </div>
+            <p class="text-xs mt-2">Mitigations if flow.json authoring hurts: keep schemas TS-side (like the tool schemas — zero flow.json noise, helpers like <code>enumLiteral()</code>), or add a tiny DSL string parsed at flow-load time. All keep the TypeBox enforcement substrate.</p>
+          </div>
+        </div>
+
+<div role="alert" class="alert alert-success mt-2">
+          <span><strong>D3 revised (user decision):</strong> go full ArkType like OMP. Adopt the real <code>arktype</code> package, wrap it in a forge-owned facade, and model the enforcement pipeline on OMP's structured-subagent architecture. TypeBox remains only where the pi platform requires it (tool params, flow validation).</span>
+        </div>
+        <p class="text-xs opacity-70 mt-2"><strong>Why the flip is sound:</strong> OMP is battle-proven on exactly this pattern — ArkType DSL for authoring, JSON-Schema bridge for providers/wire, strict|permissive validation, schema-error-driven retry. The earlier TypeBox argument (already-in-stack) is real but the DSL ergonomics for hand-authored flow.json and the OMP parity the user wants win. The wrapper keeps arktype out of the rest of the codebase.</p>
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <span><strong>Migration / compatibility:</strong> existing <code>.stream / .events.jsonl / .messages.jsonl</code> files exist in every user's log dir. Options: one-shot migrate on first prepopulate, read-side fallback to legacy files, or accept history loss. Retention/prune (#230) already covers the directory.</span>
+    </div>
+  </section>
+
+  <!-- Section 4: Roadmap -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">4 · Phased roadmap</h2>
+    <ul class="steps steps-vertical lg:steps-horizontal">
+      <li class="step step-error">A · Quick fix<br><span class="text-xs opacity-70">1 line + test, ship now</span></li>
+      <li class="step">B · Agent journal<br><span class="text-xs opacity-70">format + writer + replay + migration</span></li>
+      <li class="step">C · Response schemas<br><span class="text-xs opacity-70">typed outputs, no regex guessing</span></li>
+    </ul>
+
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-sm">
+        <thead><tr><th>Phase</th><th>Scope</th><th>Risk / note</th><th>Size</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-error badge-soft">A</span> Quick fix</td><td><code>ensureStaleEntry</code> omits <code>passed</code> → unknown renders "completed" (per documented buildEntry contract); update stale-entry test</td><td>behavior-preserving except the bug; genuinely-failed agents from old sessions also show "completed" (status was never stored)</td><td>~30 min</td></tr>
+          <tr><td><span class="badge badge-primary badge-soft">B</span> Agent journal</td><td>new <code>AgentJournal</code> module (types + append + replay), hook writers (wireOverlayEvents lifecycle + pushStreamEvent), prepopulate replays, legacy fallback/migration, retention check</td><td>format lock-in; message_update deltas → journal stores finalized messages only; test matrix for replay</td><td>multi-subtask PR</td></tr>
+          <tr><td><span class="badge badge-primary badge-soft">C</span> Response schemas</td><td><code>arktype</code> dep + forge wrapper (<code>OutputSchema</code> facade: define/compile/validate/toJsonSchema); per-instruction <code>outputSchema</code> DSL string in flow.json; replace <code>extractJson</code> heuristics with schema-validated block-extract + retry-with-errors; strict|permissive modes; typed <code>details</code></td><td>DSL string compiled at flow load (invalid DSL fails loudly); legacy flows unaffected (schema optional); provider structured-outputs via JSON-Schema bridge later</td><td>multi-subtask PR</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Section 5: Decisions (locked) -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">5 · Decisions — locked</h2>
+    <div role="alert" class="alert alert-success">
+      <span>All four decisions are set. The plan below reflects them. (TypeBox vs ArkType question answered in section 3B.)</span>
+    </div>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra">
+        <thead><tr><th>#</th><th>Decision</th><th>Choice</th><th>Consequence</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td>Journal scope</td><td><span class="badge badge-success">Full unification</span></td><td>one <code>{id}.journal.jsonl</code> replaces <code>.stream</code> + <code>.events.jsonl</code> + <code>.messages.jsonl</code></td></tr>
+          <tr><td>D2</td><td>Legacy migration</td><td><span class="badge badge-success">One-shot migrate</span></td><td>on first prepopulate, legacy files are folded into the journal and removed</td></tr>
+          <tr><td>D3</td><td>Schema mechanism</td><td><span class="badge badge-success">ArkType (OMP-style)</span></td><td>ArkType DSL <code>outputSchema</code> + thin forge wrapper; TypeBox stays for tool params / flow validation (pi platform constraint — we don’t own pi)</td></tr>
+          <tr><td>D4</td><td>Execution order</td><td><span class="badge badge-success">A → B → C</span></td><td>quick fix first (immediate correctness), then journal, then response schemas</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+<!-- Section 6: Quick-fix prompt -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">6 · Copy-paste prompt for the quick fix (Phase A)</h2>
+    <div class="mockup-code text-xs">
+<pre><code>Fix the stale-agent status rendering bug in feature-forge (~/Projects/feature-forge, main).
+
+Root cause: packages/cli/src/tui/state/AgentViewerState.ts — prepopulateStreamFiles()'s
+ensureStaleEntry() creates a disk-derived entry with `passed: false` hardcoded when an
+agent has persisted stream files but no live entry. Completed agents are destroyed
+after execution (AgentStepExecutor.ts:210), so on overlay reopen the supervisor has no
+entry; the disk files (.stream/.events.jsonl/.messages.jsonl) record conversation only,
+never pass/fail; the fallback then renders ✗ "failed" via getStatusLabel("done", false).
+
+Fix (behavior-preserving except the bug): in ensureStaleEntry remove the `passed: false`
+field — leave passed undefined. Per the documented contract in
+AgentDisplayHelpers.buildEntry ("passed spread only when defined — undefined renders
+'completed', never 'failed'"), unknown pass/fail must render "completed" (green ✓).
+
+Tests:
+- Add/extend a test in packages/cli/src/tui/state/AgentViewerState.test.ts asserting the
+  stale entry from prepopulateStreamFiles has status "done" and passed is undefined
+  (AgentDisplayHelpers.getEntryPassed(entry) === undefined; getStatusLabel renders
+  "completed"). Check no existing test locks passed:false on stale entries.
+
+Validation (repo root): npx tsc --noEmit -p packages/cli; npx vitest run --project cli
+src/tui/state/AgentViewerState.test.ts src/tui/display/AgentDisplayHelpers.test.ts;
+npx eslint + npx prettier --check on the two touched files.
+
+Non-goals: no changes to the persistence format, wireOverlayEvents, or display-helper
+semantics; the agent-journal rework is a separate effort.</code></pre>
+    </div>
+  </section>
+
+  <footer class="text-center text-sm opacity-50 pb-8">Draft for discussion — diagrams cite: AgentViewerState.ts, AgentStepExecutor.ts, agentChannels.ts, AgentDisplayHelpers.ts · OMP: packages/wire/src/index.ts, packages/omptype</footer>
+</main>
+</body>
+</html>
