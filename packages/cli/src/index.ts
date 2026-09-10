@@ -47,7 +47,6 @@ import { AgentListCommand, FlowExitCommand, ForgeInitCommand } from "./commands"
 import { activateForgeInitContext } from "./extensions/forge-init-context";
 import { activateForgeSkills } from "./extensions/forge-skills";
 import { registerDevTestCommands } from "./extensions/registerTestCommands";
-import { activateSkillNudge } from "./extensions/skill-nudge";
 import { activateSpecResolution } from "./extensions/spec-resolution";
 import {
   DestroyAgentTool,
@@ -275,7 +274,6 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // mid-flow guard.
   if (!process.env.FORGE_PARENT_SOCKET) {
     activateForgeInitContext(pi);
-    activateSkillNudge(pi, activeFlowRegistry);
   }
 
   const cmdRegistry = new CommandRegistry(
