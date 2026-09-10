@@ -37,7 +37,11 @@ export const SKILL_NUDGE_PROMPT =
  * it. Sent with `deliverAs: "followUp"` per the merged #252 fix: harmless
  * when idle, queued when the agent is mid-turn.
  */
-export function activateSkillNudge(pi: ExtensionAPI, activeFlow: ActiveFlowRegistry): void {
+export function activateSkillNudge(
+  pi: ExtensionAPI,
+  activeFlow: ActiveFlowRegistry,
+  disabled = false,
+): void {
   let nudged = false;
 
   pi.on("session_start", (event) => {
@@ -45,6 +49,8 @@ export function activateSkillNudge(pi: ExtensionAPI, activeFlow: ActiveFlowRegis
       nudged = false;
     }
   });
+
+  if (disabled) return;
 
   pi.on("agent_settled", () => {
     if (nudged) return;

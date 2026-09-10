@@ -275,7 +275,7 @@ const featureForgeExtension: ExtensionFactory = async (pi) => {
   // mid-flow guard.
   if (!process.env.FORGE_PARENT_SOCKET) {
     activateForgeInitContext(pi);
-    activateSkillNudge(pi, activeFlowRegistry);
+    activateSkillNudge(pi, activeFlowRegistry, config.skillNudge?.disabled ?? false);
   }
 
   const cmdRegistry = new CommandRegistry(

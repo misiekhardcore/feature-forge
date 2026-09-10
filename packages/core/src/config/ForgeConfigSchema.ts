@@ -139,6 +139,15 @@ export const DevConfigSchema = Type.Object({
 });
 
 /**
+ * Skill nudge configuration.
+ * Controls the session wrap-up nudge that prompts skill creation reflection.
+ */
+export const SkillNudgeConfigSchema = Type.Object({
+  /** When true, the session wrap-up skill creation nudge is suppressed. Defaults to false. */
+  disabled: Type.Readonly(Type.Optional(Type.Boolean({ default: false }))),
+});
+
+/**
  * Complete configuration schema for the Feature Forge CLI.
  *
  * To extend this schema, add a new `Type.Readonly(...)` field with a JSDoc
@@ -226,6 +235,9 @@ export const ForgeConfigSchema = Type.Object({
   /** Development-mode configuration. */
   dev: Type.Readonly(Type.Optional(DevConfigSchema)),
 
+  /** Skill nudge configuration. */
+  skillNudge: Type.Readonly(Type.Optional(SkillNudgeConfigSchema)),
+
   /**
    * Root directory for forge assets (agents, flows, skills, config).
    *
@@ -264,6 +276,9 @@ export type DisplayConfig = Type.Static<typeof DisplayConfigSchema>;
 
 /** TypeScript type derived from {@link DevConfigSchema}. */
 export type DevConfig = Type.Static<typeof DevConfigSchema>;
+
+/** TypeScript type derived from {@link SkillNudgeConfigSchema}. */
+export type SkillNudgeConfig = Type.Static<typeof SkillNudgeConfigSchema>;
 
 /**
  * TypeScript type derived from {@link ForgeConfigSchema}.

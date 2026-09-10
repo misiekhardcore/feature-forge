@@ -68,6 +68,9 @@ function createDefaultConfig(): Required<ForgeConfig> {
     piCli: undefined,
     dev: defaultsJson.dev,
     forgeDir: defaultsJson.forgeDir,
+    skillNudge: {
+      disabled: false,
+    },
   });
 }
 
@@ -154,6 +157,7 @@ export function resolveConfig(overrides: Partial<ForgeConfig>): ForgeConfig {
     piCli: overrides.piCli ?? DEFAULT_FORGE_CONFIG.piCli,
     display: { ...(overrides.display ?? DEFAULT_FORGE_CONFIG.display) },
     dev: { ...(overrides.dev ?? DEFAULT_FORGE_CONFIG.dev) },
+    skillNudge: { ...(overrides.skillNudge ?? DEFAULT_FORGE_CONFIG.skillNudge) },
     forgeDir: overrides.forgeDir ?? DEFAULT_FORGE_CONFIG.forgeDir,
   };
 }
