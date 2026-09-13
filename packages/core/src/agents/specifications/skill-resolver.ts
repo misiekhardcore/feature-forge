@@ -109,9 +109,15 @@ export class SkillResolver {
    * - Non-empty `skills` → use only those (minus excluded)
    * - `excludedSkills` always overrides (subtracted from effective set)
    *
+   * An entry ending in `*` is a PREFIX pattern: "memo-*" matches every
+   * discovered skill name starting with "memo-". Exact names keep working
+   * alongside prefix patterns. Allowlist order is preserved; each prefix
+   * pattern expands to every matching discovered name in discovery order.
+   *
    * @param allSkills — Map of all discovered skill names.
-   * @param skills — Allowlist (empty = all).
-   * @param excludedSkills — Denylist (overrides allowlist).
+   * @param skills — Allowlist (empty = all; `*`-suffix entries are prefixes).
+   * @param excludedSkills — Denylist (overrides allowlist; `*`-suffix entries
+   *   are prefixes too).
    * @returns Effective skill names.
    */
   static resolveEffectiveSkillNames(
@@ -119,13 +125,19 @@ export class SkillResolver {
     skills: readonly string[],
     excludedSkills: readonly string[],
   ): string[] {
-    const excludedSet = new Set(excludedSkills);
+    const matches = (name: string, pattern: string): boolean =>
+      pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : name === pattern;
 
-    // If no allowlist, use all discovered minus excluded
-    const effectiveFrom =
-      skills.length > 0 ? skills.filter((name) => allSkills.has(name)) : [...allSkills.keys()];
-
-    return effectiveFrom.filter((name) => !excludedSet.has(name));
+    // Preserve allowlist order; expand prefix patterns to every matching
+    // discovered name (deduped against earlier allowlist entries).
+    const effectiveFrom: string[] = [];
+    for (const pattern of skills) {
+      for (const name of allSkills.keys()) {
+        if (matches(name, pattern) && !effectiveFrom.includes(name)) effectiveFrom.push(name);
+      }
+    }
+    const effective = skills.length > 0 ? effectiveFrom : [...allSkills.keys()];
+    return effective.filter((name) => !excludedSkills.some((pattern) => matches(name, pattern)));
   }
 
   /**
