@@ -29,6 +29,45 @@ export async function discoverFlowDirectories(flowsDir: string): Promise<string[
  * the `FlowValidation` static class in `flowValidation.ts`.
  */
 export class FlowLoader {
+  /**
+   * Cheap pre-load peek at the `name` a flow directory's `flow.json`
+   * declares, without running the full parse/validation pipeline.
+   *
+   * FlowLoader owns the `flow.json` format, so this static is the single
+   * source for a pre-load name check: {@link FlowLoader.load} remains the
+   * only path that parses and validates a whole definition, while this
+   * hands callers (e.g. FlowRegistrar's directory-name guard) just the
+   * declared name before they commit any load side effect.
+   *
+   * @param flowDir - Flow directory whose `flow.json` is peeked.
+   * @returns The declared `name` when `flow.json` exists, parses, and is
+   *   an object carrying a string `name`; `undefined` when the file is
+   *   missing/unreadable, contains invalid JSON, or its parsed value is
+   *   not an object with a string `name` (incl. JSON `null`, which must
+   *   not be mislabeled as an unreadable file).
+   */
+  static async peekDeclaredName(flowDir: string): Promise<string | undefined> {
+    let raw: string;
+    try {
+      raw = await fs.readFile(path.join(flowDir, "flow.json"), "utf8");
+    } catch {
+      return undefined;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = jsonParse(raw);
+    } catch {
+      return undefined;
+    }
+
+    if (typeof parsed !== "object" || parsed === null || !("name" in parsed)) {
+      return undefined;
+    }
+    const name = (parsed as { name?: unknown }).name;
+    return typeof name === "string" ? name : undefined;
+  }
+
   constructor(
     private readonly params: {
       flowsDir: string;

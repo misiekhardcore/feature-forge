@@ -7,7 +7,11 @@
  * directory, and appends .gitignore entries.
  *
  * Usage: forge-setup.js [--yes] [--no-config] [--no-gitignore]
- *                      [--cwd <path>] [--global] [--forge-dir <path>]
+ *                      [--cwd <path>] [--global]
+ *
+ * The forge directory is one of two fixed homes: `~/.forge` with `--global`,
+ * or `<cwd>/.forge` by default. No pointer file is ever written into a
+ * project's `.forge/` - the runtime resolves the home itself.
  */
 
 import { spawnSync } from "node:child_process";
@@ -32,7 +36,6 @@ const logError = (...msg) => console.error(`${RED}[forge]${NC}`, ...msg);
 
 // ── Defaults ──────────────────────────────────────────────────────────
 let useGlobal = false;
-let forgeDirFlag = null;
 let noConfig = false;
 let noGitignore = false;
 let cwd = process.cwd();
@@ -46,14 +49,6 @@ for (let i = 0; i < args.length; i += 1) {
       break;
     case "--global":
       useGlobal = true;
-      break;
-    case "--forge-dir":
-      if (i + 1 >= args.length) {
-        logError("flag --forge-dir requires a value");
-        process.exit(1);
-      }
-      forgeDirFlag = args[i + 1];
-      i += 1;
       break;
     case "--no-config":
       noConfig = true;
@@ -115,15 +110,12 @@ function resolveAssetsDir() {
  * Compute the resolved forge directory path from flags.
  *
  * - `--global` → `~/.forge`
- * - `--forge-dir <path>` → the given path, resolved
  * - default → `.forge` relative to cwd
  */
 function computeForgeDir() {
   let raw;
   if (useGlobal) {
     raw = "~/.forge";
-  } else if (forgeDirFlag) {
-    raw = forgeDirFlag;
   } else {
     raw = ".forge";
   }
@@ -198,17 +190,17 @@ function checkPrereqs() {
   return failures;
 }
 
-// ── Scaffold .forge/config.json ──────────────────────────────────────
+// ── Scaffold <forgeDir>/config.json ─────────────────────────────────
 function scaffoldConfig(forgeDir) {
   const target = path.join(forgeDir, "config.json");
   if (fs.existsSync(target)) {
-    logWarn(".forge/config.json already exists — skipping");
+    logWarn(`config.json already exists in ${forgeDir} - skipping`);
     return;
   }
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const defaults = JSON.parse(fs.readFileSync(resolveDefaultsPath(), "utf8"));
   fs.writeFileSync(target, `${JSON.stringify(defaults, null, 2)}\n`);
-  logInfo("created .forge/config.json");
+  logInfo(`created config.json in ${forgeDir}`);
 }
 
 // ── Create runtime directories (always project-local) ────────────────
@@ -334,59 +326,10 @@ logInfo(`forge directory: ${forgeDir}`);
 // Scaffold templates (agents, flows, skills) into forgeDir
 scaffoldTemplates(forgeDir);
 
+// Config is scaffolded into the same fixed home as agents/flows/skills.
+// scaffoldConfig is idempotent: it never clobbers an existing config.json.
 if (!noConfig) {
-  if (useGlobal) {
-    // Global mode: write a pointer in the project's .forge/ so the runtime
-    // loads the real config from ~/.forge/config.json. Never clobber an
-    // existing project-local config without migrating or backing it up.
-    const projectConfigPath = path.join(cwd, ".forge", "config.json");
-    const pointer = JSON.stringify({ forgeDir: "~/.forge" }, null, 2) + "\n";
-
-    let projectConfig = null;
-    if (fs.existsSync(projectConfigPath)) {
-      try {
-        projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, "utf8"));
-      } catch {
-        logError(`cannot parse ${projectConfigPath} — aborting without touching anything`);
-        process.exit(1);
-      }
-    }
-
-    const isObject =
-      projectConfig !== null && typeof projectConfig === "object" && !Array.isArray(projectConfig);
-    const isPointer =
-      isObject && Object.keys(projectConfig).length === 1 && projectConfig.forgeDir === "~/.forge";
-    const hasRealKeys = isObject && Object.keys(projectConfig).some((key) => key !== "forgeDir");
-
-    if (isPointer) {
-      logInfo("pointer already present — skipping");
-    } else {
-      if (hasRealKeys) {
-        // A real project config sits at the pointer location. Migrate it to
-        // the global forge dir when empty, or back it up before overwriting.
-        const globalConfigPath = path.join(forgeDir, "config.json");
-        if (!fs.existsSync(globalConfigPath)) {
-          fs.mkdirSync(path.dirname(globalConfigPath), { recursive: true });
-          const migrated = { ...projectConfig, forgeDir: "~/.forge" };
-          fs.writeFileSync(globalConfigPath, `${JSON.stringify(migrated, null, 2)}\n`);
-          logInfo(`migrated project config to ${globalConfigPath}`);
-        } else {
-          const backupPath = `${projectConfigPath}.backup`;
-          fs.writeFileSync(backupPath, fs.readFileSync(projectConfigPath, "utf8"));
-          logWarn(
-            `${projectConfigPath} was a project config and ${globalConfigPath} exists — backed up to ${backupPath}`,
-          );
-        }
-      }
-      fs.mkdirSync(path.dirname(projectConfigPath), { recursive: true });
-      fs.writeFileSync(projectConfigPath, pointer);
-      logInfo(`wrote pointer ${projectConfigPath} → ~/.forge`);
-    }
-
-    scaffoldConfig(forgeDir);
-  } else {
-    scaffoldConfig(forgeDir);
-  }
+  scaffoldConfig(forgeDir);
 }
 
 // Runtime directories always go under the project's .forge/

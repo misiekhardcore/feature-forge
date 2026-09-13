@@ -639,14 +639,36 @@ describe("ConfigLoader", () => {
   });
 
   describe("forRoot", () => {
-    it("loads a valid .json config file from the search directory", async () => {
+    // Point HOME at a fresh fake home so the global-config read in forRoot
+    // never touches a real ~/.forge/config.json on the host.
+    let fakeHome: string;
+
+    beforeEach(async () => {
+      fakeHome = join(tempDir, "fake-home");
+      await fs.mkdir(join(fakeHome, ".forge"), { recursive: true });
+      vi.stubEnv("HOME", fakeHome);
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      // Never leak the module-logger pin across tests: the invalid-JSON
+      // warn cases configure the shared instance to the base console
+      // fallback at INFO so warns reach console.warn. The logger exposes
+      // no destination getter, so restoring prior state is a reset -
+      // matching the FileLogger.test.ts convention.
+      logger.configure({ level: LogLevel.INFO, destination: null });
+    });
+
+    it("uses project .forge/config.json values over defaults when only the project file exists", async () => {
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
       await fs.writeFile(
-        join(tempDir, "forge.config.json"),
+        join(tempDir, ".forge", "config.json"),
         JSON.stringify({
           logLevel: "debug",
-          workspaceProvider: "git-worktree",
-          agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
+          logPrefix: "project-prefix",
+          workspaceProvider: "current-dir",
+          agents: { builder: { maxTurns: 50 } },
+          defaultAgent: { model: { model: "gpt-4" }, maxTurns: 100 },
         }),
       );
 
@@ -654,80 +676,123 @@ describe("ConfigLoader", () => {
       const config = await loader.forRoot({ cwd: tempDir });
 
       expect(config.logLevel).toBe(LogLevel.DEBUG);
-      expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
+      expect(config.logPrefix).toBe("project-prefix");
+      expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
+      expect(config.agents.size).toBe(1);
+      expect(config.agents.get("builder")?.maxTurns).toBe(50);
+      expect(config.defaultAgent.maxTurns).toBe(100);
     });
 
-    it("prefers .forge/config.json over forge.config.json", async () => {
-      // Write both files with different values
-      const forgeDir = join(tempDir, ".forge");
-      await fs.mkdir(forgeDir, { recursive: true });
+    it("uses global ~/.forge/config.json values over defaults when only the global file exists", async () => {
       await fs.writeFile(
-        join(forgeDir, "config.json"),
+        join(fakeHome, ".forge", "config.json"),
         JSON.stringify({
-          logLevel: "error",
-          workspaceProvider: "git-worktree",
+          logLevel: "warn",
+          logPrefix: "global-prefix",
           agents: {},
           defaultAgent: { model: { model: "gpt-4" } },
         }),
       );
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logLevel).toBe(LogLevel.WARN);
+      expect(config.logPrefix).toBe("global-prefix");
+      expect(config.defaultAgent.model?.model).toBe("gpt-4");
+    });
+
+    it("merges per top-level key: project wins, global fills omitted sections, env overlay beats both", async () => {
       await fs.writeFile(
-        join(tempDir, "forge.config.json"),
+        join(fakeHome, ".forge", "config.json"),
+        JSON.stringify({
+          logLevel: "warn",
+          logPrefix: "global-prefix",
+          logDir: "global-logs",
+          taskTimeoutMs: 12345,
+          defaultAgent: { model: { model: "gpt-4" }, maxTurns: 200 },
+        }),
+      );
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.json"),
         JSON.stringify({
           logLevel: "debug",
-          workspaceProvider: "current-dir",
+          logPrefix: "project-prefix",
+          // Sections the project file omits (logDir, taskTimeoutMs) fall
+          // back to the global file; logLevel is overridden by the env
+          // overlay below.
+          defaultAgent: { model: { model: "claude-sonnet-4-5" } },
+        }),
+      );
+
+      // The FORGE_* env overlay beats both files.
+      vi.stubEnv("FORGE_LOG_LEVEL", "error");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logLevel).toBe(LogLevel.ERROR);
+      expect(config.logPrefix).toBe("project-prefix");
+      expect(config.logDir).toBe("global-logs");
+      expect(config.taskTimeoutMs).toBe(12345);
+      // Sections are replaced wholesale, not deep-merged: the project's
+      // defaultAgent replaces the global one, so maxTurns falls back to
+      // the packaged default rather than the global file's 200.
+      expect(config.defaultAgent.model?.model).toBe("claude-sonnet-4-5");
+      expect(config.defaultAgent.maxTurns).toBe(DEFAULT_AGENT_CONFIG.maxTurns);
+      // Keys missing from both files fall back to the defaults.
+      expect(config.logRetentionDays).toBe(DEFAULT_FORGE_CONFIG.logRetentionDays);
+    });
+
+    it("returns defaults (plus the env overlay) when neither file exists", async () => {
+      vi.stubEnv("FORGE_LOG_DIR", "env-logs");
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
+      expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
+      expect(config.workspaceProvider).toBe(DEFAULT_FORGE_CONFIG.workspaceProvider);
+      expect(config.agents.size).toBe(0);
+      expect(config.logDir).toBe("env-logs");
+    });
+
+    it("warns and skips an invalid-JSON project file, falling back to the global config", async () => {
+      await fs.writeFile(
+        join(fakeHome, ".forge", "config.json"),
+        JSON.stringify({
+          logLevel: "warn",
+          logPrefix: "global-prefix",
           agents: {},
           defaultAgent: { model: { model: "gpt-4" } },
         }),
       );
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(join(tempDir, ".forge", "config.json"), "not valid json at all");
 
-      const loader = new ConfigLoader();
-      const config = await loader.forRoot({ cwd: tempDir });
+      // Pin the shared module logger (logger.configure) to the base console
+      // fallback at INFO so warns reach console.warn regardless of the
+      // level/destination state; the forRoot afterEach restores it.
+      logger.configure({ level: LogLevel.INFO, destination: null });
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      // Should prefer .forge/config.json
-      expect(config.logLevel).toBe(LogLevel.ERROR);
-      expect(config.workspaceProvider).toBe(WorkspaceProviderKind.GitWorktree);
+      try {
+        const loader = new ConfigLoader();
+        const config = await loader.forRoot({ cwd: tempDir });
+
+        expect(config.logLevel).toBe(LogLevel.WARN);
+        expect(config.logPrefix).toBe("global-prefix");
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
     });
 
-    it("only searches for .json files, ignoring .yaml", async () => {
-      // Write only a .yaml file — forRoot should not find it and return defaults
-      await fs.writeFile(
-        join(tempDir, "forge.config.yaml"),
-        [
-          "logLevel: debug",
-          "workspaceProvider: current-dir",
-          "agents: {}",
-          "defaultAgent:",
-          "  model:",
-          '    model: "gpt-4"',
-          "",
-        ].join("\n"),
-      );
+    it("warns and skips an invalid-JSON project file with no global config, returning defaults", async () => {
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(join(tempDir, ".forge", "config.json"), "not valid json at all");
 
-      const loader = new ConfigLoader();
-      const config = await loader.forRoot({ cwd: tempDir });
-
-      // Should return defaults since only .yaml exists
-      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
-      expect(config.workspaceProvider).toBe(DEFAULT_FORGE_CONFIG.workspaceProvider);
-    });
-
-    it("returns defaults when no config file exists", async () => {
-      const emptyDir = join(tempDir, "empty");
-      await fs.mkdir(emptyDir, { recursive: true });
-
-      const loader = new ConfigLoader();
-      const config = await loader.forRoot({ cwd: emptyDir });
-
-      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
-      expect(config.agents.size).toBe(0);
-    });
-
-    it("returns defaults when config file has invalid JSON and logs a warning", async () => {
-      await fs.writeFile(join(tempDir, "forge.config.json"), "not valid json at all");
-
-      // Pin the module logger to the base console fallback at INFO so this
-      // test does not depend on a destination or level left by earlier
-      // tests (the singleton no longer exists).
       logger.configure({ level: LogLevel.INFO, destination: null });
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -736,44 +801,202 @@ describe("ConfigLoader", () => {
         const config = await loader.forRoot({ cwd: tempDir });
 
         expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
+        expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
         expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
       } finally {
         consoleWarnSpy.mockRestore();
       }
     });
 
-    it("prefers .forge/config.json even when forge.config.json has invalid JSON", async () => {
-      // Valid .forge/config.json but invalid forge.config.json
-      const forgeDir = join(tempDir, ".forge");
-      await fs.mkdir(forgeDir, { recursive: true });
+    it("warns and skips an invalid-JSON global file, keeping the project config", async () => {
+      await fs.writeFile(join(fakeHome, ".forge", "config.json"), "not valid json at all");
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
       await fs.writeFile(
-        join(forgeDir, "config.json"),
+        join(tempDir, ".forge", "config.json"),
         JSON.stringify({
-          logLevel: "warn",
-          workspaceProvider: "current-dir",
+          logLevel: "debug",
+          logPrefix: "project-prefix",
           agents: {},
           defaultAgent: { model: { model: "gpt-4" } },
         }),
       );
-      await fs.writeFile(join(tempDir, "forge.config.json"), "not valid json at all");
+
+      logger.configure({ level: LogLevel.INFO, destination: null });
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      try {
+        const loader = new ConfigLoader();
+        const config = await loader.forRoot({ cwd: tempDir });
+
+        expect(config.logLevel).toBe(LogLevel.DEBUG);
+        expect(config.logPrefix).toBe("project-prefix");
+        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid JSON"));
+      } finally {
+        consoleWarnSpy.mockRestore();
+      }
+    });
+
+    it("throws InvalidConfigError when the merged config fails schema validation", async () => {
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.json"),
+        JSON.stringify({
+          logLevel: "not-a-real-level",
+          agents: {},
+        }),
+      );
+
+      const loader = new ConfigLoader();
+
+      const error: unknown = await loader.forRoot({ cwd: tempDir }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(InvalidConfigError);
+      // Project-only source: the error names the project config file alone
+      // (no merged-source label when there is no global file to merge).
+      expect((error as InvalidConfigError).message).toContain(
+        join(tempDir, ".forge", "config.json"),
+      );
+      expect((error as InvalidConfigError).message).not.toContain("merged with");
+    });
+
+    it("throws InvalidConfigError when a global key the project does not override is invalid", async () => {
+      await fs.writeFile(
+        join(fakeHome, ".forge", "config.json"),
+        JSON.stringify({
+          logLevel: "not-a-real-level",
+          agents: {},
+        }),
+      );
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.json"),
+        JSON.stringify({
+          logPrefix: "project-prefix",
+          agents: {},
+        }),
+      );
+
+      const loader = new ConfigLoader();
+
+      // The merged object is validated as a whole: the global file's
+      // invalid logLevel survives because the project file omits it.
+      const error: unknown = await loader.forRoot({ cwd: tempDir }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(InvalidConfigError);
+      // Both files contributed to the merged object, so the error names the
+      // merged source pair - the invalid key came from the GLOBAL file, and
+      // naming only the project file would mislead.
+      const message = (error as InvalidConfigError).message;
+      expect(message).toContain(join(tempDir, ".forge", "config.json"));
+      expect(message).toContain(join(fakeHome, ".forge", "config.json"));
+      expect(message).toContain("merged with");
+    });
+
+    it("resolves ${ENV_VAR} references inside the project file", async () => {
+      vi.stubEnv("VAR_LOG_PREFIX", "env-file-prefix");
+
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.json"),
+        JSON.stringify({
+          logPrefix: "${VAR_LOG_PREFIX}",
+          agents: {},
+        }),
+      );
 
       const loader = new ConfigLoader();
       const config = await loader.forRoot({ cwd: tempDir });
 
-      // .forge/config.json is found first, so forge.config.json is never read
-      expect(config.logLevel).toBe(LogLevel.WARN);
+      expect(config.logPrefix).toBe("env-file-prefix");
     });
 
-    it("resolves env vars in the loaded config", async () => {
-      vi.stubEnv("FORGE_LOG_LEVEL", "error");
+    it("resolves ${ENV_VAR} references inside the global file", async () => {
+      vi.stubEnv("VAR_LOG_PREFIX", "env-global-prefix");
 
+      await fs.writeFile(
+        join(fakeHome, ".forge", "config.json"),
+        JSON.stringify({
+          logPrefix: "${VAR_LOG_PREFIX}",
+          agents: {},
+        }),
+      );
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logPrefix).toBe("env-global-prefix");
+    });
+
+    it("ignores a legacy forge.config.json at the repo root", async () => {
       await fs.writeFile(
         join(tempDir, "forge.config.json"),
         JSON.stringify({
-          logLevel: "${FORGE_LOG_LEVEL}",
-          workspaceProvider: "git-worktree",
+          logLevel: "error",
+          logPrefix: "legacy-root",
           agents: {},
           defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
+      expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
+      expect(config.agents.size).toBe(0);
+    });
+
+    it("ignores .yaml files at the fixed config locations", async () => {
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.yaml"),
+        ["logLevel: debug", "logPrefix: yaml-prefix", "agents: {}", ""].join("\n"),
+      );
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      expect(config.logLevel).toBe(DEFAULT_FORGE_CONFIG.logLevel);
+      expect(config.logPrefix).toBe(DEFAULT_FORGE_CONFIG.logPrefix);
+    });
+
+    it("loads fine with a leftover forgeDir pointer key (dropped from the resolved config)", async () => {
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.json"),
+        JSON.stringify({ forgeDir: "~/.forge" }),
+      );
+      await fs.writeFile(
+        join(fakeHome, ".forge", "config.json"),
+        JSON.stringify({
+          logLevel: "warn",
+          agents: {},
+          defaultAgent: { model: { model: "gpt-4" } },
+        }),
+      );
+
+      const loader = new ConfigLoader();
+      const config = await loader.forRoot({ cwd: tempDir });
+
+      // No MissingConfigFileError: forgeDir is no longer followed, and the
+      // global layer still loads from the fixed ~/.forge/config.json home.
+      // The leftover key validates as an unknown key (open schema) and is
+      // dropped at resolution - it appears nowhere in the result.
+      expect(config.logLevel).toBe(LogLevel.WARN);
+      expect(config).not.toHaveProperty("forgeDir");
+    });
+
+    it("lets the env overlay beat file values for overlapping keys", async () => {
+      vi.stubEnv("FORGE_LOG_LEVEL", "error");
+      vi.stubEnv("FORGE_LOG_DIR", "env-logs");
+      vi.stubEnv("FORGE_WORKTREE_SYMLINKS", "env-a, env-b");
+
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
+      await fs.writeFile(
+        join(tempDir, ".forge", "config.json"),
+        JSON.stringify({
+          logLevel: "debug",
+          logDir: "file-logs",
+          worktreeSymlinks: ["file-a"],
+          agents: {},
         }),
       );
 
@@ -781,34 +1004,34 @@ describe("ConfigLoader", () => {
       const config = await loader.forRoot({ cwd: tempDir });
 
       expect(config.logLevel).toBe(LogLevel.ERROR);
-      vi.unstubAllEnvs();
+      expect(config.logDir).toBe("env-logs");
+      expect(config.worktreeSymlinks).toEqual(["env-a", "env-b"]);
     });
 
-    it("throws InvalidConfigError when the config fails validation after env var resolution", async () => {
-      vi.stubEnv("FORGE_LOG_LEVEL", "invalid_level");
+    it("throws InvalidConfigError when env-var resolution produces an invalid value", async () => {
+      vi.stubEnv("VAR_BAD_LEVEL", "not-a-real-level");
 
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
       await fs.writeFile(
-        join(tempDir, "forge.config.json"),
+        join(tempDir, ".forge", "config.json"),
         JSON.stringify({
-          logLevel: "${FORGE_LOG_LEVEL}",
-          workspaceProvider: "git-worktree",
+          logLevel: "${VAR_BAD_LEVEL}",
           agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
         }),
       );
 
       const loader = new ConfigLoader();
 
       await expect(loader.forRoot({ cwd: tempDir })).rejects.toThrow(InvalidConfigError);
-      vi.unstubAllEnvs();
     });
 
-    it("defaults to process.cwd() when no cwd is provided", async () => {
+    it("defaults the search directory to process.cwd() when no cwd is provided", async () => {
+      await fs.mkdir(join(tempDir, ".forge"), { recursive: true });
       await fs.writeFile(
-        join(tempDir, "forge.config.json"),
+        join(tempDir, ".forge", "config.json"),
         JSON.stringify({
           logLevel: "warn",
-          workspaceProvider: "current-dir",
+          logPrefix: "cwd-default",
           agents: {},
           defaultAgent: { model: { model: "gpt-4" } },
         }),
@@ -821,103 +1044,9 @@ describe("ConfigLoader", () => {
         const config = await loader.forRoot();
 
         expect(config.logLevel).toBe(LogLevel.WARN);
+        expect(config.logPrefix).toBe("cwd-default");
       } finally {
         spy.mockRestore();
-      }
-    });
-
-    it("resolves a ~/.forge pointer to the home directory, not the filesystem root", async () => {
-      // Project pointer file
-      const projectForgeDir = join(tempDir, ".forge");
-      await fs.mkdir(projectForgeDir, { recursive: true });
-      await fs.writeFile(
-        join(projectForgeDir, "config.json"),
-        JSON.stringify({ forgeDir: "~/.forge" }),
-      );
-
-      // Fake home directory with the real global config
-      const fakeHome = join(tempDir, "home");
-      const fakeGlobalForge = join(fakeHome, ".forge");
-      await fs.mkdir(fakeGlobalForge, { recursive: true });
-      await fs.writeFile(
-        join(fakeGlobalForge, "config.json"),
-        JSON.stringify({
-          logLevel: "debug",
-          workspaceProvider: "git-worktree",
-          agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
-          forgeDir: ".forge",
-        }),
-      );
-
-      vi.stubEnv("HOME", fakeHome);
-      try {
-        const loader = new ConfigLoader();
-        const config = await loader.forRoot({ cwd: tempDir });
-
-        expect(config.logLevel).toBe(LogLevel.DEBUG);
-        expect(config.forgeDir).toBe("~/.forge");
-      } finally {
-        vi.unstubAllEnvs();
-      }
-    });
-
-    it("throws MissingConfigFileError when a pointer's target config is missing", async () => {
-      // Project pointer file pointing at ~/.forge, but the fake home has no
-      // .forge/config.json — the error should name the missing target file.
-      const projectForgeDir = join(tempDir, ".forge");
-      await fs.mkdir(projectForgeDir, { recursive: true });
-      await fs.writeFile(
-        join(projectForgeDir, "config.json"),
-        JSON.stringify({ forgeDir: "~/.forge" }),
-      );
-
-      const fakeHome = join(tempDir, "home");
-      await fs.mkdir(fakeHome, { recursive: true });
-
-      vi.stubEnv("HOME", fakeHome);
-      try {
-        const loader = new ConfigLoader();
-        const error: unknown = await loader.forRoot({ cwd: tempDir }).catch((e: unknown) => e);
-
-        expect(error).toBeInstanceOf(MissingConfigFileError);
-        expect((error as Error).message).toContain(fakeHome);
-      } finally {
-        vi.unstubAllEnvs();
-      }
-    });
-
-    it("resolves a relative forgeDir pointer against process.cwd()", async () => {
-      // Project pointer file with a relative forgeDir — the real config is
-      // resolved against process.cwd(), so mock it to the temp dir.
-      const projectForgeDir = join(tempDir, ".forge");
-      await fs.mkdir(projectForgeDir, { recursive: true });
-      await fs.writeFile(
-        join(projectForgeDir, "config.json"),
-        JSON.stringify({ forgeDir: "custom-forge" }),
-      );
-
-      const customDir = join(tempDir, "custom-forge");
-      await fs.mkdir(customDir, { recursive: true });
-      await fs.writeFile(
-        join(customDir, "config.json"),
-        JSON.stringify({
-          logLevel: "warn",
-          workspaceProvider: "current-dir",
-          agents: {},
-          defaultAgent: { model: { model: "gpt-4" } },
-        }),
-      );
-
-      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempDir);
-      try {
-        const loader = new ConfigLoader();
-        const config = await loader.forRoot({ cwd: tempDir });
-
-        expect(config.logLevel).toBe(LogLevel.WARN);
-        expect(config.workspaceProvider).toBe(WorkspaceProviderKind.CurrentDir);
-      } finally {
-        cwdSpy.mockRestore();
       }
     });
   });

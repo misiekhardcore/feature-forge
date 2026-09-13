@@ -2,12 +2,15 @@
  * Configuration file loader for the Feature Forge CLI.
  *
  * Loads and validates forge config from JSON or YAML files, merging
- * with defaults. Supports auto-discovery in a directory or loading
- * from a specific file path.
+ * with defaults. The production entry point is {@link ConfigLoader.forRoot}:
+ * it loads the two fixed forge homes per ADR 0028. The single-file entry
+ * points ({@link ConfigLoader.load}, {@link ConfigLoader.loadFromFile})
+ * predate the fixed-homes cascade and survive for tests and callers that
+ * need one explicit file - the extension never auto-discovers the legacy
+ * repo-root `forge.config.json` location anymore.
  */
 
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 
 import type { Type } from "typebox";
@@ -17,6 +20,7 @@ import { parse as parseYaml } from "yaml";
 import { logger } from "../logging/Logger";
 import { InvalidConfigError, MissingConfigFileError } from "./ConfigError";
 import { resolveConfig } from "./ForgeConfigDefaults";
+import { ForgeConfigPaths } from "./ForgeConfigPaths";
 import type { AgentConfig, ForgeConfig } from "./ForgeConfigSchema";
 import { ForgeConfigSchema, LogLevel } from "./ForgeConfigSchema";
 
@@ -46,16 +50,19 @@ export interface ConfigLoaderOptions {
 /**
  * Loads, validates, and resolves Feature Forge configuration files.
  *
- * Usage:
+ * Usage (production - the fixed-homes cascade, see ADR 0028):
  * ```ts
  * const loader = new ConfigLoader();
- * const config = await loader.load({ cwd: "/path/to/project" });
+ * const config = await loader.forRoot({ cwd: "/path/to/project" });
  * ```
  *
- * When `loadFromFile` is called, the file must exist and contain valid
- * JSON or YAML that conforms to {@link ForgeConfigSchema}. When `load`
- * is called (auto-discovery), it searches for the config file in the
- * given directory; if none is found, the default configuration is returned.
+ * `forRoot` layers the project `.forge/config.json` over the global
+ * `~/.forge/config.json` over the packaged defaults. {@link load} and
+ * {@link loadFromFile} are the legacy single-file entry points kept for
+ * tests: `load` auto-discovers a repo-root `forge.config.json` - the
+ * location ADR 0028 removed, so the extension never calls it - and
+ * `loadFromFile` reads one explicit file. Use `forRoot` wherever the
+ * extension loads config.
  */
 export class ConfigLoader {
   private readonly configFileName: string;
@@ -69,9 +76,12 @@ export class ConfigLoader {
   /**
    * Load a configuration file from an explicit file path.
    *
+   * Legacy single-file entry point (predates the fixed-homes cascade):
+   * production config loading goes through {@link forRoot}.
+   *
    * @param filePath — Absolute or relative path to the config file.
    * @returns A fully resolved {@link ForgeConfig}.
-   * @throws {@link MissingConfigError} if the file does not exist.
+   * @throws {@link MissingConfigFileError} if the file does not exist.
    * @throws {@link InvalidConfigError} if the file is not valid JSON/YAML
    *   or fails schema validation.
    */
@@ -109,6 +119,11 @@ export class ConfigLoader {
 
   /**
    * Auto-discover and load a configuration file from a directory.
+   *
+   * Legacy entry point: searches a single directory for a repo-root
+   * `forge.config.json`-style file (the location ADR 0028 removed). The
+   * extension loads config through {@link forRoot} only; this survives
+   * for tests and callers needing the old single-file discovery.
    *
    * Searches for the config file by trying each registered extension
    * in order within the specified directory. Returns the default
@@ -156,116 +171,82 @@ export class ConfigLoader {
   }
 
   /**
-   * Load the root configuration file with two-location lookup.
+   * Load the root configuration file with a fixed-home cascade.
    *
-   * Lookup order:
-   * 1. `.forge/config.json` (project-level config)
-   *    - If it contains `forgeDir` pointing elsewhere (e.g. `~/.forge`),
-   *      resolve the real config from `<forgeDir>/config.json` and merge
-   *      any other keys from the project config as overrides on top.
-   *    - If `forgeDir` is `.forge` or absent, this IS the real config.
-   * 2. `forge.config.json` (repo-root config, legacy location)
-   * 3. `~/.forge/config.json` (global forge, no project config)
-   * 4. Defaults (no config file found)
+   * Layer order (nearer wins):
+   * 1. `<cwd>/.forge/config.json` - project-level config.
+   * 2. `~/.forge/config.json` - global config.
+   * 3. Packaged defaults (no file involved).
+   *
+   * The project config merges onto the global config per top-level key:
+   * keys set by the project file win; sections it omits fall back to the
+   * global file. `${ENV_VAR}` references are resolved inside both files,
+   * and the FORGE_* env overlay (see {@link resolveForgeEnvOverlay}) stays
+   * top-most over the merged result. A missing layer is skipped; when
+   * neither file exists, the defaults (plus the env overlay) are returned.
+   *
+   * The legacy repo-root `forge.config.json` location is ignored, and a
+   * leftover legacy `forgeDir` pointer key in an old config file is a
+   * no-op: it validates as an unknown key and is dropped when the merged
+   * result is resolved - it is no longer followed to another config file
+   * nor mapped onto any config field.
    *
    * @param params.cwd — Directory to search in (defaults to `process.cwd()`).
    * @returns A fully resolved {@link ForgeConfig}.
-   * @throws {@link InvalidConfigError} if the file exists but fails validation.
+   * @throws {@link InvalidConfigError} if a config file exists but the
+   *   merged result fails validation.
    */
   async forRoot(params: { cwd?: string } = {}): Promise<ForgeConfig> {
     const searchDir = params.cwd ?? process.cwd();
 
-    // 1. Project-local .forge/config.json
-    const projectConfigPath = path.join(searchDir, ".forge", "config.json");
+    // 1. Project layer: <cwd>/.forge/config.json (invalid JSON warns + skips).
+    //    Composed with ForgeConfigPaths so the fixed-home rule (ADR 0028 D1)
+    //    lives in one place.
+    const projectConfigPath = path.join(
+      ForgeConfigPaths.resolveProjectHome(searchDir),
+      "config.json",
+    );
     const projectConfig = await this.readJsonFile(projectConfigPath);
 
-    if (projectConfig !== null) {
-      const record = projectConfig;
-      const rawForgeDir = record.forgeDir;
-
-      if (
-        rawForgeDir !== undefined &&
-        typeof rawForgeDir === "string" &&
-        rawForgeDir !== ".forge"
-      ) {
-        // Pointer file: forgeDir points elsewhere. Load the real config
-        // from forgeDir and merge project-local overrides on top.
-        const resolvedForgeDir = this.resolveForgeDir(rawForgeDir);
-        const baseConfigPath = path.join(resolvedForgeDir, "config.json");
-        const baseConfig = await this.readJsonFile(baseConfigPath);
-
-        if (baseConfig === null) {
-          throw new MissingConfigFileError(baseConfigPath);
-        }
-
-        // Build overrides from project config, stripping forgeDir
-        const { forgeDir: _stripped, ...overrides } = record;
-        const overridesResolved = this.resolveEnvVars(overrides);
-
-        // Merge: base config → project overrides → env vars
-        const merged = {
-          ...baseConfig,
-          ...(overridesResolved as Record<string, unknown>),
-          ...this.resolveForgeEnvOverlay(),
-          // forgeDir stays in the merged result; it was set by the project pointer
-          forgeDir: rawForgeDir,
-        };
-
-        return this.validateAndResolve(merged, projectConfigPath);
-      }
-
-      // forgeDir is ".forge" or absent — this IS the real config file.
-      const envOverlay = this.resolveForgeEnvOverlay();
-      return this.validateAndResolve(
-        { ...(this.resolveEnvVars(record) as Record<string, unknown>), ...envOverlay },
-        projectConfigPath,
-      );
-    }
-
-    // 2. forge.config.json at repo root (project-local, legacy location)
-    const rootConfigPath = path.join(searchDir, `${this.configFileName}.json`);
-    const rootConfig = await this.readJsonFile(rootConfigPath);
-    if (rootConfig !== null) {
-      const envOverlay = this.resolveForgeEnvOverlay();
-      return this.validateAndResolve(
-        { ...(this.resolveEnvVars(rootConfig) as Record<string, unknown>), ...envOverlay },
-        rootConfigPath,
-      );
-    }
-
-    // 3. Global ~/.forge/config.json (no project config at all)
-    const globalConfigPath = path.join(os.homedir(), ".forge", "config.json");
+    // 2. Global layer: ~/.forge/config.json (invalid JSON warns + skips).
+    const globalConfigPath = path.join(ForgeConfigPaths.resolveGlobalHome(), "config.json");
     const globalConfig = await this.readJsonFile(globalConfigPath);
+
+    // 3. Neither file exists - defaults plus the env overlay.
+    if (projectConfig === null && globalConfig === null) {
+      return resolveConfig(this.resolveForgeEnvOverlay());
+    }
+
+    // 4. Merge per top-level key: project wins over global; sections the
+    // project file omits fall back to the global file. ${ENV_VAR}
+    // references are resolved inside both files before merging.
+    const merged: Record<string, unknown> = {};
     if (globalConfig !== null) {
-      const envOverlay = this.resolveForgeEnvOverlay();
-      return this.validateAndResolve(
-        { ...(this.resolveEnvVars(globalConfig) as Record<string, unknown>), ...envOverlay },
-        globalConfigPath,
-      );
+      Object.assign(merged, this.resolveEnvVars(globalConfig) as Record<string, unknown>);
+    }
+    if (projectConfig !== null) {
+      Object.assign(merged, this.resolveEnvVars(projectConfig) as Record<string, unknown>);
     }
 
-    // 4. Defaults
-    return resolveConfig(this.resolveForgeEnvOverlay());
-  }
-
-  /**
-   * Resolve a forgeDir value to an absolute path.
-   *
-   * Handles `~` prefix (home directory) and relative paths
-   * (resolved against `process.cwd()`).
-   */
-  private resolveForgeDir(forgeDir: string): string {
-    if (forgeDir.startsWith("~")) {
-      return path.join(os.homedir(), forgeDir.slice(1));
-    }
-    return path.resolve(process.cwd(), forgeDir);
+    // 5. FORGE_* env overlay stays top-most over the merged file config.
+    // Validation failures are attributed to every contributing file: when
+    // both layers exist the invalid key may come from either one, so the
+    // error names the merged pair rather than only the nearer project file.
+    const sourcePath =
+      projectConfig !== null && globalConfig !== null
+        ? `${projectConfigPath} merged with ${globalConfigPath}`
+        : projectConfig !== null
+          ? projectConfigPath
+          : globalConfigPath;
+    return this.validateAndResolve({ ...merged, ...this.resolveForgeEnvOverlay() }, sourcePath);
   }
 
   /**
    * Read and parse a JSON file, returning `null` on any error.
    *
-   * File-not-found, permission denied, and parse errors all return null
-   * silently — callers decide whether missing config is an error.
+   * File-not-found and permission errors return null silently - callers
+   * decide whether missing config is an error. Parse errors return null
+   * too but log a warning (naming the file) and skip the file.
    */
   private async readJsonFile(filePath: string): Promise<Record<string, unknown> | null> {
     try {
@@ -275,7 +256,7 @@ export class ConfigLoader {
       } catch (parseError) {
         logger.warn(
           `[feature-forge] Invalid JSON in ${filePath}: ${(parseError as Error).message}. ` +
-            "Falling back to default configuration.",
+            `Skipping the invalid config file.`,
         );
         return null;
       }
@@ -486,7 +467,6 @@ export class ConfigLoader {
       defaultModel: decoded.defaultModel,
       display: decoded.display,
       dev: decoded.dev,
-      forgeDir: decoded.forgeDir,
     });
   }
 }

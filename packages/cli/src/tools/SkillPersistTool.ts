@@ -45,26 +45,27 @@ interface GitReport {
  * `packages/core/src/skills/create-skill/references/scoping.md`.
  *
  * Resolves the destination home from the scope (project: `<git root>/.pi/skills`,
- * global: `<forgeDir>/skills`), enforces the confirmation gate for global
+ * global: `~/.forge/skills`), enforces the confirmation gate for global
  * writes, copies the skill tree extend-don't-clobber, and stages new files
  * in git-backed homes. NEVER commits - the flow's own commit step picks up
  * project files at PR time.
  */
 export class SkillPersistTool extends Tool {
   /**
-   * @param forgeDir - Absolute forge home, resolved once by the composition
-   *   root (`ForgeConfigPaths.resolveForgeDir`) and injected here - the
-   *   destination for the `global` scope is `<forgeDir>/skills/<name>`. The
-   *   tool never reads a config holder itself.
+   * @param globalHome - Absolute global forge home (fixed `~/.forge`,
+   *   resolved once by the composition root via
+   *   `ForgeConfigPaths.resolveGlobalHome()` and injected here) - the
+   *   destination for the `global` scope is `<globalHome>/skills/<name>`.
+   *   The tool never reads a config holder itself.
    */
-  constructor(private readonly forgeDir: string) {
+  constructor(private readonly globalHome: string) {
     super();
   }
 
   readonly name = "skill_persist";
   readonly label = "Persist Skill";
   readonly description =
-    "Persist a validated skill to its scope home (project: <repo>/.pi/skills, global: <forgeDir>/skills). Global writes require explicit user confirmation via the confirmed parameter. Stages new files in git-backed homes but never commits.";
+    "Persist a validated skill to its scope home (project: <repo>/.pi/skills, global: ~/.forge/skills). Global writes require explicit user confirmation via the confirmed parameter. Stages new files in git-backed homes but never commits.";
   readonly parameters = SkillPersistParams;
 
   async execute(
@@ -149,8 +150,9 @@ export class SkillPersistTool extends Tool {
    * (`<git root>/.pi/skills/<name>`); without a git root, fall back to
    * `<cwd>/.pi/skills/<name>`.
    *
-   * Global: `<forgeDir>/skills/<name>` - the forge home arrived via the
-   * constructor from the composition root (see {@link SkillPersistTool} ctor).
+   * Global: `<globalHome>/skills/<name>` - the fixed global home
+   * (`~/.forge`) arrived via the constructor from the composition root
+   * (see {@link SkillPersistTool} ctor).
    */
   private resolveDestDir(skillName: string, scope: "project" | "global"): string {
     if (scope === "project") {
@@ -158,7 +160,7 @@ export class SkillPersistTool extends Tool {
       const home = gitRoot ?? process.cwd();
       return path.join(home, ".pi", "skills", skillName);
     }
-    return path.join(this.forgeDir, "skills", skillName);
+    return path.join(this.globalHome, "skills", skillName);
   }
 
   /**

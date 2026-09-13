@@ -8,10 +8,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SkillPersistTool } from "./SkillPersistTool";
 
-// Project-scope persistence and the metadata assertions never read forgeDir
-// (only the `global` scope consults it, and those tests construct their own
-// tool bound to a per-test forge home, mirroring the composition root wiring
-// `new SkillPersistTool(ForgeConfigPaths.resolveForgeDir(...))`).
+// Project-scope persistence and the metadata assertions never read the
+// global home (only the `global` scope consults it, and those tests
+// construct their own tool bound to a per-test global home, mirroring the
+// composition root wiring `new SkillPersistTool(ForgeConfigPaths.resolveGlobalHome())`).
 const tool = new SkillPersistTool("/forge-home-not-consulted");
 
 function makeTempDir(): string {
@@ -174,7 +174,7 @@ describe("SkillPersistTool", () => {
       expect(fs.existsSync(path.join(forgeHome, "skills", "my-skill"))).toBe(false);
     });
 
-    it("writes to <forgeDir>/skills/<name> on global scope with confirmed: true", async () => {
+    it("writes to <globalHome>/skills/<name> on global scope with confirmed: true", async () => {
       const forgeHome = makeTempDir();
       tempDirs.push(forgeHome);
       const source = makeSourceSkill(makeTempDir(), "my-skill");

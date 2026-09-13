@@ -764,12 +764,19 @@ describe("FileLogger with a real config file", () => {
   let scratchDir: string;
   let logsDir: string;
   let config: ForgeConfig;
+  let originalHome: string | undefined;
 
   beforeEach(async () => {
     scratchDir = mkdtempSync(join(tmpdir(), "forge-realconfig-"));
     logsDir = join(scratchDir, "logs");
+    // Isolate HOME so forRoot's global-config read never touches a real
+    // ~/.forge/config.json on the host; the fixture below is the project
+    // layer at the fixed home <cwd>/.forge/config.json.
+    originalHome = process.env.HOME;
+    process.env.HOME = join(scratchDir, "home");
+    mkdirSync(join(scratchDir, ".forge"), { recursive: true });
     writeFileSync(
-      join(scratchDir, "forge.config.json"),
+      join(scratchDir, ".forge", "config.json"),
       JSON.stringify({
         logLevel: "debug",
         logDir: logsDir,
@@ -781,6 +788,7 @@ describe("FileLogger with a real config file", () => {
   });
 
   afterEach(async () => {
+    process.env.HOME = originalHome;
     // Drop the destination install() attached to the module logger.
     moduleLogger.configure({ level: LogLevel.INFO, destination: null });
     rmSync(scratchDir, { recursive: true, force: true });

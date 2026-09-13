@@ -212,7 +212,7 @@ describe("PiSubprocessAgentFactory", () => {
     }
   });
 
-  it("threads agentDefaults.forgeDir into the skill CLI arguments", async () => {
+  it("threads agentDefaults.forgeHomes into the skill CLI arguments", async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "forge-factory-test-"));
     try {
       const skillName = path.basename(tempDir);
@@ -231,7 +231,7 @@ describe("PiSubprocessAgentFactory", () => {
         }
       })();
 
-      factory = new PiSubprocessAgentFactory({}, {}, { forgeDir: tempDir });
+      factory = new PiSubprocessAgentFactory({}, {}, { forgeHomes: [tempDir] });
       await factory.create(spec);
 
       const args = rpcMock.lastRpcOptions.args as string[];
