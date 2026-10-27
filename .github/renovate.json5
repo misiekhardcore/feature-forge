@@ -1,0 +1,13 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["github>misiekhardcore/renovate-config//default.json5"],
+  packageRules: [
+    {
+      description: "The pi agent packages are released together - one PR, one exact version.",
+      matchPackageNames: ["@earendil-works/**"],
+      groupName: "pi agent packages",
+      groupSlug: "pi-packages",
+      rangeStrategy: "pin",
+    },
+  ],
+}
