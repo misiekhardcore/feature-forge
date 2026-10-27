@@ -1,0 +1,12 @@
+name: Validate Renovate config
+
+on:
+  pull_request:
+    paths:
+      - "**/renovate.json"
+      - "**/renovate.json5"
+      - ".github/workflows/validate-renovate-config.yml"
+
+jobs:
+  validate:
+    uses: misiekhardcore/renovate-config/.github/workflows/validate-renovate-config.yml@main
