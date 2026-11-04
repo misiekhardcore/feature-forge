@@ -9,4 +9,4 @@ on:
 
 jobs:
   validate:
-    uses: misiekhardcore/renovate-config/.github/workflows/validate-renovate-config.yml@main
+    uses: misiekhardcore/renovate-config/.github/workflows/validate-renovate-config.yml@b5bfcd12737ec8d2422a3b6a9f4072883f0f0498 # main
