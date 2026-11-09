@@ -55,7 +55,7 @@
     "@feature-forge/core": "*",
     "@feature-forge/debug": "*",
     "@feature-forge/eslint-config": "*",
-    "@types/node": "^26.0.0",
+    "@types/node": "26.6.6",
     "tsup": "^8.0.0",
     "typebox": "*"
   },
