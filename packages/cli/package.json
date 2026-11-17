@@ -55,7 +55,7 @@
     "@feature-forge/core": "workspace:*",
     "@feature-forge/debug": "workspace:*",
     "@feature-forge/eslint-config": "workspace:*",
-    "@types/node": "^26.6.6",
+    "@types/node": "26.6.6",
     "tsup": "^9.0.0",
     "typebox": "^1.4.7"
   },
