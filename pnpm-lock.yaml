@@ -255,7 +255,7 @@ importers:
         specifier: workspace:*
         version: link:../eslint-config
       '@types/node':
-        specifier: ^26.6.6
+        specifier: 26.6.6
         version: 26.6.6
       tsup:
         specifier: ^9.0.0
