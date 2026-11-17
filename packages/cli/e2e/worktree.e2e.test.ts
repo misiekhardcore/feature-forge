@@ -5,7 +5,7 @@
  * then exercise createWorkspace / destroyWorkspace end-to-end. They verify
  * actual filesystem state and git worktree metadata, not mocked behaviour.
  *
- * Run via: `npm run test:e2e`
+ * Run via: `pnpm run test:e2e`
  */
 
 import { execSync } from "node:child_process";

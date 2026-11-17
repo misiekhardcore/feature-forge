@@ -100,7 +100,7 @@ graph TD
 
 Consumption model matches prior practice: only `cli` builds with tsup and
 publishes; `core` and `debug` are consumed as source via
-`main: ./src/index.ts` through the npm workspace.
+`main: ./src/index.ts` through the pnpm workspace.
 
 ### Seams
 
@@ -146,7 +146,7 @@ replaced with local stubs in the cleanup round, so no exemption remains.
 - The published `dist/` layout is preserved: tsup copies flows, skills,
   declarative specs, and scripts from core into `cli/dist/` (`onSuccess` in
   `packages/cli/tsup.config.ts`), so `forge:init` scaffolding and the
-  `flow:*` npm scripts behave exactly as before.
+  `flow:*` pnpm scripts behave exactly as before.
 - `packages/shared` and `packages/tui` are deleted; any external consumer of
   `@feature-forge/shared` (none existed) or the tui package must switch to
   core/cli paths.

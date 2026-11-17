@@ -12,7 +12,7 @@
  * the retry budget is skipped rather than failed — an outage neither
  * exercises nor disproves the gh contract drift these tests exist to catch.
  *
- * Run via: `npm run test:e2e` (also included in the root `npm run test`).
+ * Run via: `pnpm run test:e2e` (also included in the root `pnpm run test`).
  */
 
 import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";

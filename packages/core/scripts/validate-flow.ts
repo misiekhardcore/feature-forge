@@ -18,8 +18,8 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    console.error("Usage: npm run flow:validate -- <path-to-flow.json>");
-    console.error("       npm run flow:validate --all");
+    console.error("Usage: pnpm run flow:validate -- <path-to-flow.json>");
+    console.error("       pnpm run flow:validate --all");
     process.exit(1);
   }
 

@@ -132,7 +132,7 @@ describe("FORGE_SPEC E2E", () => {
           systemPrompt: "Combined spec with tools, exclusions, restrictions, and thinking",
           toolRestrictions: {
             ...toolsToRestrictions(["read", "grep", "ls", "bash", "write", "edit", "find"]),
-            bash: ["git *", "npm *"],
+            bash: ["git *", "pnpm *"],
             edit: ["src/*"],
             write: ["src/*"],
           },

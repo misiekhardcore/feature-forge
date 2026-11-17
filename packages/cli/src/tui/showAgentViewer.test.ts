@@ -35,8 +35,7 @@ function makeHarness(): {
 } {
   const custom = vi.fn();
   let factory:
-    | ((tui: unknown, theme: unknown, kb: unknown, done: () => void) => unknown)
-    | undefined;
+    ((tui: unknown, theme: unknown, kb: unknown, done: () => void) => unknown) | undefined;
   let customOptions: { onHandle?: (handle: OverlayHandle) => void } | undefined;
   let doneRef: (() => void) | undefined;
   let resolveCustom: (() => void) | undefined;

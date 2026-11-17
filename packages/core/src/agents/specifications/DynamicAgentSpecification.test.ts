@@ -97,7 +97,7 @@ describe("DynamicAgentSpecification", () => {
           read: [],
           grep: [],
           ls: [],
-          bash: ["git *", "npm *"],
+          bash: ["git *", "pnpm *"],
           write: ["src/*"],
         },
         thinkingLevel: "medium",

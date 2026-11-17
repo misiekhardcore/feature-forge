@@ -138,7 +138,7 @@ describe("ShellStepExecutor", () => {
       const instruction: ShellInstruction = {
         type: "shell",
         id: "sh3",
-        command: "npm test",
+        command: "pnpm test",
         cwd: wsDir,
       };
       const context = new FlowContext({ results: new Map(), prompt: "task" });
@@ -571,7 +571,7 @@ describe("ShellStepExecutor", () => {
         const instruction: ShellInstruction = {
           type: "shell",
           id: "sh1",
-          command: "npm run build",
+          command: "pnpm run build",
           cwd: wsDir,
         };
         const context = new FlowContext({ results: new Map(), prompt: "task" });

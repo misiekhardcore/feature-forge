@@ -8,7 +8,7 @@
  * other entries are appended, that re-runs are idempotent, and that global
  * mode appends the same block as local mode.
  *
- * Run via: `npm run test:e2e`
+ * Run via: `pnpm run test:e2e`
  */
 
 import { spawnSync } from "node:child_process";

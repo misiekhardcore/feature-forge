@@ -163,7 +163,7 @@ describe("tool-restrictions interceptor integration", () => {
       id: "restricted",
       role: "restricted",
       systemPrompt: "restricted agent",
-      toolRestrictions: { bash: ["git *", "npm *"] },
+      toolRestrictions: { bash: ["git *", "pnpm *"] },
       excludedTools: [],
     });
 
@@ -174,7 +174,7 @@ describe("tool-restrictions interceptor integration", () => {
       runner.emitToolCall(makeBashCall("b-allow-1", "git status")),
     ).resolves.toBeUndefined();
     await expect(
-      runner.emitToolCall(makeBashCall("b-allow-2", "npm test")),
+      runner.emitToolCall(makeBashCall("b-allow-2", "pnpm test")),
     ).resolves.toBeUndefined();
     const blocked = await runner.emitToolCall(makeBashCall("b-block", "rm -rf /"));
     expect(blocked).toMatchObject({ block: true });

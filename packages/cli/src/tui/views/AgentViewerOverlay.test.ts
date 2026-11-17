@@ -2842,7 +2842,7 @@ describe("AgentViewerOverlay", () => {
       overlay.pushStreamEvent("builder", messageStartEvent(assistantMessage()));
       overlay.pushStreamEvent(
         "builder",
-        messageEndEvent(assistantMessage([text("Use `npm test` to verify.")])),
+        messageEndEvent(assistantMessage([text("Use `pnpm test` to verify.")])),
       );
       overlay.viewMode = "detail";
       overlay.selectedAgentId = "builder";
@@ -2851,7 +2851,7 @@ describe("AgentViewerOverlay", () => {
       const joined = lines.join("\n");
 
       // The Markdown component renders inline code without backticks.
-      expect(joined).toContain("npm test");
+      expect(joined).toContain("pnpm test");
     });
 
     it("renders message content with blank lines", () => {

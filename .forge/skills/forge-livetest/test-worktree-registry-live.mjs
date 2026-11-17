@@ -24,7 +24,7 @@
  *
  * Notes:
  * - Requires `pi` on PATH, an authenticated model provider, and a working
- *   `npm run build`. The headless pi run is a real LLM session - it is slow
+ *   `pnpm run build`. The headless pi run is a real LLM session - it is slow
  *   (seconds to tens of seconds per scenario) but deterministic in its
  *   filesystem effects, which is what the script asserts on.
  * - When --branch is used the worktree is created under .forge/worktrees/
@@ -142,7 +142,7 @@ function buildFromBranch(branch) {
   }
 
   info("Building extension bundle");
-  runOk("npm", ["run", "build"], { cwd: wsPath, timeout: 300_000 });
+  runOk("pnpm", ["run", "build"], { cwd: wsPath, timeout: 300_000 });
   const dist = path.join(wsPath, "packages", "cli", "dist", "index.js");
   if (!fs.existsSync(dist)) {
     throw new Error(`Build did not produce ${dist}`);
@@ -311,7 +311,7 @@ function main() {
       dist = built.dist;
     }
     if (!fs.existsSync(dist)) {
-      console.error(`Extension bundle not found: ${dist}\nRun "npm run build" or pass --dist.`);
+      console.error(`Extension bundle not found: ${dist}\nRun "pnpm run build" or pass --dist.`);
       process.exit(2);
     }
     info(`Using extension bundle: ${dist}`);

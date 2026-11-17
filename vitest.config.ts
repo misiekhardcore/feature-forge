@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // vitest resolves inline project `root` paths against the working directory
-// (vitest-dev/vitest#6855), but npm runs lifecycle scripts with the package
+// (vitest-dev/vitest#6855), but pnpm runs lifecycle scripts with the package
 // as cwd. Anchor the roots at this config file so discovery works from any cwd.
 const packageRoot = (name: string) => fileURLToPath(new URL(`./packages/${name}`, import.meta.url));
 

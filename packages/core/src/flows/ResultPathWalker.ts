@@ -13,8 +13,7 @@ export type ResultPathFailure =
   | { reason: "missing-key"; at: number; key: string };
 
 export type ResultPathWalk =
-  | { ok: true; value: unknown }
-  | { ok: false; failure: ResultPathFailure };
+  { ok: true; value: unknown } | { ok: false; failure: ResultPathFailure };
 
 export class ResultPathWalker {
   /** Static utility class - not instantiable. */

@@ -5,7 +5,7 @@ Autonomous software engineering platform for [pi](https://github.com/earendil-wo
 ## Install
 
 ```bash
-pi install npm:@misiekhardcore/feature-forge
+pi install pnpm:@misiekhardcore/feature-forge
 ```
 
 ## Initialize a project
@@ -70,7 +70,7 @@ The monorepo is layered strictly one-directionally: `core <- cli <- debug`.
 | `@feature-forge/cli`   | pi extension and TUI display: composition root, cli-owned commands and tools (incl. `RoutineTool`), folded TUI views and progress.                                                  | yes (tsup)  |
 | `@feature-forge/debug` | Dev-only test scenarios and commands; consumes cli-shaped components through dependency interfaces.                                                                                 | no (source) |
 
-`core` and `debug` are pulled in as source through the npm workspace
+`core` and `debug` are pulled in as source through the pnpm workspace
 (`main: ./src/index.ts`), while only `cli` builds with tsup and publishes the pi
 extension bundle. The layering rules are recorded in
 [ADR 0020](docs/adr/0020-package-layering-core-cli-debug.md).

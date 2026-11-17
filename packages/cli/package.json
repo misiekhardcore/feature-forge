@@ -52,12 +52,12 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@feature-forge/core": "*",
-    "@feature-forge/debug": "*",
-    "@feature-forge/eslint-config": "*",
-    "@types/node": "^26.0.0",
-    "tsup": "8.5.1",
-    "typebox": "1.4.7"
+    "@feature-forge/core": "workspace:*",
+    "@feature-forge/debug": "workspace:*",
+    "@feature-forge/eslint-config": "workspace:*",
+    "@types/node": "^26.6.6",
+    "tsup": "^9.0.0",
+    "typebox": "^1.4.7"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "*",
