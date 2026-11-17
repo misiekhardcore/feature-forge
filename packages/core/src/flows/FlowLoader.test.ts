@@ -1034,6 +1034,60 @@ describe("FlowLoader", () => {
     expect(failures.size).toBe(0);
   });
 
+  // ── peekDeclaredName (pre-load name peek) ────────────
+
+  describe("peekDeclaredName", () => {
+    it("returns the declared name of a valid flow.json", async () => {
+      const flowDir = path.join(tempDir, "probe");
+      await fs.mkdir(flowDir);
+      await fs.writeFile(path.join(flowDir, "flow.json"), JSON.stringify({ name: "probe" }));
+
+      await expect(FlowLoader.peekDeclaredName(flowDir)).resolves.toBe("probe");
+    });
+
+    it("returns undefined when flow.json is missing", async () => {
+      const flowDir = path.join(tempDir, "empty");
+      await fs.mkdir(flowDir);
+
+      await expect(FlowLoader.peekDeclaredName(flowDir)).resolves.toBeUndefined();
+    });
+
+    it("returns undefined for invalid JSON", async () => {
+      const flowDir = path.join(tempDir, "broken");
+      await fs.mkdir(flowDir);
+      await fs.writeFile(path.join(flowDir, "flow.json"), "{ not json");
+
+      await expect(FlowLoader.peekDeclaredName(flowDir)).resolves.toBeUndefined();
+    });
+
+    it("returns undefined when the document is JSON null (not a parse error)", async () => {
+      // Regression guard: `null` parses fine, so it must come back as "no
+      // usable name" - FlowRegistrar's dir-name guard used to crash
+      // reading `.name` off null and mislabel the file as unreadable.
+      const flowDir = path.join(tempDir, "null-flow");
+      await fs.mkdir(flowDir);
+      await fs.writeFile(path.join(flowDir, "flow.json"), "null");
+
+      await expect(FlowLoader.peekDeclaredName(flowDir)).resolves.toBeUndefined();
+    });
+
+    it("returns undefined for a non-string name", async () => {
+      const flowDir = path.join(tempDir, "numbered");
+      await fs.mkdir(flowDir);
+      await fs.writeFile(path.join(flowDir, "flow.json"), JSON.stringify({ name: 42 }));
+
+      await expect(FlowLoader.peekDeclaredName(flowDir)).resolves.toBeUndefined();
+    });
+
+    it("returns undefined when the document carries no name member", async () => {
+      const flowDir = path.join(tempDir, "nameless");
+      await fs.mkdir(flowDir);
+      await fs.writeFile(path.join(flowDir, "flow.json"), JSON.stringify({ command: "/x" }));
+
+      await expect(FlowLoader.peekDeclaredName(flowDir)).resolves.toBeUndefined();
+    });
+  });
+
   // ── legacy $schema auto-migration ────────────────────
 
   describe("legacy $schema auto-migration", () => {

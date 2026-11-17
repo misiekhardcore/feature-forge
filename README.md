@@ -19,10 +19,11 @@ Invoke it from inside any git repository:
 Or non-interactively:
 
 ```bash
-npx @misiekhardcore/feature-forge init --yes
+npx @misiekhardcore/feature-forge init --yes           # project scope
+npx @misiekhardcore/feature-forge init --yes --global  # global scope
 ```
 
-This scaffolds `.forge/` directories, a default `.forge/config.json`, and `.gitignore` entries.
+Choose a scope: **project** (`.forge/` inside the current repo) or **global** (`~/.forge`, shared across projects). Initialization is additive and idempotent - it copies the packaged agents, flows, and skills plus a default `.forge/config.json` into the chosen home, never overwriting existing files, and appends `.gitignore` entries for runtime artifacts.
 
 ## Commands
 
@@ -40,7 +41,12 @@ This scaffolds `.forge/` directories, a default `.forge/config.json`, and `.giti
 
 ## Configuration
 
-Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your project root. Defaults:
+Feature Forge reads two optional config files and merges them over the packaged defaults:
+
+- `<project>/.forge/config.json` - project scope (wins on conflict)
+- `~/.forge/config.json` - global scope (shared across projects)
+
+Project keys override global keys, which override the built-in defaults; a missing file is simply skipped. The override is per top-level key: setting one key inside a nested section (e.g. `display`, `defaultAgent`, `agents`) in the project file replaces the global file's entire section - nothing inside a section is deep-merged across files (see ADR 0028). `FORGE_*` environment variables override everything, including both files. Defaults (merged under anything you set; representative excerpt):
 
 ```json
 {
@@ -49,14 +55,18 @@ Feature Forge looks for `forge.config.json` (or `.forge/config.json`) in your pr
   "logMaxBytes": 10485760,
   "logMaxFiles": 5,
   "workspaceProvider": "git-worktree",
-  "worktreeSymlinks": ["node_modules", ".env"],
+  "worktreeSymlinks": [],
   "specDirectories": { "flows": [], "agents": [] }
 }
 ```
 
+The complete built-in default set is defined in `packages/core/src/config/forge-config.defaults.json` in this repo.
+
 `logRetentionDays` sets how many days session log files are retained before startup pruning removes them (use 0 to disable pruning).
 
 `logMaxBytes` (default 10 MB) is the size cap for one active log or journal segment: once it is exceeded, the next write rolls to a new numeric segment (`.1`, `.2`, ...). `logMaxFiles` (default 5) bounds how many segments are kept per process (session logs) or per agent (agent journals), evicting the oldest segments first, so disk usage stays hard-bounded regardless of write volume. Both knobs apply to session logs and agent journals alike.
+
+Asset homes (agents, flows, skills) layer the same way: `<project>/.forge`, then `~/.forge`, then the packaged defaults shipped with the extension. Discovery is per item and nearest wins, so per-project customizations beat shared global copies.
 
 Environment variables take precedence over config values: `FORGE_LOG_LEVEL`, `FORGE_LOG_DIR`, `FORGE_WORKTREE_SYMLINKS`, `FORGE_DEV`.
 

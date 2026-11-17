@@ -8,13 +8,16 @@ import { AgentSpecification, SkillResolver } from "../specifications";
  * (tools, excludedTools, toolRestrictions, thinkingLevel, systemPrompt)
  * are intentionally excluded — they are applied in activateSpecResolution().
  *
- * @param forgeDir — Optional forge directory scanned for skill paths when the
- *   spec enables selective skill loading. When omitted, the SkillResolver
- *   falls back to its own `.forge` default.
+ * @param forgeHomes - Optional forge homes scanned for skill paths when the
+ *   spec enables selective skill loading, ordered nearest-first (project
+ *   home, then global home). Each home's `skills/` subdirectory is scanned
+ *   after the per-user pi-level directories; earlier homes win name
+ *   collisions and the bundled defaults fill any gap. When omitted, the
+ *   SkillResolver falls back to its own `.forge` default home.
  */
 export function buildPiCliArguments(
   specification: AgentSpecification,
-  forgeDir?: string,
+  forgeHomes?: readonly string[],
 ): string[] {
   const args: string[] = [];
 
@@ -47,7 +50,7 @@ export function buildPiCliArguments(
     const skillPaths = SkillResolver.resolveSkillPaths(
       specification.skills,
       specification.excludedSkills,
-      forgeDir,
+      forgeHomes,
     );
     args.push("--no-skills");
     for (const skillPath of skillPaths) {
