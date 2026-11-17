@@ -5,7 +5,7 @@ Autonomous software engineering platform for [pi](https://github.com/earendil-wo
 ## Install
 
 ```bash
-pi install npm:@misiekhardcore/feature-forge
+pi install pnpm:@misiekhardcore/feature-forge
 ```
 
 ## Initialize a project

@@ -478,7 +478,7 @@ ephemeral: true
           read: ["src/**", "packages/**", "*.md", "*.json"],
           grep: ["src/**", "packages/**"],
           ls: ["src/**", "packages/**", "."],
-          bash: ["git *", "npm *"],
+          bash: ["git *", "pnpm *"],
           write: ["src/**"],
           edit: ["src/**"],
           find: ["src/**"],

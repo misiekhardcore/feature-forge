@@ -128,9 +128,9 @@ describe("AgentSpecification", () => {
     });
 
     it("treats entries with a colon as partial restrictions", () => {
-      const parsed = AgentSpecification.parseExcludedTools(["bash:rm *", "bash:npm *"]);
+      const parsed = AgentSpecification.parseExcludedTools(["bash:rm *", "bash:pnpm *"]);
       expect(parsed.fullExclusions.size).toBe(0);
-      expect(parsed.partialRestrictions).toEqual({ bash: ["rm *", "npm *"] });
+      expect(parsed.partialRestrictions).toEqual({ bash: ["rm *", "pnpm *"] });
     });
 
     it("handles a mix of full exclusions and partial restrictions", () => {

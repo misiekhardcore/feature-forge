@@ -183,7 +183,7 @@ describe("activateToolRestrictions", () => {
       const pi = makeMockPiWithHandlers();
       activateToolRestrictions(
         pi,
-        { bash: ["cd *", "gh *", "git *", "cat *", "grep *", "echo *", "npm *"] },
+        { bash: ["cd *", "gh *", "git *", "cat *", "grep *", "echo *", "pnpm *"] },
         PROJECT_ROOT,
       );
 

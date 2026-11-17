@@ -5,7 +5,7 @@
  * the override propagates through the full execution path:
  * flow loader → RoutineExecutor → AgentStepExecutor → createDynamic → spawnGuest.
  *
- * Run via: `npm run test:e2e`
+ * Run via: `pnpm run test:e2e`
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

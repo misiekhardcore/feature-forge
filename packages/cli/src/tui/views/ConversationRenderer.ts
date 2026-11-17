@@ -158,7 +158,7 @@ export class ConversationRenderer {
               resolvedArgs = {};
             }
           } else if (toolCall.arguments) {
-            resolvedArgs = toolCall.arguments as Record<string, unknown>;
+            resolvedArgs = toolCall.arguments;
           }
 
           const toolDefinition = this.toolRegistry.get(toolCall.name);

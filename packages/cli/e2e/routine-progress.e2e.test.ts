@@ -5,7 +5,7 @@
  * git repo with mock agents. Verifies that the event bus → DisplayProjection →
  * ProgressRenderer → TuiRoutineWidget pipeline produces correct output.
  *
- * Run via: `npm run test:e2e`
+ * Run via: `pnpm run test:e2e`
  */
 
 import { execSync } from "node:child_process";

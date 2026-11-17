@@ -56,7 +56,7 @@ describe("activateSpecResolution", () => {
       activateSpecResolution(pi);
 
       process.env.FORGE_SPEC = makeSpecJSON({
-        toolRestrictions: { read: [], grep: [], ls: [], bash: ["git *", "npm *"] },
+        toolRestrictions: { read: [], grep: [], ls: [], bash: ["git *", "pnpm *"] },
         systemPrompt: "Test agent with restricted bash",
       });
 
@@ -72,7 +72,7 @@ describe("activateSpecResolution", () => {
 
       // Allowed commands pass through
       expect(toolCallHandler!(makeBashToolCallEvent("git status"))).toBeUndefined();
-      expect(toolCallHandler!(makeBashToolCallEvent("npm test"))).toBeUndefined();
+      expect(toolCallHandler!(makeBashToolCallEvent("pnpm test"))).toBeUndefined();
 
       // Disallowed commands are blocked
       expect(toolCallHandler!(makeBashToolCallEvent("rm -rf /"))).toEqual({

@@ -29,7 +29,4 @@ export type AgentViewerEntryStatus = "started" | "running" | "done" | "error" | 
  * - `status: "cancelled"` → {@link CancelledAgentEntry}
  */
 export type AgentViewerEntry =
-  | RunningAgentEntry
-  | CompletedAgentEntry
-  | ErroredAgentEntry
-  | CancelledAgentEntry;
+  RunningAgentEntry | CompletedAgentEntry | ErroredAgentEntry | CancelledAgentEntry;

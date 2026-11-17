@@ -28,7 +28,7 @@ touches those paths, validate in a real pi session.
 
 - `pi` on PATH with an authenticated model provider (the headless run is a
   real LLM session).
-- A buildable checkout: `npm run build` must work (tsup bundles
+- A buildable checkout: `pnpm run build` must work (tsup bundles
   `packages/cli/dist/index.js`).
 - `node` >= 20.
 
@@ -36,7 +36,7 @@ touches those paths, validate in a real pi session.
 
 ```bash
 # Build the current checkout and test it live
-npm run build
+pnpm run build
 node .forge/skills/forge-livetest/test-worktree-registry-live.mjs
 
 # Test a specific branch (builds it in a temp worktree first)

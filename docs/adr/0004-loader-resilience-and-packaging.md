@@ -39,7 +39,7 @@ non-zero when failures exist.
 
 ### E.2 — Build-time asset copy + dist-relative resolution
 
-A new `npm run build` script was added:
+A new `pnpm run build` script was added:
 
 ```json
 "build": "tsc && npx tsx scripts/copy-assets.ts"

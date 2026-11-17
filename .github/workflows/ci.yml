@@ -11,50 +11,54 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.4.0
-      - uses: actions/setup-node@v4.4.0
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@v2.0.2
         with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci
-      - run: npm run flow:generate-schema
+          runtime: node@24
+          cache: true
+      - run: pnpm ci
+      - run: pnpm run flow:generate-schema
       - run: git diff --exit-code -- packages/core/src/flows/flow-schema.json
-      - run: npm run flow:validate-json
+      - run: pnpm run flow:validate-json
       # Smoke: runtime-imports @feature-forge/core (regression for the
       # type-only re-export crash that silently broke flow:validate under tsx).
-      - run: npm -w @feature-forge/core run flow:validate:all
+      - run: pnpm -w @feature-forge/core run flow:validate:all
 
   quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.4.0
-      - uses: actions/setup-node@v4.4.0
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@v2.0.2
         with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
+          runtime: node@24
+          cache: true
+      - run: pnpm ci
+      - run: pnpm run lint
+      - run: pnpm run typecheck
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.4.0
-      - uses: actions/setup-node@v4.4.0
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@v2.0.2
         with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          runtime: node@24
+          cache: true
+      - run: pnpm ci
+      - run: pnpm run build
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.4.0
-      - uses: actions/setup-node@v4.4.0
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@v2.0.2
         with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci
+          runtime: node@24
+          cache: true
+      - run: pnpm ci
       # Unit + integration tests only; the e2e suite runs in its own job below.
       - run: npx vitest run --project core --project cli
 
@@ -62,13 +66,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.4.0
-      - uses: actions/setup-node@v4.4.0
+      - name: Install pnpm and Node.js
+        uses: pnpm/setup@v2.0.2
         with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci
+          runtime: node@24
+          cache: true
+      - run: pnpm ci
       # The e2e suite spawns the real `pi` CLI (--mode rpc --no-session); the
       # binary ships in @earendil-works/pi-coding-agent. Pin the version that
       # matches the workspace deps so the harness and the SDK stay in sync.
-      - run: npm install -g @earendil-works/pi-coding-agent@0.84.3
-      - run: npm run test:e2e
+      - run: pnpm install -g @earendil-works/pi-coding-agent@0.84.3
+      - run: pnpm run test:e2e

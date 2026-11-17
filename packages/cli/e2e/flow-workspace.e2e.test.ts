@@ -5,7 +5,7 @@
  * via a flow's workspace step, verifying registration, then cleaning up via
  * a cleanup step — all against a real git repository.
  *
- * Run via: `npm run test:e2e`
+ * Run via: `pnpm run test:e2e`
  */
 
 import { execSync } from "node:child_process";

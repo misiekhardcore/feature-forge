@@ -56,7 +56,7 @@ export abstract class AgentSpecification {
    * allowed tool is a key in this map:
    * - Unrestricted tools have an empty array (`[]`).
    * - Restricted tools have an array of glob patterns (e.g.
-   *   `["git *", "npm *"]`).
+   *   `["git *", "pnpm *"]`).
    *
    * A tool call passes when its input value matches at least one
    * positive pattern and no negation (`!`) pattern. Tools listed in the

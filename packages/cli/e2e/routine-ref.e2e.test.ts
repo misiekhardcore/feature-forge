@@ -5,7 +5,7 @@
  * references a sub-flow via type: "routine" — steps are inlined,
  * name: "output_as".
  *
- * Run via: `npm run test:e2e`
+ * Run via: `pnpm run test:e2e`
  */
 
 import { rmSync } from "node:fs";

@@ -248,9 +248,9 @@ describe("SessionAgent", () => {
       // excludedTools partial pattern allows rm commands.
       expect(toolCallHandler({ toolName: "bash", input: { command: "rm -rf /" } })).toBeUndefined();
       // Commands matching neither pattern are blocked.
-      expect(toolCallHandler({ toolName: "bash", input: { command: "npm install" } })).toEqual({
+      expect(toolCallHandler({ toolName: "bash", input: { command: "pnpm install" } })).toEqual({
         block: true,
-        reason: expect.stringContaining("npm install"),
+        reason: expect.stringContaining("pnpm install"),
       });
     });
 

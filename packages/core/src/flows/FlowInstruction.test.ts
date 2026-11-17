@@ -645,7 +645,7 @@ describe("FlowDefinitionSchema", () => {
           {
             type: "shell" as const,
             id: "revalidate",
-            command: "npm run fix && npm run lint && npm run typecheck && npm run test",
+            command: "pnpm run fix && pnpm run lint && pnpm run typecheck && pnpm run test",
             cwd: "{{workspace}}",
             failFast: true,
           },

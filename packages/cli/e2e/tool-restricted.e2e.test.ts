@@ -50,7 +50,7 @@ describe("tool-restricted E2E", () => {
         systemPrompt: "Agent with all tools restricted",
         toolRestrictions: {
           ...toolsToRestrictions(ALL_RESTRICTABLE_TOOLS),
-          bash: ["git *", "npm *"],
+          bash: ["git *", "pnpm *"],
           write: ["src/**"],
           grep: ["src/**", "packages/**"],
           read: ["src/**", "packages/**", "*.md", "*.json"],
