@@ -91,7 +91,7 @@
     "flow:validate-json": "npx tsx scripts/validate-flow-json.ts"
   },
   "dependencies": {
-    "minimatch": "^10.2.5",
+    "minimatch": "^11.0.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
