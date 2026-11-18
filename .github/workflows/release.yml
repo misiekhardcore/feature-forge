@@ -20,15 +20,15 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@v3.2.0
         with:
-          runtime: node@24
+          runtime: node@26
           cache: true
 
       - run: pnpm ci
@@ -72,7 +72,7 @@ jobs:
           git push origin HEAD:main
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2.6.2
+        uses: softprops/action-gh-release@v3.0.4
         with:
           tag_name: v${{ steps.bump.outputs.new }}
           body_path: CHANGELOG.md
