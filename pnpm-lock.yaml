@@ -276,8 +276,8 @@ importers:
         specifier: '*'
         version: 1.5.2(@aws-sdk/credential-provider-node@3.972.97)(@smithy/signature-v4@5.7.5)(supports-color@7.2.0)(ws@8.23.0)
       minimatch:
-        specifier: ^10.2.5
-        version: 10.2.6
+        specifier: ^11.0.0
+        version: 11.0.8
       yaml:
         specifier: ^2.9.0
         version: 2.9.1
