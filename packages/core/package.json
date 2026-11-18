@@ -102,9 +102,9 @@
   },
   "devDependencies": {
     "@feature-forge/eslint-config": "workspace:*",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "typebox": "^1.4.7",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "typebox": "1.4.7",
     "vitest": "5.1.0"
   }
 }
