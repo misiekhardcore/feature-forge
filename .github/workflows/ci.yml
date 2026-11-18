@@ -10,11 +10,11 @@ jobs:
   schema:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@v3.2.0
         with:
-          runtime: node@24
+          runtime: node@26
           cache: true
       - run: pnpm ci
       - run: pnpm run flow:generate-schema
@@ -27,11 +27,11 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@v3.2.0
         with:
-          runtime: node@24
+          runtime: node@26
           cache: true
       - run: pnpm ci
       - run: pnpm run lint
@@ -40,11 +40,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@v3.2.0
         with:
-          runtime: node@24
+          runtime: node@26
           cache: true
       - run: pnpm ci
       - run: pnpm run build
@@ -52,11 +52,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@v3.2.0
         with:
-          runtime: node@24
+          runtime: node@26
           cache: true
       - run: pnpm ci
       # Unit + integration tests only; the e2e suite runs in its own job below.
@@ -65,11 +65,11 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
       - name: Install pnpm and Node.js
-        uses: pnpm/setup@v2.0.2
+        uses: pnpm/setup@v3.2.0
         with:
-          runtime: node@24
+          runtime: node@26
           cache: true
       - run: pnpm ci
       # The e2e suite spawns the real `pi` CLI (--mode rpc --no-session); the
