@@ -44,9 +44,11 @@ export enum WorkspaceProviderKind {
 /**
  * Additional directories to search for flows and agent specs.
  *
- * Paths are relative to the project root (where the config file lives).
- * Built-in directories are always searched first; additional directories
- * are searched second, in the order given.
+ * Paths are relative to the project cwd. These extras are the STRONGEST
+ * asset layer: they are threaded ahead of the fixed homes and packaged
+ * defaults (ADR 0028 D4, order `defaults < global < project < extras`),
+ * searched in the order given, and the nearest layer that declares an
+ * item claims it.
  */
 export const SpecDirectoriesSchema = Type.Object({
   /** Relative paths to directories containing flow packages. */
@@ -225,15 +227,6 @@ export const ForgeConfigSchema = Type.Object({
 
   /** Development-mode configuration. */
   dev: Type.Readonly(Type.Optional(DevConfigSchema)),
-
-  /**
-   * Root directory for forge assets (agents, flows, skills, config).
-   *
-   * Relative paths are resolved against the project root.
-   * Accepts `~/.forge` for a global (cross-project) forge directory.
-   * Defaults to `".forge"`.
-   */
-  forgeDir: Type.Readonly(Type.Optional(Type.String())),
 });
 
 // ── Derived TypeScript types ───────────────────────────────────────
@@ -287,5 +280,4 @@ export type ForgeConfig = Omit<
   readonly models: Readonly<Record<string, AgentModelConfig>>;
   readonly defaultModel: string | undefined;
   readonly piCli: string | undefined;
-  readonly forgeDir: string | undefined;
 };

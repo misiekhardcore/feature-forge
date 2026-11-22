@@ -27,11 +27,15 @@ export interface PiSubprocessAgentFactoryOptions {
    */
   defaultTimeoutMs?: number;
   /**
-   * Forge directory scanned for skill paths when a spec enables selective
-   * skill loading. When omitted, the SkillResolver falls back to its own
-   * `.forge` default.
+   * Forge homes whose `skills/` subdirectories are scanned for skill paths
+   * when a spec enables selective skill loading, ordered nearest-first
+   * (project home, then global home) so nearer homes win name collisions.
+   * The SkillResolver scans the per-user pi-level skill directories ahead
+   * of the homes and falls back to the bundled default skills after them.
+   * When omitted, the SkillResolver falls back to its own `.forge`
+   * default home.
    */
-  forgeDir?: string;
+  forgeHomes?: readonly string[];
 }
 
 /**
@@ -97,7 +101,7 @@ export class PiSubprocessAgentFactory extends AgentFactory {
 
     const args = [
       ...(this.options.args ?? []),
-      ...buildPiCliArguments(effectiveSpec, this.agentDefaults.forgeDir),
+      ...buildPiCliArguments(effectiveSpec, this.agentDefaults.forgeHomes),
     ];
 
     return new RpcClient({

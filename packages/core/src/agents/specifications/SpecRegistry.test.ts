@@ -173,4 +173,55 @@ describe("SpecRegistry", () => {
       });
     expect(() => registry.register("dup", factory)).toThrow("Spec already registered: dup");
   });
+
+  it("registerIfAbsent registers the factory when the name is absent", () => {
+    const registry = new SpecRegistry();
+
+    const result = registry.registerIfAbsent(
+      "build",
+      () =>
+        new DynamicAgentSpecification({
+          id: "build",
+          role: "build",
+          systemPrompt: "# Build Agent",
+          toolRestrictions: { read: [] },
+          ephemeral: true,
+        }),
+    );
+
+    expect(result).toBe(true);
+    expect(registry.specNames()).toContain("build");
+    expect(registry.create("build").role).toBe("build");
+  });
+
+  it("registerIfAbsent returns false and keeps the existing factory when the name is present", () => {
+    const registry = new SpecRegistry();
+    registry.register(
+      "build",
+      () =>
+        new DynamicAgentSpecification({
+          id: "build",
+          role: "build",
+          systemPrompt: "First factory prompt",
+          toolRestrictions: { read: [] },
+          ephemeral: true,
+        }),
+    );
+
+    const result = registry.registerIfAbsent(
+      "build",
+      () =>
+        new DynamicAgentSpecification({
+          id: "build",
+          role: "build",
+          systemPrompt: "Second factory prompt",
+          toolRestrictions: { read: [] },
+          ephemeral: true,
+        }),
+    );
+
+    expect(result).toBe(false);
+    // The existing factory wins - the second factory must not replace it.
+    expect(registry.create("build").systemPrompt).toBe("First factory prompt");
+  });
 });
