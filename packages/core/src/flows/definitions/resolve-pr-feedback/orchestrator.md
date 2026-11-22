@@ -190,10 +190,10 @@ thread and resolves it only for `fixed`, `fixed-differently`, and
 # Reply on a review thread (threadId comes from the comment). The reply is
 # passed via a temp file + --field body=@file — never inline: apostrophes in
 # the reply would break the shell command.
-cat > /tmp/ff-reply-$$.md << 'FFEOF'
+cat > /var/tmp/ff-reply-$$.md << 'FFEOF'
 <reply>
 FFEOF
-gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $id, body: $body }) { comment { id } } }' -F id=<threadId> -F body=@/tmp/ff-reply-$$.md; status=$?; rm -f /tmp/ff-reply-$$.md; exit $status
+gh api graphql -f query='mutation($id: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $id, body: $body }) { comment { id } } }' -F id=<threadId> -F body=@/var/tmp/ff-reply-$$.md; status=$?; rm -f /var/tmp/ff-reply-$$.md; exit $status
 
 # Resolve a review thread (only for fixed/fixed-differently/not-addressing).
 # The verdict word is quoted so it cannot act as a shell pattern/injection.
@@ -204,10 +204,10 @@ case "<verdict>" in
 esac
 
 # Reply to an issue comment — same temp-file pattern
-cat > /tmp/ff-reply-$$.md << 'FFEOF'
+cat > /var/tmp/ff-reply-$$.md << 'FFEOF'
 <reply>
 FFEOF
-gh api repos/<owner>/<repo>/issues/<pr>/comments -F body=@/tmp/ff-reply-$$.md; status=$?; rm -f /tmp/ff-reply-$$.md; exit $status
+gh api repos/<owner>/<repo>/issues/<pr>/comments -F body=@/var/tmp/ff-reply-$$.md; status=$?; rm -f /var/tmp/ff-reply-$$.md; exit $status
 
 # React 👍 to a comment (GraphQL node id works for both sources)
 gh api graphql -f query='mutation($id: ID!, $c: ReactionContent!) { addReaction(input: { subjectId: $id, content: $c }) { reaction { id } } }' -F id=<commentId> -F c=THUMBS_UP

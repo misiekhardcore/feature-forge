@@ -214,7 +214,7 @@ describe("ShellStepExecutor", () => {
         type: "shell",
         id: "pr",
         command:
-          'cat > /tmp/ff-pr-body-$$.md << \'FFEOF\'\n{{body}}\nFFEOF\ngh pr create --title "{{title}}" --body-file /tmp/ff-pr-body-$$.md --base "{{base}}"; rm -f /tmp/ff-pr-body-$$.md',
+          'cat > /var/tmp/ff-pr-body-$$.md << \'FFEOF\'\n{{body}}\nFFEOF\ngh pr create --title "{{title}}" --body-file /var/tmp/ff-pr-body-$$.md --base "{{base}}"; rm -f /var/tmp/ff-pr-body-$$.md',
         cwd: wsDir,
       };
       const context = new FlowContext({
@@ -239,7 +239,7 @@ describe("ShellStepExecutor", () => {
       expect(resolvedCmd).toContain("`cmd`");
       expect(resolvedCmd).toContain("${VAR}");
       // Must clean up temp file
-      expect(resolvedCmd).toContain("rm -f /tmp/ff-pr-body-$$.md");
+      expect(resolvedCmd).toContain("rm -f /var/tmp/ff-pr-body-$$.md");
     });
 
     describe("cwd validation", () => {
